@@ -11,6 +11,7 @@ use stalwart_mta_hook_types::{
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower_http::cors::CorsLayer;
+use tracing::{debug, error, info, instrument, warn};
 
 mod module_bindings;
 use module_bindings::*;
@@ -31,27 +32,28 @@ impl MtaHookHandler {
             .layer(CorsLayer::permissive())
             .with_state(self)
     }
+    #[instrument(skip(self), fields(stage = ?request.context.stage))]
     async fn process_hook(&self, request: MtaHookRequest) -> Result<MtaHookResponse, String> {
-        println!(
-            "Processing MTA hook request for stage: {:?}",
-            request.context.stage
-        );
+        info!("Processing MTA hook request");
 
         // Convert the request to JSON and send to SpacetimeDB
-        let hook_data = serde_json::to_string(&request).map_err(|e| e.to_string())?;
+        let hook_data = serde_json::to_string(&request).map_err(|e| {
+            error!("Failed to serialize MTA hook request: {}", e);
+            e.to_string()
+        })?;
 
-        println!(
-            "Calling SpacetimeDB reducer with data: {} bytes",
+        debug!(
+            "Calling SpacetimeDB reducer with data size: {} bytes",
             hook_data.len()
         );
 
         // Call SpacetimeDB reducer and wait for completion
         match self.db_connection.reducers.handle_mta_hook(hook_data) {
             Ok(_) => {
-                println!("Successfully called SpacetimeDB reducer");
+                debug!("Successfully called SpacetimeDB reducer");
             }
             Err(e) => {
-                eprintln!("Failed to call SpacetimeDB reducer: {}", e);
+                error!("Failed to call SpacetimeDB reducer: {}", e);
                 return Err(format!("Failed to call SpacetimeDB reducer: {}", e));
             }
         }
@@ -59,33 +61,45 @@ impl MtaHookHandler {
         // Small delay to ensure reducer execution
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        match request.context.stage {
+        let response = match request.context.stage {
             Stage::Connect => self.handle_connect(&request).await,
             Stage::Ehlo => self.handle_ehlo(&request).await,
             Stage::Mail => self.handle_mail(&request).await,
             Stage::Rcpt => self.handle_rcpt(&request).await,
             Stage::Data => self.handle_data(&request).await,
             Stage::Auth => Ok(MtaHookResponse::accept()),
+        };
+
+        match &response {
+            Ok(resp) => info!(
+                "MTA hook processed successfully with action: {:?}",
+                resp.action
+            ),
+            Err(e) => error!("MTA hook processing failed: {}", e),
         }
+
+        response
     }
 
+    #[instrument(skip(self, request), fields(client_ip = "[REDACTED]"))]
     async fn handle_connect(&self, request: &MtaHookRequest) -> Result<MtaHookResponse, String> {
         let _client_ip = &request.context.client.ip;
-        println!("Connect stage - checking IP: [REDACTED]");
+        debug!("Processing connect stage");
 
         // For now, just echo - accept all connections
         // In a real implementation, you would check against blocked IPs in SpacetimeDB
-        println!("Connection accepted from IP: [REDACTED]");
+        info!("Connection accepted from client");
         Ok(MtaHookResponse::accept())
     }
 
+    #[instrument(skip(self, request), fields(helo = "[REDACTED]"))]
     async fn handle_ehlo(&self, request: &MtaHookRequest) -> Result<MtaHookResponse, String> {
         if let Some(helo) = &request.context.client.helo {
-            println!("EHLO stage - HELO: [REDACTED]");
+            debug!("Processing EHLO stage");
 
             // Basic validation - just check it's not empty
             if helo.trim().is_empty() {
-                println!("Invalid EHLO/HELO: empty");
+                warn!("Invalid EHLO/HELO: empty argument");
                 return Ok(MtaHookResponse::reject(
                     501,
                     "Invalid EHLO/HELO argument".to_string(),
@@ -93,18 +107,19 @@ impl MtaHookHandler {
             }
         }
 
-        println!("EHLO accepted");
+        info!("EHLO accepted");
         Ok(MtaHookResponse::accept())
     }
 
+    #[instrument(skip(self, request), fields(sender = "[REDACTED]"))]
     async fn handle_mail(&self, request: &MtaHookRequest) -> Result<MtaHookResponse, String> {
         if let Some(envelope) = &request.envelope {
             let from_address = &envelope.from.address;
-            println!("MAIL FROM stage - sender: [REDACTED]");
+            debug!("Processing MAIL FROM stage");
 
             // Basic email validation
             if !from_address.contains('@') || from_address.trim().is_empty() {
-                println!("Invalid sender address");
+                warn!("Invalid sender address format");
                 return Ok(MtaHookResponse::reject(
                     550,
                     "Invalid sender address".to_string(),
@@ -112,20 +127,26 @@ impl MtaHookHandler {
             }
         }
 
-        println!("MAIL FROM accepted");
+        info!("MAIL FROM accepted");
         Ok(MtaHookResponse::accept())
     }
 
+    #[instrument(skip(self, request), fields(recipients = "[REDACTED]"))]
     async fn handle_rcpt(&self, request: &MtaHookRequest) -> Result<MtaHookResponse, String> {
         if let Some(envelope) = &request.envelope {
-            for recipient in &envelope.to {
+            debug!(
+                "Processing RCPT TO stage for {} recipients",
+                envelope.to.len()
+            );
+
+            for (index, recipient) in envelope.to.iter().enumerate() {
                 let to_address = &recipient.address;
-                println!("RCPT TO stage - recipient: [REDACTED]");
+                debug!("Validating recipient {}/{}", index + 1, envelope.to.len());
 
                 // For now, accept all recipients that look like email addresses
                 // In a real implementation, you would check against SpacetimeDB categories
                 if !to_address.contains('@') || to_address.trim().is_empty() {
-                    println!("Invalid recipient address");
+                    warn!("Invalid recipient address format at index {}", index);
                     return Ok(MtaHookResponse::reject(
                         550,
                         "Invalid recipient address".to_string(),
@@ -134,61 +155,76 @@ impl MtaHookHandler {
             }
         }
 
-        println!("RCPT TO accepted");
+        info!("RCPT TO accepted");
         Ok(MtaHookResponse::accept())
     }
 
+    #[instrument(skip(self, request), fields(message_size = request.message.as_ref().map(|m| m.size)))]
     async fn handle_data(&self, request: &MtaHookRequest) -> Result<MtaHookResponse, String> {
         if let (Some(envelope), Some(message)) = (&request.envelope, &request.message) {
             let _from_address = &envelope.from.address;
-            let to_addresses: Vec<String> = envelope.to.iter().map(|r| r.address.clone()).collect();
+            let to_count = envelope.to.len();
 
-            println!(
-                "DATA stage - from: [REDACTED], to: {:?}, size: {}",
-                to_addresses.len(),
-                message.size
+            info!(
+                "Processing DATA stage: {} bytes, {} recipients",
+                message.size, to_count
             );
 
             // Extract subject from headers
-            let _subject = extract_subject_from_headers(&message.headers);
-            println!("Subject: [REDACTED]");
+            let subject = extract_subject_from_headers(&message.headers);
+            debug!(
+                "Message subject extracted (length: {} chars)",
+                subject.len()
+            );
+
+            // Log message processing details
+            debug!(
+                message_size = message.size,
+                recipient_count = to_count,
+                header_count = message.headers.len(),
+                "Message metadata"
+            );
 
             // For now, just accept with processing headers
+            let processing_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .to_string();
+
             let modifications = vec![
                 Modification::add_header(
                     "X-Processed-By".to_string(),
                     "SpacetimeDB Kommunikationszentrum".to_string(),
                 ),
-                Modification::add_header(
-                    "X-Processing-Time".to_string(),
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
-                        .to_string(),
-                ),
+                Modification::add_header("X-Processing-Time".to_string(), processing_time.clone()),
             ];
 
-            println!("DATA processing completed - accepting with headers");
+            info!(
+                processing_time = processing_time,
+                modifications_count = modifications.len(),
+                "DATA processing completed - accepting with headers"
+            );
             return Ok(MtaHookResponse::accept().with_modifications(modifications));
         }
 
-        println!("DATA accepted (no envelope/message)");
+        warn!("DATA accepted without envelope/message data");
         Ok(MtaHookResponse::accept())
     }
 
     // Test function to verify SpacetimeDB integration
+    #[instrument(skip(self))]
     pub async fn test_spacetime_connection(&self) -> Result<(), String> {
-        println!("🧪 Testing SpacetimeDB connection...");
+        info!("Testing SpacetimeDB connection");
 
         // Test calling a simple reducer
         match self.db_connection.reducers.say_hello() {
             Ok(_) => {
-                println!("✅ SpacetimeDB test successful");
+                info!("SpacetimeDB connection test successful");
                 Ok(())
             }
             Err(e) => {
-                eprintln!("❌ SpacetimeDB test failed: {}", e);
+                error!("SpacetimeDB connection test failed: {}", e);
                 Err(format!("SpacetimeDB test failed: {}", e))
             }
         }
@@ -204,25 +240,23 @@ fn extract_subject_from_headers(headers: &[(String, String)]) -> String {
     "No subject".to_string()
 }
 
+#[instrument(skip(handler, request), fields(stage = ?request.context.stage))]
 async fn mta_hook_endpoint(
     State(handler): State<Arc<MtaHookHandler>>,
     Json(request): Json<MtaHookRequest>,
 ) -> Result<ResponseJson<MtaHookResponse>, StatusCode> {
-    println!(
-        "MTA Hook Request Received - Stage: {:?}",
-        request.context.stage
-    );
+    info!("MTA Hook request received");
 
     match handler.process_hook(request).await {
         Ok(response) => {
-            println!(
-                "MTA hook processed successfully - Action: {:?}",
+            debug!(
+                "MTA hook endpoint responding with action: {:?}",
                 response.action
             );
             Ok(ResponseJson(response))
         }
         Err(e) => {
-            eprintln!("Error processing MTA hook: {}", e);
+            error!("Error processing MTA hook in endpoint: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -230,54 +264,69 @@ async fn mta_hook_endpoint(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    println!("Starting MTA Hook server...");
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "mta_hook=debug,info".into()),
+        )
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .init();
+
+    info!("Starting MTA Hook server");
 
     // Connect to SpacetimeDB
+    info!("Establishing SpacetimeDB connection");
     let db_connection = Arc::new(
         DbConnection::builder()
             .with_uri("http://localhost:3000")
             .with_module_name("kommunikationszentrum")
             .on_connect(|_, _, _| {
-                println!("✅ Connected to SpacetimeDB successfully");
+                info!("Connected to SpacetimeDB successfully");
             })
             .on_disconnect(|_, _| {
-                println!("❌ Disconnected from SpacetimeDB");
+                warn!("Disconnected from SpacetimeDB");
             })
             .build()
             .map_err(|e| {
-                eprintln!("❌ Failed to connect to SpacetimeDB: {}", e);
+                error!("Failed to connect to SpacetimeDB: {}", e);
                 std::io::Error::new(std::io::ErrorKind::ConnectionRefused, e)
             })?,
     );
 
-    println!("🔗 Successfully established SpacetimeDB connection");
+    info!("SpacetimeDB connection established successfully");
 
     // Run the connection loop in the background
     let connection_clone = db_connection.clone();
     tokio::spawn(async move {
-        println!("🔄 Starting SpacetimeDB connection loop...");
+        info!("Starting SpacetimeDB connection loop");
         if let Err(e) = connection_clone.run_async().await {
-            eprintln!("❌ SpacetimeDB connection loop error: {}", e);
+            error!("SpacetimeDB connection loop error: {}", e);
         }
     });
 
     // Give the connection some time to establish
+    debug!("Waiting for connection to stabilize");
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
     let mta_handler = Arc::new(MtaHookHandler::new(db_connection));
 
     // Test the SpacetimeDB connection
     if let Err(e) = mta_handler.test_spacetime_connection().await {
-        eprintln!("⚠️  Warning: SpacetimeDB test failed: {}", e);
-        eprintln!("   Continuing anyway, but data storage may not work");
+        warn!("SpacetimeDB test failed: {}", e);
+        warn!("Continuing anyway, but data storage may not work");
     }
 
     let app = mta_handler.clone().router();
 
+    info!("Binding TCP listener on 0.0.0.0:3002");
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3002").await?;
 
-    println!("🚀 MTA Hook server listening on http://localhost:3002/mta-hook");
-    println!("📧 Ready to receive Stalwart MTA hooks");
+    info!("MTA Hook server listening on http://localhost:3002/mta-hook");
+    info!("Ready to receive Stalwart MTA hooks");
 
     axum::serve(listener, app).await?;
 
