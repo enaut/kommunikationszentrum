@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use spacetimedb::{ReducerContext, Table, Timestamp};
+use spacetimedb::{ReducerContext, Table};
 
 #[spacetimedb::table(name = person)]
 pub struct Person {
@@ -28,7 +28,7 @@ pub struct MtaConnectionLog {
     pub client_ip: String,
     pub stage: String,
     pub action: String,
-    pub timestamp: Timestamp,
+    pub timestamp: i64,
     pub details: String,
 }
 
@@ -171,7 +171,7 @@ pub fn handle_mta_hook(ctx: &ReducerContext, hook_data: String) {
     }
 }
 
-fn handle_connect_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: u64) {
+fn handle_connect_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
     let client_ip = data["context"]["client"]["ip"]
         .as_str()
         .unwrap_or("unknown");
@@ -205,7 +205,7 @@ fn handle_connect_stage(ctx: &ReducerContext, data: &serde_json::Value, timestam
     });
 }
 
-fn handle_ehlo_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: u64) {
+fn handle_ehlo_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
     let client_ip = "[REDACTED]";
     let helo = data["context"]["client"]["helo"]
         .as_str()
@@ -232,7 +232,7 @@ fn handle_ehlo_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
     });
 }
 
-fn handle_mail_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: u64) {
+fn handle_mail_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
     let from_address = data["envelope"]["from"]["address"]
         .as_str()
         .unwrap_or("unknown");
@@ -257,7 +257,7 @@ fn handle_mail_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
     });
 }
 
-fn handle_rcpt_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: u64) {
+fn handle_rcpt_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
     if let Some(to_array) = data["envelope"]["to"].as_array() {
         for recipient in to_array {
             let to_address = recipient["address"].as_str().unwrap_or("unknown");
@@ -290,7 +290,7 @@ fn handle_rcpt_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
     }
 }
 
-fn handle_data_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: u64) {
+fn handle_data_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
     let from_address = data["envelope"]["from"]["address"]
         .as_str()
         .unwrap_or("unknown");
@@ -361,7 +361,7 @@ fn handle_data_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
     });
 }
 
-fn handle_auth_stage(ctx: &ReducerContext, _data: &serde_json::Value, timestamp: u64) {
+fn handle_auth_stage(ctx: &ReducerContext, _data: &serde_json::Value, timestamp: i64) {
     log::info!("AUTH stage - accepting");
 
     ctx.db.mta_connection_log().insert(MtaConnectionLog {
@@ -411,7 +411,7 @@ pub fn add_message_category(
 
 #[spacetimedb::reducer]
 pub fn add_subscription(ctx: &ReducerContext, subscriber_email: String, category_id: u64) {
-    let timestamp = (ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000) as u64; // Convert to seconds
+    let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000; // Convert to seconds as i64
 
     ctx.db.subscriptions().insert(Subscription {
         id: 0,
@@ -425,7 +425,7 @@ pub fn add_subscription(ctx: &ReducerContext, subscriber_email: String, category
 
 #[spacetimedb::reducer]
 pub fn block_ip(ctx: &ReducerContext, ip: String, reason: String) {
-    let timestamp = (ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000) as u64; // Convert to seconds
+    let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000; // Convert to seconds as i64
 
     ctx.db.blocked_ips().insert(BlockedIp {
         ip,

@@ -13,7 +13,7 @@ pub struct MtaConnectionLog {
     pub client_ip: String,
     pub stage: String,
     pub action: String,
-    pub timestamp: u64,
+    pub timestamp: i64,
     pub details: String,
 }
 

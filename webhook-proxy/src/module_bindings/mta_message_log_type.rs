@@ -16,7 +16,7 @@ pub struct MtaMessageLog {
     pub message_size: u64,
     pub stage: String,
     pub action: String,
-    pub timestamp: u64,
+    pub timestamp: i64,
     pub queue_id: Option<String>,
 }
 

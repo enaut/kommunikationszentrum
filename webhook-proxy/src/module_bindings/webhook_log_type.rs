@@ -11,7 +11,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 pub struct WebhookLog {
     pub id: u64,
     pub payload: String,
-    pub processed_at: u64,
+    pub processed_at: i64,
 }
 
 impl __sdk::InModule for WebhookLog {

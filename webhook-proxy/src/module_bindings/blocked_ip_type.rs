@@ -11,7 +11,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 pub struct BlockedIp {
     pub ip: String,
     pub reason: String,
-    pub blocked_at: u64,
+    pub blocked_at: i64,
     pub active: bool,
 }
 

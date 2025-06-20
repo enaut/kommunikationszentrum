@@ -12,7 +12,7 @@ pub struct Subscription {
     pub id: u64,
     pub subscriber_email: String,
     pub category_id: u64,
-    pub subscribed_at: u64,
+    pub subscribed_at: i64,
     pub active: bool,
 }
 
