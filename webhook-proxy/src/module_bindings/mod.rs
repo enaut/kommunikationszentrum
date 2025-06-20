@@ -9,15 +9,12 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 pub mod account_table;
 pub mod account_type;
 pub mod add_message_category_reducer;
-pub mod add_reducer;
 pub mod add_subscription_reducer;
 pub mod block_ip_reducer;
 pub mod blocked_ip_type;
 pub mod blocked_ips_table;
 pub mod get_mta_logs_reducer;
-pub mod get_webhook_logs_reducer;
 pub mod handle_mta_hook_reducer;
-pub mod handle_webhook_reducer;
 pub mod identity_connected_reducer;
 pub mod identity_disconnected_reducer;
 pub mod message_categories_table;
@@ -26,19 +23,15 @@ pub mod mta_connection_log_table;
 pub mod mta_connection_log_type;
 pub mod mta_message_log_table;
 pub mod mta_message_log_type;
-pub mod say_hello_reducer;
 pub mod subscription_type;
 pub mod subscriptions_table;
 pub mod sync_user_reducer;
-pub mod webhook_log_table;
-pub mod webhook_log_type;
 
 pub use account_table::*;
 pub use account_type::Account;
 pub use add_message_category_reducer::{
     add_message_category, set_flags_for_add_message_category, AddMessageCategoryCallbackId,
 };
-pub use add_reducer::{add, set_flags_for_add, AddCallbackId};
 pub use add_subscription_reducer::{
     add_subscription, set_flags_for_add_subscription, AddSubscriptionCallbackId,
 };
@@ -46,14 +39,8 @@ pub use block_ip_reducer::{block_ip, set_flags_for_block_ip, BlockIpCallbackId};
 pub use blocked_ip_type::BlockedIp;
 pub use blocked_ips_table::*;
 pub use get_mta_logs_reducer::{get_mta_logs, set_flags_for_get_mta_logs, GetMtaLogsCallbackId};
-pub use get_webhook_logs_reducer::{
-    get_webhook_logs, set_flags_for_get_webhook_logs, GetWebhookLogsCallbackId,
-};
 pub use handle_mta_hook_reducer::{
     handle_mta_hook, set_flags_for_handle_mta_hook, HandleMtaHookCallbackId,
-};
-pub use handle_webhook_reducer::{
-    handle_webhook, set_flags_for_handle_webhook, HandleWebhookCallbackId,
 };
 pub use identity_connected_reducer::{
     identity_connected, set_flags_for_identity_connected, IdentityConnectedCallbackId,
@@ -67,12 +54,9 @@ pub use mta_connection_log_table::*;
 pub use mta_connection_log_type::MtaConnectionLog;
 pub use mta_message_log_table::*;
 pub use mta_message_log_type::MtaMessageLog;
-pub use say_hello_reducer::{say_hello, set_flags_for_say_hello, SayHelloCallbackId};
 pub use subscription_type::Subscription;
 pub use subscriptions_table::*;
 pub use sync_user_reducer::{set_flags_for_sync_user, sync_user, SyncUserCallbackId};
-pub use webhook_log_table::*;
-pub use webhook_log_type::WebhookLog;
 
 #[derive(Clone, PartialEq, Debug)]
 
@@ -82,10 +66,6 @@ pub use webhook_log_type::WebhookLog;
 /// to indicate which reducer caused the event.
 
 pub enum Reducer {
-    Add {
-        mitgliedsnr: u64,
-        name: String,
-    },
     AddMessageCategory {
         name: String,
         email_address: String,
@@ -101,16 +81,11 @@ pub enum Reducer {
         reason: String,
     },
     GetMtaLogs,
-    GetWebhookLogs,
     HandleMtaHook {
         hook_data: String,
     },
-    HandleWebhook {
-        json_payload: String,
-    },
     IdentityConnected,
     IdentityDisconnected,
-    SayHello,
     SyncUser {
         action: String,
         user_data: String,
@@ -124,17 +99,13 @@ impl __sdk::InModule for Reducer {
 impl __sdk::Reducer for Reducer {
     fn reducer_name(&self) -> &'static str {
         match self {
-            Reducer::Add { .. } => "add",
             Reducer::AddMessageCategory { .. } => "add_message_category",
             Reducer::AddSubscription { .. } => "add_subscription",
             Reducer::BlockIp { .. } => "block_ip",
             Reducer::GetMtaLogs => "get_mta_logs",
-            Reducer::GetWebhookLogs => "get_webhook_logs",
             Reducer::HandleMtaHook { .. } => "handle_mta_hook",
-            Reducer::HandleWebhook { .. } => "handle_webhook",
             Reducer::IdentityConnected => "identity_connected",
             Reducer::IdentityDisconnected => "identity_disconnected",
-            Reducer::SayHello => "say_hello",
             Reducer::SyncUser { .. } => "sync_user",
         }
     }
@@ -143,9 +114,6 @@ impl TryFrom<__ws::ReducerCallInfo<__ws::BsatnFormat>> for Reducer {
     type Error = __sdk::Error;
     fn try_from(value: __ws::ReducerCallInfo<__ws::BsatnFormat>) -> __sdk::Result<Self> {
         match &value.reducer_name[..] {
-            "add" => {
-                Ok(__sdk::parse_reducer_args::<add_reducer::AddArgs>("add", &value.args)?.into())
-            }
             "add_message_category" => Ok(__sdk::parse_reducer_args::<
                 add_message_category_reducer::AddMessageCategoryArgs,
             >("add_message_category", &value.args)?
@@ -166,17 +134,9 @@ impl TryFrom<__ws::ReducerCallInfo<__ws::BsatnFormat>> for Reducer {
                 )?
                 .into(),
             ),
-            "get_webhook_logs" => Ok(__sdk::parse_reducer_args::<
-                get_webhook_logs_reducer::GetWebhookLogsArgs,
-            >("get_webhook_logs", &value.args)?
-            .into()),
             "handle_mta_hook" => Ok(__sdk::parse_reducer_args::<
                 handle_mta_hook_reducer::HandleMtaHookArgs,
             >("handle_mta_hook", &value.args)?
-            .into()),
-            "handle_webhook" => Ok(__sdk::parse_reducer_args::<
-                handle_webhook_reducer::HandleWebhookArgs,
-            >("handle_webhook", &value.args)?
             .into()),
             "identity_connected" => Ok(__sdk::parse_reducer_args::<
                 identity_connected_reducer::IdentityConnectedArgs,
@@ -186,13 +146,6 @@ impl TryFrom<__ws::ReducerCallInfo<__ws::BsatnFormat>> for Reducer {
                 identity_disconnected_reducer::IdentityDisconnectedArgs,
             >("identity_disconnected", &value.args)?
             .into()),
-            "say_hello" => Ok(
-                __sdk::parse_reducer_args::<say_hello_reducer::SayHelloArgs>(
-                    "say_hello",
-                    &value.args,
-                )?
-                .into(),
-            ),
             "sync_user" => Ok(
                 __sdk::parse_reducer_args::<sync_user_reducer::SyncUserArgs>(
                     "sync_user",
@@ -220,7 +173,6 @@ pub struct DbUpdate {
     mta_connection_log: __sdk::TableUpdate<MtaConnectionLog>,
     mta_message_log: __sdk::TableUpdate<MtaMessageLog>,
     subscriptions: __sdk::TableUpdate<Subscription>,
-    webhook_log: __sdk::TableUpdate<WebhookLog>,
 }
 
 impl TryFrom<__ws::DatabaseUpdate<__ws::BsatnFormat>> for DbUpdate {
@@ -247,9 +199,6 @@ impl TryFrom<__ws::DatabaseUpdate<__ws::BsatnFormat>> for DbUpdate {
                 "subscriptions" => db_update
                     .subscriptions
                     .append(subscriptions_table::parse_table_update(table_update)?),
-                "webhook_log" => db_update
-                    .webhook_log
-                    .append(webhook_log_table::parse_table_update(table_update)?),
 
                 unknown => {
                     return Err(__sdk::InternalError::unknown_name(
@@ -294,9 +243,6 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.subscriptions = cache
             .apply_diff_to_table::<Subscription>("subscriptions", &self.subscriptions)
             .with_updates_by_pk(|row| &row.id);
-        diff.webhook_log = cache
-            .apply_diff_to_table::<WebhookLog>("webhook_log", &self.webhook_log)
-            .with_updates_by_pk(|row| &row.id);
 
         diff
     }
@@ -312,7 +258,6 @@ pub struct AppliedDiff<'r> {
     mta_connection_log: __sdk::TableAppliedDiff<'r, MtaConnectionLog>,
     mta_message_log: __sdk::TableAppliedDiff<'r, MtaMessageLog>,
     subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
-    webhook_log: __sdk::TableAppliedDiff<'r, WebhookLog>,
 }
 
 impl __sdk::InModule for AppliedDiff<'_> {
@@ -347,7 +292,6 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.subscriptions,
             event,
         );
-        callbacks.invoke_table_row_callbacks::<WebhookLog>("webhook_log", &self.webhook_log, event);
     }
 }
 
@@ -929,6 +873,5 @@ impl __sdk::SpacetimeModule for RemoteModule {
         mta_connection_log_table::register_table(client_cache);
         mta_message_log_table::register_table(client_cache);
         subscriptions_table::register_table(client_cache);
-        webhook_log_table::register_table(client_cache);
     }
 }

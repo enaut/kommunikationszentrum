@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use spacetimedb::{ReducerContext, Table};
+use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
 #[spacetimedb::table(name = account)]
 pub struct Account {
@@ -9,22 +10,6 @@ pub struct Account {
     pub email: String,
     pub is_active: bool,
     pub last_synced: i64,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct WebhookPayload {
-    pub message: String,
-    pub sender: String,
-    pub timestamp: i64,
-}
-
-#[spacetimedb::table(name = webhook_log)]
-pub struct WebhookLog {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    pub payload: String,
-    pub processed_at: i64,
 }
 
 #[spacetimedb::table(name = mta_connection_log)]
@@ -117,59 +102,18 @@ pub fn identity_disconnected(_ctx: &ReducerContext) {
 }
 
 #[spacetimedb::reducer]
-pub fn handle_webhook(ctx: &ReducerContext, json_payload: String) -> Result<(), String> {
-    // Parse the JSON payload
-    match serde_json::from_str::<WebhookPayload>(&json_payload) {
-        Ok(payload) => {
-            log::info!(
-                "Received webhook: {} from {}",
-                payload.message,
-                payload.sender
-            );
-
-            // Store the webhook data
-            let log_entry = WebhookLog {
-                id: ctx.db.webhook_log().count(),
-                payload: json_payload,
-                processed_at: payload.timestamp,
-            };
-
-            ctx.db.webhook_log().insert(log_entry);
-
-            // Process the webhook data (example: add sender as person)
-            Ok(())
-        }
-        Err(e) => {
-            log::error!("Failed to parse webhook payload: {}", e);
-            return Err(e.to_string());
-        }
-    }
-}
-
-#[spacetimedb::reducer]
-pub fn get_webhook_logs(ctx: &ReducerContext) {
-    for log in ctx.db.webhook_log().iter() {
-        log::info!("Webhook log {}: {}", log.id, log.payload);
-    }
-}
-
-#[spacetimedb::reducer]
 pub fn handle_mta_hook(ctx: &ReducerContext, hook_data: String) {
-    match serde_json::from_str::<serde_json::Value>(&hook_data) {
-        Ok(data) => {
-            let stage = data["context"]["stage"].as_str().unwrap_or("unknown");
+    match serde_json::from_str::<MtaHookRequest>(&hook_data) {
+        Ok(request) => {
             let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000; // Convert to seconds as i64
 
-            match stage {
-                "connect" => handle_connect_stage(ctx, &data, timestamp),
-                "ehlo" => handle_ehlo_stage(ctx, &data, timestamp),
-                "mail" => handle_mail_stage(ctx, &data, timestamp),
-                "rcpt" => handle_rcpt_stage(ctx, &data, timestamp),
-                "data" => handle_data_stage(ctx, &data, timestamp),
-                "auth" => handle_auth_stage(ctx, &data, timestamp),
-                _ => {
-                    log::warn!("Unknown MTA hook stage: {}", stage);
-                }
+            match request.context.stage {
+                Stage::Connect => handle_connect_stage(ctx, &request, timestamp),
+                Stage::Ehlo => handle_ehlo_stage(ctx, &request, timestamp),
+                Stage::Mail => handle_mail_stage(ctx, &request, timestamp),
+                Stage::Rcpt => handle_rcpt_stage(ctx, &request, timestamp),
+                Stage::Data => handle_data_stage(ctx, &request, timestamp),
+                Stage::Auth => handle_auth_stage(ctx, &request, timestamp),
             }
         }
         Err(e) => {
@@ -178,16 +122,14 @@ pub fn handle_mta_hook(ctx: &ReducerContext, hook_data: String) {
     }
 }
 
-fn handle_connect_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
-    let client_ip = data["context"]["client"]["ip"]
-        .as_str()
-        .unwrap_or("unknown");
+fn handle_connect_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: i64) {
+    let client_ip = &request.context.client.ip;
 
     log::info!("Connect stage - IP: [REDACTED]");
 
     // Check if IP is blocked
     for blocked_ip in ctx.db.blocked_ips().iter() {
-        if blocked_ip.ip == client_ip && blocked_ip.active {
+        if blocked_ip.ip == client_ip.to_string() && blocked_ip.active {
             log::warn!("Blocked connection from IP");
 
             ctx.db.mta_connection_log().insert(MtaConnectionLog {
@@ -204,7 +146,7 @@ fn handle_connect_stage(ctx: &ReducerContext, data: &serde_json::Value, timestam
 
     ctx.db.mta_connection_log().insert(MtaConnectionLog {
         id: 0,
-        client_ip: "[REDACTED]".to_string(),
+        client_ip: client_ip.to_string(),
         stage: "connect".to_string(),
         action: "accept".to_string(),
         timestamp,
@@ -212,11 +154,9 @@ fn handle_connect_stage(ctx: &ReducerContext, data: &serde_json::Value, timestam
     });
 }
 
-fn handle_ehlo_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
+fn handle_ehlo_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: i64) {
     let client_ip = "[REDACTED]";
-    let helo = data["context"]["client"]["helo"]
-        .as_str()
-        .unwrap_or("unknown");
+    let helo = request.context.client.helo.as_deref().unwrap_or("unknown");
 
     log::info!("EHLO stage - HELO: [REDACTED]");
 
@@ -239,9 +179,11 @@ fn handle_ehlo_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
     });
 }
 
-fn handle_mail_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
-    let from_address = data["envelope"]["from"]["address"]
-        .as_str()
+fn handle_mail_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: i64) {
+    let from_address = request
+        .envelope
+        .as_ref()
+        .map(|env| env.from.address.as_str())
         .unwrap_or("unknown");
 
     log::info!("MAIL stage - From: [REDACTED]");
@@ -264,10 +206,10 @@ fn handle_mail_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
     });
 }
 
-fn handle_rcpt_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
-    if let Some(to_array) = data["envelope"]["to"].as_array() {
-        for recipient in to_array {
-            let to_address = recipient["address"].as_str().unwrap_or("unknown");
+fn handle_rcpt_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: i64) {
+    if let Some(envelope) = &request.envelope {
+        for recipient in &envelope.to {
+            let to_address = recipient.address.as_str();
             log::info!("RCPT stage - To: [REDACTED]");
 
             // Check if recipient corresponds to a valid category
@@ -297,12 +239,18 @@ fn handle_rcpt_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
     }
 }
 
-fn handle_data_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: i64) {
-    let from_address = data["envelope"]["from"]["address"]
-        .as_str()
+fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: i64) {
+    let from_address = request
+        .envelope
+        .as_ref()
+        .map(|env| env.from.address.as_str())
         .unwrap_or("unknown");
-    let message_size = data["message"]["size"].as_u64().unwrap_or(0);
-    let subject = extract_subject_from_headers(data);
+    let message_size = request
+        .message
+        .as_ref()
+        .map(|msg| msg.size as u64)
+        .unwrap_or(0);
+    let subject = extract_subject_from_request(request);
 
     log::info!(
         "DATA stage - From: [REDACTED], Size: {}, Subject: [REDACTED]",
@@ -312,9 +260,9 @@ fn handle_data_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
     let mut to_addresses = Vec::new();
     let mut valid_categories = Vec::new();
 
-    if let Some(to_array) = data["envelope"]["to"].as_array() {
-        for recipient in to_array {
-            let to_address = recipient["address"].as_str().unwrap_or("unknown");
+    if let Some(envelope) = &request.envelope {
+        for recipient in &envelope.to {
+            let to_address = recipient.address.as_str();
             to_addresses.push(to_address.to_string());
 
             // Find category for this recipient
@@ -362,13 +310,11 @@ fn handle_data_stage(ctx: &ReducerContext, data: &serde_json::Value, timestamp: 
         stage: "data".to_string(),
         action: action.to_string(),
         timestamp,
-        queue_id: data["context"]["queue"]["id"]
-            .as_str()
-            .map(|s| s.to_string()),
+        queue_id: request.context.queue.as_ref().map(|q| q.id.clone()),
     });
 }
 
-fn handle_auth_stage(ctx: &ReducerContext, _data: &serde_json::Value, timestamp: i64) {
+fn handle_auth_stage(ctx: &ReducerContext, _request: &MtaHookRequest, timestamp: i64) {
     log::info!("AUTH stage - accepting");
 
     ctx.db.mta_connection_log().insert(MtaConnectionLog {
@@ -381,17 +327,11 @@ fn handle_auth_stage(ctx: &ReducerContext, _data: &serde_json::Value, timestamp:
     });
 }
 
-fn extract_subject_from_headers(data: &serde_json::Value) -> String {
-    if let Some(headers) = data["message"]["headers"].as_array() {
-        for header in headers {
-            if let Some(header_array) = header.as_array() {
-                if header_array.len() >= 2 {
-                    let name = header_array[0].as_str().unwrap_or("");
-                    let value = header_array[1].as_str().unwrap_or("");
-                    if name.to_lowercase() == "subject" {
-                        return value.trim().to_string();
-                    }
-                }
+fn extract_subject_from_request(request: &MtaHookRequest) -> String {
+    if let Some(message) = &request.message {
+        for (name, value) in &message.headers {
+            if name.to_lowercase() == "subject" {
+                return value.trim().to_string();
             }
         }
     }
