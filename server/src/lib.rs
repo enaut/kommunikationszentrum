@@ -1,9 +1,14 @@
 use serde::{Deserialize, Serialize};
 use spacetimedb::{ReducerContext, Table};
 
-#[spacetimedb::table(name = person)]
-pub struct Person {
+#[spacetimedb::table(name = account)]
+pub struct Account {
+    #[primary_key]
+    pub id: u64, // mitgliedsnr from Django
     pub name: String,
+    pub email: String,
+    pub is_active: bool,
+    pub last_synced: i64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -15,6 +20,8 @@ pub struct WebhookPayload {
 
 #[spacetimedb::table(name = webhook_log)]
 pub struct WebhookLog {
+    #[primary_key]
+    #[auto_inc]
     pub id: u64,
     pub payload: String,
     pub processed_at: i64,
@@ -72,10 +79,26 @@ pub struct Subscription {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
+    pub subscriber_account_id: u64,
     pub subscriber_email: String,
     pub category_id: u64,
     pub subscribed_at: i64,
     pub active: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UserSyncPayload {
+    pub action: String, // "upsert" or "delete"
+    pub user: UserSyncData,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UserSyncData {
+    pub mitgliedsnr: u64,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub is_active: Option<bool>,
+    pub updated_at: Option<String>,
 }
 
 #[spacetimedb::reducer(init)]
@@ -94,20 +117,27 @@ pub fn identity_disconnected(_ctx: &ReducerContext) {
 }
 
 #[spacetimedb::reducer]
-pub fn add(ctx: &ReducerContext, name: String) {
-    ctx.db.person().insert(Person { name });
+pub fn add(ctx: &ReducerContext, mitgliedsnr: u64, name: String) {
+    let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000;
+    ctx.db.account().insert(Account {
+        id: mitgliedsnr,
+        name,
+        email: "".to_string(),
+        is_active: true,
+        last_synced: timestamp,
+    });
 }
 
 #[spacetimedb::reducer]
 pub fn say_hello(ctx: &ReducerContext) {
-    for person in ctx.db.person().iter() {
-        log::info!("Hello, {}!", person.name);
+    for account in ctx.db.account().iter() {
+        log::info!("Hello, {}!", account.name);
     }
     log::info!("Hello, World!");
 }
 
 #[spacetimedb::reducer]
-pub fn handle_webhook(ctx: &ReducerContext, json_payload: String) {
+pub fn handle_webhook(ctx: &ReducerContext, json_payload: String) -> Result<(), String> {
     // Parse the JSON payload
     match serde_json::from_str::<WebhookPayload>(&json_payload) {
         Ok(payload) => {
@@ -127,14 +157,11 @@ pub fn handle_webhook(ctx: &ReducerContext, json_payload: String) {
             ctx.db.webhook_log().insert(log_entry);
 
             // Process the webhook data (example: add sender as person)
-            if !payload.sender.is_empty() {
-                ctx.db.person().insert(Person {
-                    name: payload.sender,
-                });
-            }
+            Ok(())
         }
         Err(e) => {
             log::error!("Failed to parse webhook payload: {}", e);
+            return Err(e.to_string());
         }
     }
 }
@@ -391,6 +418,58 @@ fn extract_subject_from_headers(data: &serde_json::Value) -> String {
     "No subject".to_string()
 }
 
+// User synchronization from Django
+#[spacetimedb::reducer]
+pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
+    let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000;
+
+    match serde_json::from_str::<UserSyncData>(&user_data) {
+        Ok(data) => {
+            match action.as_str() {
+                "upsert" => {
+                    // Check if account exists and delete it first
+                    let mut existing_found = false;
+                    for existing in ctx.db.account().iter() {
+                        if existing.id == data.mitgliedsnr {
+                            ctx.db.account().delete(existing);
+                            existing_found = true;
+                            break;
+                        }
+                    }
+
+                    // Insert new/updated account
+                    let account = Account {
+                        id: data.mitgliedsnr,
+                        name: data.name.unwrap_or_default(),
+                        email: data.email.unwrap_or_default(),
+                        is_active: data.is_active.unwrap_or(true),
+                        last_synced: timestamp,
+                    };
+
+                    ctx.db.account().insert(account);
+                    log::info!("Synced user: {} ({})", data.mitgliedsnr, action);
+                }
+                "delete" => {
+                    // Find and delete the account
+                    for existing in ctx.db.account().iter() {
+                        if existing.id == data.mitgliedsnr {
+                            ctx.db.account().delete(existing);
+                            log::info!("Deleted user: {} ({})", data.mitgliedsnr, action);
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    log::warn!("Unknown sync action: {}", action);
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to parse user sync data: {}", e);
+        }
+    }
+}
+
 // Management reducers for categories and subscriptions
 #[spacetimedb::reducer]
 pub fn add_message_category(
@@ -410,11 +489,17 @@ pub fn add_message_category(
 }
 
 #[spacetimedb::reducer]
-pub fn add_subscription(ctx: &ReducerContext, subscriber_email: String, category_id: u64) {
+pub fn add_subscription(
+    ctx: &ReducerContext,
+    subscriber_account_id: u64,
+    subscriber_email: String,
+    category_id: u64,
+) {
     let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000; // Convert to seconds as i64
 
     ctx.db.subscriptions().insert(Subscription {
         id: 0,
+        subscriber_account_id,
         subscriber_email,
         category_id,
         subscribed_at: timestamp,

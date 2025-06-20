@@ -29,6 +29,7 @@ impl MtaHookHandler {
     pub fn router(self: Arc<Self>) -> Router {
         Router::new()
             .route("/mta-hook", post(mta_hook_endpoint))
+            .route("/user-sync", post(user_sync_endpoint))
             .layer(CorsLayer::permissive())
             .with_state(self)
     }
@@ -255,6 +256,44 @@ async fn mta_hook_endpoint(
     }
 }
 
+#[instrument(skip(handler, payload), fields(action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr))]
+async fn user_sync_endpoint(
+    State(handler): State<Arc<MtaHookHandler>>,
+    Json(payload): Json<UserSyncPayload>,
+) -> Result<ResponseJson<serde_json::Value>, (StatusCode, String)> {
+    info!("Received user sync request");
+
+    let user_data = serde_json::to_string(&payload.user).map_err(|e| {
+        error!(error = %e, "Failed to serialize user data");
+        (StatusCode::BAD_REQUEST, e.to_string())
+    })?;
+
+    debug!(action = %payload.action, data_size = user_data.len(), "Calling sync_user reducer");
+
+    // Call SpacetimeDB sync_user reducer
+    match handler
+        .db_connection
+        .reducers
+        .sync_user(payload.action.clone(), user_data)
+    {
+        Ok(_) => {
+            info!(action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr, "User sync successful");
+            Ok(ResponseJson(serde_json::json!({
+                "status": "success",
+                "action": payload.action,
+                "mitgliedsnr": payload.user.mitgliedsnr
+            })))
+        }
+        Err(e) => {
+            error!(error = %e, action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr, "User sync failed");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to sync user: {}", e),
+            ))
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
@@ -322,4 +361,21 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize)]
+pub struct UserSyncPayload {
+    pub action: String, // "upsert" or "delete"
+    pub user: UserSyncData,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct UserSyncData {
+    pub mitgliedsnr: u64,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub is_active: Option<bool>,
+    pub updated_at: Option<String>,
 }

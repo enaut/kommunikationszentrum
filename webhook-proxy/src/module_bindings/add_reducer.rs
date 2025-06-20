@@ -9,12 +9,16 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub(super) struct AddArgs {
+    pub mitgliedsnr: u64,
     pub name: String,
 }
 
 impl From<AddArgs> for super::Reducer {
     fn from(args: AddArgs) -> Self {
-        Self::Add { name: args.name }
+        Self::Add {
+            mitgliedsnr: args.mitgliedsnr,
+            name: args.name,
+        }
     }
 }
 
@@ -34,7 +38,7 @@ pub trait add {
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and its status can be observed by listening for [`Self::on_add`] callbacks.
-    fn add(&self, name: String) -> __sdk::Result<()>;
+    fn add(&self, mitgliedsnr: u64, name: String) -> __sdk::Result<()>;
     /// Register a callback to run whenever we are notified of an invocation of the reducer `add`.
     ///
     /// Callbacks should inspect the [`__sdk::ReducerEvent`] contained in the [`super::ReducerEventContext`]
@@ -44,7 +48,7 @@ pub trait add {
     /// to cancel the callback.
     fn on_add(
         &self,
-        callback: impl FnMut(&super::ReducerEventContext, &String) + Send + 'static,
+        callback: impl FnMut(&super::ReducerEventContext, &u64, &String) + Send + 'static,
     ) -> AddCallbackId;
     /// Cancel a callback previously registered by [`Self::on_add`],
     /// causing it not to run in the future.
@@ -52,12 +56,12 @@ pub trait add {
 }
 
 impl add for super::RemoteReducers {
-    fn add(&self, name: String) -> __sdk::Result<()> {
-        self.imp.call_reducer("add", AddArgs { name })
+    fn add(&self, mitgliedsnr: u64, name: String) -> __sdk::Result<()> {
+        self.imp.call_reducer("add", AddArgs { mitgliedsnr, name })
     }
     fn on_add(
         &self,
-        mut callback: impl FnMut(&super::ReducerEventContext, &String) + Send + 'static,
+        mut callback: impl FnMut(&super::ReducerEventContext, &u64, &String) + Send + 'static,
     ) -> AddCallbackId {
         AddCallbackId(self.imp.on_reducer(
             "add",
@@ -65,7 +69,7 @@ impl add for super::RemoteReducers {
                 let super::ReducerEventContext {
                     event:
                         __sdk::ReducerEvent {
-                            reducer: super::Reducer::Add { name },
+                            reducer: super::Reducer::Add { mitgliedsnr, name },
                             ..
                         },
                     ..
@@ -73,7 +77,7 @@ impl add for super::RemoteReducers {
                 else {
                     unreachable!()
                 };
-                callback(ctx, name)
+                callback(ctx, mitgliedsnr, name)
             }),
         ))
     }

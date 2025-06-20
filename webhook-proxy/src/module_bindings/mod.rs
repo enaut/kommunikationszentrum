@@ -6,6 +6,8 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+pub mod account_table;
+pub mod account_type;
 pub mod add_message_category_reducer;
 pub mod add_reducer;
 pub mod add_subscription_reducer;
@@ -24,14 +26,15 @@ pub mod mta_connection_log_table;
 pub mod mta_connection_log_type;
 pub mod mta_message_log_table;
 pub mod mta_message_log_type;
-pub mod person_table;
-pub mod person_type;
 pub mod say_hello_reducer;
 pub mod subscription_type;
 pub mod subscriptions_table;
+pub mod sync_user_reducer;
 pub mod webhook_log_table;
 pub mod webhook_log_type;
 
+pub use account_table::*;
+pub use account_type::Account;
 pub use add_message_category_reducer::{
     add_message_category, set_flags_for_add_message_category, AddMessageCategoryCallbackId,
 };
@@ -64,11 +67,10 @@ pub use mta_connection_log_table::*;
 pub use mta_connection_log_type::MtaConnectionLog;
 pub use mta_message_log_table::*;
 pub use mta_message_log_type::MtaMessageLog;
-pub use person_table::*;
-pub use person_type::Person;
 pub use say_hello_reducer::{say_hello, set_flags_for_say_hello, SayHelloCallbackId};
 pub use subscription_type::Subscription;
 pub use subscriptions_table::*;
+pub use sync_user_reducer::{set_flags_for_sync_user, sync_user, SyncUserCallbackId};
 pub use webhook_log_table::*;
 pub use webhook_log_type::WebhookLog;
 
@@ -81,6 +83,7 @@ pub use webhook_log_type::WebhookLog;
 
 pub enum Reducer {
     Add {
+        mitgliedsnr: u64,
         name: String,
     },
     AddMessageCategory {
@@ -89,6 +92,7 @@ pub enum Reducer {
         description: String,
     },
     AddSubscription {
+        subscriber_account_id: u64,
         subscriber_email: String,
         category_id: u64,
     },
@@ -107,6 +111,10 @@ pub enum Reducer {
     IdentityConnected,
     IdentityDisconnected,
     SayHello,
+    SyncUser {
+        action: String,
+        user_data: String,
+    },
 }
 
 impl __sdk::InModule for Reducer {
@@ -127,6 +135,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::IdentityConnected => "identity_connected",
             Reducer::IdentityDisconnected => "identity_disconnected",
             Reducer::SayHello => "say_hello",
+            Reducer::SyncUser { .. } => "sync_user",
         }
     }
 }
@@ -184,6 +193,13 @@ impl TryFrom<__ws::ReducerCallInfo<__ws::BsatnFormat>> for Reducer {
                 )?
                 .into(),
             ),
+            "sync_user" => Ok(
+                __sdk::parse_reducer_args::<sync_user_reducer::SyncUserArgs>(
+                    "sync_user",
+                    &value.args,
+                )?
+                .into(),
+            ),
             unknown => {
                 Err(
                     __sdk::InternalError::unknown_name("reducer", unknown, "ReducerCallInfo")
@@ -198,11 +214,11 @@ impl TryFrom<__ws::ReducerCallInfo<__ws::BsatnFormat>> for Reducer {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub struct DbUpdate {
+    account: __sdk::TableUpdate<Account>,
     blocked_ips: __sdk::TableUpdate<BlockedIp>,
     message_categories: __sdk::TableUpdate<MessageCategory>,
     mta_connection_log: __sdk::TableUpdate<MtaConnectionLog>,
     mta_message_log: __sdk::TableUpdate<MtaMessageLog>,
-    person: __sdk::TableUpdate<Person>,
     subscriptions: __sdk::TableUpdate<Subscription>,
     webhook_log: __sdk::TableUpdate<WebhookLog>,
 }
@@ -213,6 +229,9 @@ impl TryFrom<__ws::DatabaseUpdate<__ws::BsatnFormat>> for DbUpdate {
         let mut db_update = DbUpdate::default();
         for table_update in raw.tables {
             match &table_update.table_name[..] {
+                "account" => db_update
+                    .account
+                    .append(account_table::parse_table_update(table_update)?),
                 "blocked_ips" => db_update
                     .blocked_ips
                     .append(blocked_ips_table::parse_table_update(table_update)?),
@@ -225,9 +244,6 @@ impl TryFrom<__ws::DatabaseUpdate<__ws::BsatnFormat>> for DbUpdate {
                 "mta_message_log" => db_update
                     .mta_message_log
                     .append(mta_message_log_table::parse_table_update(table_update)?),
-                "person" => db_update
-                    .person
-                    .append(person_table::parse_table_update(table_update)?),
                 "subscriptions" => db_update
                     .subscriptions
                     .append(subscriptions_table::parse_table_update(table_update)?),
@@ -260,6 +276,9 @@ impl __sdk::DbUpdate for DbUpdate {
     ) -> AppliedDiff<'_> {
         let mut diff = AppliedDiff::default();
 
+        diff.account = cache
+            .apply_diff_to_table::<Account>("account", &self.account)
+            .with_updates_by_pk(|row| &row.id);
         diff.blocked_ips = cache
             .apply_diff_to_table::<BlockedIp>("blocked_ips", &self.blocked_ips)
             .with_updates_by_pk(|row| &row.ip);
@@ -272,12 +291,12 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.mta_message_log = cache
             .apply_diff_to_table::<MtaMessageLog>("mta_message_log", &self.mta_message_log)
             .with_updates_by_pk(|row| &row.id);
-        diff.person = cache.apply_diff_to_table::<Person>("person", &self.person);
         diff.subscriptions = cache
             .apply_diff_to_table::<Subscription>("subscriptions", &self.subscriptions)
             .with_updates_by_pk(|row| &row.id);
-        diff.webhook_log =
-            cache.apply_diff_to_table::<WebhookLog>("webhook_log", &self.webhook_log);
+        diff.webhook_log = cache
+            .apply_diff_to_table::<WebhookLog>("webhook_log", &self.webhook_log)
+            .with_updates_by_pk(|row| &row.id);
 
         diff
     }
@@ -287,11 +306,11 @@ impl __sdk::DbUpdate for DbUpdate {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub struct AppliedDiff<'r> {
+    account: __sdk::TableAppliedDiff<'r, Account>,
     blocked_ips: __sdk::TableAppliedDiff<'r, BlockedIp>,
     message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
     mta_connection_log: __sdk::TableAppliedDiff<'r, MtaConnectionLog>,
     mta_message_log: __sdk::TableAppliedDiff<'r, MtaMessageLog>,
-    person: __sdk::TableAppliedDiff<'r, Person>,
     subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     webhook_log: __sdk::TableAppliedDiff<'r, WebhookLog>,
 }
@@ -306,6 +325,7 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         event: &EventContext,
         callbacks: &mut __sdk::DbCallbacks<RemoteModule>,
     ) {
+        callbacks.invoke_table_row_callbacks::<Account>("account", &self.account, event);
         callbacks.invoke_table_row_callbacks::<BlockedIp>("blocked_ips", &self.blocked_ips, event);
         callbacks.invoke_table_row_callbacks::<MessageCategory>(
             "message_categories",
@@ -322,7 +342,6 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.mta_message_log,
             event,
         );
-        callbacks.invoke_table_row_callbacks::<Person>("person", &self.person, event);
         callbacks.invoke_table_row_callbacks::<Subscription>(
             "subscriptions",
             &self.subscriptions,
@@ -904,11 +923,11 @@ impl __sdk::SpacetimeModule for RemoteModule {
     type SubscriptionHandle = SubscriptionHandle;
 
     fn register_tables(client_cache: &mut __sdk::ClientCache<Self>) {
+        account_table::register_table(client_cache);
         blocked_ips_table::register_table(client_cache);
         message_categories_table::register_table(client_cache);
         mta_connection_log_table::register_table(client_cache);
         mta_message_log_table::register_table(client_cache);
-        person_table::register_table(client_cache);
         subscriptions_table::register_table(client_cache);
         webhook_log_table::register_table(client_cache);
     }

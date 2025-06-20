@@ -9,6 +9,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub(super) struct AddSubscriptionArgs {
+    pub subscriber_account_id: u64,
     pub subscriber_email: String,
     pub category_id: u64,
 }
@@ -16,6 +17,7 @@ pub(super) struct AddSubscriptionArgs {
 impl From<AddSubscriptionArgs> for super::Reducer {
     fn from(args: AddSubscriptionArgs) -> Self {
         Self::AddSubscription {
+            subscriber_account_id: args.subscriber_account_id,
             subscriber_email: args.subscriber_email,
             category_id: args.category_id,
         }
@@ -38,7 +40,12 @@ pub trait add_subscription {
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and its status can be observed by listening for [`Self::on_add_subscription`] callbacks.
-    fn add_subscription(&self, subscriber_email: String, category_id: u64) -> __sdk::Result<()>;
+    fn add_subscription(
+        &self,
+        subscriber_account_id: u64,
+        subscriber_email: String,
+        category_id: u64,
+    ) -> __sdk::Result<()>;
     /// Register a callback to run whenever we are notified of an invocation of the reducer `add_subscription`.
     ///
     /// Callbacks should inspect the [`__sdk::ReducerEvent`] contained in the [`super::ReducerEventContext`]
@@ -48,7 +55,7 @@ pub trait add_subscription {
     /// to cancel the callback.
     fn on_add_subscription(
         &self,
-        callback: impl FnMut(&super::ReducerEventContext, &String, &u64) + Send + 'static,
+        callback: impl FnMut(&super::ReducerEventContext, &u64, &String, &u64) + Send + 'static,
     ) -> AddSubscriptionCallbackId;
     /// Cancel a callback previously registered by [`Self::on_add_subscription`],
     /// causing it not to run in the future.
@@ -56,10 +63,16 @@ pub trait add_subscription {
 }
 
 impl add_subscription for super::RemoteReducers {
-    fn add_subscription(&self, subscriber_email: String, category_id: u64) -> __sdk::Result<()> {
+    fn add_subscription(
+        &self,
+        subscriber_account_id: u64,
+        subscriber_email: String,
+        category_id: u64,
+    ) -> __sdk::Result<()> {
         self.imp.call_reducer(
             "add_subscription",
             AddSubscriptionArgs {
+                subscriber_account_id,
                 subscriber_email,
                 category_id,
             },
@@ -67,7 +80,7 @@ impl add_subscription for super::RemoteReducers {
     }
     fn on_add_subscription(
         &self,
-        mut callback: impl FnMut(&super::ReducerEventContext, &String, &u64) + Send + 'static,
+        mut callback: impl FnMut(&super::ReducerEventContext, &u64, &String, &u64) + Send + 'static,
     ) -> AddSubscriptionCallbackId {
         AddSubscriptionCallbackId(self.imp.on_reducer(
             "add_subscription",
@@ -77,6 +90,7 @@ impl add_subscription for super::RemoteReducers {
                         __sdk::ReducerEvent {
                             reducer:
                                 super::Reducer::AddSubscription {
+                                    subscriber_account_id,
                                     subscriber_email,
                                     category_id,
                                 },
@@ -87,7 +101,7 @@ impl add_subscription for super::RemoteReducers {
                 else {
                     unreachable!()
                 };
-                callback(ctx, subscriber_email, category_id)
+                callback(ctx, subscriber_account_id, subscriber_email, category_id)
             }),
         ))
     }

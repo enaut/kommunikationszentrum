@@ -8,10 +8,14 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
-pub struct Person {
+pub struct Account {
+    pub id: u64,
     pub name: String,
+    pub email: String,
+    pub is_active: bool,
+    pub last_synced: i64,
 }
 
-impl __sdk::InModule for Person {
+impl __sdk::InModule for Account {
     type Module = super::RemoteModule;
 }
