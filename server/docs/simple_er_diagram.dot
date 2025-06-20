@@ -1,0 +1,30 @@
+digraph simple_er_diagram {
+    // Graph settings
+    rankdir=TB;
+    node [shape=box, fontname="Arial", fontsize=12, style=filled];
+    edge [fontname="Arial", fontsize=10];
+    
+    // Entity colors
+    person [fillcolor=lightblue, label="Person\n(General)"];
+    webhook_log [fillcolor=lightblue, label="WebhookLog\n(General)"];
+    
+    mta_connection_log [fillcolor=lightcoral, label="MtaConnectionLog\n(MTA Processing)"];
+    mta_message_log [fillcolor=lightcoral, label="MtaMessageLog\n(MTA Processing)"];
+    blocked_ips [fillcolor=lightcoral, label="BlockedIp\n(MTA Security)"];
+    
+    message_categories [fillcolor=lightgreen, label="MessageCategory\n(Category System)"];
+    subscriptions [fillcolor=lightgreen, label="Subscription\n(Category System)"];
+    
+    // Primary relationship
+    subscriptions -> message_categories [label="belongs to", style=bold, color=blue];
+    
+    // Functional relationships (dotted)
+    mta_connection_log -> blocked_ips [label="checks", style=dashed, color=red];
+    mta_message_log -> message_categories [label="validates", style=dashed, color=green];
+    mta_message_log -> subscriptions [label="verifies", style=dashed, color=green];
+    
+    // Grouping
+    {rank=same; person; webhook_log;}
+    {rank=same; mta_connection_log; mta_message_log; blocked_ips;}
+    {rank=same; message_categories; subscriptions;}
+}

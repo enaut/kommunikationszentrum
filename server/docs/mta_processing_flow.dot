@@ -1,0 +1,90 @@
+digraph mta_processing_flow {
+    // Graph settings
+    rankdir=LR;
+    node [shape=box, fontname="Arial", fontsize=10];
+    edge [fontname="Arial", fontsize=8];
+    
+    // MTA Hook Stages
+    subgraph cluster_stages {
+        label="MTA Hook Stages";
+        style=filled;
+        fillcolor=lightcyan;
+        
+        connect [label="CONNECT\nStage"];
+        ehlo [label="EHLO\nStage"];
+        mail [label="MAIL FROM\nStage"];
+        rcpt [label="RCPT TO\nStage"];
+        data [label="DATA\nStage"];
+        auth [label="AUTH\nStage"];
+        
+        connect -> ehlo -> mail -> rcpt -> data -> auth;
+    }
+    
+    // Database Tables
+    subgraph cluster_tables {
+        label="Database Tables";
+        style=filled;
+        fillcolor=lightblue;
+        
+        blocked_ips_tbl [label="blocked_ips\n• ip (PK)\n• reason\n• blocked_at\n• active", shape=record];
+        mta_conn_log_tbl [label="mta_connection_log\n• id (PK)\n• client_ip\n• stage\n• action\n• timestamp\n• details", shape=record];
+        mta_msg_log_tbl [label="mta_message_log\n• id (PK)\n• from_address\n• to_addresses\n• subject\n• message_size\n• stage\n• action\n• timestamp\n• queue_id", shape=record];
+        categories_tbl [label="message_categories\n• id (PK)\n• name\n• email_address\n• description\n• active", shape=record];
+        subscriptions_tbl [label="subscriptions\n• id (PK)\n• subscriber_email\n• category_id (FK)\n• subscribed_at\n• active", shape=record];
+    }
+    
+    // Processing Logic
+    subgraph cluster_logic {
+        label="Processing Logic";
+        style=filled;
+        fillcolor=lightyellow;
+        
+        ip_check [label="IP Blocking\nCheck"];
+        email_validation [label="Email Format\nValidation"];
+        category_check [label="Category\nValidation"];
+        subscription_check [label="Subscription\nCheck"];
+        final_decision [label="Final\nDecision", shape=diamond];
+    }
+    
+    // Flow connections
+    connect -> ip_check;
+    ip_check -> blocked_ips_tbl [label="lookup", color="red"];
+    ip_check -> mta_conn_log_tbl [label="log result", color="blue"];
+    
+    ehlo -> email_validation;
+    email_validation -> mta_conn_log_tbl [label="log result", color="blue"];
+    
+    mail -> email_validation;
+    
+    rcpt -> category_check;
+    category_check -> categories_tbl [label="lookup", color="green"];
+    category_check -> mta_conn_log_tbl [label="log result", color="blue"];
+    
+    data -> subscription_check;
+    subscription_check -> subscriptions_tbl [label="lookup", color="green"];
+    subscription_check -> categories_tbl [label="lookup", color="green"];
+    subscription_check -> final_decision;
+    final_decision -> mta_msg_log_tbl [label="log message", color="blue"];
+    
+    auth -> mta_conn_log_tbl [label="log auth", color="blue"];
+    
+    // Foreign key relationship
+    subscriptions_tbl -> categories_tbl [label="category_id → id", color="purple", style=bold];
+    
+    // Actions
+    subgraph cluster_actions {
+        label="Possible Actions";
+        style=filled;
+        fillcolor=lightpink;
+        
+        accept [label="ACCEPT", shape=ellipse, color="green"];
+        reject [label="REJECT", shape=ellipse, color="red"];
+        quarantine [label="QUARANTINE", shape=ellipse, color="orange"];
+    }
+    
+    final_decision -> accept [label="subscribed", color="green"];
+    final_decision -> quarantine [label="not subscribed", color="orange"];
+    ip_check -> reject [label="blocked IP", color="red"];
+    email_validation -> reject [label="invalid format", color="red"];
+    category_check -> reject [label="invalid category", color="red"];
+}

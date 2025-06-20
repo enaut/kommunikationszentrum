@@ -1,0 +1,68 @@
+digraph kommunikationszentrum_db {
+    // Graph settings
+    rankdir=TB;
+    node [shape=record, fontname="Arial", fontsize=10];
+    edge [fontname="Arial", fontsize=8];
+    
+    // Table definitions
+    person [label="{Person|id: u64 (PK)\lname: String\l}"];
+    
+    webhook_log [label="{WebhookLog|id: u64 (PK, auto_inc)\lpayload: String\lprocessed_at: i64\l}"];
+    
+    mta_connection_log [label="{MtaConnectionLog|id: u64 (PK, auto_inc)\lclient_ip: String\lstage: String\laction: String\ltimestamp: i64\ldetails: String\l}"];
+    
+    mta_message_log [label="{MtaMessageLog|id: u64 (PK, auto_inc)\lfrom_address: String\lto_addresses: String (JSON)\lsubject: String\lmessage_size: u64\lstage: String\laction: String\ltimestamp: i64\lqueue_id: Option\<String\>\l}"];
+    
+    blocked_ips [label="{BlockedIp|ip: String (PK)\lreason: String\lblocked_at: i64\lactive: bool\l}"];
+    
+    message_categories [label="{MessageCategory|id: u64 (PK, auto_inc)\lname: String\lemail_address: String\ldescription: String\lactive: bool\l}"];
+    
+    subscriptions [label="{Subscription|id: u64 (PK, auto_inc)\lsubscriber_account_id: u64\lsubscriber_email: String\lcategory_id: u64 (FK)\lsubscribed_at: i64\lactive: bool\l}"];
+    
+    // Relationships
+    subscriptions -> message_categories [label="category_id → id", color="blue"];
+    
+    // Data flow relationships (dotted lines)
+    mta_connection_log -> blocked_ips [style=dotted, label="checks IP blocking", color="red"];
+    mta_message_log -> message_categories [style=dotted, label="validates recipients", color="green"];
+    mta_message_log -> subscriptions [style=dotted, label="checks subscriptions", color="green"];
+    
+    // Grouping by functionality
+    subgraph cluster_mta {
+        label="MTA Processing";
+        style=filled;
+        fillcolor=lightblue;
+        mta_connection_log;
+        mta_message_log;
+        blocked_ips;
+    }
+    
+    subgraph cluster_categories {
+        label="Category Management";
+        style=filled;
+        fillcolor=lightgreen;
+        message_categories;
+        subscriptions;
+    }
+    
+    subgraph cluster_general {
+        label="General";
+        style=filled;
+        fillcolor=lightyellow;
+        person;
+        webhook_log;
+    }
+    
+    // Legend
+    subgraph cluster_legend {
+        label="Legend";
+        style=filled;
+        fillcolor=white;
+        
+        legend_fk [label="Foreign Key", shape=plaintext];
+        legend_check [label="Validation Check", shape=plaintext];
+        
+        legend_fk -> legend_check [label="FK Relationship", color="blue"];
+        legend_check -> legend_fk [label="Data Validation", style=dotted, color="green"];
+    }
+}
