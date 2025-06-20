@@ -117,26 +117,6 @@ pub fn identity_disconnected(_ctx: &ReducerContext) {
 }
 
 #[spacetimedb::reducer]
-pub fn add(ctx: &ReducerContext, mitgliedsnr: u64, name: String) {
-    let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000;
-    ctx.db.account().insert(Account {
-        id: mitgliedsnr,
-        name,
-        email: "".to_string(),
-        is_active: true,
-        last_synced: timestamp,
-    });
-}
-
-#[spacetimedb::reducer]
-pub fn say_hello(ctx: &ReducerContext) {
-    for account in ctx.db.account().iter() {
-        log::info!("Hello, {}!", account.name);
-    }
-    log::info!("Hello, World!");
-}
-
-#[spacetimedb::reducer]
 pub fn handle_webhook(ctx: &ReducerContext, json_payload: String) -> Result<(), String> {
     // Parse the JSON payload
     match serde_json::from_str::<WebhookPayload>(&json_payload) {
