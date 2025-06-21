@@ -208,24 +208,6 @@ impl MtaHookHandler {
         warn!("DATA accepted without envelope/message data");
         Ok(MtaHookResponse::accept())
     }
-
-    // Test function to verify SpacetimeDB integration
-    #[instrument(skip(self))]
-    pub async fn test_spacetime_connection(&self) -> Result<(), String> {
-        info!("Testing SpacetimeDB connection");
-
-        // Test calling a simple reducer
-        match self.db_connection.reducers.say_hello() {
-            Ok(_) => {
-                info!("SpacetimeDB connection test successful");
-                Ok(())
-            }
-            Err(e) => {
-                error!(error = %e, "SpacetimeDB connection test failed");
-                Err(format!("SpacetimeDB test failed: {}", e))
-            }
-        }
-    }
 }
 
 fn extract_subject_from_headers(headers: &[(String, String)]) -> String {
@@ -341,11 +323,6 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let mta_handler = Arc::new(MtaHookHandler::new(db_connection));
-
-    // Test the SpacetimeDB connection
-    if let Err(e) = mta_handler.test_spacetime_connection().await {
-        error!(error = %e, "SpacetimeDB test failed");
-    }
 
     let app = mta_handler.clone().router();
 

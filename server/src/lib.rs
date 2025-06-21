@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use spacetimedb::{ReducerContext, Table};
 use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
-#[spacetimedb::table(name = account)]
+#[spacetimedb::table(name = account, public)]
 pub struct Account {
     #[primary_key]
     pub id: u64, // mitgliedsnr from Django
@@ -464,4 +464,29 @@ pub fn get_mta_logs(ctx: &ReducerContext) {
             log.message_size
         );
     }
+}
+
+// Test reducer to add sample data
+#[spacetimedb::reducer]
+pub fn add_test_accounts(ctx: &ReducerContext) {
+    let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000;
+
+    // Add some test accounts
+    ctx.db.account().insert(Account {
+        id: 1,
+        name: "Test User 1".to_string(),
+        email: "test1@example.com".to_string(),
+        is_active: true,
+        last_synced: timestamp,
+    });
+
+    ctx.db.account().insert(Account {
+        id: 2,
+        name: "Test User 2".to_string(),
+        email: "test2@example.com".to_string(),
+        is_active: true,
+        last_synced: timestamp,
+    });
+
+    log::info!("Added test accounts");
 }

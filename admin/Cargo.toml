@@ -1,0 +1,21 @@
+[package]
+name = "admin"
+version = "0.1.0"
+authors = ["Franz Dietrich <dietrich@teilgedanken.de>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dioxus = { version = "0.7.0-alpha.1", features = [] }
+futures-util = "0.3.31"
+spacetimedb-sdk = { git = "https://github.com/thlsrms/SpacetimeDB/", branch = "rust-web-sdk", features = [
+    "web",
+] }
+stalwart_mta_hook_types = { version = "0.1" }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]

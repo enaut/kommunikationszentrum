@@ -444,20 +444,6 @@ impl DbConnection {
         self.imp.advance_one_message()
     }
 
-    /// Process one WebSocket message, potentially blocking the current thread until one is received.
-    ///
-    /// Returns an error if the connection is disconnected.
-    /// If the disconnection in question was normal,
-    ///  i.e. the result of a call to [`__sdk::DbContext::disconnect`],
-    /// the returned error will be downcastable to [`__sdk::DisconnectedError`].
-    ///
-    /// This is a low-level primitive exposed for power users who need significant control over scheduling.
-    /// Most applications should call [`Self::run_threaded`] to spawn a thread
-    /// which advances the connection automatically.
-    pub fn advance_one_message_blocking(&self) -> __sdk::Result<()> {
-        self.imp.advance_one_message_blocking()
-    }
-
     /// Process one WebSocket message, `await`ing until one is received.
     ///
     /// Returns an error if the connection is disconnected.
@@ -478,14 +464,27 @@ impl DbConnection {
         self.imp.frame_tick()
     }
 
-    /// Spawn a thread which processes WebSocket messages as they are received.
-    pub fn run_threaded(&self) -> std::thread::JoinHandle<()> {
-        self.imp.run_threaded()
-    }
-
     /// Run an `async` loop which processes WebSocket messages when polled.
     pub async fn run_async(&self) -> __sdk::Result<()> {
         self.imp.run_async().await
+    }
+
+    /// Spawn a task which processes WebSocket messages as they are received.
+    ///
+    /// # Panics
+    /// At runtime if called on any non-`wasm32` target.
+    pub fn run_background(&self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            panic!(
+                "`DbConnection::run_background` is only supported on WebAssembly (wasm32); \
+            prefer using `DbConnection::run_threaded` instead"
+            );
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.imp.run_background()
+        }
     }
 }
 
