@@ -13,6 +13,8 @@ spacetimedb-sdk = { git = "https://github.com/thlsrms/SpacetimeDB/", branch = "r
     "web",
 ] }
 stalwart_mta_hook_types = { version = "0.1" }
+hex = "0.4"
+gloo-timers = "0.3"
 
 [features]
 default = ["web"]

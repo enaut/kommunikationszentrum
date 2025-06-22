@@ -1,9 +1,15 @@
 mod module_bindings;
-use core::num;
+mod use_spacetime_db;
 
-use dioxus::{logger::tracing::info, prelude::*};
+use dioxus::{
+    logger::tracing::{error, info},
+    prelude::*,
+};
 use module_bindings::*;
-use spacetimedb_sdk::{DbContext as _, Table as _};
+use spacetimedb_sdk::DbContext as _;
+use use_spacetime_db::{use_accounts_table, use_spacetime_db, ConnectionState, SpacetimeDbOptions};
+
+use crate::use_spacetime_db::use_spacetime_subscription;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -15,97 +21,45 @@ fn main() {
 
 #[component]
 fn App() -> Element {
-    let mut num_of_accounts: Signal<u64> = use_signal(|| 0);
-
-    // Spawn a local effect to update the signal when the channel receives a value
-    let receiver = use_coroutine(move |mut rx: UnboundedReceiver<u64>| async move {
-        use futures_util::StreamExt;
-
-        while let Some(count) = rx.next().await {
-            info!("Received account count update: {}", count);
-            *num_of_accounts.write() = count;
-        }
-    });
-    let tx = receiver.tx();
-
-    let db_connection = use_resource(move || {
-        let tx = tx.clone();
-        async move {
-            info!("Initializing database connection...");
-            let database = DbConnection::builder()
-                .with_module_name("kommunikationszentrum")
-                .with_uri("http://localhost:3000")
-                .with_light_mode(true)
-                .on_connect(move |ctx, id, token| {
-                    info!("Connected to database with ID: {id} and token: {token}");
-                    ctx.subscription_builder()
-                        .subscribe(["SELECT * FROM account where id < 100"]);
-                });
-            info!("Connecting to database at http://localhost:3000");
-
-            match database.build().await {
-                Ok(db) => {
-                    info!("Database connection established successfully.");
-                    db.run_background();
-
-                    // Move tx into the closure to send updates
-                    let tx2 = tx.clone();
-                    db.db().account().on_insert(move |ctx, _table| {
-                        info!("Inserted row into table {:?}", ctx.event);
-                        let count = ctx.db().account().count();
-                        info!("Total accounts after insert: {}", count);
-                        let send_result = tx2.unbounded_send(count);
-                        info!(
-                            "Sent account count update: {}. Result: {:?}",
-                            count, send_result
-                        );
-                    });
-
-                    tx.unbounded_send(20).ok();
-
-                    let acs: Vec<_> = db.db().account().iter().collect();
-                    info!("Retrieved accounts: {:?}", acs);
-                    info!("Database connection and subscription initialized.");
-
-                    Ok(db)
-                }
-                Err(e) => {
-                    info!("Failed to connect to database: {:?}", e);
-                    Err(e)
-                }
-            }
-        }
+    // Use the SpacetimeDB hook
+    let spacetime_db = use_spacetime_db(SpacetimeDbOptions {
+        uri: "http://localhost:3000".to_string(),
+        module_name: "kommunikationszentrum".to_string(),
+        creds_file: None,
+        token: None,
     });
 
-    let mut accounts = use_memo(move || {
-        let num_of_accounts = num_of_accounts.read();
-        info!("Fetching accounts, current count: {}", num_of_accounts);
-        db_connection.read().as_ref().map(|db| match db {
-            Ok(db) => db.db().account().iter().collect::<Vec<_>>(),
-            Err(_) => Vec::new(),
-        })
-    });
-    use_context_provider(|| db_connection.clone());
+    let _subsc =
+        use_spacetime_subscription(&spacetime_db, vec!["SELECT * FROM account".to_string()]);
+
+    // Use the new reactive accounts hook instead of memo
+    let accounts = use_accounts_table(&spacetime_db);
+
+    // Provide the spacetime_db as context
+    use_context_provider(|| spacetime_db.clone());
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
-        match &*db_connection.read() {
-            Some(Ok(db)) => rsx! {
-                div { "Connected to database successfully!" }
-                div { "Number of accounts: {num_of_accounts}" }
-                div { "Number of accounts: {accounts:?}" }
+        match &*spacetime_db.state.read() {
+            ConnectionState::Connected(identity) => rsx! {
+                div { "Connected to database successfully! Identity: {identity:?}" }
+                div { "Number of accounts: {accounts.read().len()}" }
                 Hero { accounts }
             },
-            Some(Err(e)) => rsx! {
+            ConnectionState::Error(e) => rsx! {
                 div { style: "color: red; padding: 10px; margin: 10px; border: 1px solid red;",
-                    "Failed to connect to database: {e:?}"
+                    "Failed to connect to database: {e}"
                     p { "Make sure SpacetimeDB server is running on localhost:3000" }
                 }
                 Hero { accounts }
             },
-            None => rsx! {
-                div { "Connecting to database..." }
+            ConnectionState::Connecting => rsx! {
+                div { "Connecting to database... (check console for details)" }
+                Hero { accounts }
+            },
+            ConnectionState::Disconnected => rsx! {
+                div { "Disconnected from database" }
                 Hero { accounts }
             },
         }
@@ -113,20 +67,24 @@ fn App() -> Element {
 }
 
 #[component]
-pub fn Hero(accounts: Memo<Option<Vec<Account>>>) -> Element {
-    let db_connection: Resource<Result<DbConnection, spacetimedb_sdk::Error>> = use_context();
+pub fn Hero(accounts: Signal<Vec<Account>>) -> Element {
+    let spacetime_db: use_spacetime_db::SpacetimeDb = use_context();
 
-    let db_status = match &*db_connection.read() {
-        Some(Ok(db)) => {
-            info!("Database connection is active: {:?}", accounts.read());
-            info!("Database connection is active.");
-            "Connected to database successfully!".to_string()
+    let db_status = match &*spacetime_db.state.read() {
+        ConnectionState::Connected(_) => {
+            let accounts_count = accounts.read().len();
+            info!(
+                "Database connection is active with {} accounts",
+                accounts_count
+            );
+            format!("Connected! {} accounts loaded", accounts_count)
         }
-        Some(Err(e)) => {
+        ConnectionState::Error(e) => {
             info!("Database connection failed: {:?}", e);
-            format!("Failed to connect to database: {:?}", e)
+            format!("Failed to connect to database: {}", e)
         }
-        None => "Connecting...".to_string(),
+        ConnectionState::Connecting => "Connecting...".to_string(),
+        ConnectionState::Disconnected => "Disconnected".to_string(),
     };
 
     rsx! {
@@ -134,21 +92,38 @@ pub fn Hero(accounts: Memo<Option<Vec<Account>>>) -> Element {
             img { src: HEADER_SVG, id: "header" }
             div { id: "links",
                 a { href: "https://dioxuslabs.com/", "🔄 {db_status}" }
-                if let Some(Ok(db)) = &*db_connection.read() {
-                    for user in db.db().account().iter() {
-                        a { href: format!("https://dioxuslabs.com/user/{}", user.id),
-                            "👤 {user.name}"
-                        }
+                for user in accounts.read().iter() {
+                    button {
+                        onclick: {
+                            let spacetime_db = spacetime_db.clone();
+                            let user_name = user.name.clone();
+                            let user_email = user.email.clone();
+                            move |_| {
+                                info!("Adding message category for user: {} ({})", user_name, user_email);
+                                if let Some(db) = spacetime_db.connection.as_ref() {
+                                    match db
+                                        .reducers
+                                        .add_message_category(
+                                            user_name.clone(),
+                                            user_email.clone(),
+                                            "No Description".to_string(),
+                                        )
+                                    {
+                                        Ok(_) => {
+                                            info!("Successfully added message category for {}", user_name);
+                                        }
+                                        Err(e) => {
+                                            error!(
+                                                "Failed to add message category for {}: {:?}", user_name, e
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        style: "cursor: pointer; padding: 8px 12px; margin: 4px; background: #007acc; color: white; border: none; border-radius: 4px; text-decoration: none; display: inline-block;",
+                        "👤 {user.name} (Add Category)"
                     }
-                } else {
-                    a { href: "https://dioxuslabs.com/learn/0.6/", "📚 Learn Dioxus" }
-                    a { href: "https://dioxuslabs.com/awesome", "🚀 Awesome Dioxus" }
-                    a { href: "https://github.com/dioxus-community/", "📡 Community Libraries" }
-                    a { href: "https://github.com/DioxusLabs/sdk", "⚙️ Dioxus Development Kit" }
-                    a { href: "https://marketplace.visualstudio.com/items?itemName=DioxusLabs.dioxus",
-                        "💫 VSCode Extension"
-                    }
-                    a { href: "https://discord.gg/XgGxMSkvUM", "👋 Community Discord" }
                 }
             }
         }
