@@ -7,7 +7,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dioxus = { version = "0.7.0-alpha.1", features = [] }
+dioxus = { version = "0.7.0-alpha.3", features = [] }
 futures-util = "0.3.31"
 spacetimedb-sdk = { git = "https://github.com/thlsrms/SpacetimeDB/", branch = "rust-web-sdk", features = [
     "web",
@@ -15,6 +15,7 @@ spacetimedb-sdk = { git = "https://github.com/thlsrms/SpacetimeDB/", branch = "r
 stalwart_mta_hook_types = { version = "0.1" }
 hex = "0.4"
 gloo-timers = "0.3"
+getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [features]
 default = ["web"]
