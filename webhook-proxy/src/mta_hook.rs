@@ -297,7 +297,7 @@ async fn main() -> anyhow::Result<()> {
     let db_connection = Arc::new(
         DbConnection::builder()
             .with_uri("http://localhost:3000")
-            .with_module_name("kommunikationszentrum")
+            .with_module_name("kommunikation")
             .on_connect(|_, _, _| {
                 info!("Connected to SpacetimeDB successfully");
             })
@@ -342,7 +342,7 @@ async fn main() -> anyhow::Result<()> {
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct UserSyncPayload {
     pub action: String, // "upsert" or "delete"
     pub user: UserSyncData,

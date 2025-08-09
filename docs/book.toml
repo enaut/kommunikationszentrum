@@ -1,0 +1,9 @@
+[book]
+authors = ["Franz Dietrich"]
+language = "en"
+src = "src"
+title = "Kommunikationszentrum setup and maintenance"
+
+[preprocessor.graphviz]
+command = "mdbook-graphviz"
+output-to-file = false # defaults to false, change to true to create SVG files instead of rendering them inline

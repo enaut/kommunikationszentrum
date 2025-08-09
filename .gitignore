@@ -15,3 +15,5 @@ Cargo.lock
 
 # Spacetime ignore
 /.spacetime
+/admin/assets/static
+/kommunikationszentrum.code-workspace

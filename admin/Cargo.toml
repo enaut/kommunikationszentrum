@@ -14,8 +14,16 @@ spacetimedb-sdk = { git = "https://github.com/thlsrms/SpacetimeDB/", branch = "r
 ] }
 stalwart_mta_hook_types = { version = "0.1" }
 hex = "0.4"
-gloo-timers = "0.3"
+gloo-timers = { version = "0.3", features = ["futures"] }
 getrandom = { version = "0.3", features = ["wasm_js"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+web-sys = "0.3"
+urlencoding = "2.1"
+sha2 = "0.10"
+base64 = "0.22"
 
 [features]
 default = ["web"]

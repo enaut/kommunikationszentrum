@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
-use spacetimedb::{ReducerContext, Table};
+use spacetimedb::{Identity, ReducerContext, Table};
 use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
 #[spacetimedb::table(name = account, public)]
 pub struct Account {
     #[primary_key]
     pub id: u64, // mitgliedsnr from Django
+    pub identity: Option<Identity>,
     pub name: String,
     pub email: String,
     pub is_active: bool,
@@ -92,8 +93,18 @@ pub fn init(_ctx: &ReducerContext) {
 }
 
 #[spacetimedb::reducer(client_connected)]
-pub fn identity_connected(_ctx: &ReducerContext) {
+pub fn identity_connected(ctx: &ReducerContext) {
     // Called everytime a new client connects
+    // Check if the connected identity corresponds to a known account
+    log::info!("Client connected with identity: {:?}", ctx.sender);
+
+    // You could implement logic here to:
+    // 1. Check if this identity is authorized
+    // 2. Link the identity to an account in the database
+    // 3. Set up user-specific permissions
+
+    // Example: Check if the sender has admin privileges
+    // This would be based on the JWT claims that SpacetimeDB validated
 }
 
 #[spacetimedb::reducer(client_disconnected)]
@@ -129,7 +140,7 @@ fn handle_connect_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestam
 
     // Check if IP is blocked
     for blocked_ip in ctx.db.blocked_ips().iter() {
-        if blocked_ip.ip == client_ip.to_string() && blocked_ip.active {
+        if blocked_ip.ip == *client_ip && blocked_ip.active {
             log::warn!("Blocked connection from IP");
 
             ctx.db.mta_connection_log().insert(MtaConnectionLog {
@@ -343,23 +354,27 @@ fn extract_subject_from_request(request: &MtaHookRequest) -> String {
 pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
     let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000;
 
+    log::info!("Syncing user with action: {}", action);
+    log::info!("User data: {}", user_data);
+
     match serde_json::from_str::<UserSyncData>(&user_data) {
         Ok(data) => {
             match action.as_str() {
                 "upsert" => {
                     // Check if account exists and delete it first
-                    let mut existing_found = false;
+                    log::info!("Syncing user: {} ({})", data.mitgliedsnr, action);
                     for existing in ctx.db.account().iter() {
+                        log::info!("Checking existing account: {}", existing.id);
                         if existing.id == data.mitgliedsnr {
                             ctx.db.account().delete(existing);
-                            existing_found = true;
                             break;
                         }
                     }
-
+                    log::info!("No existing account found, proceeding to insert new account");
                     // Insert new/updated account
                     let account = Account {
                         id: data.mitgliedsnr,
+                        identity: None, // Identity can be set later if needed
                         name: data.name.unwrap_or_default(),
                         email: data.email.unwrap_or_default(),
                         is_active: data.is_active.unwrap_or(true),
@@ -391,13 +406,35 @@ pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
 }
 
 // Management reducers for categories and subscriptions
+// Note: These should check for proper authorization based on the authenticated identity
+
+/// Check if the current user has admin permissions
+fn is_admin_user(_ctx: &ReducerContext) -> bool {
+    // In a real implementation, you would check the JWT claims
+    // that were validated by SpacetimeDB when the client connected.
+    // For now, we assume all authenticated users are admins.
+    //
+    // You could extend this to:
+    // 1. Check specific claims in the JWT (e.g., is_staff, is_superuser, groups)
+    // 2. Maintain a whitelist of admin identities in the database
+    // 3. Use role-based permissions
+
+    // For demo purposes, allow all authenticated users
+    true
+}
+
 #[spacetimedb::reducer]
 pub fn add_message_category(
     ctx: &ReducerContext,
     name: String,
     email_address: String,
     description: String,
-) {
+) -> Result<(), String> {
+    // Check if user is authenticated and has admin rights
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+
     ctx.db.message_categories().insert(MessageCategory {
         id: 0,
         name,
@@ -405,7 +442,8 @@ pub fn add_message_category(
         description,
         active: true,
     });
-    log::info!("Added new message category");
+    log::info!("Added new message category (by identity: {:?})", ctx.sender);
+    Ok(())
 }
 
 #[spacetimedb::reducer]
@@ -474,6 +512,7 @@ pub fn add_test_accounts(ctx: &ReducerContext) {
     // Add some test accounts
     ctx.db.account().insert(Account {
         id: 1,
+        identity: None, // Identity can be set later if needed
         name: "Test User 1".to_string(),
         email: "test1@example.com".to_string(),
         is_active: true,
@@ -482,6 +521,7 @@ pub fn add_test_accounts(ctx: &ReducerContext) {
 
     ctx.db.account().insert(Account {
         id: 2,
+        identity: None, // Identity can be set later if needed
         name: "Test User 2".to_string(),
         email: "test2@example.com".to_string(),
         is_active: true,

@@ -2,7 +2,7 @@ use crate::module_bindings::{self, AccountTableAccess as _, DbConnection};
 
 use dioxus::{
     dioxus_core::SpawnIfAsync,
-    logger::tracing::{error, info},
+    logger::tracing::{debug, error, info},
     prelude::*,
 };
 use spacetimedb_sdk::{DbContext as _, Identity, Table as _};
@@ -18,11 +18,10 @@ pub enum ConnectionState {
 }
 
 /// Options for configuring the SpacetimeDB connection
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct SpacetimeDbOptions {
     pub uri: String,
     pub module_name: String,
-    pub creds_file: Option<String>,
     pub token: Option<String>,
 }
 
@@ -31,7 +30,6 @@ impl Default for SpacetimeDbOptions {
         Self {
             uri: "http://localhost:3000".to_string(),
             module_name: "my-database".to_string(),
-            creds_file: Some(".spacetime_credentials".to_string()),
             token: None,
         }
     }
@@ -43,30 +41,33 @@ pub struct SpacetimeDb {
     pub connection: Signal<Option<DbConnection>>,
     pub state: Signal<ConnectionState>,
     pub identity: Signal<Option<Identity>>,
+    #[allow(dead_code)]
     pub connect: Rc<dyn Fn()>,
+    #[allow(dead_code)]
     pub disconnect: Rc<dyn Fn()>,
 }
 
 /// Custom hook for SpacetimeDB connection management
 pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
     let conn_state = use_signal(|| ConnectionState::Disconnected);
-    let identity = use_signal(|| None::<Identity>);
+    let identity = use_signal(|| {
+        // Store the full number 415 as a little-endian u32 in the first 4 bytes of the array
+        let mut arr = [0u8; 32];
+        arr[..4].copy_from_slice(&415u32.to_le_bytes());
+        Some(Identity::from_byte_array(arr))
+    });
     let connection = use_signal(|| None::<DbConnection>);
     let is_connecting = use_signal(|| false);
 
     // Simple connect function without complex callbacks
     let connect = {
-        let conn_state = conn_state.clone();
-        let identity = identity.clone();
-        let connection = connection.clone();
-        let is_connecting = is_connecting.clone();
-
         Rc::new(move || {
             // Prevent multiple connection attempts
-            let mut conn_state = conn_state.clone();
-            let identity = identity.clone();
-            let connection = connection.clone();
-            let mut is_connecting = is_connecting.clone();
+            let mut conn_state = conn_state;
+            let identity = identity;
+            let connection = connection;
+            let mut is_connecting = is_connecting;
+            let options = options.clone();
 
             if *is_connecting.read() || matches!(*conn_state.read(), ConnectionState::Connected(_))
             {
@@ -79,14 +80,15 @@ pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
 
             // Spawn the connection attempt
             spawn({
-                let mut conn_state = conn_state.clone();
-                let mut identity = identity.clone();
-                let mut connection = connection.clone();
-                let mut is_connecting = is_connecting.clone();
-                let options = options.clone();
+                let mut conn_state = conn_state;
+                let mut identity = identity;
+                let mut connection = connection;
+                let mut is_connecting = is_connecting;
 
                 async move {
                     info!("Building SpacetimeDB connection...");
+                    debug!("SpacetimeDB options: {:?}", options);
+
                     let conn_result = DbConnection::builder()
                         .with_uri(&options.uri)
                         .with_module_name(&options.module_name)
@@ -96,23 +98,58 @@ pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
 
                     match conn_result {
                         Ok(conn) => {
-                            info!("DbConnection::builder().build() succeeded"); // Start the connection background processing
+                            info!("DbConnection::builder().build() succeeded");
+                            // Start the connection background processing
                             conn.run_background();
 
-                            // Update state with basic connection info
+                            // Try to get the identity immediately
                             if let Some(id) = conn.try_identity() {
-                                info!("Connection established with identity: {:?}", id);
-                                conn_state.set(ConnectionState::Connected(id.clone()));
+                                info!("Connection established with identity (immediate): {:?}", id);
+                                conn_state.set(ConnectionState::Connected(id));
                                 identity.set(Some(id));
                             } else {
-                                info!(
-                                    "Connection established without identity - proceeding anyway"
-                                );
+                                info!("Identity not immediately available, will retry...");
                                 // Create a minimal identity for state tracking
                                 let dummy_identity =
                                     spacetimedb_sdk::Identity::from_byte_array([0u8; 32]);
                                 conn_state.set(ConnectionState::Connected(dummy_identity));
                                 identity.set(None);
+
+                                // Spawn a task to periodically check for identity after setting the connection
+                                spawn({
+                                    let connection = connection;
+                                    let mut identity = identity;
+                                    let mut conn_state = conn_state;
+
+                                    async move {
+                                        use gloo_timers::future::TimeoutFuture;
+
+                                        // Try for up to 10 seconds with 500ms intervals
+                                        for attempt in 1..=20 {
+                                            TimeoutFuture::new(500).await;
+
+                                            if let Some(conn) = connection.read().as_ref() {
+                                                if let Some(id) = conn.try_identity() {
+                                                    info!(
+                                                        "Identity obtained after {} attempts: {:?}",
+                                                        attempt, id
+                                                    );
+                                                    conn_state.set(ConnectionState::Connected(id));
+                                                    identity.set(Some(id));
+                                                    break;
+                                                } else {
+                                                    info!("Identity check attempt {}/20 - still not available", attempt);
+                                                }
+                                            }
+                                        }
+
+                                        if let Some(conn) = connection.read().as_ref() {
+                                            if conn.try_identity().is_none() {
+                                                info!("Identity still not available after 10 seconds, proceeding without it");
+                                            }
+                                        }
+                                    }
+                                });
                             }
 
                             connection.set(Some(conn));
@@ -132,14 +169,10 @@ pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
 
     // Disconnect function
     let disconnect = {
-        let conn_state = conn_state.clone();
-        let identity = identity.clone();
-        let connection = connection.clone();
-
         Rc::new(move || {
-            let mut conn_state = conn_state.clone();
-            let mut identity = identity.clone();
-            let mut connection = connection.clone();
+            let mut conn_state = conn_state;
+            let mut identity = identity;
+            let mut connection = connection;
 
             if let Some(conn) = connection.read().as_ref() {
                 let _ = conn.disconnect();
@@ -176,9 +209,9 @@ pub fn use_spacetime_subscription(
     let is_subscribed = use_signal(|| false);
 
     // Clone signals for the effect dependency tracking
-    let state = spacetime_db.state.clone();
-    let connection = spacetime_db.connection.clone();
-    let mut is_subscribed_clone = is_subscribed.clone();
+    let state = spacetime_db.state;
+    let connection = spacetime_db.connection;
+    let mut is_subscribed_clone = is_subscribed;
 
     // Subscribe when connection becomes available
     use_effect(move || {
@@ -223,9 +256,9 @@ where
     let data = use_signal(|| Vec::<T>::new());
 
     // Clone for the effect
-    let state = spacetime_db.state.clone();
-    let connection = spacetime_db.connection.clone();
-    let mut data_clone = data.clone();
+    let state = spacetime_db.state;
+    let connection = spacetime_db.connection;
+    let mut data_clone = data;
     let table_getter_clone = table_getter.clone();
 
     // Load data whenever connection state changes
@@ -251,27 +284,23 @@ where
     // Also setup a timer to periodically refresh data
     // This ensures we catch changes from subscriptions
     use_effect({
-        let state = spacetime_db.state.clone();
-        let connection = spacetime_db.connection.clone();
-        let data_clone = data.clone();
-        let table_getter_clone = table_getter.clone();
+        let state = spacetime_db.state;
+        let connection = spacetime_db.connection;
+        let data_clone = data;
+        let table_getter_clone = table_getter;
 
         move || {
             // Create a periodic refresh for connected state
             if matches!(*state.read(), ConnectionState::Connected(_)) {
                 spawn({
-                    let state = state.clone();
-                    let connection = connection.clone();
-                    let mut data_clone = data_clone.clone();
+                    let state = state;
+                    let connection = connection;
+                    let mut data_clone = data_clone;
                     let table_getter_clone = table_getter_clone.clone();
 
                     async move {
-                        use futures_util::StreamExt;
-                        use gloo_timers::future::IntervalStream;
-
-                        let mut interval = IntervalStream::new(500); // Refresh every 500 milliseconds
-
-                        while let Some(_) = interval.next().await {
+                        loop {
+                            gloo_timers::future::TimeoutFuture::new(2000).await; // Wait 2000 milliseconds
                             if let ConnectionState::Connected(_) = *state.read() {
                                 if let Some(conn) = connection.read().as_ref() {
                                     info!("Refreshing table data...");
