@@ -16,6 +16,8 @@ The authentication architecture integrates three core components:
 
 **OpenID Connect Integration**: JWT ID tokens contain user identity and permission claims from Django, providing seamless identity propagation.
 
+**Nonce Validation**: Each authorization request includes a cryptographically random nonce that is validated against the ID token to prevent replay and token substitution.
+
 **Real-time Authentication**: SpacetimeDB validates JWT tokens on connection establishment, enabling secure real-time database subscriptions.
 
 **Role-based Access Control**: Different permission levels for regular users and administrators based on Django user roles.

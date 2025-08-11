@@ -40,6 +40,8 @@ SpacetimeDB automatically validates JWT tokens when clients connect:
 
 **Expiration Check**: Current time must be before the `exp` timestamp.
 
+**Nonce Validation**: The nonce stored during authorization must match the nonce claim in the ID token (validated via `openidconnect` library) to mitigate replay.
+
 ## SpacetimeDB Integration
 
 ### Connection Authentication

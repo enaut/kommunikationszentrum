@@ -1,22 +1,20 @@
-use base64::{engine::general_purpose, Engine as _};
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use web_sys::window;
+// openidconnect crate (wasm-fähig ohne native TLS)
+use openidconnect::{
+    core::{
+        CoreClient, CoreProviderMetadata, CoreResponseType, CoreTokenResponse, CoreUserInfoClaims,
+    },
+    reqwest::async_http_client,
+    AuthenticationFlow, AuthorizationCode, ClientId, CsrfToken, IssuerUrl, Nonce,
+    OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
+};
+use std::cell::RefCell;
+use std::rc::Rc;
+use tracing::warn;
 
-// PKCE helper functions
-fn generate_code_verifier() -> String {
-    let mut bytes = [0u8; 32];
-    getrandom::fill(&mut bytes).expect("Failed to generate random bytes");
-    general_purpose::URL_SAFE_NO_PAD.encode(bytes)
-}
-
-fn generate_code_challenge(code_verifier: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(code_verifier.as_bytes());
-    let result = hasher.finalize();
-    general_purpose::URL_SAFE_NO_PAD.encode(result)
-}
+// Wir verlassen uns auf openid_client für PKCE (es generiert Verifier & Challenge intern wenn nicht vorgegeben).
 
 // URL parameter parsing
 fn parse_url_params() -> std::collections::HashMap<String, String> {
@@ -43,20 +41,22 @@ fn parse_url_params() -> std::collections::HashMap<String, String> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OAuthConfig {
-    pub django_base_url: String,
-    pub client_id: String,
-    pub redirect_uri: String,
-    pub scope: String,
+    pub issuer_url: String, // Discovery URL (Issuer base, ohne /.well-known/... => discover fügt an)
+    pub client_id: String,  // Public SPA client id
+    pub redirect_uri: String, // Registered redirect URI
+    pub scope: String,      // Space separated scopes
+    pub django_base_url: String, // Für rückwärtskompatible Felder (UserInfo Pfad etc.)
 }
 
 impl Default for OAuthConfig {
     fn default() -> Self {
+        let django = "http://127.0.0.1:8000".to_string();
         Self {
-            // You'll need to update this to match your Django server
-            django_base_url: "http://127.0.0.1:8000".to_string(),
-            client_id: "admin-app".to_string(), // This needs to be configured in Django OAuth2 settings
+            issuer_url: format!("{django}/o"), // Django OAuth Toolkit typischerweise unter /o/. Falls Discovery unter /.well-known/openid-configuration liegt, kann hier direkt Basis genutzt werden.
+            client_id: "admin-app".to_string(),
             redirect_uri: "http://127.0.0.1:8080/callback".to_string(),
-            scope: "openid profile email".to_string(), // Request additional scopes
+            scope: "openid profile email".to_string(),
+            django_base_url: django,
         }
     }
 }
@@ -84,154 +84,187 @@ pub struct UserInfo {
     pub groups: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    token_type: String,
-    expires_in: u64,
-    refresh_token: Option<String>,
-    scope: String,
-    id_token: Option<String>, // JWT ID token from OIDC
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct UserInfoResponse {
-    sub: String,                // User ID from Django
-    preferred_username: String, // Username
-    email: Option<String>,
-    email_verified: Option<bool>,
-    given_name: Option<String>,
-    family_name: Option<String>,
-    name: Option<String>,
-    is_staff: Option<bool>,
-    is_superuser: Option<bool>,
-    groups: Option<Vec<String>>,
-}
-
 pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
-    let mut auth_state = use_signal(|| AuthState::Unauthenticated);
+    let auth_state = use_signal(|| AuthState::Unauthenticated);
     let config = use_signal(OAuthConfig::default);
 
-    // Check for OAuth callback or stored token on mount
-    use_effect(move || {
-        let params = parse_url_params();
+    // OIDC Client (lazy einmalig)
+    let oidc_client: Rc<RefCell<Option<CoreClient>>> = Rc::new(RefCell::new(None));
 
-        // Check for OAuth error in URL
-        if let Some(error) = params.get("error") {
-            let error_description = params
-                .get("error_description")
-                .map(|d| d.replace('+', " "))
-                .unwrap_or_else(|| error.clone());
-
-            auth_state.set(AuthState::Error(format!(
-                "OAuth Error: {}",
-                error_description
-            )));
-
-            // Clear the URL
-            if let Some(window) = window() {
-                if let Ok(history) = window.history() {
-                    let _ = history.replace_state_with_url(
-                        &web_sys::wasm_bindgen::JsValue::NULL,
-                        "",
-                        Some("/"),
-                    );
-                }
+    // Initialisierung & Callback Handling
+    {
+        let oidc_client = oidc_client.clone();
+        let mut auth_state = auth_state;
+        let config_sig = config.clone();
+        use_effect(move || {
+            let params = parse_url_params();
+            // Fehler-Handling
+            if let Some(error) = params.get("error") {
+                let error_description = params
+                    .get("error_description")
+                    .map(|d| d.replace('+', " "))
+                    .unwrap_or_else(|| error.clone());
+                auth_state.set(AuthState::Error(format!(
+                    "OAuth Error: {}",
+                    error_description
+                )));
+                clear_url();
+                return;
             }
-            return;
-        }
 
-        // Check for OAuth success callback
-        if let Some(code) = params.get("code") {
-            auth_state.set(AuthState::Authenticating);
-
-            let code = code.clone();
-            let config = config.read().clone();
-            let mut auth_state = auth_state;
-
+            // Async Block: Discovery + Callback oder Token Validierung
+            let oidc_client_outer = oidc_client.clone();
             spawn(async move {
-                // Get stored code verifier
-                let code_verifier = get_stored_code_verifier();
-
-                if let Some(code_verifier) = code_verifier {
-                    match exchange_code_for_token_with_pkce(code, config, code_verifier).await {
-                        Ok(user_info) => {
-                            // Clear code verifier
-                            remove_stored_code_verifier();
-                            store_user_info(&user_info);
-                            auth_state.set(AuthState::Authenticated(user_info));
-                        }
+                // Discovery (wenn noch kein Client)
+                if oidc_client_outer.borrow().is_none() {
+                    let cfg = config_sig.read().clone();
+                    let issuer = match IssuerUrl::new(cfg.issuer_url.clone()) {
+                        Ok(i) => i,
                         Err(e) => {
-                            auth_state
-                                .set(AuthState::Error(format!("Token exchange failed: {}", e)));
+                            auth_state.set(AuthState::Error(format!("IssuerUrl error: {e}")));
+                            return;
+                        }
+                    };
+                    let provider_metadata =
+                        match CoreProviderMetadata::discover_async(issuer, async_http_client).await
+                        {
+                            Ok(m) => m,
+                            Err(e) => {
+                                auth_state.set(AuthState::Error(format!("Discovery failed: {e}")));
+                                return;
+                            }
+                        };
+                    let client_id = ClientId::new(cfg.client_id.clone());
+                    let redirect_url = match RedirectUrl::new(cfg.redirect_uri.clone()) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            auth_state.set(AuthState::Error(format!("RedirectUrl error: {e}")));
+                            return;
+                        }
+                    };
+                    let client =
+                        CoreClient::from_provider_metadata(provider_metadata, client_id, None)
+                            .set_redirect_uri(redirect_url);
+                    oidc_client_outer.replace(Some(client));
+                }
+
+                // Authorization Code Callback
+                if let (Some(code), Some(state_returned)) =
+                    (params.get("code"), params.get("state"))
+                {
+                    auth_state.set(AuthState::Authenticating);
+                    if let Some(client) = oidc_client_outer.borrow().as_ref() {
+                        // Prüfe State
+                        if let Some(expected_state) = get_stored_state() {
+                            if &expected_state != state_returned {
+                                auth_state.set(AuthState::Error("State mismatch".into()));
+                                return;
+                            }
+                        } else {
+                            auth_state.set(AuthState::Error("Missing stored state".into()));
+                            return;
+                        }
+                        let code_verifier = match get_stored_code_verifier() {
+                            Some(v) => PkceCodeVerifier::new(v),
+                            None => {
+                                auth_state.set(AuthState::Error("Missing PKCE verifier".into()));
+                                return;
+                            }
+                        };
+                        let auth_code = AuthorizationCode::new(code.clone());
+                        // Token Request
+                        let token_res = client
+                            .exchange_code(auth_code)
+                            .set_pkce_verifier(code_verifier)
+                            .request_async(async_http_client)
+                            .await;
+                        match token_res {
+                            Ok(token_response) => {
+                                // Nonce validieren (falls ID Token vorhanden)
+                                if let Some(id_token) = token_response.extra_fields().id_token() {
+                                    match get_stored_nonce() {
+                                        Some(nonce_str) => {
+                                            let nonce = Nonce::new(nonce_str.clone());
+                                            if let Err(e) =
+                                                id_token.claims(&client.id_token_verifier(), &nonce)
+                                            {
+                                                auth_state.set(AuthState::Error(format!(
+                                                    "ID token validation (nonce) failed: {e}"
+                                                )));
+                                                return;
+                                            }
+                                            remove_stored_nonce();
+                                        }
+                                        None => {
+                                            auth_state.set(AuthState::Error(
+                                                "Missing stored nonce".into(),
+                                            ));
+                                            return;
+                                        }
+                                    }
+                                }
+
+                                remove_stored_code_verifier();
+                                remove_stored_state();
+                                // UserInfo abrufen (optional) – wenn Endpoint vorhanden
+                                let maybe_userinfo = match client
+                                    .user_info(token_response.access_token().clone(), None)
+                                {
+                                    Ok(req) => match req.request_async(async_http_client).await {
+                                        Ok(claims) => Some(claims),
+                                        Err(_) => None,
+                                    },
+                                    Err(_) => None,
+                                };
+                                let ui =
+                                    build_user_info_from_openid(token_response, maybe_userinfo);
+                                store_user_info(&ui);
+                                auth_state.set(AuthState::Authenticated(ui));
+                                clear_url();
+                            }
+                            Err(e) => auth_state
+                                .set(AuthState::Error(format!("Token exchange failed: {e}"))),
                         }
                     }
-                } else {
-                    auth_state.set(AuthState::Error("Missing code verifier".to_string()));
-                }
-
-                // Clear the URL
-                if let Some(window) = window() {
-                    if let Ok(history) = window.history() {
-                        let _ = history.replace_state_with_url(
-                            &web_sys::wasm_bindgen::JsValue::NULL,
-                            "",
-                            Some("/"),
-                        );
-                    }
+                } else if let Some(user_info) = get_stored_user_info() {
+                    auth_state.set(AuthState::Authenticated(user_info));
                 }
             });
-            return;
-        }
+        });
+    }
 
-        // Check for stored user info
-        if let Some(user_info) = get_stored_user_info() {
-            auth_state.set(AuthState::Authenticating);
-
-            let mut auth_state = auth_state;
-            let user_info_clone = user_info.clone();
-
-            spawn(async move {
-                match validate_token(
-                    user_info.access_token.clone(),
-                    config.read().django_base_url.clone(),
-                )
-                .await
-                {
-                    Ok(_) => {
-                        auth_state.set(AuthState::Authenticated(user_info_clone));
-                    }
-                    Err(_) => {
-                        // Token invalid, remove it
-                        remove_stored_user_info();
-                        auth_state.set(AuthState::Unauthenticated);
-                    }
-                }
-            });
-        }
-    });
-
+    // Login Callback => generiert Auth URL via Client::authorization_url
     let login = {
+        let config_sig = config.clone();
+        let oidc_client = oidc_client.clone();
         Callback::<()>::new(move |_| {
-            // Generate PKCE parameters
-            let code_verifier = generate_code_verifier();
-            let code_challenge = generate_code_challenge(&code_verifier);
-
-            // Store code verifier
-            store_code_verifier(&code_verifier);
-
-            let config = config.read();
-            let auth_url = format!(
-                "{}/o/authorize/?response_type=code&client_id={}&redirect_uri={}&scope={}&code_challenge={}&code_challenge_method=S256",
-                config.django_base_url,
-                urlencoding::encode(&config.client_id),
-                urlencoding::encode(&config.redirect_uri),
-                urlencoding::encode(&config.scope),
-                urlencoding::encode(&code_challenge)
-            );
-
-            if let Some(window) = window() {
-                let _ = window.location().assign(&auth_url);
+            if let Some(client) = oidc_client.borrow().as_ref() {
+                let cfg = config_sig.read();
+                // Scopes
+                let mut auth_req = client
+                    .authorize_url(
+                        AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
+                        CsrfToken::new_random,
+                        Nonce::new_random,
+                    )
+                    .add_scope(Scope::new("openid".into()));
+                for sc in cfg.scope.split_whitespace() {
+                    if sc != "openid" {
+                        auth_req = auth_req.add_scope(Scope::new(sc.into()));
+                    }
+                }
+                // PKCE
+                let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+                store_code_verifier(pkce_verifier.secret());
+                let (auth_url, csrf_token, nonce) =
+                    auth_req.set_pkce_challenge(pkce_challenge).url();
+                store_state(csrf_token.secret());
+                store_nonce(nonce.secret());
+                if let Some(window) = window() {
+                    let _ = window.location().assign(auth_url.as_str());
+                }
+            } else {
+                warn!("OIDC client not ready yet");
             }
         })
     };
@@ -241,6 +274,8 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
         Callback::<()>::new(move |_| {
             remove_stored_user_info();
             remove_stored_code_verifier();
+            remove_stored_state();
+            remove_stored_nonce();
             auth_state.set(AuthState::Unauthenticated);
         })
     };
@@ -272,117 +307,117 @@ fn remove_stored_user_info() {
 }
 
 fn get_stored_code_verifier() -> Option<String> {
-    if let Some(storage) = window().and_then(|w| w.local_storage().ok()).flatten() {
-        return storage.get_item("oauth_code_verifier").ok().flatten();
-    }
-    None
+    window()
+        .and_then(|w| w.local_storage().ok())
+        .flatten()
+        .and_then(|s| s.get_item("oauth_code_verifier").ok().flatten())
 }
-
 fn store_code_verifier(code_verifier: &str) {
-    if let Some(storage) = window().and_then(|w| w.local_storage().ok()).flatten() {
-        let _ = storage.set_item("oauth_code_verifier", code_verifier);
+    if let Some(s) = window().and_then(|w| w.local_storage().ok()).flatten() {
+        let _ = s.set_item("oauth_code_verifier", code_verifier);
     }
 }
-
 fn remove_stored_code_verifier() {
-    if let Some(storage) = window().and_then(|w| w.local_storage().ok()).flatten() {
-        let _ = storage.remove_item("oauth_code_verifier");
+    if let Some(s) = window().and_then(|w| w.local_storage().ok()).flatten() {
+        let _ = s.remove_item("oauth_code_verifier");
     }
 }
 
-// Legacy token storage functions (kept for backward compatibility)
-async fn exchange_code_for_token_with_pkce(
-    code: String,
-    config: OAuthConfig,
-    code_verifier: String,
-) -> Result<UserInfo, String> {
-    let client = reqwest::Client::new();
-
-    // Exchange authorization code for access token with PKCE
-    let token_url = format!("{}/o/token/", config.django_base_url);
-
-    let params = [
-        ("grant_type", "authorization_code"),
-        ("code", &code),
-        ("redirect_uri", &config.redirect_uri),
-        ("client_id", &config.client_id),
-        ("code_verifier", &code_verifier),
-    ];
-
-    let token_response = client
-        .post(&token_url)
-        .form(&params)
-        .send()
-        .await
-        .map_err(|e| format!("Token request failed: {}", e))?;
-
-    if !token_response.status().is_success() {
-        let status = token_response.status();
-        let error_text = token_response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!(
-            "Token request failed with status {}: {}",
-            status, error_text
-        ));
+fn clear_url() {
+    if let Some(window) = window() {
+        if let Ok(history) = window.history() {
+            let _ = history.replace_state_with_url(
+                &web_sys::wasm_bindgen::JsValue::NULL,
+                "",
+                Some("/"),
+            );
+        }
     }
-
-    let token_data: TokenResponse = token_response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse token response: {}", e))?;
-
-    // Get user information
-    let user_info = get_user_info(&token_data.access_token, &config.django_base_url).await?;
-
-    Ok(UserInfo {
-        username: user_info.preferred_username, // Use preferred_username from OIDC
-        email: user_info.email,
-        access_token: token_data.access_token,
-        id_token: token_data.id_token, // JWT for SpacetimeDB
-        mitgliedsnr: user_info.sub,    // Subject = Mitgliedsnummer
-        given_name: user_info.given_name,
-        family_name: user_info.family_name,
-        name: user_info.name,
-        is_staff: user_info.is_staff,
-        is_superuser: user_info.is_superuser,
-        groups: user_info.groups,
-    })
 }
 
-async fn validate_token(
-    token: String,
-    django_base_url: String,
-) -> Result<UserInfoResponse, String> {
-    get_user_info(&token, &django_base_url).await
+fn build_user_info_from_openid(
+    token_response: CoreTokenResponse,
+    claims: Option<CoreUserInfoClaims>,
+) -> UserInfo {
+    let access_token = token_response.access_token().secret().to_string();
+    let id_token = token_response
+        .extra_fields()
+        .id_token()
+        .map(|id| id.to_string());
+    let mut username = String::new();
+    let mut email = None;
+    let mut sub = String::new();
+    let mut given_name = None;
+    let mut family_name = None;
+    let mut name = None;
+    let groups: Option<Vec<String>> = None;
+    if let Some(c) = &claims {
+        if let Some(s) = c.preferred_username() {
+            username = s.to_string();
+        }
+        if let Some(s) = c.email() {
+            email = Some(s.to_string());
+        }
+        let sid = c.subject().as_str();
+        sub = sid.to_string();
+        if let Some(g) = c.given_name().and_then(|n| n.get(None)) {
+            given_name = Some(g.to_string());
+        }
+        if let Some(f) = c.family_name().and_then(|n| n.get(None)) {
+            family_name = Some(f.to_string());
+        }
+        if let Some(n) = c.name().and_then(|n| n.get(None)) {
+            name = Some(n.to_string());
+        }
+    }
+    if username.is_empty() {
+        username = sub.clone();
+    }
+    UserInfo {
+        username,
+        email,
+        access_token,
+        id_token,
+        mitgliedsnr: sub,
+        given_name,
+        family_name,
+        name,
+        is_staff: None,
+        is_superuser: None,
+        groups,
+    }
 }
 
-async fn get_user_info(token: &str, django_base_url: &str) -> Result<UserInfoResponse, String> {
-    let client = reqwest::Client::new();
-    let user_info_url = format!("{}/o/userinfo/", django_base_url);
-
-    let response = client
-        .get(&user_info_url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("User info request failed: {}", e))?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!(
-            "User info request failed with status {}: {}",
-            status, error_text
-        ));
+// --- State & Nonce Speicherung
+fn store_state(state: &str) {
+    if let Some(s) = window().and_then(|w| w.local_storage().ok()).flatten() {
+        let _ = s.set_item("oauth_state", state);
     }
-
-    response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse user info response: {}", e))
+}
+fn get_stored_state() -> Option<String> {
+    window()
+        .and_then(|w| w.local_storage().ok())
+        .flatten()
+        .and_then(|s| s.get_item("oauth_state").ok().flatten())
+}
+fn remove_stored_state() {
+    if let Some(s) = window().and_then(|w| w.local_storage().ok()).flatten() {
+        let _ = s.remove_item("oauth_state");
+    }
+}
+fn store_nonce(nonce: &str) {
+    if let Some(s) = window().and_then(|w| w.local_storage().ok()).flatten() {
+        let _ = s.set_item("oauth_nonce", nonce);
+    }
+}
+fn get_stored_nonce() -> Option<String> {
+    window()
+        .and_then(|w| w.local_storage().ok())
+        .flatten()
+        .and_then(|s| s.get_item("oauth_nonce").ok().flatten())
+}
+fn remove_stored_nonce() {
+    if let Some(s) = window().and_then(|w| w.local_storage().ok()).flatten() {
+        let _ = s.remove_item("oauth_nonce");
+    }
 }

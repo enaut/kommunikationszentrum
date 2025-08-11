@@ -1,6 +1,6 @@
 # OAuth Integration
 
-The OAuth integration connects the admin interface with the Django solawispielplatz system for user authentication. This implementation uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) and OpenID Connect for secure token-based authentication.
+The OAuth integration connects the admin interface with the Django solawispielplatz system for user authentication. The implementation uses OAuth 2.0 Authorization Code Flow with PKCE (Proof Key for Code Exchange) plus OpenID Connect to obtain an ID token (JWT) and user info claims.
 
 ## Configuration
 
@@ -52,70 +52,74 @@ Default configuration connects to local Django instance:
 
 ### Authorization Request
 
-The admin interface initiates OAuth flow using the `dioxus_oauth` crate:
+The admin interface builds the authorization URL with the `openidconnect` crate after dynamic discovery:
 
 ```rust
-let client = dioxus_oauth::prelude::OAuthClient::new(
-    &config.client_id,
-    &config.redirect_uri,
-    &format!("{}/o/authorize/", config.django_base_url),
-    &format!("{}/o/token/", config.django_base_url),
-);
+let (auth_url, state, nonce) = client
+    .authorize_url(AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
+                   CsrfToken::new_random,
+                   Nonce::new_random)
+    .add_scope(Scope::new("openid".into()))
+    .add_scope(Scope::new("profile".into()))
+    .add_scope(Scope::new("email".into()))
+    .set_pkce_challenge(pkce_challenge)
+    .url();
+
+// state.secret() and nonce.secret() are persisted in localStorage.
 ```
 
-The authorization request includes:
-- **Response Type**: `code` (authorization code flow)
-- **PKCE Challenge**: SHA256 hash of code verifier
-- **Scope**: `openid profile email` for OIDC claims
+Stored values in `localStorage`:
+- `oauth_state`: CSRF protection value validated on callback
+- `oauth_code_verifier`: PKCE verifier used for token exchange
+- `oauth_nonce`: Nonce validated against the ID token to prevent token replay
 
-### Token Exchange
+### Token Exchange & Validation
 
-After receiving the authorization code, the client exchanges it for tokens:
+After redirect back with `code` and `state` parameters:
+
+1. Validate `state` equals stored `oauth_state`.
+2. Retrieve PKCE verifier and call `exchange_code(..).set_pkce_verifier(..)`.
+3. On successful response remove `oauth_state` and `oauth_code_verifier`.
+4. If an ID token is present, validate its claims including the stored nonce:
 
 ```rust
-let token_response = client.get_token(&code).await?;
+let token_response = client
+    .exchange_code(auth_code)
+    .set_pkce_verifier(code_verifier)
+    .request_async(async_http_client)
+    .await?;
+
+if let Some(id_token) = token_response.extra_fields().id_token() {
+    let nonce = Nonce::new(stored_nonce);
+    id_token.claims(&client.id_token_verifier(), &nonce)?; // validates signature, aud, iss, exp, nonce
+}
 ```
 
-The token response contains:
-- **Access Token**: For API access to Django
-- **ID Token**: JWT for SpacetimeDB authentication
-- **Refresh Token**: For token renewal (if configured)
-- **Token Type**: `Bearer`
-- **Expires In**: Token lifetime in seconds
+On nonce validation success the stored nonce is removed; failure aborts authentication.
 
 ### User Information Retrieval
 
-The access token is used to fetch user information from Django's user info endpoint:
+The `openidconnect` client attempts a `userinfo` request if the discovery metadata advertises an endpoint. Claims (preferred_username, email, given_name, etc.) are merged into the internal `UserInfo` structure together with the subject (`sub`).
 
-```rust
-let user_response = get_user_info(&token_response.access_token, &config.django_base_url).await?;
-```
+## Token & State Storage
 
-User information includes:
-- Username and email address
-- First and last name
-- Django user ID (subject claim)
-- Staff and superuser status
-- Group memberships
+Stored keys:
+- `oauth_user_info`: Serialized `UserInfo` (access token, optional ID token, basic claims)
+- `oauth_state`: CSRF state (removed after callback)
+- `oauth_code_verifier`: PKCE verifier (removed after token exchange)
+- `oauth_nonce`: Nonce for ID token validation (removed after validation)
 
-## Token Storage
-
-The admin interface manages token persistence:
-
-**Local Storage**: Access tokens are stored in browser's localStorage for session persistence across page reloads.
-
-**Security Considerations**: Tokens are stored client-side only and automatically cleared on logout or authentication errors.
-
-**Session Management**: The interface checks for stored tokens on startup and validates them before establishing authenticated connections.
+Security notes:
+- No client secret is embedded (public SPA).
+- State, code verifier and nonce are single-use and removed after success to reduce replay surface.
 
 ## Error Handling
 
-The OAuth implementation handles various error conditions:
+Main handled error classes:
+- Authorization errors (error / error_description in callback query).
+- State mismatch / missing state.
+- Missing PKCE verifier or nonce.
+- Token exchange failures.
+- ID token / nonce validation failures.
 
-**Authorization Errors**: Invalid client configuration, user denial, or server errors during authorization.
-
-**Token Exchange Errors**: Network failures, invalid authorization codes, or server-side token generation issues.
-
-**Validation Errors**: Expired or invalid stored tokens trigger re-authentication flows.
-
-Each error type provides specific user feedback and appropriate recovery actions, such as retry mechanisms or fallback to login screen.
+All errors clear sensitive stored values and place the system back into an unauthenticated state.
