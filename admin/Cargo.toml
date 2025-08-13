@@ -7,7 +7,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dioxus = { version = "0.7.0-alpha.3", features = [] }
+dioxus = { version = "0.7.0-rc.0", features = [] }
 futures-util = "0.3.31"
 spacetimedb-sdk = { git = "https://github.com/thlsrms/SpacetimeDB/", branch = "rust-web-sdk", features = [
     "web",
@@ -21,7 +21,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
 urlencoding = "2.1"
-openidconnect = { version = "3", default-features = false, features = [
+openidconnect = { version = "4", default-features = false, features = [
     "reqwest",
 ] }
 base64 = "0.22"

@@ -52,20 +52,33 @@ Default configuration connects to local Django instance:
 
 ### Authorization Request
 
-The admin interface builds the authorization URL with the `openidconnect` crate after dynamic discovery:
+The admin interface builds the authorization URL with the `openidconnect` crate (v4) after dynamic discovery.
 
 ```rust
+// Reusable HTTP client (no redirects to avoid SSRF)
+let http = reqwest::Client::builder()
+    .redirect(reqwest::redirect::Policy::none())
+    .build()?;
+
+// After discovery & client construction (auth & token endpoints set):
+let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+store_code_verifier(pkce_verifier.secret());
+
 let (auth_url, state, nonce) = client
-    .authorize_url(AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
-                   CsrfToken::new_random,
-                   Nonce::new_random)
+    .authorize_url(
+        AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
+        CsrfToken::new_random,
+        Nonce::new_random,
+    )
     .add_scope(Scope::new("openid".into()))
     .add_scope(Scope::new("profile".into()))
     .add_scope(Scope::new("email".into()))
     .set_pkce_challenge(pkce_challenge)
     .url();
 
-// state.secret() and nonce.secret() are persisted in localStorage.
+store_state(state.secret());
+store_nonce(nonce.secret());
+// Redirect the browser to auth_url
 ```
 
 Stored values in `localStorage`:
@@ -83,28 +96,44 @@ After redirect back with `code` and `state` parameters:
 4. If an ID token is present, validate its claims including the stored nonce:
 
 ```rust
+// Exchange the authorization code using the same persistent reqwest client
 let token_response = client
     .exchange_code(auth_code)
     .set_pkce_verifier(code_verifier)
-    .request_async(async_http_client)
+    .request_async(&http)
     .await?;
 
 if let Some(id_token) = token_response.extra_fields().id_token() {
     let nonce = Nonce::new(stored_nonce);
-    id_token.claims(&client.id_token_verifier(), &nonce)?; // validates signature, aud, iss, exp, nonce
+    id_token.claims(&client.id_token_verifier(), &nonce)?; // signature, aud, iss, exp, nonce
+    remove_stored_nonce();
 }
 ```
 
 On nonce validation success the stored nonce is removed; failure aborts authentication.
 
+If the token response includes a refresh token (Django configured to issue one for public clients), it is stored inside the serialized `oauth_user_info` object for silent renewal.
+
 ### User Information Retrieval
 
-The `openidconnect` client attempts a `userinfo` request if the discovery metadata advertises an endpoint. Claims (preferred_username, email, given_name, etc.) are merged into the internal `UserInfo` structure together with the subject (`sub`).
+The `openidconnect` client attempts a `userinfo` request only if the discovery metadata included a user info endpoint (typestate `EndpointMaybeSet`). The call is fallible; a missing endpoint or network error is ignored gracefully:
+
+```rust
+let maybe_userinfo = client
+    .user_info(token_response.access_token().clone(), None)
+    .ok()
+    .and_then(|req| async {
+        req.request_async(&http).await.ok()
+    }.await);
+
+// Merge optional claims into internal UserInfo structure.
+```
 
 ## Token & State Storage
 
 Stored keys:
 - `oauth_user_info`: Serialized `UserInfo` (access token, optional ID token, basic claims)
+- `refresh_token` (inside `oauth_user_info`): Used for silent renewal shortly before expiry
 - `oauth_state`: CSRF state (removed after callback)
 - `oauth_code_verifier`: PKCE verifier (removed after token exchange)
 - `oauth_nonce`: Nonce for ID token validation (removed after validation)
@@ -121,5 +150,6 @@ Main handled error classes:
 - Missing PKCE verifier or nonce.
 - Token exchange failures.
 - ID token / nonce validation failures.
+- Refresh failures (refresh token invalid / expired) trigger a forced logout.
 
 All errors clear sensitive stored values and place the system back into an unauthenticated state.

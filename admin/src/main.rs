@@ -273,6 +273,7 @@ fn ConnectionStatusCard(
                     div {
                         "Verbunden als: "
                         strong { "{user_info.mitgliedsnr}" }
+                        div { "Identity: {identity}" }
                     }
                 }
                 div { class: "row text-center",

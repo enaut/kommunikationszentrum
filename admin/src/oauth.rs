@@ -1,15 +1,16 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use web_sys::window;
-// openidconnect crate (wasm-fähig ohne native TLS)
+// openidconnect crate (4.x API – ohne stateless async_http_client Helper)
 use openidconnect::{
     core::{
         CoreClient, CoreProviderMetadata, CoreResponseType, CoreTokenResponse, CoreUserInfoClaims,
     },
-    reqwest::async_http_client,
     AuthenticationFlow, AuthorizationCode, ClientId, CsrfToken, IssuerUrl, Nonce,
-    OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
+    OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, RefreshToken, Scope,
 };
+use openidconnect::{EndpointMaybeSet, EndpointNotSet, EndpointSet};
+use reqwest::Client as HttpClient;
 use std::cell::RefCell;
 use std::rc::Rc;
 use tracing::warn;
@@ -74,8 +75,9 @@ pub struct UserInfo {
     pub username: String,
     pub email: Option<String>,
     pub access_token: String,
-    pub id_token: Option<String>, // JWT for SpacetimeDB auth
-    pub mitgliedsnr: String,      // Subject from JWT (Mitgliedsnummer)
+    pub id_token: Option<String>,      // JWT for SpacetimeDB auth
+    pub refresh_token: Option<String>, // Für stille Erneuerung
+    pub mitgliedsnr: String,           // Subject from JWT (Mitgliedsnummer)
     pub given_name: Option<String>,
     pub family_name: Option<String>,
     pub name: Option<String>,
@@ -88,12 +90,25 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
     let auth_state = use_signal(|| AuthState::Unauthenticated);
     let config = use_signal(OAuthConfig::default);
 
-    // OIDC Client (lazy einmalig)
-    let oidc_client: Rc<RefCell<Option<CoreClient>>> = Rc::new(RefCell::new(None));
+    // OIDC Client (lazy). Kein expliziter Typ für die Endpoint-Typzustände.
+    let oidc_client: Rc<RefCell<Option<_>>> = Rc::new(RefCell::new(None));
+    // Persistenter HTTP Client (AsyncHttpClient Trait). Redirects (SSRF Schutz) nur deaktivieren außerhalb WASM.
+    let http_client = Rc::new({
+        #[allow(unused_mut)]
+        let mut builder = HttpClient::builder();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            builder = builder.redirect(reqwest::redirect::Policy::none());
+        }
+        builder
+            .build()
+            .expect("failed to build reqwest HTTP client for OIDC")
+    });
 
     // Initialisierung & Callback Handling
     {
         let oidc_client = oidc_client.clone();
+        let http_client_discovery = http_client.clone();
         let mut auth_state = auth_state;
         let config_sig = config.clone();
         use_effect(move || {
@@ -114,6 +129,9 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
 
             // Async Block: Discovery + Callback oder Token Validierung
             let oidc_client_outer = oidc_client.clone();
+            let http_client_discovery_clone = http_client_discovery.clone();
+            let http_client_discovery_for_refresh = http_client_discovery.clone();
+            let http_client_discovery_inner = http_client_discovery.clone();
             spawn(async move {
                 // Discovery (wenn noch kein Client)
                 if oidc_client_outer.borrow().is_none() {
@@ -125,15 +143,18 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
                             return;
                         }
                     };
-                    let provider_metadata =
-                        match CoreProviderMetadata::discover_async(issuer, async_http_client).await
-                        {
-                            Ok(m) => m,
-                            Err(e) => {
-                                auth_state.set(AuthState::Error(format!("Discovery failed: {e}")));
-                                return;
-                            }
-                        };
+                    let provider_metadata = match CoreProviderMetadata::discover_async(
+                        issuer,
+                        &*http_client_discovery_clone,
+                    )
+                    .await
+                    {
+                        Ok(m) => m,
+                        Err(e) => {
+                            auth_state.set(AuthState::Error(format!("Discovery failed: {e}")));
+                            return;
+                        }
+                    };
                     let client_id = ClientId::new(cfg.client_id.clone());
                     let redirect_url = match RedirectUrl::new(cfg.redirect_uri.clone()) {
                         Ok(r) => r,
@@ -142,9 +163,23 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
                             return;
                         }
                     };
+                    // Endpoints setzen (Auth & Token obligatorisch für Authorization Code Flow)
+                    let auth_ep = provider_metadata.authorization_endpoint().clone();
+                    let token_ep = match provider_metadata.token_endpoint() {
+                        Some(t) => t.clone(),
+                        None => {
+                            auth_state.set(AuthState::Error(
+                                "Provider metadata missing token_endpoint".into(),
+                            ));
+                            return;
+                        }
+                    };
                     let client =
                         CoreClient::from_provider_metadata(provider_metadata, client_id, None)
-                            .set_redirect_uri(redirect_url);
+                            .set_redirect_uri(redirect_url)
+                            .set_auth_uri(auth_ep)
+                            .set_token_uri(token_ep);
+                    // UserInfo Endpoint bleibt MaybeSet typzustand (wir setzen ihn nicht explizit, verwenden user_info_maybe fallibel)
                     oidc_client_outer.replace(Some(client));
                 }
 
@@ -176,7 +211,7 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
                         let token_res = client
                             .exchange_code(auth_code)
                             .set_pkce_verifier(code_verifier)
-                            .request_async(async_http_client)
+                            .request_async(&*http_client_discovery_inner)
                             .await;
                         match token_res {
                             Ok(token_response) => {
@@ -206,21 +241,43 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
 
                                 remove_stored_code_verifier();
                                 remove_stored_state();
+                                // Refresh Token extrahieren (falls vorhanden) bevor move
+                                let refresh_token = token_response
+                                    .refresh_token()
+                                    .map(|r| r.secret().to_string());
                                 // UserInfo abrufen (optional) – wenn Endpoint vorhanden
                                 let maybe_userinfo = match client
                                     .user_info(token_response.access_token().clone(), None)
                                 {
-                                    Ok(req) => match req.request_async(async_http_client).await {
-                                        Ok(claims) => Some(claims),
-                                        Err(_) => None,
-                                    },
+                                    Ok(req) => {
+                                        match req.request_async(&*http_client_discovery_inner).await
+                                        {
+                                            Ok(claims) => Some(claims),
+                                            Err(_) => None,
+                                        }
+                                    }
                                     Err(_) => None,
                                 };
-                                let ui =
-                                    build_user_info_from_openid(token_response, maybe_userinfo);
+                                let ui = build_user_info_from_openid(
+                                    &token_response,
+                                    maybe_userinfo,
+                                    refresh_token.clone(),
+                                );
                                 store_user_info(&ui);
-                                auth_state.set(AuthState::Authenticated(ui));
+                                auth_state.set(AuthState::Authenticated(ui.clone()));
                                 clear_url();
+
+                                if let (Some(rt), Some(exp)) =
+                                    (refresh_token.clone(), token_response.expires_in())
+                                {
+                                    schedule_refresh(
+                                        client.clone(),
+                                        rt,
+                                        exp.as_secs(),
+                                        auth_state.clone(),
+                                        http_client_discovery_for_refresh.clone(),
+                                    );
+                                }
                             }
                             Err(e) => auth_state
                                 .set(AuthState::Error(format!("Token exchange failed: {e}"))),
@@ -336,8 +393,9 @@ fn clear_url() {
 }
 
 fn build_user_info_from_openid(
-    token_response: CoreTokenResponse,
+    token_response: &CoreTokenResponse,
     claims: Option<CoreUserInfoClaims>,
+    refresh_token: Option<String>,
 ) -> UserInfo {
     let access_token = token_response.access_token().secret().to_string();
     let id_token = token_response
@@ -378,6 +436,7 @@ fn build_user_info_from_openid(
         email,
         access_token,
         id_token,
+        refresh_token,
         mitgliedsnr: sub,
         given_name,
         family_name,
@@ -386,6 +445,104 @@ fn build_user_info_from_openid(
         is_superuser: None,
         groups,
     }
+}
+
+// Planung einer automatischen Token-Erneuerung ~60s vor Ablauf
+fn schedule_refresh(
+    client: CoreClient<
+        EndpointSet,
+        EndpointNotSet,
+        EndpointNotSet,
+        EndpointNotSet,
+        EndpointSet,
+        EndpointMaybeSet,
+    >,
+    refresh_token: String,
+    expires_in_secs: u64,
+    auth_state: Signal<AuthState>,
+    http_client: Rc<HttpClient>,
+) {
+    let wait_ms = expires_in_secs.saturating_sub(60) * 1000; // 60s Puffer
+    if wait_ms == 0 {
+        attempt_refresh(client, refresh_token, auth_state, http_client);
+        return;
+    }
+    spawn(async move {
+        gloo_timers::future::TimeoutFuture::new(wait_ms as u32).await;
+        attempt_refresh(client, refresh_token, auth_state, http_client);
+    });
+}
+
+fn attempt_refresh(
+    client: CoreClient<
+        EndpointSet,
+        EndpointNotSet,
+        EndpointNotSet,
+        EndpointNotSet,
+        EndpointSet,
+        EndpointMaybeSet,
+    >,
+    refresh_token: String,
+    auth_state: Signal<AuthState>,
+    http_client: Rc<HttpClient>,
+) {
+    let mut auth_state_cloned = auth_state.clone();
+    spawn(async move {
+        // Snapshot des aktuellen Zustands ohne Borrow während async weiterer Mutationen
+        let current_snapshot = auth_state_cloned.read().clone();
+        if let AuthState::Authenticated(current) = current_snapshot {
+            let rt = RefreshToken::new(refresh_token.clone());
+            match client
+                .exchange_refresh_token(&rt)
+                .request_async(&*http_client)
+                .await
+            {
+                Ok(token_response) => {
+                    let new_refresh = token_response
+                        .refresh_token()
+                        .map(|r| r.secret().to_string())
+                        .or_else(|| Some(refresh_token.clone()));
+                    let maybe_userinfo =
+                        match client.user_info(token_response.access_token().clone(), None) {
+                            Ok(req) => match req.request_async(&*http_client).await {
+                                Ok(claims) => Some(claims),
+                                Err(_) => None,
+                            },
+                            Err(_) => None,
+                        };
+                    let mut updated =
+                        build_user_info_from_openid(&token_response, maybe_userinfo, new_refresh);
+                    // Fehlende Felder aus vorherigem Zustand übernehmen
+                    if updated.name.is_none() {
+                        updated.name = current.name.clone();
+                    }
+                    if updated.given_name.is_none() {
+                        updated.given_name = current.given_name.clone();
+                    }
+                    if updated.family_name.is_none() {
+                        updated.family_name = current.family_name.clone();
+                    }
+                    store_user_info(&updated);
+                    auth_state_cloned.set(AuthState::Authenticated(updated.clone()));
+                    if let (Some(rt), Some(exp)) =
+                        (updated.refresh_token.clone(), token_response.expires_in())
+                    {
+                        schedule_refresh(
+                            client.clone(),
+                            rt,
+                            exp.as_secs(),
+                            auth_state_cloned.clone(),
+                            http_client.clone(),
+                        );
+                    }
+                }
+                Err(e) => {
+                    auth_state_cloned.set(AuthState::Error(format!("Refresh failed: {e}")));
+                    remove_stored_user_info();
+                }
+            }
+        }
+    });
 }
 
 // --- State & Nonce Speicherung
