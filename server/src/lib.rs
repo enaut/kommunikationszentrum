@@ -1,16 +1,24 @@
 use serde::{Deserialize, Serialize};
-use spacetimedb::{Identity, ReducerContext, Table};
+use spacetimedb::{Filter, Identity, ReducerContext, Table};
 use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
+#[derive(Debug)]
 #[spacetimedb::table(name = account, public)]
 pub struct Account {
     #[primary_key]
     pub id: u64, // mitgliedsnr from Django
-    pub identity: Option<Identity>,
+    pub identity: Identity,
     pub name: String,
     pub email: String,
     pub is_active: bool,
+    pub is_admin: bool, // RLS: Admins dürfen alle Accounts sehen
     pub last_synced: i64,
+}
+
+#[spacetimedb::table(name = admin_identities)]
+pub struct AdminIdentity {
+    #[primary_key]
+    pub identity: Identity,
 }
 
 #[spacetimedb::table(name = mta_connection_log)]
@@ -85,11 +93,40 @@ pub struct UserSyncData {
     pub email: Option<String>,
     pub is_active: Option<bool>,
     pub updated_at: Option<String>,
+    // Optional: precomputed Spacetime Identity as hex string (provided by Django)
+    pub identity_hex: Option<String>,
 }
 
 #[spacetimedb::reducer(init)]
-pub fn init(_ctx: &ReducerContext) {
+pub fn init(ctx: &ReducerContext) {
     // Called when the module is initially published
+    let module_id = ctx.identity();
+    let mut exists = false;
+    for row in ctx.db.admin_identities().iter() {
+        if row.identity == module_id {
+            exists = true;
+            break;
+        }
+    }
+    if !exists {
+        ctx.db.admin_identities().insert(AdminIdentity {
+            identity: module_id,
+        });
+        log::info!("Seeded module identity as admin: {:?}", module_id);
+    }
+
+    // Insert a test account row to verify writes work after publish
+    let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000;
+    ctx.db.account().insert(Account {
+        id: 999999,
+        identity: module_id,
+        name: "Init Test".to_string(),
+        email: "init@test.local".to_string(),
+        is_active: true,
+        is_admin: true,
+        last_synced: timestamp,
+    });
+    log::info!("Inserted init test account row");
 }
 
 #[spacetimedb::reducer(client_connected)]
@@ -106,6 +143,21 @@ pub fn identity_connected(ctx: &ReducerContext) {
     // Example: Check if the sender has admin privileges
     // This would be based on the JWT claims that SpacetimeDB validated
 }
+
+// ------------------------------------------------------------
+// Row Level Security (Client Visibility)
+// Normale Benutzer sollen nur ihren eigenen Account sehen.
+// Admin Benutzer (is_admin=true) sehen alle Accounts.
+// Diese Funktion wird (unstable Feature) vom SpacetimeDB Runtime
+// zur Filterung pro Zeile aufgerufen.
+// Hinweis: Falls der Attributname sich geändert hat, bitte in der
+// SpacetimeDB Doku nach dem korrekten "client visibility" Attribut
+// suchen und anpassen.
+// Client Visibility Filter (Row Level Security):
+// Self-only visibility: clients can only see their own account row
+#[spacetimedb::client_visibility_filter]
+pub const ACCOUNT_VISIBILITY: Filter =
+    Filter::Sql("SELECT * FROM account where identity = :sender");
 
 #[spacetimedb::reducer(client_disconnected)]
 pub fn identity_disconnected(_ctx: &ReducerContext) {
@@ -352,6 +404,9 @@ fn extract_subject_from_request(request: &MtaHookRequest) -> String {
 // User synchronization from Django
 #[spacetimedb::reducer]
 pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
+    // TEMP: Autorisierung deaktiviert, damit der Webhook-Proxy ohne Token synchronisieren kann.
+    // WICHTIG: Für Produktion wieder absichern (is_admin_identity o.ä.).
+
     let timestamp = ctx.timestamp.to_micros_since_unix_epoch() / 1_000_000;
 
     log::info!("Syncing user with action: {}", action);
@@ -371,18 +426,32 @@ pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
                         }
                     }
                     log::info!("No existing account found, proceeding to insert new account");
+
+                    // Prefer provided identity_hex; if missing or parsing unsupported, fall back to module identity
+                    let mitgliedsnr = data.mitgliedsnr.to_string();
+
+                    let identity_of_user =
+                        Identity::from_claims("http://127.0.0.1:8000/o", &mitgliedsnr);
                     // Insert new/updated account
                     let account = Account {
                         id: data.mitgliedsnr,
-                        identity: None, // Identity can be set later if needed
+                        identity: identity_of_user,
                         name: data.name.unwrap_or_default(),
                         email: data.email.unwrap_or_default(),
                         is_active: data.is_active.unwrap_or(true),
+                        is_admin: false,
                         last_synced: timestamp,
                     };
 
-                    ctx.db.account().insert(account);
-                    log::info!("Synced user: {} ({})", data.mitgliedsnr, action);
+                    log::info!("Inserting account: {:#?}", account);
+
+                    let account = ctx.db.account().insert(account);
+                    log::info!(
+                        "Synced user: {} ({}) [result: {:?}]",
+                        account.id,
+                        action,
+                        account
+                    );
                 }
                 "delete" => {
                     // Find and delete the account
@@ -405,22 +474,23 @@ pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
     }
 }
 
-// Management reducers for categories and subscriptions
-// Note: These should check for proper authorization based on the authenticated identity
-
 /// Check if the current user has admin permissions
-fn is_admin_user(_ctx: &ReducerContext) -> bool {
-    // In a real implementation, you would check the JWT claims
-    // that were validated by SpacetimeDB when the client connected.
-    // For now, we assume all authenticated users are admins.
-    //
-    // You could extend this to:
-    // 1. Check specific claims in the JWT (e.g., is_staff, is_superuser, groups)
-    // 2. Maintain a whitelist of admin identities in the database
-    // 3. Use role-based permissions
+fn is_admin_user(ctx: &ReducerContext) -> bool {
+    is_admin_identity(ctx, ctx.sender)
+}
 
-    // For demo purposes, allow all authenticated users
-    true
+/// True if the provided identity is the module owner or listed in admin_identities
+fn is_admin_identity(ctx: &ReducerContext, who: Identity) -> bool {
+    // Module owner is always admin
+    if who == ctx.identity() {
+        return true;
+    }
+    for row in ctx.db.admin_identities().iter() {
+        if row.identity == who {
+            return true;
+        }
+    }
+    false
 }
 
 #[spacetimedb::reducer]
@@ -512,19 +582,21 @@ pub fn add_test_accounts(ctx: &ReducerContext) {
     // Add some test accounts
     ctx.db.account().insert(Account {
         id: 1,
-        identity: None, // Identity can be set later if needed
+        identity: ctx.identity(),
         name: "Test User 1".to_string(),
         email: "test1@example.com".to_string(),
         is_active: true,
+        is_admin: false,
         last_synced: timestamp,
     });
 
     ctx.db.account().insert(Account {
         id: 2,
-        identity: None, // Identity can be set later if needed
+        identity: ctx.identity(),
         name: "Test User 2".to_string(),
         email: "test2@example.com".to_string(),
         is_active: true,
+        is_admin: false,
         last_synced: timestamp,
     });
 

@@ -1,76 +1,186 @@
-# SpacetimeDB Webhook Setup
+# Kommunikationszentrum - SoLaWi Email Management System
 
-Diese Lösung ermöglicht es Ihnen, HTTP-Webhooks zu empfangen und diese an SpacetimeDB weiterzuleiten.
+A Community Supported Agriculture (SoLaWi) email management system that processes and routes emails based on user subscriptions to mailing list categories.
 
-## Architektur
+## Quick Start
 
-1. **SpacetimeDB Module** (`/server`): Enthält die Geschäftslogik und Datenbank-Tabellen
-2. **Webhook Proxy** (`/webhook-proxy`): HTTP-Server, der Webhooks empfängt und an SpacetimeDB weiterleitet
+### Automated Development Setup
 
-## Setup
-
-### 1. SpacetimeDB Module kompilieren und starten
+The easiest way to start all development services:
 
 ```bash
-cd server
-cargo build --target wasm32-unknown-unknown --release
+# Using Make (recommended)
+make start
+
+# Or using the shell script directly  
+./start-dev.sh
+```
+
+This will automatically start all required services:
+- SpacetimeDB Server (port 3000)
+- Django Backend (port 8000)  
+- Webhook Proxy (port 3002)
+- Admin Web UI (port 8080)
+
+### Service Management
+
+```bash
+# Check service status
+make status
+
+# View recent logs
+make logs
+
+# Follow logs in real-time  
+make logs-follow
+
+# Stop all services
+make stop
+
+# Restart everything
+make restart
+
+# Clean up logs and stop services
+make clean
+```
+
+### VS Code Integration
+
+If you're using VS Code:
+1. Open the workspace: `kommunikationszentrum.code-workspace`
+2. Use **Ctrl+Shift+P** → "Tasks: Run Task" → "Start All Development Services"
+3. Or use **F5** to start with debugging support
+
+## Architecture Overview
+
+The system consists of four main components:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Admin Web UI  │    │ Webhook Proxy   │    │   SpacetimeDB   │
+│   (Dioxus)      │◄──►│   (Axum HTTP)   │◄──►│   (Database)    │
+│   Port 8080     │    │   Port 3002     │    │   Port 3000     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       ▲
+         │                       │
+         ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐
+│ OAuth Provider  │    │ Stalwart MTA    │
+│ solawispielplatz│    │   (External)    │
+│ Django Port 8000│    └─────────────────┘
+└─────────────────┘
+```
+
+### Components
+
+1. **SpacetimeDB Server** (`/server`): Core database and business logic layer
+2. **Webhook Proxy** (`/webhook-proxy`): HTTP API gateway for MTA hooks and user sync
+3. **Admin Web Interface** (`/admin`): Dioxus WebAssembly frontend
+4. **Django Backend** (external): User management and OAuth provider
+
+## Manual Setup
+
+### Prerequisites
+
+- [Rust](https://rustup.rs/) with `wasm32-unknown-unknown` target
+- [SpacetimeDB CLI](https://spacetimedb.com/install)
+- [Dioxus CLI](https://dioxuslabs.com/learn/0.6/getting_started): `cargo install dioxus-cli`
+- Python 3.x with Django environment at `/home/dietrich/.envs/Solawis/current/bin/python`
+
+### Manual Service Startup
+
+If you prefer to start services individually:
+
+#### 1. Start SpacetimeDB Server
+
+```bash
 spacetime start
-spacetime publish spacetime-module target/wasm32-unknown-unknown/release/spacetime_module.wasm
 ```
 
-### 2. Webhook Proxy starten
+#### 2. Publish Database Schema
 
 ```bash
-cd webhook-proxy
-cargo run
+spacetime publish --project-path server kommunikation
 ```
 
-Der Webhook Proxy läuft dann auf `http://localhost:3001/hook`
-
-## Verwendung
-
-### Webhook senden
+#### 3. Start Django Backend
 
 ```bash
-curl -X POST http://localhost:3001/hook \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Test message",
-    "sender": "test@example.com"
-  }'
+/home/dietrich/.envs/Solawis/current/bin/python /home/dietrich/Projekte/Source/solawispielplatz/src/manage.py runserver
 ```
 
-### Mit SpacetimeDB CLI interagieren
+#### 4. Start Webhook Proxy
 
 ```bash
-# Alle Webhook-Logs anzeigen
-spacetime call kommunikationszentrum get_webhook_logs
-
-# Alle Personen anzeigen
-spacetime call kommunikationszentrum say_hello
+cargo run --package webhook-proxy
 ```
 
-## Datenstrukturen
+#### 5. Start Admin Web UI
 
-### WebhookPayload (Input)
-```json
-{
-  "message": "string",
-  "sender": "string"
-}
+```bash
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' dx serve --package admin --platform web
 ```
 
-### SpacetimeDB Tabellen
-- `person`: Speichert Personennamen
-- `webhook_log`: Speichert alle eingehenden Webhook-Daten
+#### 6. Sync Users to SpacetimeDB
 
-## Alternative: Direkte SpacetimeDB SDK Verwendung
+```bash
+cd /home/dietrich/Projekte/Source/solawispielplatz
+/home/dietrich/.envs/Solawis/current/bin/python src/manage.py sync_users_to_spacetimedb
+```
 
-Falls Sie den HTTP-Proxy nicht verwenden möchten, können Sie auch direkt mit dem SpacetimeDB SDK arbeiten:
+## Development Commands
 
-```rust
-use spacetimedb_sdk::*;
+```bash
+# Build all Rust components
+make build
 
-// Direkt Reducer aufrufen
-client.call_reducer("handle_webhook", vec![json_payload.into()]).await?;
+# Run tests
+make test
+
+# Sync users manually
+make sync-users
+
+# Reset database (DESTRUCTIVE!)
+make reset-db
+
+# Start documentation server
+make dev-docs
+```
+
+## Service URLs
+
+- **Admin Web UI**: http://localhost:8080
+- **Django Backend**: http://localhost:8000
+- **Webhook Proxy**: http://localhost:3002
+- **SpacetimeDB**: http://localhost:3000
+
+## Documentation
+
+Complete documentation is available in the `docs/` directory:
+
+```bash
+# Start documentation server
+cd docs && mdbook serve --open
+```
+
+## Troubleshooting
+
+### Port Conflicts
+If you encounter port conflicts, check which services are running:
+```bash
+make status
+```
+
+### Service Logs
+View detailed logs for debugging:
+```bash
+make logs          # Recent logs
+make logs-follow   # Real-time logs
+```
+
+### Clean Restart
+For a complete clean restart:
+```bash
+make clean
+make start
 ```

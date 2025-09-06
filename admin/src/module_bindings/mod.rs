@@ -11,6 +11,8 @@ pub mod account_type;
 pub mod add_message_category_reducer;
 pub mod add_subscription_reducer;
 pub mod add_test_accounts_reducer;
+pub mod admin_identities_table;
+pub mod admin_identity_type;
 pub mod block_ip_reducer;
 pub mod blocked_ip_type;
 pub mod blocked_ips_table;
@@ -39,6 +41,8 @@ pub use add_subscription_reducer::{
 pub use add_test_accounts_reducer::{
     add_test_accounts, set_flags_for_add_test_accounts, AddTestAccountsCallbackId,
 };
+pub use admin_identities_table::*;
+pub use admin_identity_type::AdminIdentity;
 pub use block_ip_reducer::{block_ip, set_flags_for_block_ip, BlockIpCallbackId};
 pub use blocked_ip_type::BlockedIp;
 pub use blocked_ips_table::*;
@@ -178,6 +182,7 @@ impl TryFrom<__ws::ReducerCallInfo<__ws::BsatnFormat>> for Reducer {
 #[doc(hidden)]
 pub struct DbUpdate {
     account: __sdk::TableUpdate<Account>,
+    admin_identities: __sdk::TableUpdate<AdminIdentity>,
     blocked_ips: __sdk::TableUpdate<BlockedIp>,
     message_categories: __sdk::TableUpdate<MessageCategory>,
     mta_connection_log: __sdk::TableUpdate<MtaConnectionLog>,
@@ -194,6 +199,9 @@ impl TryFrom<__ws::DatabaseUpdate<__ws::BsatnFormat>> for DbUpdate {
                 "account" => db_update
                     .account
                     .append(account_table::parse_table_update(table_update)?),
+                "admin_identities" => db_update
+                    .admin_identities
+                    .append(admin_identities_table::parse_table_update(table_update)?),
                 "blocked_ips" => db_update
                     .blocked_ips
                     .append(blocked_ips_table::parse_table_update(table_update)?),
@@ -238,6 +246,9 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.account = cache
             .apply_diff_to_table::<Account>("account", &self.account)
             .with_updates_by_pk(|row| &row.id);
+        diff.admin_identities = cache
+            .apply_diff_to_table::<AdminIdentity>("admin_identities", &self.admin_identities)
+            .with_updates_by_pk(|row| &row.identity);
         diff.blocked_ips = cache
             .apply_diff_to_table::<BlockedIp>("blocked_ips", &self.blocked_ips)
             .with_updates_by_pk(|row| &row.ip);
@@ -263,6 +274,7 @@ impl __sdk::DbUpdate for DbUpdate {
 #[doc(hidden)]
 pub struct AppliedDiff<'r> {
     account: __sdk::TableAppliedDiff<'r, Account>,
+    admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
     blocked_ips: __sdk::TableAppliedDiff<'r, BlockedIp>,
     message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
     mta_connection_log: __sdk::TableAppliedDiff<'r, MtaConnectionLog>,
@@ -281,6 +293,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks: &mut __sdk::DbCallbacks<RemoteModule>,
     ) {
         callbacks.invoke_table_row_callbacks::<Account>("account", &self.account, event);
+        callbacks.invoke_table_row_callbacks::<AdminIdentity>(
+            "admin_identities",
+            &self.admin_identities,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<BlockedIp>("blocked_ips", &self.blocked_ips, event);
         callbacks.invoke_table_row_callbacks::<MessageCategory>(
             "message_categories",
@@ -877,6 +894,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
 
     fn register_tables(client_cache: &mut __sdk::ClientCache<Self>) {
         account_table::register_table(client_cache);
+        admin_identities_table::register_table(client_cache);
         blocked_ips_table::register_table(client_cache);
         message_categories_table::register_table(client_cache);
         mta_connection_log_table::register_table(client_cache);

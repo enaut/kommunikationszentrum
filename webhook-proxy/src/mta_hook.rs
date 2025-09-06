@@ -243,7 +243,7 @@ async fn user_sync_endpoint(
     State(handler): State<Arc<MtaHookHandler>>,
     Json(payload): Json<UserSyncPayload>,
 ) -> Result<ResponseJson<serde_json::Value>, (StatusCode, String)> {
-    info!("Received user sync request");
+    info!("Received user sync request:\n{:#?}", payload);
 
     let user_data = serde_json::to_string(&payload.user).map_err(|e| {
         error!(error = %e, "Failed to serialize user data");
@@ -258,7 +258,7 @@ async fn user_sync_endpoint(
         .reducers
         .sync_user(payload.action.clone(), user_data)
     {
-        Ok(_) => {
+        Ok(()) => {
             info!(action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr, "User sync successful");
             Ok(ResponseJson(serde_json::json!({
                 "status": "success",
@@ -342,17 +342,18 @@ async fn main() -> anyhow::Result<()> {
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct UserSyncPayload {
     pub action: String, // "upsert" or "delete"
     pub user: UserSyncData,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct UserSyncData {
     pub mitgliedsnr: u64,
     pub name: Option<String>,
     pub email: Option<String>,
     pub is_active: Option<bool>,
     pub updated_at: Option<String>,
+    pub identity_hex: Option<String>,
 }

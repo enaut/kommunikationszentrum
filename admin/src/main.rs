@@ -108,11 +108,18 @@ fn AuthenticatingPage() -> Element {
 fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element {
     // SpacetimeDB connection with authentication token
     info!("Authenticated as: {}", user_info.mitgliedsnr);
-    info!("Using SpacetimeDB with token: {:?}", user_info.id_token);
+    if user_info.id_token.is_some() {
+        info!("Using SpacetimeDB with id_token present");
+    } else {
+        info!("No id_token present; will try access_token as fallback");
+    }
+    // Keep token in a signal so we can trigger reconnects if it changes (e.g., on refresh)
+    let id_token_sig = use_signal(|| user_info.id_token.clone());
+
     let spacetime_db = use_spacetime_db(SpacetimeDbOptions {
         uri: "http://localhost:3000".to_string(),
         module_name: "kommunikation".to_string(),
-        token: user_info.id_token.clone(),
+        token: id_token_sig.read().clone(),
     });
     let _subsc = use_spacetime_db::use_spacetime_subscription(
         &spacetime_db,
@@ -273,7 +280,8 @@ fn ConnectionStatusCard(
                     div {
                         "Verbunden als: "
                         strong { "{user_info.mitgliedsnr}" }
-                        div { "Identity: {identity}" }
+                        pre { "Identity: {user_info.decode_id_token():#?}" }
+                        div { "Identity: {identity:?}" }
                     }
                 }
                 div { class: "row text-center",
@@ -345,7 +353,14 @@ fn AccountsSection(accounts: Signal<Vec<Account>>) -> Element {
                                             }
                                             div {
                                                 h6 { class: "card-title mb-0", "{user.name}" }
-                                                small { class: "text-muted", "{user.email}" }
+                                                ul {
+                                                    li {
+                                                        small { class: "text-muted", "{user.email}" }
+                                                    }
+                                                    li {
+                                                        small { class: "text-muted", "{user.identity}" }
+                                                    }
+                                                }
                                             }
                                         }
                                         div { class: "mb-3",

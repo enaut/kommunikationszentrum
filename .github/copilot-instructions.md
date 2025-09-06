@@ -113,6 +113,8 @@ spacetime publish --project-path server kommunikation -c
 RUSTFLAGS='--cfg getrandom_backend="wasm_js"' dx serve --package admin --platform web
 ```
 
+Allways use `dx` or the vscode task "Start Admin Web UI", Do not use `cargo` commands for building or launching dioxus admin.
+
 # Architecture Overview
 
 The Kommunikationszentrum is a distributed email management system for the SoLaWi project that consists of four main components:

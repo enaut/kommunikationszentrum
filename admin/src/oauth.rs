@@ -1,7 +1,9 @@
 use dioxus::prelude::*;
+use js_sys::Date;
 use serde::{Deserialize, Serialize};
 use web_sys::window;
 // openidconnect crate (4.x API – ohne stateless async_http_client Helper)
+use base64::Engine;
 use openidconnect::{
     core::{
         CoreClient, CoreProviderMetadata, CoreResponseType, CoreTokenResponse, CoreUserInfoClaims,
@@ -84,6 +86,67 @@ pub struct UserInfo {
     pub is_staff: Option<bool>,
     pub is_superuser: Option<bool>,
     pub groups: Option<Vec<String>>,
+}
+
+/// Result of decoding a (non-encrypted) JWT: header & claims as generic JSON plus raw signature.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DecodedJwt {
+    pub header: serde_json::Value,
+    pub claims: serde_json::Value,
+    pub signature_b64: String,
+    pub header_raw: String,
+    pub claims_raw: String,
+}
+
+impl UserInfo {
+    /// Decode the stored ID token (JWS) without verifying the signature.
+    /// NOTE: This is a base64url decode + JSON parse only. Do not rely on this for security
+    /// decisions; signature and claim validation must already have been done during login.
+    pub fn decode_id_token(&self) -> Option<Result<DecodedJwt, String>> {
+        let token = self.id_token.as_ref()?;
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 3 {
+            return Some(Err("Malformed JWT (expected 3 parts)".into()));
+        }
+        let (h_b64, c_b64, s_b64) = (parts[0], parts[1], parts[2]);
+        fn b64url_decode(input: &str) -> Result<Vec<u8>, String> {
+            // Base64URL (no padding) -> standard decode: normalize, then decode
+            let mut s = input.replace('-', "+").replace('_', "/");
+            while s.len() % 4 != 0 {
+                s.push('=');
+            }
+            base64::engine::general_purpose::STANDARD
+                .decode(s)
+                .map_err(|e| format!("Base64 decode error: {e}"))
+        }
+        let header_raw = match b64url_decode(h_b64)
+            .and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()))
+        {
+            Ok(s) => s,
+            Err(e) => return Some(Err(e)),
+        };
+        let claims_raw = match b64url_decode(c_b64)
+            .and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()))
+        {
+            Ok(s) => s,
+            Err(e) => return Some(Err(e)),
+        };
+        let header_json: serde_json::Value = match serde_json::from_str(&header_raw) {
+            Ok(v) => v,
+            Err(e) => return Some(Err(format!("Header JSON parse error: {e}"))),
+        };
+        let claims_json: serde_json::Value = match serde_json::from_str(&claims_raw) {
+            Ok(v) => v,
+            Err(e) => return Some(Err(format!("Claims JSON parse error: {e}"))),
+        };
+        Some(Ok(DecodedJwt {
+            header: header_json,
+            claims: claims_json,
+            signature_b64: s_b64.to_string(),
+            header_raw,
+            claims_raw,
+        }))
+    }
 }
 
 pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
@@ -284,7 +347,61 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
                         }
                     }
                 } else if let Some(user_info) = get_stored_user_info() {
-                    auth_state.set(AuthState::Authenticated(user_info));
+                    // Validate expiry of restored id_token; if expired and we have a refresh_token, try refresh; else force re-login
+                    let ui = user_info;
+                    let now = (Date::new_0().get_time() / 1000.0) as u64;
+                    let mut exp_opt: Option<u64> = None;
+                    if let Some(Ok(decoded)) = ui.decode_id_token() {
+                        if let Some(exp) = decoded.claims.get("exp").and_then(|v| v.as_u64()) {
+                            exp_opt = Some(exp);
+                        }
+                    }
+
+                    // Consider tokens expiring within the next 60s as effectively expired
+                    let needs_refresh = match exp_opt {
+                        Some(exp) => exp <= now.saturating_add(60),
+                        None => false, // if no exp, proceed (provider might omit ID token)
+                    };
+
+                    if needs_refresh {
+                        if let (Some(client), Some(rt)) = (
+                            oidc_client_outer.borrow().as_ref(),
+                            ui.refresh_token.clone(),
+                        ) {
+                            // Attempt immediate refresh; keep UI responsive by updating state after success
+                            attempt_refresh(
+                                client.clone(),
+                                rt,
+                                auth_state.clone(),
+                                http_client_discovery_for_refresh.clone(),
+                            );
+                        } else {
+                            // No refresh_token -> require login
+                            auth_state.set(AuthState::Unauthenticated);
+                        }
+                    } else {
+                        // Token still valid; schedule a refresh using (exp - now)
+                        if let (Some(client), Some(exp)) =
+                            (oidc_client_outer.borrow().as_ref(), exp_opt)
+                        {
+                            let expires_in_secs = exp.saturating_sub(now);
+                            store_user_info(&ui);
+                            auth_state.set(AuthState::Authenticated(ui.clone()));
+                            if let Some(rt) = ui.refresh_token.clone() {
+                                schedule_refresh(
+                                    client.clone(),
+                                    rt,
+                                    expires_in_secs,
+                                    auth_state.clone(),
+                                    http_client_discovery_for_refresh.clone(),
+                                );
+                            }
+                        } else {
+                            // No exp -> just restore state
+                            store_user_info(&ui);
+                            auth_state.set(AuthState::Authenticated(ui));
+                        }
+                    }
                 }
             });
         });

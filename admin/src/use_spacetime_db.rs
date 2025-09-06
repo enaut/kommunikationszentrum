@@ -1,10 +1,12 @@
 use crate::module_bindings::{self, AccountTableAccess as _, DbConnection};
 
+use base64::Engine;
 use dioxus::{
     dioxus_core::SpawnIfAsync,
     logger::tracing::{debug, error, info},
     prelude::*,
 };
+use serde_json::Value as JsonValue;
 use spacetimedb_sdk::{DbContext as _, Identity, Table as _};
 use std::rc::Rc;
 
@@ -29,7 +31,7 @@ impl Default for SpacetimeDbOptions {
     fn default() -> Self {
         Self {
             uri: "http://localhost:3000".to_string(),
-            module_name: "my-database".to_string(),
+            module_name: "kommunikation".to_string(),
             token: None,
         }
     }
@@ -49,6 +51,7 @@ pub struct SpacetimeDb {
 
 /// Custom hook for SpacetimeDB connection management
 pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
+    let options_for_effect = options.clone();
     let conn_state = use_signal(|| ConnectionState::Disconnected);
     let identity = use_signal(|| {
         // Store the full number 415 as a little-endian u32 in the first 4 bytes of the array
@@ -58,6 +61,8 @@ pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
     });
     let connection = use_signal(|| None::<DbConnection>);
     let is_connecting = use_signal(|| false);
+    // Track last seen token to avoid unnecessary reconnects; None = uninitialized
+    let last_token = use_signal(|| None::<Option<String>>);
 
     // Simple connect function without complex callbacks
     let connect = {
@@ -89,10 +94,23 @@ pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
                     info!("Building SpacetimeDB connection...");
                     debug!("SpacetimeDB options: {:?}", options);
 
+                    // Diagnostics: parse JWT timing to detect skew/expiry
+                    if let Some(tok) = options.token.as_ref() {
+                        if let Some((iat, exp)) = decode_jwt_times(tok) {
+                            let now = (js_sys::Date::new_0().get_time() / 1000.0) as i64;
+                            let expires_in = exp - now;
+                            let skew_iat = now - iat;
+                            info!("JWT timing: iat={}, exp={}, now={}, expires_in={}s, now_minus_iat={}s", iat, exp, now, expires_in, skew_iat);
+                        } else {
+                            debug!("JWT timing: unable to decode iat/exp");
+                        }
+                    }
+
+                    // Build connection with primary token only
                     let conn_result = DbConnection::builder()
                         .with_uri(&options.uri)
                         .with_module_name(&options.module_name)
-                        .with_token(options.token)
+                        .with_token(options.token.clone())
                         .build()
                         .await;
 
@@ -192,6 +210,35 @@ pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
         }
     });
 
+    // Auto-reconnect when tokens change (options are captured by value into the hook via props)
+    use_effect({
+        let disconnect_cb = disconnect.clone();
+        let connect_cb = connect.clone();
+        // Snapshot of current token
+        let dep_primary = options_for_effect.token.clone();
+        let last_token = last_token.clone();
+        move || {
+            let current = Some(dep_primary.clone());
+            // Only reconnect if token actually changed AND we were initialized before
+            let prev = last_token.read().clone();
+            if prev.is_none() {
+                // Initialize without reconnect to avoid loop right after first connect
+                let mut lt = last_token;
+                lt.set(current);
+            } else if prev != current {
+                let mut lt = last_token;
+                lt.set(current);
+                debug!("Token change observed, reconnecting to SpacetimeDB...");
+                (disconnect_cb)();
+                let connect_cb2 = connect_cb.clone();
+                spawn(async move {
+                    gloo_timers::future::TimeoutFuture::new(50).await;
+                    (connect_cb2)();
+                });
+            }
+        }
+    });
+
     SpacetimeDb {
         connection,
         state: conn_state,
@@ -199,6 +246,25 @@ pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
         connect,
         disconnect,
     }
+}
+
+// Decode iat/exp from a JWT (without verification). Returns (iat, exp) if present.
+fn decode_jwt_times(token: &str) -> Option<(i64, i64)> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let payload_b64 = parts[1];
+    // base64url decode
+    let mut s = payload_b64.replace('-', "+").replace('_', "/");
+    while s.len() % 4 != 0 {
+        s.push('=');
+    }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(s).ok()?;
+    let payload: JsonValue = serde_json::from_slice(&bytes).ok()?;
+    let iat = payload.get("iat").and_then(|v| v.as_i64())?;
+    let exp = payload.get("exp").and_then(|v| v.as_i64())?;
+    Some((iat, exp))
 }
 
 // Extension hook for subscribing to tables

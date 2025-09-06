@@ -10,10 +10,11 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub struct Account {
     pub id: u64,
-    pub identity: Option<__sdk::Identity>,
+    pub identity: __sdk::Identity,
     pub name: String,
     pub email: String,
     pub is_active: bool,
+    pub is_admin: bool,
     pub last_synced: i64,
 }
 
