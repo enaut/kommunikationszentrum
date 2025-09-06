@@ -6,15 +6,7 @@ A Community Supported Agriculture (SoLaWi) email management system that processe
 
 ### Automated Development Setup
 
-The easiest way to start all development services:
-
-```bash
-# Using Make (recommended)
-make start
-
-# Or using the shell script directly  
-./start-dev.sh
-```
+The easiest way to start all development services is to use the vscode tasks.
 
 This will automatically start all required services:
 - SpacetimeDB Server (port 3000)

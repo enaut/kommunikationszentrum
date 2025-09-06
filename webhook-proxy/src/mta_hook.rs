@@ -355,5 +355,4 @@ pub struct UserSyncData {
     pub email: Option<String>,
     pub is_active: Option<bool>,
     pub updated_at: Option<String>,
-    pub identity_hex: Option<String>,
 }

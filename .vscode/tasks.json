@@ -1,0 +1,260 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start SpacetimeDB Server",
+            "type": "shell",
+            "command": "spacetime",
+            "args": [
+                "start"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false,
+                "close": true
+            },
+            "isBackground": true,
+            "problemMatcher": [
+                {
+                    "owner": "spacetime-start",
+                    "fileLocation": "autoDetect",
+                    "pattern": {
+                        "regexp": "^$"
+                    },
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": "Starting SpacetimeDB",
+                        "endsPattern": "listening on .*:3000"
+                    }
+                }
+            ],
+        },
+        {
+            "label": "Spacetime Logout+Login via OIDC",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-lc",
+                "set -a; [ -f .env/.env.oidc ] && source .env/.env.oidc; [ -f .env.oidc ] && source .env.oidc; set +a; python3 ./docs/testscripts/spacetime_oidc_login.py"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "new",
+                "close": true
+            },
+            "group": "build",
+            "dependsOn": [
+                "Start SpacetimeDB Server",
+                "Start Django Backend"
+            ]
+        },
+        {
+            "label": "Publish SpacetimeDB Schema",
+            "type": "shell",
+            "command": "spacetime",
+            "args": [
+                "publish",
+                "--project-path",
+                "server",
+                "kommunikation",
+                "--delete-data"
+            ],
+            "group": "build",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "new",
+                "close": true
+            },
+            "dependsOn": [
+                "Start SpacetimeDB Server",
+                "Spacetime Logout+Login via OIDC"
+            ]
+        },
+        {
+            "label": "Start Django Backend",
+            "type": "shell",
+            "command": "/home/dietrich/.envs/Solawis/current/bin/python",
+            "args": [
+                "/home/dietrich/Projekte/Source/solawispielplatz/src/manage.py",
+                "runserver"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "close": true
+            },
+            "isBackground": true,
+            "problemMatcher": [
+                {
+                    "owner": "django-devserver",
+                    "fileLocation": "autoDetect",
+                    "pattern": {
+                        "regexp": "^$"
+                    },
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": "(Watching for file changes with StatReloader|Performing system checks...)",
+                        "endsPattern": "Starting development server at http://127\\.0\\.0\\.1:8000/"
+                    }
+                }
+            ]
+        },
+        {
+            "label": "Start Webhook Proxy",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--package",
+                "webhook-proxy"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "close": true
+            },
+            "isBackground": true,
+            "problemMatcher": [
+                "$rustc",
+                {
+                    "owner": "webhook-proxy",
+                    "fileLocation": "autoDetect",
+                    "pattern": {
+                        "regexp": "^$"
+                    },
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": "Starting MTA Hook server",
+                        "endsPattern": "(MTA Hook server listening|Connected to SpacetimeDB successfully)"
+                    }
+                }
+            ],
+            "dependsOn": "Publish SpacetimeDB Schema"
+        },
+        {
+            "label": "Start Admin Web UI",
+            "type": "shell",
+            "command": "dx",
+            "args": [
+                "serve",
+                "--package",
+                "admin",
+                "--platform",
+                "web",
+                "--interactive",
+                "false"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "RUSTFLAGS": "--cfg getrandom_backend=\"wasm_js\""
+                }
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "close": true
+            },
+            "isBackground": true,
+            "problemMatcher": [
+                {
+                    "owner": "dx-serve",
+                    "fileLocation": "autoDetect",
+                    "pattern": {
+                        "regexp": "^$"
+                    },
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": "Serving your app: admin!",
+                        "endsPattern": "Build completed successfully in"
+                    }
+                }
+            ],
+            "dependsOn": "Publish SpacetimeDB Schema"
+        },
+        {
+            "label": "Sync Users to SpacetimeDB",
+            "type": "shell",
+            "command": "/home/dietrich/.envs/Solawis/current/bin/python",
+            "args": [
+                "/home/dietrich/Projekte/Source/solawispielplatz/src/manage.py",
+                "sync_users_to_spacetimedb"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "new",
+                "close": true
+            },
+            "dependsOn": [
+                "Start Django Backend",
+                "Publish SpacetimeDB Schema",
+                "Start Webhook Proxy"
+            ]
+        },
+        {
+            "label": "Start All Development Services",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Start SpacetimeDB Server",
+                "Publish SpacetimeDB Schema",
+                "Start Django Backend",
+                "Start Webhook Proxy",
+                "Start Admin Web UI",
+                "Sync Users to SpacetimeDB"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new",
+                "close": true
+            }
+        },
+        {
+            "label": "Stop All Services",
+            "type": "shell",
+            "command": "pkill",
+            "args": [
+                "-f",
+                "spacetime|django|webhook-proxy|dx serve"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new",
+                "close": true
+            }
+        }
+    ]
+}

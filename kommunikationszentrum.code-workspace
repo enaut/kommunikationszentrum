@@ -7,5 +7,7 @@
 			"path": "../solawispielplatz"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"makefile.configureOnOpen": false
+	}
 }

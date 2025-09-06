@@ -1,0 +1,45 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Webhook Proxy",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--package=webhook-proxy",
+                    "--bin=webhook-proxy"
+                ],
+                "filter": {
+                    "name": "webhook-proxy",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Start SpacetimeDB Server"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug SpacetimeDB Module",
+            "program": "spacetime",
+            "args": [
+                "start"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Debug Full Stack",
+            "configurations": [
+                "Debug Webhook Proxy"
+            ],
+            "stopAll": true,
+            "preLaunchTask": "Start All Development Services"
+        }
+    ]
+}
