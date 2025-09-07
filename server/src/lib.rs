@@ -2,6 +2,14 @@ use serde::{Deserialize, Serialize};
 use spacetimedb::{Filter, Identity, ReducerContext, Table};
 use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
+// Configuration constants that can be set at compile time via environment variables
+const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
+    Some(url) => url,
+    None => "http://127.0.0.1:8000",
+};
+
+const DJANGO_OAUTH_ISSUER_PATH: &str = "/o";
+
 #[derive(Debug)]
 #[spacetimedb::table(name = account, public)]
 pub struct Account {
@@ -429,9 +437,10 @@ pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
 
                     // Prefer provided identity_hex; if missing or parsing unsupported, fall back to module identity
                     let mitgliedsnr = data.mitgliedsnr.to_string();
+                    let issuer_url = format!("{}{}", DJANGO_OAUTH_BASE_URL, DJANGO_OAUTH_ISSUER_PATH);
 
                     let identity_of_user =
-                        Identity::from_claims("http://127.0.0.1:8000/o", &mitgliedsnr);
+                        Identity::from_claims(&issuer_url, &mitgliedsnr);
                     // Insert new/updated account
                     let account = Account {
                         id: data.mitgliedsnr,

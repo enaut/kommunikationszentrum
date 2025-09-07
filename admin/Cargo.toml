@@ -33,6 +33,7 @@ web-sys = { version = "0.3", features = [
     "Storage",
 ] }
 js-sys = "0.3"
+dotenvy = "0.15"
 
 [features]
 default = ["web"]

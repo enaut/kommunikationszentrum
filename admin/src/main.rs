@@ -1,7 +1,9 @@
+mod config;
 mod module_bindings;
 mod oauth;
 mod use_spacetime_db;
 
+use config::AdminConfig;
 use dioxus::{
     logger::tracing::{error, info},
     prelude::*,
@@ -21,8 +23,11 @@ fn main() {
 
 #[component]
 fn App() -> Element {
+    // Load configuration
+    let config = use_signal(AdminConfig::load);
+    
     // OAuth authentication hook
-    let (auth_state, login, logout) = use_oauth();
+    let (auth_state, login, logout) = use_oauth(config.read().oauth.clone());
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -106,6 +111,10 @@ fn AuthenticatingPage() -> Element {
 
 #[component]
 fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element {
+    // Load configuration
+    let config = use_signal(AdminConfig::load);
+    let config_read = config.read();
+    
     // SpacetimeDB connection with authentication token
     info!("Authenticated as: {}", user_info.mitgliedsnr);
     if user_info.id_token.is_some() {
@@ -117,8 +126,8 @@ fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element
     let id_token_sig = use_signal(|| user_info.id_token.clone());
 
     let spacetime_db = use_spacetime_db(SpacetimeDbOptions {
-        uri: "http://localhost:3000".to_string(),
-        module_name: "kommunikation".to_string(),
+        uri: config_read.spacetimedb_uri.clone(),
+        module_name: config_read.spacetimedb_module_name.clone(),
         token: id_token_sig.read().clone(),
     });
     let _subsc = use_spacetime_db::use_spacetime_subscription(

@@ -29,9 +29,13 @@ pub struct SpacetimeDbOptions {
 
 impl Default for SpacetimeDbOptions {
     fn default() -> Self {
+        use std::env;
+        
         Self {
-            uri: "http://localhost:3000".to_string(),
-            module_name: "kommunikation".to_string(),
+            uri: env::var("SPACETIMEDB_URI")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            module_name: env::var("SPACETIMEDB_MODULE_NAME")
+                .unwrap_or_else(|_| "kommunikation".to_string()),
             token: None,
         }
     }

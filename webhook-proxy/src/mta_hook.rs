@@ -13,7 +13,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tower_http::cors::CorsLayer;
 use tracing::{debug, error, info, instrument, warn};
 
+mod config;
 mod module_bindings;
+
+use config::WebhookProxyConfig;
 use module_bindings::*;
 
 #[derive(Clone)]
@@ -292,12 +295,16 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting MTA Hook server");
 
+    // Load configuration
+    let config = WebhookProxyConfig::load()?;
+    info!("Loaded configuration: {:?}", config);
+
     // Connect to SpacetimeDB
     info!("Establishing SpacetimeDB connection");
     let db_connection = Arc::new(
         DbConnection::builder()
-            .with_uri("http://localhost:3000")
-            .with_module_name("kommunikation")
+            .with_uri(&config.spacetimedb_uri)
+            .with_module_name(&config.spacetimedb_module_name)
             .on_connect(|_, _, _| {
                 info!("Connected to SpacetimeDB successfully");
             })
@@ -326,11 +333,14 @@ async fn main() -> anyhow::Result<()> {
 
     let app = mta_handler.clone().router();
 
-    info!(bind_address = "0.0.0.0:3002", "Binding TCP listener");
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3002").await?;
+    info!(bind_address = %config.bind_address, "Binding TCP listener");
+    let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
 
+    let server_url = format!("http://{}/mta-hook", 
+        config.bind_address.replace("0.0.0.0", "localhost"));
+    
     info!(
-        server_url = "http://localhost:3002/mta-hook",
+        server_url = %server_url,
         "MTA Hook server listening"
     );
     info!("Ready to receive Stalwart MTA hooks");
