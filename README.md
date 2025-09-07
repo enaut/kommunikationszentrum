@@ -43,6 +43,46 @@ If you're using VS Code:
 2. Use **Ctrl+Shift+P** → "Tasks: Run Task" → "Start All Development Services"
 3. Or use **F5** to start with debugging support
 
+## Configuration
+
+The system supports flexible configuration via environment variables, following the [12-factor app](https://12factor.net/) methodology.
+
+### Environment Variables
+
+Create a `.env` file in the project root based on `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Key configuration variables:
+
+#### SpacetimeDB Configuration
+- `SPACETIMEDB_URI` - SpacetimeDB server URI (default: `http://localhost:3000`)
+- `SPACETIMEDB_MODULE_NAME` - Module name (default: `kommunikation`)
+
+#### Webhook Proxy Configuration  
+- `WEBHOOK_PROXY_BIND_ADDRESS` - Server bind address (default: `0.0.0.0:3002`)
+
+#### OAuth/Authentication Configuration
+- `DJANGO_BASE_URL` - Django OAuth provider base URL (default: `http://127.0.0.1:8000`)
+- `OIDC_ISSUER_URL` - OAuth issuer URL (default: `http://127.0.0.1:8000/o`)
+- `OIDC_CLIENT_ID` - OAuth client ID (default: `admin-app`)
+- `ADMIN_REDIRECT_URI` - OAuth redirect URI (default: `http://127.0.0.1:8080/callback`)
+- `OAUTH_SCOPES` - OAuth scopes (default: `openid profile email`)
+
+#### Development vs Production
+
+For local development, use defaults from `.env.example`.
+
+For production deployments, see `.env.production.example` for guidance on production-appropriate values.
+
+### Configuration Loading
+
+- **Webhook Proxy**: Loads `.env` file automatically and falls back to environment variables
+- **Admin Web UI**: Loads configuration in browser from environment variables set during build
+- **Server Module**: Uses compile-time environment variables for SpacetimeDB WASM module
+
 ## Architecture Overview
 
 The system consists of four main components:
