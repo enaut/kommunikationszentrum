@@ -9,6 +9,7 @@
 - [Setup & Installation](./setup/installation.md)
   - [Prerequisites](./setup/prerequisites.md)
   - [Development Environment](./setup/development-environment.md)
+  - [Configuration](./setup/configuration.md)
   - [Component Installation](./setup/component-installation.md)
     - [SpacetimeDB Server](./setup/spacetimedb-server.md)
     - [Webhook Proxy](./setup/webhook-proxy.md)
@@ -60,6 +61,7 @@
   - [Troubleshooting]()
 
 - [Reference](./reference/overview.md)
+  - [Environment Variables](./reference/environment-variables.md)
   - [Command Line Tools]()
   - [Configuration Files]()
   - [Error Codes]()

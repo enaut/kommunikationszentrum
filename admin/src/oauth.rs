@@ -1,3 +1,4 @@
+use crate::config::OAuthConfig;
 use dioxus::prelude::*;
 use js_sys::Date;
 use serde::{Deserialize, Serialize};
@@ -40,28 +41,6 @@ fn parse_url_params() -> std::collections::HashMap<String, String> {
     }
 
     params
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OAuthConfig {
-    pub issuer_url: String, // Discovery URL (Issuer base, ohne /.well-known/... => discover fügt an)
-    pub client_id: String,  // Public SPA client id
-    pub redirect_uri: String, // Registered redirect URI
-    pub scope: String,      // Space separated scopes
-    pub django_base_url: String, // Für rückwärtskompatible Felder (UserInfo Pfad etc.)
-}
-
-impl Default for OAuthConfig {
-    fn default() -> Self {
-        let django = "http://127.0.0.1:8000".to_string();
-        Self {
-            issuer_url: format!("{django}/o"), // Django OAuth Toolkit typischerweise unter /o/. Falls Discovery unter /.well-known/openid-configuration liegt, kann hier direkt Basis genutzt werden.
-            client_id: "admin-app".to_string(),
-            redirect_uri: "http://127.0.0.1:8080/callback".to_string(),
-            scope: "openid profile email".to_string(),
-            django_base_url: django,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -149,9 +128,9 @@ impl UserInfo {
     }
 }
 
-pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
+pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callback<()>) {
     let auth_state = use_signal(|| AuthState::Unauthenticated);
-    let config = use_signal(OAuthConfig::default);
+    let config_signal = use_signal(|| config);
 
     // OIDC Client (lazy). Kein expliziter Typ für die Endpoint-Typzustände.
     let oidc_client: Rc<RefCell<Option<_>>> = Rc::new(RefCell::new(None));
@@ -173,7 +152,7 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
         let oidc_client = oidc_client.clone();
         let http_client_discovery = http_client.clone();
         let mut auth_state = auth_state;
-        let config_sig = config.clone();
+        let config_sig = config_signal.clone();
         use_effect(move || {
             let params = parse_url_params();
             // Fehler-Handling
@@ -409,7 +388,7 @@ pub fn use_oauth() -> (Signal<AuthState>, Callback<()>, Callback<()>) {
 
     // Login Callback => generiert Auth URL via Client::authorization_url
     let login = {
-        let config_sig = config.clone();
+        let config_sig = config_signal.clone();
         let oidc_client = oidc_client.clone();
         Callback::<()>::new(move |_| {
             if let Some(client) = oidc_client.borrow().as_ref() {
