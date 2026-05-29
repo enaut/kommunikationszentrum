@@ -25,7 +25,7 @@ fn main() {
 fn App() -> Element {
     // Load configuration
     let config = use_signal(AdminConfig::load);
-    
+
     // OAuth authentication hook
     let (auth_state, login, logout) = use_oauth(config.read().oauth.clone());
 
@@ -114,7 +114,7 @@ fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element
     // Load configuration
     let config = use_signal(AdminConfig::load);
     let config_read = config.read();
-    
+
     // SpacetimeDB connection with authentication token
     info!("Authenticated as: {}", user_info.mitgliedsnr);
     if user_info.id_token.is_some() {
@@ -132,7 +132,7 @@ fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element
     });
     let _subsc = use_spacetime_db::use_spacetime_subscription(
         &spacetime_db,
-        vec!["SELECT * FROM account".to_string()],
+        vec!["SELECT * FROM visible_accounts".to_string()],
     );
 
     let accounts = use_accounts_table(&spacetime_db);
@@ -285,6 +285,7 @@ fn ConnectionStatusCard(
                 div {
                     class: "alert {alert_class} d-flex align-items-center",
                     role: "alert",
+                    style: "overflow-x: auto;",
                     i { class: "bi {icon} {icon_class} me-2" }
                     div {
                         "Verbunden als: "

@@ -1,8 +1,9 @@
-use crate::module_bindings::{self, AccountTableAccess as _, DbConnection};
+use crate::module_bindings::{
+    self, AccountTableAccess as _, DbConnection, VisibleAccountsTableAccess as _,
+};
 
 use base64::Engine;
 use dioxus::{
-    dioxus_core::SpawnIfAsync,
     logger::tracing::{debug, error, info},
     prelude::*,
 };
@@ -30,7 +31,7 @@ pub struct SpacetimeDbOptions {
 impl Default for SpacetimeDbOptions {
     fn default() -> Self {
         use std::env;
-        
+
         Self {
             uri: env::var("SPACETIMEDB_URI")
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),
@@ -113,16 +114,20 @@ pub fn use_spacetime_db(options: SpacetimeDbOptions) -> SpacetimeDb {
                     // Build connection with primary token only
                     let conn_result = DbConnection::builder()
                         .with_uri(&options.uri)
-                        .with_module_name(&options.module_name)
+                        .with_database_name(&options.module_name)
                         .with_token(options.token.clone())
-                        .build()
-                        .await;
+                        .build();
 
-                    match conn_result {
+                    match conn_result.await {
                         Ok(conn) => {
                             info!("DbConnection::builder().build() succeeded");
                             // Start the connection background processing
-                            conn.run_background();
+                            // Advance the connection in the background.
+                            // run_background_task is the wasm32 equivalent of run_threaded.
+                            #[cfg(target_arch = "wasm32")]
+                            conn.run_background_task();
+                            #[cfg(not(target_arch = "wasm32"))]
+                            conn.run_threaded();
 
                             // Try to get the identity immediately
                             if let Some(id) = conn.try_identity() {
@@ -290,10 +295,7 @@ pub fn use_spacetime_subscription(
                 is_subscribed_clone.set(false);
 
                 // Simple subscription without callbacks for now
-                let _subscription_result = conn
-                    .subscription_builder()
-                    .subscribe(queries.clone())
-                    .spawn();
+                let _subscription_result = conn.subscription_builder().subscribe(queries.clone());
 
                 // For now, just assume success
                 info!("Subscribed to queries: {:?}", queries);
@@ -404,9 +406,11 @@ where
     data
 }
 
-// Convenience hook specifically for accounts
+// Convenience hook for the visible_accounts view (replaces direct account table access)
 pub fn use_accounts_table(
     spacetime_db: &SpacetimeDb,
 ) -> Signal<Vec<crate::module_bindings::Account>> {
-    use_table_data(spacetime_db, |conn| conn.db().account().iter().collect())
+    use_table_data(spacetime_db, |conn| {
+        conn.db().visible_accounts().iter().collect()
+    })
 }

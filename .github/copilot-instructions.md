@@ -1,5 +1,5 @@
 # Development Environment
-**Target System**: Fedora 42 with the following tools available among others:
+**Target System**: Fedora 44 with the following tools available among others:
 - Package manager: `dnf`
 - Init system: `systemd`  
 - Display server: `Wayland` with GNOME desktop

@@ -6,49 +6,41 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
-pub(super) struct SyncUserArgs {
-    pub action: String,
-    pub user_data: String,
-}
+pub(super) struct DumpMtaLogsToServerLogsArgs {}
 
-impl From<SyncUserArgs> for super::Reducer {
-    fn from(args: SyncUserArgs) -> Self {
-        Self::SyncUser {
-            action: args.action,
-            user_data: args.user_data,
-        }
+impl From<DumpMtaLogsToServerLogsArgs> for super::Reducer {
+    fn from(args: DumpMtaLogsToServerLogsArgs) -> Self {
+        Self::DumpMtaLogsToServerLogs
     }
 }
 
-impl __sdk::InModule for SyncUserArgs {
+impl __sdk::InModule for DumpMtaLogsToServerLogsArgs {
     type Module = super::RemoteModule;
 }
 
 #[allow(non_camel_case_types)]
-/// Extension trait for access to the reducer `sync_user`.
+/// Extension trait for access to the reducer `dump_mta_logs_to_server_logs`.
 ///
 /// Implemented for [`super::RemoteReducers`].
-pub trait sync_user {
-    /// Request that the remote module invoke the reducer `sync_user` to run as soon as possible.
+pub trait dump_mta_logs_to_server_logs {
+    /// Request that the remote module invoke the reducer `dump_mta_logs_to_server_logs` to run as soon as possible.
     ///
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and this method provides no way to listen for its completion status.
-    /// /// Use [`sync_user:sync_user_then`] to run a callback after the reducer completes.
-    fn sync_user(&self, action: String, user_data: String) -> __sdk::Result<()> {
-        self.sync_user_then(action, user_data, |_, _| {})
+    /// /// Use [`dump_mta_logs_to_server_logs:dump_mta_logs_to_server_logs_then`] to run a callback after the reducer completes.
+    fn dump_mta_logs_to_server_logs(&self) -> __sdk::Result<()> {
+        self.dump_mta_logs_to_server_logs_then(|_, _| {})
     }
 
-    /// Request that the remote module invoke the reducer `sync_user` to run as soon as possible,
+    /// Request that the remote module invoke the reducer `dump_mta_logs_to_server_logs` to run as soon as possible,
     /// registering `callback` to run when we are notified that the reducer completed.
     ///
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and its status can be observed with the `callback`.
-    fn sync_user_then(
+    fn dump_mta_logs_to_server_logs_then(
         &self,
-        action: String,
-        user_data: String,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -56,17 +48,15 @@ pub trait sync_user {
     ) -> __sdk::Result<()>;
 }
 
-impl sync_user for super::RemoteReducers {
-    fn sync_user_then(
+impl dump_mta_logs_to_server_logs for super::RemoteReducers {
+    fn dump_mta_logs_to_server_logs_then(
         &self,
-        action: String,
-        user_data: String,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
     ) -> __sdk::Result<()> {
         self.imp
-            .invoke_reducer_with_callback(SyncUserArgs { action, user_data }, callback)
+            .invoke_reducer_with_callback(DumpMtaLogsToServerLogsArgs {}, callback)
     }
 }

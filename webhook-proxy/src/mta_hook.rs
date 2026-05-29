@@ -304,7 +304,7 @@ async fn main() -> anyhow::Result<()> {
     let db_connection = Arc::new(
         DbConnection::builder()
             .with_uri(&config.spacetimedb_uri)
-            .with_module_name(&config.spacetimedb_module_name)
+            .with_database_name(&config.spacetimedb_module_name)
             .on_connect(|_, _, _| {
                 info!("Connected to SpacetimeDB successfully");
             })
@@ -336,9 +336,11 @@ async fn main() -> anyhow::Result<()> {
     info!(bind_address = %config.bind_address, "Binding TCP listener");
     let listener = tokio::net::TcpListener::bind(&config.bind_address).await?;
 
-    let server_url = format!("http://{}/mta-hook", 
-        config.bind_address.replace("0.0.0.0", "localhost"));
-    
+    let server_url = format!(
+        "http://{}/mta-hook",
+        config.bind_address.replace("0.0.0.0", "localhost")
+    );
+
     info!(
         server_url = %server_url,
         "MTA Hook server listening"
@@ -364,5 +366,6 @@ pub struct UserSyncData {
     pub name: Option<String>,
     pub email: Option<String>,
     pub is_active: Option<bool>,
+    pub is_admin: Option<bool>,
     pub updated_at: Option<String>,
 }
