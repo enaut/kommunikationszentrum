@@ -10,7 +10,6 @@ pub mod account_table;
 pub mod account_type;
 pub mod add_message_category_reducer;
 pub mod add_subscription_reducer;
-pub mod add_test_accounts_reducer;
 pub mod admin_identities_table;
 pub mod admin_identity_type;
 pub mod block_ip_reducer;
@@ -28,7 +27,6 @@ pub use account_table::*;
 pub use account_type::Account;
 pub use add_message_category_reducer::add_message_category;
 pub use add_subscription_reducer::add_subscription;
-pub use add_test_accounts_reducer::add_test_accounts;
 pub use admin_identities_table::*;
 pub use admin_identity_type::AdminIdentity;
 pub use block_ip_reducer::block_ip;
@@ -60,7 +58,6 @@ pub enum Reducer {
         subscriber_email: String,
         category_id: u64,
     },
-    AddTestAccounts,
     BlockIp {
         ip: String,
         reason: String,
@@ -84,7 +81,6 @@ impl __sdk::Reducer for Reducer {
         match self {
             Reducer::AddMessageCategory { .. } => "add_message_category",
             Reducer::AddSubscription { .. } => "add_subscription",
-            Reducer::AddTestAccounts => "add_test_accounts",
             Reducer::BlockIp { .. } => "block_ip",
             Reducer::DumpMtaLogsToServerLogs => "dump_mta_logs_to_server_logs",
             Reducer::HandleMtaHook { .. } => "handle_mta_hook",
@@ -113,9 +109,6 @@ impl __sdk::Reducer for Reducer {
                 subscriber_email: subscriber_email.clone(),
                 category_id: category_id.clone(),
             }),
-            Reducer::AddTestAccounts => {
-                __sats::bsatn::to_vec(&add_test_accounts_reducer::AddTestAccountsArgs {})
-            }
             Reducer::BlockIp { ip, reason } => {
                 __sats::bsatn::to_vec(&block_ip_reducer::BlockIpArgs {
                     ip: ip.clone(),

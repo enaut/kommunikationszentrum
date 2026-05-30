@@ -88,9 +88,14 @@ pub(crate) fn is_admin_identity(ctx: &ReducerContext, who: Identity) -> bool {
 
 // User synchronization from Django
 #[spacetimedb::reducer]
-pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
-    // TEMP: Autorisierung deaktiviert, damit der Webhook-Proxy ohne Token synchronisieren kann.
-    // WICHTIG: Für Produktion wieder absichern (is_admin_identity o.ä.).
+pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) -> Result<(), String> {
+    if !is_admin_identity(ctx, ctx.sender()) {
+        log::warn!("Unauthorized sync_user call from {:?}", ctx.sender());
+        return Err(format!(
+            "Unauthorized: sync_user called by {:?}",
+            ctx.sender()
+        ));
+    }
 
     let timestamp = ctx.timestamp;
 
@@ -188,37 +193,12 @@ pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) {
                 }
             }
             _ => {
-                log::warn!("Unknown sync action: {}", action);
+                return Err(format!("Unknown sync action: {}", action));
             }
         },
         Err(e) => {
-            log::error!("Failed to parse user sync data: {}", e);
+            return Err(format!("Failed to parse user sync data: {}", e));
         }
     }
-}
-
-// Test reducer to add sample data
-#[spacetimedb::reducer]
-pub fn add_test_accounts(ctx: &ReducerContext) {
-    let timestamp = ctx.timestamp;
-
-    ctx.db.account().insert(Account {
-        id: 1,
-        identity: ctx.database_identity(),
-        name: "Test User 1".to_string(),
-        email: "test1@example.com".to_string(),
-        is_active: true,
-        last_synced: timestamp,
-    });
-
-    ctx.db.account().insert(Account {
-        id: 2,
-        identity: ctx.database_identity(),
-        name: "Test User 2".to_string(),
-        email: "test2@example.com".to_string(),
-        is_active: true,
-        last_synced: timestamp,
-    });
-
-    log::info!("Added test accounts");
+    Ok(())
 }

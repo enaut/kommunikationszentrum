@@ -255,13 +255,29 @@ async fn user_sync_endpoint(
 
     debug!(action = %payload.action, data_size = user_data.len(), "Calling sync_user reducer");
 
-    // Call SpacetimeDB sync_user reducer
-    match handler
-        .db_connection
-        .reducers
-        .sync_user(payload.action.clone(), user_data)
-    {
-        Ok(()) => {
+    // Use a oneshot channel so we can await the reducer's completion status.
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    match handler.db_connection.reducers.sync_user_then(
+        payload.action.clone(),
+        user_data,
+        move |_ctx, result| {
+            let _ = tx.send(result);
+        },
+    ) {
+        Ok(()) => {}
+        Err(e) => {
+            error!(error = %e, "Failed to dispatch sync_user reducer");
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to dispatch sync_user: {}", e),
+            ));
+        }
+    }
+
+    // Wait up to 5 s for the reducer to complete.
+    match tokio::time::timeout(std::time::Duration::from_secs(5), rx).await {
+        Ok(Ok(Ok(Ok(())))) => {
             info!(action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr, "User sync successful");
             Ok(ResponseJson(serde_json::json!({
                 "status": "success",
@@ -269,11 +285,35 @@ async fn user_sync_endpoint(
                 "mitgliedsnr": payload.user.mitgliedsnr
             })))
         }
-        Err(e) => {
-            error!(error = %e, action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr, "User sync failed");
+        Ok(Ok(Ok(Err(reducer_err)))) => {
+            let status = if reducer_err.contains("Unauthorized") {
+                warn!(error = %reducer_err, action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr, "User sync rejected: unauthorized");
+                StatusCode::FORBIDDEN
+            } else {
+                error!(error = %reducer_err, action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr, "User sync reducer error");
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            Err((status, reducer_err))
+        }
+        Ok(Ok(Err(sdk_err))) => {
+            error!(error = %sdk_err, "sync_user reducer internal SDK error");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to sync user: {}", e),
+                format!("Reducer SDK error: {}", sdk_err),
+            ))
+        }
+        Ok(Err(_recv_err)) => {
+            error!("sync_user callback channel closed unexpectedly");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Callback channel closed unexpectedly".to_string(),
+            ))
+        }
+        Err(_elapsed) => {
+            error!(action = %payload.action, mitgliedsnr = %payload.user.mitgliedsnr, "sync_user reducer timed out after 5s");
+            Err((
+                StatusCode::GATEWAY_TIMEOUT,
+                "Reducer did not respond within 5 seconds".to_string(),
             ))
         }
     }

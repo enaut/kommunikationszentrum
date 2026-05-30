@@ -1,6 +1,6 @@
 use spacetimedb::{ReducerContext, Table, Timestamp};
 
-use crate::account::is_admin_user;
+use crate::account::{account, is_admin_user, Account};
 
 #[spacetimedb::table(accessor = message_categories)]
 pub struct MessageCategory {
@@ -59,7 +59,20 @@ pub fn add_subscription(
     subscriber_account_id: u64,
     subscriber_email: String,
     category_id: u64,
-) {
+) -> Result<(), String> {
+    let is_admin = is_admin_user(ctx);
+    let is_self = ctx
+        .db
+        .account()
+        .id()
+        .find(&subscriber_account_id)
+        .map(|a: Account| a.identity == ctx.sender())
+        .unwrap_or(false);
+
+    if !is_admin && !is_self {
+        return Err("Unauthorized: can only subscribe yourself or requires admin".to_string());
+    }
+
     let timestamp = ctx.timestamp;
 
     ctx.db.subscriptions().insert(Subscription {
@@ -70,5 +83,10 @@ pub fn add_subscription(
         subscribed_at: timestamp,
         active: true,
     });
-    log::info!("Added new subscription");
+    log::info!(
+        "Added subscription for account {} (by identity: {:?})",
+        subscriber_account_id,
+        ctx.sender()
+    );
+    Ok(())
 }
