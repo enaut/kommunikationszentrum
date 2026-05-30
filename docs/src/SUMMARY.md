@@ -53,6 +53,7 @@
   - [Code Structure]()
   - [Testing]()
   - [Debugging]()
+  - [Admin Frontend Restructure](./development/admin-frontend-restructure.md)
 
 - [Operations](./operations/overview.md)
   - [Deployment]()

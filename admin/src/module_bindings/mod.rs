@@ -18,14 +18,18 @@ pub mod block_ip_reducer;
 pub mod blocked_ip_type;
 pub mod dump_mta_logs_to_server_logs_reducer;
 pub mod handle_mta_hook_reducer;
+pub mod message_categories_table;
 pub mod message_category_type;
 pub mod mta_connection_log_type;
 pub mod mta_message_log_type;
 pub mod register_admin_identity_reducer;
+pub mod remove_message_category_reducer;
+pub mod remove_subscription_reducer;
 pub mod subscription_type;
 pub mod sync_user_reducer;
 pub mod unregister_admin_identity_reducer;
 pub mod visible_accounts_table;
+pub mod visible_subscriptions_table;
 
 pub use account_table::*;
 pub use account_type::Account;
@@ -37,14 +41,18 @@ pub use block_ip_reducer::block_ip;
 pub use blocked_ip_type::BlockedIp;
 pub use dump_mta_logs_to_server_logs_reducer::dump_mta_logs_to_server_logs;
 pub use handle_mta_hook_reducer::handle_mta_hook;
+pub use message_categories_table::*;
 pub use message_category_type::MessageCategory;
 pub use mta_connection_log_type::MtaConnectionLog;
 pub use mta_message_log_type::MtaMessageLog;
 pub use register_admin_identity_reducer::register_admin_identity;
+pub use remove_message_category_reducer::remove_message_category;
+pub use remove_subscription_reducer::remove_subscription;
 pub use subscription_type::Subscription;
 pub use sync_user_reducer::sync_user;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
 pub use visible_accounts_table::*;
+pub use visible_subscriptions_table::*;
 
 #[derive(Clone, PartialEq, Debug)]
 
@@ -75,6 +83,12 @@ pub enum Reducer {
     RegisterAdminIdentity {
         identity_hex: String,
     },
+    RemoveMessageCategory {
+        category_id: u64,
+    },
+    RemoveSubscription {
+        subscription_id: u64,
+    },
     SyncUser {
         action: String,
         user_data: String,
@@ -97,6 +111,8 @@ impl __sdk::Reducer for Reducer {
             Reducer::DumpMtaLogsToServerLogs => "dump_mta_logs_to_server_logs",
             Reducer::HandleMtaHook { .. } => "handle_mta_hook",
             Reducer::RegisterAdminIdentity { .. } => "register_admin_identity",
+            Reducer::RemoveMessageCategory { .. } => "remove_message_category",
+            Reducer::RemoveSubscription { .. } => "remove_subscription",
             Reducer::SyncUser { .. } => "sync_user",
             Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
             _ => unreachable!(),
@@ -142,6 +158,16 @@ impl __sdk::Reducer for Reducer {
                     identity_hex: identity_hex.clone(),
                 },
             ),
+            Reducer::RemoveMessageCategory { category_id } => __sats::bsatn::to_vec(
+                &remove_message_category_reducer::RemoveMessageCategoryArgs {
+                    category_id: category_id.clone(),
+                },
+            ),
+            Reducer::RemoveSubscription { subscription_id } => {
+                __sats::bsatn::to_vec(&remove_subscription_reducer::RemoveSubscriptionArgs {
+                    subscription_id: subscription_id.clone(),
+                })
+            }
             Reducer::SyncUser { action, user_data } => {
                 __sats::bsatn::to_vec(&sync_user_reducer::SyncUserArgs {
                     action: action.clone(),
@@ -164,7 +190,9 @@ impl __sdk::Reducer for Reducer {
 pub struct DbUpdate {
     account: __sdk::TableUpdate<Account>,
     admin_identities: __sdk::TableUpdate<AdminIdentity>,
+    message_categories: __sdk::TableUpdate<MessageCategory>,
     visible_accounts: __sdk::TableUpdate<Account>,
+    visible_subscriptions: __sdk::TableUpdate<Subscription>,
 }
 
 impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
@@ -179,9 +207,15 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "admin_identities" => db_update
                     .admin_identities
                     .append(admin_identities_table::parse_table_update(table_update)?),
+                "message_categories" => db_update
+                    .message_categories
+                    .append(message_categories_table::parse_table_update(table_update)?),
                 "visible_accounts" => db_update
                     .visible_accounts
                     .append(visible_accounts_table::parse_table_update(table_update)?),
+                "visible_subscriptions" => db_update.visible_subscriptions.append(
+                    visible_subscriptions_table::parse_table_update(table_update)?,
+                ),
 
                 unknown => {
                     return Err(__sdk::InternalError::unknown_name(
@@ -214,8 +248,15 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.admin_identities = cache
             .apply_diff_to_table::<AdminIdentity>("admin_identities", &self.admin_identities)
             .with_updates_by_pk(|row| &row.identity);
+        diff.message_categories = cache
+            .apply_diff_to_table::<MessageCategory>("message_categories", &self.message_categories)
+            .with_updates_by_pk(|row| &row.id);
         diff.visible_accounts =
             cache.apply_diff_to_table::<Account>("visible_accounts", &self.visible_accounts);
+        diff.visible_subscriptions = cache.apply_diff_to_table::<Subscription>(
+            "visible_subscriptions",
+            &self.visible_subscriptions,
+        );
 
         diff
     }
@@ -229,8 +270,14 @@ impl __sdk::DbUpdate for DbUpdate {
                 "admin_identities" => db_update
                     .admin_identities
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "message_categories" => db_update
+                    .message_categories
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_accounts" => db_update
                     .visible_accounts
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_subscriptions" => db_update
+                    .visible_subscriptions
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 unknown => {
                     return Err(
@@ -251,8 +298,14 @@ impl __sdk::DbUpdate for DbUpdate {
                 "admin_identities" => db_update
                     .admin_identities
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "message_categories" => db_update
+                    .message_categories
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_accounts" => db_update
                     .visible_accounts
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_subscriptions" => db_update
+                    .visible_subscriptions
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 unknown => {
                     return Err(
@@ -271,7 +324,9 @@ impl __sdk::DbUpdate for DbUpdate {
 pub struct AppliedDiff<'r> {
     account: __sdk::TableAppliedDiff<'r, Account>,
     admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
+    message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
+    visible_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     __unused: std::marker::PhantomData<&'r ()>,
 }
 
@@ -291,9 +346,19 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.admin_identities,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<MessageCategory>(
+            "message_categories",
+            &self.message_categories,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<Account>(
             "visible_accounts",
             &self.visible_accounts,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<Subscription>(
+            "visible_subscriptions",
+            &self.visible_subscriptions,
             event,
         );
     }
@@ -958,8 +1023,15 @@ impl __sdk::SpacetimeModule for RemoteModule {
     fn register_tables(client_cache: &mut __sdk::ClientCache<Self>) {
         account_table::register_table(client_cache);
         admin_identities_table::register_table(client_cache);
+        message_categories_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
+        visible_subscriptions_table::register_table(client_cache);
     }
-    const ALL_TABLE_NAMES: &'static [&'static str] =
-        &["account", "admin_identities", "visible_accounts"];
+    const ALL_TABLE_NAMES: &'static [&'static str] = &[
+        "account",
+        "admin_identities",
+        "message_categories",
+        "visible_accounts",
+        "visible_subscriptions",
+    ];
 }

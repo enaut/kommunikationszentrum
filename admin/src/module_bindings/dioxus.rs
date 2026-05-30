@@ -21,7 +21,9 @@ pub type SharedConnection = Arc<DbConnection>;
 pub struct TableSignals {
     pub account: SyncSignal<Vec<Account>>,
     pub admin_identities: SyncSignal<Vec<AdminIdentity>>,
+    pub message_categories: SyncSignal<Vec<MessageCategory>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
+    pub visible_subscriptions: SyncSignal<Vec<Subscription>>,
 }
 
 /// Internal state for managing the SpacetimeDB connection.
@@ -170,7 +172,9 @@ pub fn use_spacetimedb_context_provider(
     let mut table_signals = TableSignals {
         account: use_signal_sync(Vec::new),
         admin_identities: use_signal_sync(Vec::new),
+        message_categories: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
+        visible_subscriptions: use_signal_sync(Vec::new),
     };
 
     let ctx = SpacetimeDbContext {
@@ -263,6 +267,29 @@ pub fn use_spacetimedb_context_provider(
                                 ctx.db.admin_identities().iter().collect();
                             table_signals_on_connect.admin_identities.set(updated);
                         });
+                        // Populate initial rows for message_categories
+                        let current: Vec<MessageCategory> =
+                            conn.db.message_categories().iter().collect();
+                        table_signals_on_connect.message_categories.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.message_categories().on_insert(move |ctx, _row| {
+                            let updated: Vec<MessageCategory> =
+                                ctx.db.message_categories().iter().collect();
+                            table_signals_on_connect.message_categories.set(updated);
+                        });
+                        conn.db
+                            .message_categories()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<MessageCategory> =
+                                    ctx.db.message_categories().iter().collect();
+                                table_signals_on_connect.message_categories.set(updated);
+                            });
+                        conn.db.message_categories().on_delete(move |ctx, _row| {
+                            let updated: Vec<MessageCategory> =
+                                ctx.db.message_categories().iter().collect();
+                            table_signals_on_connect.message_categories.set(updated);
+                        });
                         // Populate initial rows for visible_accounts
                         let current: Vec<Account> = conn.db.visible_accounts().iter().collect();
                         table_signals_on_connect.visible_accounts.set(current);
@@ -275,6 +302,22 @@ pub fn use_spacetimedb_context_provider(
                         conn.db.visible_accounts().on_delete(move |ctx, _row| {
                             let updated: Vec<Account> = ctx.db.visible_accounts().iter().collect();
                             table_signals_on_connect.visible_accounts.set(updated);
+                        });
+                        // Populate initial rows for visible_subscriptions
+                        let current: Vec<Subscription> =
+                            conn.db.visible_subscriptions().iter().collect();
+                        table_signals_on_connect.visible_subscriptions.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.visible_subscriptions().on_insert(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.visible_subscriptions().iter().collect();
+                            table_signals_on_connect.visible_subscriptions.set(updated);
+                        });
+                        conn.db.visible_subscriptions().on_delete(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.visible_subscriptions().iter().collect();
+                            table_signals_on_connect.visible_subscriptions.set(updated);
                         });
                         if let Ok(mut token_store) = active_token_on_connect.lock() {
                             *token_store = Some(token.to_string());
@@ -450,11 +493,25 @@ pub fn use_table_admin_identities() -> SyncSignal<Vec<AdminIdentity>> {
     ctx.tables.admin_identities
 }
 
+/// Get a reactive signal containing all rows of the `message_categories` table.
+#[must_use]
+pub fn use_table_message_categories() -> SyncSignal<Vec<MessageCategory>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.message_categories
+}
+
 /// Get a reactive signal containing all rows of the `visible_accounts` table.
 #[must_use]
 pub fn use_table_visible_accounts() -> SyncSignal<Vec<Account>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.visible_accounts
+}
+
+/// Get a reactive signal containing all rows of the `visible_subscriptions` table.
+#[must_use]
+pub fn use_table_visible_subscriptions() -> SyncSignal<Vec<Subscription>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_subscriptions
 }
 
 // --- Reducer hooks ---
@@ -545,6 +602,36 @@ pub fn use_reducer_register_admin_identity(
     move |identity_hex: String| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.register_admin_identity(identity_hex)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `remove_message_category` reducer.
+#[must_use]
+pub fn use_reducer_remove_message_category(
+) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |category_id: u64| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.remove_message_category(category_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `remove_subscription` reducer.
+#[must_use]
+pub fn use_reducer_remove_subscription(
+) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |subscription_id: u64| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.remove_subscription(subscription_id)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }

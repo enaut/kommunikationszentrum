@@ -54,6 +54,7 @@ impl __sdk::__query_builder::HasCols for Subscription {
 pub struct SubscriptionIxCols {
     pub category_id: __sdk::__query_builder::IxCol<Subscription, u64>,
     pub id: __sdk::__query_builder::IxCol<Subscription, u64>,
+    pub subscriber_account_id: __sdk::__query_builder::IxCol<Subscription, u64>,
     pub subscriber_email: __sdk::__query_builder::IxCol<Subscription, String>,
 }
 
@@ -63,6 +64,10 @@ impl __sdk::__query_builder::HasIxCols for Subscription {
         SubscriptionIxCols {
             category_id: __sdk::__query_builder::IxCol::new(table_name, "category_id"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
+            subscriber_account_id: __sdk::__query_builder::IxCol::new(
+                table_name,
+                "subscriber_account_id",
+            ),
             subscriber_email: __sdk::__query_builder::IxCol::new(table_name, "subscriber_email"),
         }
     }
