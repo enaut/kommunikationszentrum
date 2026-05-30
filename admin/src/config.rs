@@ -52,8 +52,8 @@ impl Default for OAuthConfig {
 impl AdminConfig {
     /// Load configuration from environment variables with defaults
     pub fn from_env() -> Self {
-        let django_base_url = env::var("DJANGO_BASE_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:8000".to_string());
+        let django_base_url =
+            env::var("DJANGO_BASE_URL").unwrap_or_else(|_| "http://127.0.0.1:8000".to_string());
 
         Self {
             spacetimedb_uri: env::var("SPACETIMEDB_URI")
@@ -63,8 +63,7 @@ impl AdminConfig {
             oauth: OAuthConfig {
                 issuer_url: env::var("OIDC_ISSUER_URL")
                     .unwrap_or_else(|_| format!("{django_base_url}/o")),
-                client_id: env::var("OIDC_CLIENT_ID")
-                    .unwrap_or_else(|_| "admin-app".to_string()),
+                client_id: env::var("OIDC_CLIENT_ID").unwrap_or_else(|_| "admin-app".to_string()),
                 redirect_uri: env::var("ADMIN_REDIRECT_URI")
                     .unwrap_or_else(|_| "http://127.0.0.1:8080/callback".to_string()),
                 scope: env::var("OAUTH_SCOPES")

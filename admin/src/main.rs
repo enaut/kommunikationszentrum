@@ -1,32 +1,30 @@
 mod config;
 mod module_bindings;
 mod oauth;
-mod use_spacetime_db;
 
-use config::AdminConfig;
-use dioxus::{
+use ::dioxus::{
     logger::tracing::{error, info},
     prelude::*,
 };
+use config::AdminConfig;
+use module_bindings::dioxus::{
+    use_connection_state, use_reducer_add_message_category, use_spacetimedb_context_provider,
+    use_subscription, use_table_visible_accounts, ConnectionState,
+};
 use module_bindings::*;
 use oauth::{use_oauth, AuthState, UserInfo};
-use spacetimedb_sdk::Identity;
-use use_spacetime_db::{use_accounts_table, use_spacetime_db, ConnectionState, SpacetimeDbOptions};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const BOOTSTRAP_CSS: Asset = asset!("/assets/static/custom_colors.scss");
 const BOOTSTRAP_JS: Asset = asset!("/assets/static/external/bootstrap/bootstrap.bundle.min.js");
 
 fn main() {
-    dioxus::launch(App);
+    ::dioxus::launch(App);
 }
 
 #[component]
 fn App() -> Element {
-    // Load configuration
     let config = use_signal(AdminConfig::load);
-
-    // OAuth authentication hook
     let (auth_state, login, logout) = use_oauth(config.read().oauth.clone());
 
     rsx! {
@@ -111,34 +109,23 @@ fn AuthenticatingPage() -> Element {
 
 #[component]
 fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element {
-    // Load configuration
     let config = use_signal(AdminConfig::load);
-    let config_read = config.read();
+    let uri = config.read().spacetimedb_uri.clone();
+    let module_name = config.read().spacetimedb_module_name.clone();
 
-    // SpacetimeDB connection with authentication token
     info!("Authenticated as: {}", user_info.mitgliedsnr);
-    if user_info.id_token.is_some() {
-        info!("Using SpacetimeDB with id_token present");
-    } else {
-        info!("No id_token present; will try access_token as fallback");
-    }
-    // Keep token in a signal so we can trigger reconnects if it changes (e.g., on refresh)
-    let id_token_sig = use_signal(|| user_info.id_token.clone());
 
-    let spacetime_db = use_spacetime_db(SpacetimeDbOptions {
-        uri: config_read.spacetimedb_uri.clone(),
-        module_name: config_read.spacetimedb_module_name.clone(),
-        token: id_token_sig.read().clone(),
-    });
-    let _subsc = use_spacetime_db::use_spacetime_subscription(
-        &spacetime_db,
-        vec!["SELECT * FROM visible_accounts".to_string()],
-    );
+    // Establish the SpacetimeDB connection and provide context to all children.
+    // The OAuth id_token is passed so SpacetimeDB can verify the caller's identity.
+    let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.id_token.clone());
 
-    let accounts = use_accounts_table(&spacetime_db);
+    // Subscribe here so data is available to all child components (e.g. ConnectionStatusCard).
+    use_subscription(&[
+        "SELECT * FROM visible_accounts",
+        "SELECT * FROM admin_identities",
+    ]);
 
-    // Provide SpacetimeDB context for child components
-    use_context_provider(|| spacetime_db.clone());
+    let state = use_connection_state();
 
     rsx! {
         // Bootstrap Navbar
@@ -195,21 +182,13 @@ fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element
         div { class: "container-fluid mt-4",
             div { class: "row",
                 div { class: "col-12",
-                    ConnectionStatusCard {
-                        status: "info",
-                        title: "SpacetimeDB Status",
-                        user_info: user_info.clone(),
-                        identity: spacetime_db.identity.read().unwrap_or_else(Identity::__dummy),
-                        accounts_count: accounts.read().len(),
-                    }
+                    ConnectionStatusCard { user_info: user_info.clone() }
                 }
             }
-            match &*spacetime_db.state.read() {
-                ConnectionState::Connected(_) => rsx! {
+            match state() {
+                ConnectionState::Connected(_, _) => rsx! {
                     div { class: "row mt-4",
-                        div { class: "col-12",
-                            AccountsSection { accounts }
-                        }
+                        div { class: "col-12", AccountsSection {} }
                     }
                 },
                 _ => rsx! {},
@@ -253,32 +232,45 @@ fn ErrorPage(error: String, on_retry: Callback<()>) -> Element {
     }
 }
 
+/// Displays the SpacetimeDB connection status and a summary of key counts.
+/// Reads connection state and table data directly from context — no props needed.
 #[component]
-fn ConnectionStatusCard(
-    status: &'static str,
-    title: &'static str,
-    user_info: UserInfo,
-    identity: Identity,
-    accounts_count: usize,
-) -> Element {
-    let (alert_class, icon_class, icon) = match status {
-        "success" => ("alert-success", "text-success", "bi-check-circle-fill"),
-        "error" => ("alert-danger", "text-danger", "bi-exclamation-circle-fill"),
-        "warning" => (
-            "alert-warning",
-            "text-warning",
-            "bi-exclamation-triangle-fill",
+fn ConnectionStatusCard(user_info: UserInfo) -> Element {
+    let state = use_connection_state();
+    let accounts = use_table_visible_accounts();
+
+    let (alert_class, icon, identity_str) = match state() {
+        ConnectionState::Connected(id, _) => {
+            ("alert-success", "bi-check-circle-fill", format!("{id:?}"))
+        }
+        ConnectionState::Connecting => (
+            "alert-info",
+            "bi-arrow-repeat",
+            "Verbindung wird hergestellt…".to_string(),
         ),
-        "info" => ("alert-info", "text-info", "bi-info-circle-fill"),
-        _ => ("alert-secondary", "text-secondary", "bi-circle-fill"),
+        ConnectionState::Reconnecting { attempt, delay_ms } => (
+            "alert-warning",
+            "bi-exclamation-triangle-fill",
+            format!("Wiederverbinden… (Versuch {attempt}, {delay_ms}ms)"),
+        ),
+        ConnectionState::Error => (
+            "alert-danger",
+            "bi-exclamation-circle-fill",
+            "Verbindungsfehler".to_string(),
+        ),
+        ConnectionState::Disconnected => (
+            "alert-secondary",
+            "bi-circle-fill",
+            "Nicht verbunden".to_string(),
+        ),
     };
 
     rsx! {
         div { class: "card shadow-sm",
             div { class: "card-header bg-primary text-white",
                 h5 { class: "card-title mb-0",
-                    i { class: "bi {icon} me-2" }
-                    "{title}"
+                    i { class: "bi bi-info-circle-fill me-2" }
+                    "SpacetimeDB Status"
                 }
             }
             div { class: "card-body",
@@ -286,12 +278,12 @@ fn ConnectionStatusCard(
                     class: "alert {alert_class} d-flex align-items-center",
                     role: "alert",
                     style: "overflow-x: auto;",
-                    i { class: "bi {icon} {icon_class} me-2" }
+                    i { class: "bi {icon} me-2" }
                     div {
                         "Verbunden als: "
                         strong { "{user_info.mitgliedsnr}" }
                         pre { "Identity: {user_info.decode_id_token():#?}" }
-                        div { "Identity: {identity:?}" }
+                        div { "SpacetimeDB Identity: {identity_str}" }
                     }
                 }
                 div { class: "row text-center",
@@ -320,7 +312,7 @@ fn ConnectionStatusCard(
                         div {
                             h6 { class: "text-muted mb-1", "Accounts" }
                             p { class: "h5 mb-0",
-                                span { class: "badge bg-primary", "{accounts_count}" }
+                                span { class: "badge bg-primary", "{accounts().len()}" }
                             }
                         }
                     }
@@ -330,9 +322,12 @@ fn ConnectionStatusCard(
     }
 }
 
+/// Lists all visible accounts and lets admins add a message category per account.
+/// Self-contained: subscribes to its own table, reads via hook, invokes reducer via hook.
 #[component]
-fn AccountsSection(accounts: Signal<Vec<Account>>) -> Element {
-    let spacetime_db: use_spacetime_db::SpacetimeDb = use_context();
+fn AccountsSection() -> Element {
+    let accounts = use_table_visible_accounts();
+    let add_message_category = use_reducer_add_message_category();
 
     rsx! {
         div { class: "card shadow-sm",
@@ -343,7 +338,7 @@ fn AccountsSection(accounts: Signal<Vec<Account>>) -> Element {
                 }
             }
             div { class: "card-body",
-                if accounts.read().is_empty() {
+                if accounts().is_empty() {
                     div {
                         class: "alert alert-info d-flex align-items-center",
                         role: "alert",
@@ -352,7 +347,7 @@ fn AccountsSection(accounts: Signal<Vec<Account>>) -> Element {
                     }
                 } else {
                     div { class: "row",
-                        for user in accounts.read().iter() {
+                        for user in accounts() {
                             div { class: "col-md-6 col-lg-4 mb-3",
                                 div { class: "card h-100 border-primary",
                                     div { class: "card-body",
@@ -386,29 +381,17 @@ fn AccountsSection(accounts: Signal<Vec<Account>>) -> Element {
                                         button {
                                             class: "btn btn-primary btn-sm w-100",
                                             onclick: {
-                                                let spacetime_db = spacetime_db.clone();
                                                 let user_name = user.name.clone();
                                                 let user_email = user.email.clone();
+                                                let add_message_category = add_message_category.clone();
                                                 move |_| {
-                                                    info!("Adding message category for user: {} ({})", user_name, user_email);
-                                                    if let Some(db) = spacetime_db.connection.as_ref() {
-                                                        match db
-                                                            .reducers
-                                                            .add_message_category(
-                                                                user_name.clone(),
-                                                                user_email.clone(),
-                                                                "Standard Kategorie".to_string(),
-                                                            )
-                                                        {
-                                                            Ok(_) => {
-                                                                info!("Successfully added message category for {}", user_name);
-                                                            }
-                                                            Err(e) => {
-                                                                error!(
-                                                                    "Failed to add message category for {}: {:?}", user_name, e
-                                                                );
-                                                            }
-                                                        }
+                                                    info!("Adding message category for: {} ({})", user_name, user_email);
+                                                    if let Err(e) = add_message_category(
+                                                        user_name.clone(),
+                                                        user_email.clone(),
+                                                        "Standard Kategorie".to_string(),
+                                                    ) {
+                                                        error!("add_message_category failed for {}: {e:?}", user_name);
                                                     }
                                                 }
                                             },
