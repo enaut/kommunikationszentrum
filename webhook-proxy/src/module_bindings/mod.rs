@@ -19,8 +19,10 @@ pub mod handle_mta_hook_reducer;
 pub mod message_category_type;
 pub mod mta_connection_log_type;
 pub mod mta_message_log_type;
+pub mod register_admin_identity_reducer;
 pub mod subscription_type;
 pub mod sync_user_reducer;
+pub mod unregister_admin_identity_reducer;
 pub mod visible_accounts_table;
 
 pub use account_table::*;
@@ -36,8 +38,10 @@ pub use handle_mta_hook_reducer::handle_mta_hook;
 pub use message_category_type::MessageCategory;
 pub use mta_connection_log_type::MtaConnectionLog;
 pub use mta_message_log_type::MtaMessageLog;
+pub use register_admin_identity_reducer::register_admin_identity;
 pub use subscription_type::Subscription;
 pub use sync_user_reducer::sync_user;
+pub use unregister_admin_identity_reducer::unregister_admin_identity;
 pub use visible_accounts_table::*;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -66,9 +70,15 @@ pub enum Reducer {
     HandleMtaHook {
         hook_data: String,
     },
+    RegisterAdminIdentity {
+        identity_hex: String,
+    },
     SyncUser {
         action: String,
         user_data: String,
+    },
+    UnregisterAdminIdentity {
+        identity_hex: String,
     },
 }
 
@@ -84,7 +94,9 @@ impl __sdk::Reducer for Reducer {
             Reducer::BlockIp { .. } => "block_ip",
             Reducer::DumpMtaLogsToServerLogs => "dump_mta_logs_to_server_logs",
             Reducer::HandleMtaHook { .. } => "handle_mta_hook",
+            Reducer::RegisterAdminIdentity { .. } => "register_admin_identity",
             Reducer::SyncUser { .. } => "sync_user",
+            Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
             _ => unreachable!(),
         }
     }
@@ -123,12 +135,22 @@ impl __sdk::Reducer for Reducer {
                     hook_data: hook_data.clone(),
                 })
             }
+            Reducer::RegisterAdminIdentity { identity_hex } => __sats::bsatn::to_vec(
+                &register_admin_identity_reducer::RegisterAdminIdentityArgs {
+                    identity_hex: identity_hex.clone(),
+                },
+            ),
             Reducer::SyncUser { action, user_data } => {
                 __sats::bsatn::to_vec(&sync_user_reducer::SyncUserArgs {
                     action: action.clone(),
                     user_data: user_data.clone(),
                 })
             }
+            Reducer::UnregisterAdminIdentity { identity_hex } => __sats::bsatn::to_vec(
+                &unregister_admin_identity_reducer::UnregisterAdminIdentityArgs {
+                    identity_hex: identity_hex.clone(),
+                },
+            ),
             _ => unreachable!(),
         }
     }

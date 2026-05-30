@@ -9,19 +9,20 @@ mod mta;
 #[spacetimedb::reducer(init)]
 pub fn init(ctx: &ReducerContext) {
     // Called when the module is initially published
-    let module_id = ctx.database_identity();
-    let mut exists = false;
-    for row in ctx.db.admin_identities().iter() {
-        if row.identity == module_id {
-            exists = true;
-            break;
-        }
-    }
-    if !exists {
+    // let module_id = ctx.database_identity();
+    let sender_identity = ctx.sender();
+
+    if ctx
+        .db
+        .admin_identities()
+        .identity()
+        .find(sender_identity)
+        .is_none()
+    {
         ctx.db.admin_identities().insert(AdminIdentity {
-            identity: module_id,
+            identity: sender_identity,
         });
-        log::info!("Seeded module identity as admin: {:?}", module_id);
+        log::info!("Seeded sender identity as admin: {:?}", sender_identity);
     }
 }
 

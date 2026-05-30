@@ -9,6 +9,12 @@ pub struct WebhookProxyConfig {
     pub spacetimedb_module_name: String,
     /// Server bind address
     pub bind_address: String,
+    /// SpacetimeDB token for a stable service identity.
+    /// Generate once with: spacetime identity new --name webhook-proxy
+    ///                      spacetime identity token <identity-hex>
+    /// Then set SPACETIMEDB_TOKEN in .env or the environment.
+    /// Without this, a fresh ephemeral identity is used on every restart.
+    pub spacetimedb_token: Option<String>,
 }
 
 impl Default for WebhookProxyConfig {
@@ -17,6 +23,7 @@ impl Default for WebhookProxyConfig {
             spacetimedb_uri: "http://localhost:3000".to_string(),
             spacetimedb_module_name: "kommunikation".to_string(),
             bind_address: "0.0.0.0:3002".to_string(),
+            spacetimedb_token: None,
         }
     }
 }
@@ -31,6 +38,7 @@ impl WebhookProxyConfig {
                 .unwrap_or_else(|_| "kommunikation".to_string()),
             bind_address: env::var("WEBHOOK_PROXY_BIND_ADDRESS")
                 .unwrap_or_else(|_| "0.0.0.0:3002".to_string()),
+            spacetimedb_token: env::var("SPACETIMEDB_TOKEN").ok(),
         }
     }
 

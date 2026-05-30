@@ -341,12 +341,47 @@ async fn main() -> anyhow::Result<()> {
 
     // Connect to SpacetimeDB
     info!("Establishing SpacetimeDB connection");
+    let first_start = config.spacetimedb_token.is_none();
+    let module_name = config.spacetimedb_module_name.clone();
     let db_connection = Arc::new(
         DbConnection::builder()
             .with_uri(&config.spacetimedb_uri)
             .with_database_name(&config.spacetimedb_module_name)
-            .on_connect(|_, _, _| {
-                info!("Connected to SpacetimeDB successfully");
+            .with_token(config.spacetimedb_token.clone())
+            .on_connect(move |_, identity, token| {
+                if first_start {
+                    eprintln!(
+                        "
+╔══════════════════════════════════════════════════════════════════╗
+║        WEBHOOK-PROXY: FIRST START — ACTION REQUIRED             ║
+╚══════════════════════════════════════════════════════════════════╝
+
+No SPACETIMEDB_TOKEN was set, so a fresh identity was issued.
+This identity will change on every restart until you fix it.
+
+Follow these two steps once, then restart the proxy:
+
+  STEP 1 — Persist the token
+  ──────────────────────────
+  Create or edit  webhook-proxy/.env  and add:
+
+    SPACETIMEDB_TOKEN={token}
+
+  STEP 2 — Grant admin rights
+  ───────────────────────────
+  With spacetimedb running, call the register reducer once:
+
+    spacetime call {module_name} register_admin_identity '\"{identity}\"'
+
+  Identity : {identity}
+  Token    : {token}
+
+══════════════════════════════════════════════════════════════════
+"
+                    );
+                } else {
+                    info!("Connected to SpacetimeDB as {}", identity);
+                }
             })
             .on_disconnect(|_, _| {
                 warn!("Disconnected from SpacetimeDB");

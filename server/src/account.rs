@@ -86,15 +86,50 @@ pub(crate) fn is_admin_identity(ctx: &ReducerContext, who: Identity) -> bool {
     ctx.db.admin_identities().identity().find(&who).is_some()
 }
 
+/// Add an identity to admin_identities. Only existing admins may call this.
+/// `identity_hex` is the 64-character hex string shown by the webhook-proxy on first start.
+#[spacetimedb::reducer]
+pub fn register_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: only admins can register admin identities".into());
+    }
+    let identity = Identity::from_hex(&identity_hex)
+        .map_err(|e| format!("Invalid identity hex '{}': {}", identity_hex, e))?;
+    if ctx
+        .db
+        .admin_identities()
+        .identity()
+        .find(&identity)
+        .is_some()
+    {
+        return Ok(()); // idempotent
+    }
+    ctx.db.admin_identities().insert(AdminIdentity { identity });
+    log::info!("Registered admin identity: {:?}", identity);
+    Ok(())
+}
+
+/// Remove an identity from admin_identities. Only existing admins may call this.
+/// `identity_hex` is the 64-character hex string of the identity to remove.
+#[spacetimedb::reducer]
+pub fn unregister_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: only admins can unregister admin identities".into());
+    }
+    let identity = Identity::from_hex(&identity_hex)
+        .map_err(|e| format!("Invalid identity hex '{}': {}", identity_hex, e))?;
+    ctx.db.admin_identities().identity().delete(&identity);
+    log::info!("Unregistered admin identity: {:?}", identity);
+    Ok(())
+}
+
 // User synchronization from Django
 #[spacetimedb::reducer]
 pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) -> Result<(), String> {
-    if !is_admin_identity(ctx, ctx.sender()) {
-        log::warn!("Unauthorized sync_user call from {:?}", ctx.sender());
-        return Err(format!(
-            "Unauthorized: sync_user called by {:?}",
-            ctx.sender()
-        ));
+    let caller = ctx.sender();
+    if !is_admin_identity(ctx, caller) {
+        log::warn!("Unauthorized sync_user call from {:?}", caller);
+        return Err(format!("Unauthorized: sync_user called by {:?}", caller));
     }
 
     let timestamp = ctx.timestamp;
