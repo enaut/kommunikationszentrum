@@ -24,14 +24,48 @@ fn solawi_theme() -> BootstrapTheme {
     BootstrapTheme {
         colors: ThemeColors {
             primary: Some(SemanticColorScale::new("#165317")),
+            secondary: Some(SemanticColorScale::new("#5c6b5d")),
+            success: Some(SemanticColorScale::new("#2f9e44")),
+            info: Some(SemanticColorScale::new("#0b7285")),
+            warning: Some(SemanticColorScale::new("#e67700")),
+            danger: Some(SemanticColorScale::new("#c92a2a")),
+            light: Some(SemanticColorScale::new("#f5f8f5")),
             dark: Some(SemanticColorScale::new("#092817")),
-            ..ThemeColors::default()
         },
         surfaces: SurfaceColors {
-            link_color: Some("#165317".into()),
-            link_hover_color: Some("#134b15".into()),
-            ..SurfaceColors::default()
+            body_bg: Some("#f7fbf7".into()),
+            body_color: Some("#1d2b1f".into()),
+            secondary_bg: Some("#edf3ed".into()),
+            secondary_color: Some("#314033".into()),
+            tertiary_bg: None,
+            tertiary_color: None,
+            border_color: Some("#d4dfd4".into()),
+            link_color: None,
+            link_hover_color: None,
         },
+        dark: Some(ThemeModeTokens {
+            colors: ThemeColors {
+                primary: Some(SemanticColorScale::new("#4e9f53")),
+                secondary: Some(SemanticColorScale::new("#7b8b7d")),
+                success: Some(SemanticColorScale::new("#51cf66")),
+                info: Some(SemanticColorScale::new("#3bc9db")),
+                warning: Some(SemanticColorScale::new("#f08c00")),
+                danger: Some(SemanticColorScale::new("#ff6b6b")),
+                light: Some(SemanticColorScale::new("#e9f2ea")),
+                dark: Some(SemanticColorScale::new("#081e12")),
+            },
+            surfaces: SurfaceColors {
+                body_bg: Some("#0b120c".into()),
+                body_color: Some("#e6efe7".into()),
+                secondary_bg: Some("#162019".into()),
+                secondary_color: Some("#c7d3c8".into()),
+                tertiary_bg: None,
+                tertiary_color: None,
+                border_color: Some("#2a382d".into()),
+                link_color: Some("#74c97d".into()),
+                link_hover_color: Some("#95d89c".into()),
+            },
+        }),
         ..BootstrapTheme::default()
     }
 }
@@ -41,8 +75,12 @@ fn App() -> Element {
     let config = use_signal(AdminConfig::load);
     let (auth_state, login, logout) = use_oauth(config.read().oauth.clone());
 
+    // Theme signal for ThemeProvider + ThemeToggle
+    let theme = use_signal(|| Theme::Light);
+
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
+        ThemeProvider { theme: theme }
         BootstrapHead {}
         BootstrapThemeProvider { theme: solawi_theme() }
         match &*auth_state.read() {
@@ -53,7 +91,7 @@ fn App() -> Element {
                 AuthenticatingPage {}
             },
             AuthState::Authenticated(user_info) => rsx! {
-                AuthenticatedApp { user_info: user_info.clone(), on_logout: logout }
+                AuthenticatedApp { user_info: user_info.clone(), on_logout: logout, theme: theme }
             },
             AuthState::Error(error) => rsx! {
                 ErrorPage { error: error.clone(), on_retry: login }
@@ -127,7 +165,11 @@ fn ErrorPage(error: String, on_retry: Callback<()>) -> Element {
 // ---------------------------------------------------------------------------
 
 #[component]
-fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element {
+fn AuthenticatedApp(
+    user_info: UserInfo,
+    on_logout: EventHandler<()>,
+    theme: Signal<Theme>,
+) -> Element {
     let config = use_signal(AdminConfig::load);
     let uri = config.read().spacetimedb_uri.clone();
     let module_name = config.read().spacetimedb_module_name.clone();
@@ -151,6 +193,7 @@ fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element
             user_info: user_info.clone(),
             active_view,
             on_logout,
+            theme: theme.clone(),
         }
         {
             match state() {

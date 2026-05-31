@@ -1,5 +1,5 @@
 use ::dioxus::prelude::*;
-use dioxus_bootstrap_css::prelude::{NavbarCollapse, NavbarToggler};
+use dioxus_bootstrap_css::prelude::{NavbarCollapse, NavbarToggler, Theme, ThemeToggle};
 
 use crate::oauth::UserInfo;
 use crate::router::{use_is_admin, ActiveView};
@@ -9,15 +9,15 @@ pub fn Navbar(
     user_info: UserInfo,
     active_view: Signal<ActiveView>,
     on_logout: EventHandler<()>,
+    theme: Signal<Theme>,
 ) -> Element {
     let is_admin = use_is_admin();
     let collapsed = use_signal(|| true);
-    let mut user_dropdown_open = use_signal(|| false);
+    let user_dropdown_open = use_signal(|| false);
 
     rsx! {
         nav {
             class: "navbar navbar-expand-lg bg-primary",
-            "data-bs-theme": "dark",
             div { class: "container-fluid",
                 span { class: "navbar-brand",
                     i { class: "bi bi-envelope-fill me-2" }
@@ -31,6 +31,7 @@ pub fn Navbar(
                             icon: "bi-envelope-check",
                             view: ActiveView::MySubscriptions,
                             active_view,
+                            theme: theme.clone(),
                         }
                         if is_admin {
                             NavLink {
@@ -38,22 +39,29 @@ pub fn Navbar(
                                 icon: "bi-tags-fill",
                                 view: ActiveView::Categories,
                                 active_view,
+                                theme: theme.clone(),
                             }
                             NavLink {
                                 label: "Mitglieder",
                                 icon: "bi-people-fill",
                                 view: ActiveView::Members,
                                 active_view,
+                                theme: theme.clone(),
                             }
                             NavLink {
                                 label: "Debug",
                                 icon: "bi-bug-fill",
                                 view: ActiveView::Debug,
                                 active_view,
+                                theme: theme.clone(),
                             }
                         }
                     }
                     ul { class: "navbar-nav ms-auto",
+                        // Theme toggle (from dioxus-bootstrap)
+                        li { class: "nav-item",
+                            ThemeToggle { theme: theme }
+                        }
                         li { class: "nav-item dropdown",
                             // Invisible overlay to close on outside click
                             if user_dropdown_open() {
@@ -115,17 +123,28 @@ fn NavLink(
     icon: &'static str,
     view: ActiveView,
     active_view: Signal<ActiveView>,
+    theme: Signal<Theme>,
 ) -> Element {
     let is_active = *active_view.read() == view;
     let view_for_click = view.clone();
+    let theme_dark = *theme.read() == Theme::Dark;
+    let text_classes = if is_active {
+        if theme_dark {
+            "text-white fw-bold"
+        } else {
+            "text-dark fw-bold"
+        }
+    } else {
+        if theme_dark {
+            "text-white-50"
+        } else {
+            "text-muted"
+        }
+    };
     rsx! {
         li { class: "nav-item",
             button {
-                class: if is_active {
-                    "nav-link btn btn-link text-white fw-bold"
-                } else {
-                    "nav-link btn btn-link text-white-50"
-                },
+                class: format!("nav-link btn btn-link {text_classes}"),
                 onclick: move |_| active_view.set(view_for_click.clone()),
                 i { class: "bi {icon} me-1" }
                 "{label}"
