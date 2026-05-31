@@ -2,6 +2,7 @@ use ::dioxus::{
     logger::tracing::{error, info},
     prelude::*,
 };
+use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
     use_reducer_add_subscription, use_reducer_remove_subscription, use_table_message_categories,
@@ -22,11 +23,11 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
     let email = user_info.email.clone().unwrap_or_default();
 
     rsx! {
-        div { class: "container-fluid mt-4",
-            div { class: "row mb-3",
-                div { class: "col",
+        Container { fluid: true, class: "mt-4",
+            Row { class: "mb-3",
+                Col {
                     h2 { class: "mb-0",
-                        i { class: "bi bi-envelope-check me-2" }
+                        Icon { name: "envelope-check", class: "me-2" }
                         "Meine Kategorien"
                     }
                     p { class: "text-muted mt-1",
@@ -39,14 +40,14 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 let active_cats: Vec<_> = categories().into_iter().filter(|c| c.active).collect();
                 if active_cats.is_empty() {
                     rsx! {
-                        div { class: "alert alert-info",
-                            i { class: "bi bi-info-circle me-2" }
+                        Alert { color: Color::Info,
+                            Icon { name: "info-circle", class: "me-2" }
                             "Keine Kategorien vorhanden."
                         }
                     }
                 } else {
                     rsx! {
-                        div { class: "row",
+                        Row {
                             for cat in active_cats {
                                 {
                                     let sub_id = subscriptions()
@@ -62,18 +63,22 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                     let add = add_subscription.clone();
                                     let remove = remove_subscription.clone();
                                     rsx! {
-                                        div { class: "col-md-6 col-lg-4 mb-3",
-                                            div {
+                                        Col {
+                                            md: ColumnSize::Span(6),
+                                            lg: ColumnSize::Span(4),
+                                            class: "mb-3",
+                                            Card {
                                                 class: if sub_id.is_some() {
-                                                    "card h-100 border-success"
+                                                    "h-100 border-success"
                                                 } else {
-                                                    "card h-100"
+                                                    "h-100"
                                                 },
-                                                div { class: "card-body d-flex flex-column",
+                                                body_class: "d-flex flex-column",
+                                                body: rsx! {
                                                     div { class: "d-flex justify-content-between align-items-start mb-2",
                                                         h5 { class: "card-title mb-0", "{cat.name}" }
                                                         if sub_id.is_some() {
-                                                            span { class: "badge bg-success ms-2", "Abonniert" }
+                                                            Badge { color: Color::Success, class: "ms-2", "Abonniert" }
                                                         }
                                                     }
                                                     p { class: "card-text text-muted small flex-grow-1",
@@ -81,25 +86,30 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                     }
                                                     p { class: "card-text mb-3",
                                                         small { class: "text-muted",
-                                                            i { class: "bi bi-envelope me-1" }
+                                                            Icon { name: "envelope", class: "me-1" }
                                                             "{cat.email_address}"
                                                         }
                                                     }
                                                     if let Some(id) = sub_id {
-                                                        button {
-                                                            class: "btn btn-outline-danger btn-sm mt-auto",
+                                                        Button {
+                                                            color: Color::Danger,
+                                                            outline: true,
+                                                            size: Size::Sm,
+                                                            class: "mt-auto",
                                                             onclick: move |_| {
                                                                 info!("Unsubscribing from category {cat_id}");
                                                                 if let Err(e) = remove(id) {
                                                                     error!("remove_subscription failed: {e:?}");
                                                                 }
                                                             },
-                                                            i { class: "bi bi-dash-circle me-1" }
+                                                            Icon { name: "dash-circle", class: "me-1" }
                                                             "Abbestellen"
                                                         }
                                                     } else {
-                                                        button {
-                                                            class: "btn btn-success btn-sm mt-auto",
+                                                        Button {
+                                                            color: Color::Success,
+                                                            size: Size::Sm,
+                                                            class: "mt-auto",
                                                             onclick: move |_| {
                                                                 info!("Subscribing to category {cat_id}");
                                                                 if let Err(e) =
@@ -108,7 +118,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                                     error!("add_subscription failed: {e:?}");
                                                                 }
                                                             },
-                                                            i { class: "bi bi-plus-circle me-1" }
+                                                            Icon { name: "plus-circle", class: "me-1" }
                                                             "Abonnieren"
                                                         }
                                                     }

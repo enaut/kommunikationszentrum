@@ -1,4 +1,5 @@
 use ::dioxus::prelude::*;
+use dioxus_bootstrap_css::prelude::{NavbarCollapse, NavbarToggler};
 
 use crate::oauth::UserInfo;
 use crate::router::{use_is_admin, ActiveView};
@@ -10,22 +11,20 @@ pub fn Navbar(
     on_logout: EventHandler<()>,
 ) -> Element {
     let is_admin = use_is_admin();
+    let collapsed = use_signal(|| true);
+    let mut user_dropdown_open = use_signal(|| false);
 
     rsx! {
-        nav { class: "navbar navbar-expand-lg navbar-dark bg-primary",
+        nav {
+            class: "navbar navbar-expand-lg bg-primary",
+            "data-bs-theme": "dark",
             div { class: "container-fluid",
                 span { class: "navbar-brand",
                     i { class: "bi bi-envelope-fill me-2" }
                     "Kommunikationszentrum"
                 }
-                button {
-                    class: "navbar-toggler",
-                    "type": "button",
-                    "data-bs-toggle": "collapse",
-                    "data-bs-target": "#navbarNav",
-                    span { class: "navbar-toggler-icon" }
-                }
-                div { class: "collapse navbar-collapse", id: "navbarNav",
+                NavbarToggler { collapsed }
+                NavbarCollapse { collapsed,
                     ul { class: "navbar-nav me-auto",
                         NavLink {
                             label: "Meine Kategorien",
@@ -56,25 +55,49 @@ pub fn Navbar(
                     }
                     ul { class: "navbar-nav ms-auto",
                         li { class: "nav-item dropdown",
-                            a {
-                                class: "nav-link dropdown-toggle",
-                                href: "#",
-                                role: "button",
-                                "data-bs-toggle": "dropdown",
-                                i { class: "bi bi-person-circle me-2" }
-                                if let Some(name) = &user_info.name {
-                                    "{name}"
-                                } else {
-                                    "{user_info.username}"
+                            // Invisible overlay to close on outside click
+                            if user_dropdown_open() {
+                                div {
+                                    style: "position: fixed; inset: 0; z-index: 990;",
+                                    onclick: move |_| user_dropdown_open.set(false),
                                 }
                             }
-                            ul { class: "dropdown-menu dropdown-menu-end",
-                                li {
-                                    button {
-                                        class: "dropdown-item",
-                                        onclick: move |_| on_logout.call(()),
-                                        i { class: "bi bi-box-arrow-right me-2" }
-                                        "Abmelden"
+                            div {
+                                style: if user_dropdown_open() {
+                                    "position: relative; z-index: 991;"
+                                } else {
+                                    ""
+                                },
+                                a {
+                                    class: "nav-link dropdown-toggle",
+                                    href: "#",
+                                    role: "button",
+                                    "aria-expanded": if user_dropdown_open() { "true" } else { "false" },
+                                    onclick: move |evt| {
+                                        evt.stop_propagation();
+                                        user_dropdown_open.set(!user_dropdown_open());
+                                    },
+                                    i { class: "bi bi-person-circle me-2" }
+                                    if let Some(name) = &user_info.name {
+                                        "{name}"
+                                    } else {
+                                        "{user_info.username}"
+                                    }
+                                }
+                                ul {
+                                    class: if user_dropdown_open() {
+                                        "dropdown-menu dropdown-menu-end show"
+                                    } else {
+                                        "dropdown-menu dropdown-menu-end"
+                                    },
+                                    onclick: move |_| user_dropdown_open.set(false),
+                                    li {
+                                        button {
+                                            class: "dropdown-item",
+                                            onclick: move |_| on_logout.call(()),
+                                            i { class: "bi bi-box-arrow-right me-2" }
+                                            "Abmelden"
+                                        }
                                     }
                                 }
                             }

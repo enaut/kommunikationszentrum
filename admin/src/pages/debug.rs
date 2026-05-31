@@ -2,6 +2,7 @@ use ::dioxus::{
     logger::tracing::{error, info},
     prelude::*,
 };
+use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
     use_connection_error, use_connection_state, use_reducer_dump_mta_logs_to_server_logs,
@@ -22,60 +23,63 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
 
     let mut register_hex = use_signal(String::new);
 
-    let (alert_class, icon_class, status_text) = match state() {
+    let (alert_color, icon_name, status_text): (Color, &'static str, String) = match state() {
         ConnectionState::Connected(id, _) => (
-            "alert-success",
-            "bi-check-circle-fill",
+            Color::Success,
+            "check-circle-fill",
             format!("Verbunden · Identity: {id}"),
         ),
         ConnectionState::Connecting => (
-            "alert-info",
-            "bi-arrow-repeat",
+            Color::Info,
+            "arrow-repeat",
             "Verbindung wird hergestellt…".to_string(),
         ),
         ConnectionState::Reconnecting { attempt, delay_ms } => (
-            "alert-warning",
-            "bi-exclamation-triangle-fill",
+            Color::Warning,
+            "exclamation-triangle-fill",
             format!("Wiederverbinden… (Versuch {attempt}, {delay_ms} ms)"),
         ),
         ConnectionState::Error => (
-            "alert-danger",
-            "bi-exclamation-circle-fill",
+            Color::Danger,
+            "exclamation-circle-fill",
             "Verbindungsfehler".to_string(),
         ),
         ConnectionState::Disconnected => (
-            "alert-secondary",
-            "bi-circle-fill",
+            Color::Secondary,
+            "circle-fill",
             "Nicht verbunden".to_string(),
         ),
     };
 
     rsx! {
-        div { class: "container-fluid mt-4",
-            div { class: "row mb-3",
-                div { class: "col",
+        Container { fluid: true, class: "mt-4",
+            Row { class: "mb-3",
+                Col {
                     h2 { class: "mb-0",
-                        i { class: "bi bi-bug-fill me-2" }
+                        Icon { name: "bug-fill", class: "me-2" }
                         "Debug & Status"
                     }
                 }
             }
 
             // Connection status card
-            div { class: "row mb-4",
-                div { class: "col-12",
-                    div { class: "card shadow-sm",
-                        div { class: "card-header bg-primary text-white",
+            Row { class: "mb-4",
+                Col { xs: ColumnSize::Span(12),
+                    Card {
+                        class: "shadow-sm",
+                        header_class: "bg-primary text-white",
+                        header: rsx! {
                             h5 { class: "card-title mb-0",
-                                i { class: "bi bi-plug-fill me-2" }
+                                Icon { name: "plug-fill", class: "me-2" }
                                 "SpacetimeDB Verbindung"
                             }
-                        }
-                        div { class: "card-body",
-                            div {
-                                class: "alert {alert_class} d-flex align-items-start",
+                        },
+                        body: rsx! {
+                            Alert {
+                                color: alert_color,
+                                class: "d-flex align-items-start",
                                 role: "alert",
-                                i { class: "bi {icon_class} me-2 mt-1 flex-shrink-0" }
+                                Icon { name: icon_name, class: "me-2 mt-1 flex-shrink-0" }
                                 div { style: "overflow-x: auto; width: 100%;",
                                     div { "{status_text}" }
                                     if let Some(err) = conn_error() {
@@ -83,14 +87,14 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                                     }
                                 }
                             }
-                            div { class: "row text-center",
-                                div { class: "col-md-4",
+                            Row { class: "text-center",
+                                Col { md: ColumnSize::Span(4),
                                     div { class: "border-end",
                                         h6 { class: "text-muted mb-1", "Mitgliedsnummer" }
                                         p { class: "h5 mb-0", "{user_info.mitgliedsnr}" }
                                     }
                                 }
-                                div { class: "col-md-4",
+                                Col { md: ColumnSize::Span(4),
                                     div { class: "border-end",
                                         h6 { class: "text-muted mb-1", "E-Mail" }
                                         p { class: "h5 mb-0",
@@ -102,7 +106,7 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                                         }
                                     }
                                 }
-                                div { class: "col-md-4",
+                                Col { md: ColumnSize::Span(4),
                                     div {
                                         h6 { class: "text-muted mb-1", "ID Token" }
                                         p {
@@ -117,15 +121,17 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                                 }
                             }
                             div { class: "mt-3",
-                                button {
-                                    class: "btn btn-outline-secondary btn-sm",
+                                Button {
+                                    color: Color::Secondary,
+                                    outline: true,
+                                    size: Size::Sm,
                                     onclick: move |_| {
                                         info!("Dumping MTA logs to server logs");
                                         if let Err(e) = dump_logs() {
                                             error!("dump_mta_logs_to_server_logs failed: {e:?}");
                                         }
                                     },
-                                    i { class: "bi bi-journal-text me-1" }
+                                    Icon { name: "journal-text", class: "me-1" }
                                     "MTA Logs ausgeben"
                                 }
                             }
@@ -135,21 +141,23 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
             }
 
             // Admin identity management
-            div { class: "row",
-                div { class: "col-12",
-                    div { class: "card shadow-sm",
-                        div { class: "card-header bg-primary text-white",
+            Row {
+                Col { xs: ColumnSize::Span(12),
+                    Card {
+                        class: "shadow-sm",
+                        header_class: "bg-primary text-white",
+                        header: rsx! {
                             h5 { class: "card-title mb-0",
-                                i { class: "bi bi-shield-fill me-2" }
+                                Icon { name: "shield-fill", class: "me-2" }
                                 "Admin-Identitäten"
                                 span { class: "badge bg-white text-primary ms-2",
                                     "{admin_identities().len()}"
                                 }
                             }
-                        }
-                        div { class: "card-body",
-                            div { class: "row g-2 mb-3",
-                                div { class: "col",
+                        },
+                        body: rsx! {
+                            Row { class: "g-2 mb-3",
+                                Col {
                                     input {
                                         class: "form-control form-control-sm font-monospace",
                                         r#type: "text",
@@ -158,9 +166,10 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                                         oninput: move |e| register_hex.set(e.value()),
                                     }
                                 }
-                                div { class: "col-auto",
-                                    button {
-                                        class: "btn btn-primary btn-sm",
+                                Col { class: "col-auto",
+                                    Button {
+                                        color: Color::Primary,
+                                        size: Size::Sm,
                                         disabled: register_hex.read().len() != 64,
                                         onclick: {
                                             let register = register_admin.clone();
@@ -176,7 +185,7 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                                                 }
                                             }
                                         },
-                                        i { class: "bi bi-person-plus me-1" }
+                                        Icon { name: "person-plus", class: "me-1" }
                                         "Hinzufügen"
                                     }
                                 }
@@ -195,8 +204,11 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                                             rsx! {
                                                 div { class: "list-group-item d-flex justify-content-between align-items-center",
                                                     code { class: "small text-break", "{hex}" }
-                                                    button {
-                                                        class: "btn btn-outline-danger btn-sm ms-2 flex-shrink-0",
+                                                    Button {
+                                                        color: Color::Danger,
+                                                        outline: true,
+                                                        size: Size::Sm,
+                                                        class: "ms-2 flex-shrink-0",
                                                         onclick: move |_| {
                                                             info!(
                                                                 "Unregistering admin identity: {hex_for_remove}"
@@ -209,7 +221,7 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                                                                 );
                                                             }
                                                         },
-                                                        i { class: "bi bi-person-dash" }
+                                                        Icon { name: "person-dash" }
                                                     }
                                                 }
                                             }

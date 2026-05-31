@@ -110,7 +110,7 @@ spacetime publish --project-path server kommunikation -c
 **Commands**:
 ```bash
 # Start development server with WebAssembly support
-RUSTFLAGS='--cfg getrandom_backend="wasm_js"' dx serve --package admin --platform web
+dx serve --package admin --platform web
 ```
 
 Allways use `dx` or the vscode task "Start Admin Web UI", Do not use `cargo` commands for building or launching dioxus admin.

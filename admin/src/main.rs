@@ -7,6 +7,7 @@ mod router;
 
 use ::dioxus::{logger::tracing::info, prelude::*};
 use config::AdminConfig;
+use dioxus_bootstrap_css::prelude::*;
 use module_bindings::dioxus::{
     use_connection_state, use_spacetimedb_context_provider, use_subscription, ConnectionState,
 };
@@ -14,11 +15,25 @@ use oauth::{use_oauth, AuthState, UserInfo};
 use router::ActiveView;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-const BOOTSTRAP_CSS: Asset = asset!("/assets/static/custom_colors.scss");
-const BOOTSTRAP_JS: Asset = asset!("/assets/static/external/bootstrap/bootstrap.bundle.min.js");
 
 fn main() {
     ::dioxus::launch(App);
+}
+
+fn solawi_theme() -> BootstrapTheme {
+    BootstrapTheme {
+        colors: ThemeColors {
+            primary: Some(SemanticColorScale::new("#165317")),
+            dark: Some(SemanticColorScale::new("#092817")),
+            ..ThemeColors::default()
+        },
+        surfaces: SurfaceColors {
+            link_color: Some("#165317".into()),
+            link_hover_color: Some("#134b15".into()),
+            ..SurfaceColors::default()
+        },
+        ..BootstrapTheme::default()
+    }
 }
 
 #[component]
@@ -28,8 +43,8 @@ fn App() -> Element {
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
-        document::Link { rel: "stylesheet", href: BOOTSTRAP_CSS }
-        document::Script { src: BOOTSTRAP_JS }
+        BootstrapHead {}
+        BootstrapThemeProvider { theme: solawi_theme() }
         match &*auth_state.read() {
             AuthState::Unauthenticated => rsx! {
                 LoginPage { on_login: login }
@@ -55,16 +70,17 @@ fn App() -> Element {
 fn LoginPage(on_login: Callback<()>) -> Element {
     rsx! {
         div { class: "d-flex justify-content-center align-items-center vh-100 bg-light",
-            div { class: "card shadow p-4", style: "min-width: 320px;",
+            Card { class: "shadow p-4", style: "min-width: 320px;",
                 div { class: "text-center mb-4",
-                    i { class: "bi bi-envelope-fill text-primary", style: "font-size: 3rem;" }
+                    Icon { name: "envelope-fill", class: "text-primary" }
                     h4 { class: "mt-2 mb-0", "Kommunikationszentrum" }
                     p { class: "text-muted small", "SoLaWi Nachrichtenkategorien" }
                 }
-                button {
-                    class: "btn btn-primary w-100",
+                Button {
+                    color: Color::Primary,
+                    class: "w-100",
                     onclick: move |_| on_login.call(()),
-                    i { class: "bi bi-box-arrow-in-right me-2" }
+                    Icon { name: "box-arrow-in-right", class: "me-2" }
                     "Mit SoLaWi-Account anmelden"
                 }
             }
@@ -77,7 +93,7 @@ fn AuthenticatingPage() -> Element {
     rsx! {
         div { class: "d-flex justify-content-center align-items-center vh-100",
             div { class: "text-center",
-                div { class: "spinner-border text-primary mb-3", role: "status" }
+                Spinner { color: Color::Primary, class: "mb-3", "Laden…" }
                 p { class: "text-muted", "Anmeldung wird verarbeitet…" }
             }
         }
@@ -88,17 +104,17 @@ fn AuthenticatingPage() -> Element {
 fn ErrorPage(error: String, on_retry: Callback<()>) -> Element {
     rsx! {
         div { class: "d-flex justify-content-center align-items-center vh-100 bg-light",
-            div { class: "card shadow p-4 text-center", style: "min-width: 320px;",
-                i {
-                    class: "bi bi-exclamation-triangle-fill text-danger",
-                    style: "font-size: 2.5rem;",
+            Card { class: "shadow p-4 text-center", style: "min-width: 320px;",
+                Icon {
+                    name: "exclamation-triangle-fill",
+                    class: "text-danger",
                 }
                 h5 { class: "mt-3 text-danger", "Authentifizierungsfehler" }
                 p { class: "text-muted small mb-4", "{error}" }
-                button {
-                    class: "btn btn-primary",
+                Button {
+                    color: Color::Primary,
                     onclick: move |_| on_retry.call(()),
-                    i { class: "bi bi-arrow-clockwise me-2" }
+                    Icon { name: "arrow-clockwise", class: "me-2" }
                     "Erneut versuchen"
                 }
             }
@@ -157,7 +173,7 @@ fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element
                 ConnectionState::Connecting | ConnectionState::Reconnecting { .. } => rsx! {
                     div { class: "d-flex justify-content-center align-items-center mt-5",
                         div { class: "text-center",
-                            div { class: "spinner-border text-primary mb-3", role: "status" }
+                            Spinner { color: Color::Primary, class: "mb-3", "Laden…" }
                             p { class: "text-muted",
                                 "Verbindung zu SpacetimeDB wird hergestellt…"
                             }
@@ -165,9 +181,9 @@ fn AuthenticatedApp(user_info: UserInfo, on_logout: EventHandler<()>) -> Element
                     }
                 },
                 _ => rsx! {
-                    div { class: "container mt-5",
-                        div { class: "alert alert-danger d-flex align-items-center",
-                            i { class: "bi bi-exclamation-circle me-2" }
+                    Container { class: "mt-5",
+                        Alert { color: Color::Danger, class: "d-flex align-items-center",
+                            Icon { name: "exclamation-circle", class: "me-2" }
                             "Verbindung zu SpacetimeDB getrennt oder fehlgeschlagen."
                         }
                     }

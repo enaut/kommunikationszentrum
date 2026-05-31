@@ -150,7 +150,7 @@ cargo run --package webhook-proxy
 #### 5. Start Admin Web UI
 
 ```bash
-RUSTFLAGS='--cfg getrandom_backend="wasm_js"' dx serve --package admin --platform web
+dx serve --package admin --platform web
 ```
 
 #### 6. Sync Users to SpacetimeDB

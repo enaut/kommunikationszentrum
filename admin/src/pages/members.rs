@@ -2,6 +2,7 @@ use ::dioxus::{
     logger::tracing::{error, info},
     prelude::*,
 };
+use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
     use_reducer_add_subscription, use_reducer_remove_subscription, use_table_message_categories,
@@ -24,28 +25,28 @@ pub fn MembersPage() -> Element {
     let mut add_form_category: Signal<u64> = use_signal(|| 0);
 
     rsx! {
-        div { class: "container-fluid mt-4",
-            div { class: "row mb-3",
-                div { class: "col",
+        Container { fluid: true, class: "mt-4",
+            Row { class: "mb-3",
+                Col {
                     h2 { class: "mb-0",
-                        i { class: "bi bi-people-fill me-2" }
+                        Icon { name: "people-fill", class: "me-2" }
                         "Mitglieder"
                     }
                     p { class: "text-muted mt-1",
-                        span { class: "badge bg-primary me-2", "{accounts().len()}" }
+                        Badge { color: Color::Primary, class: "me-2", "{accounts().len()}" }
                         "registrierte Mitglieder"
                     }
                 }
             }
 
             if accounts().is_empty() {
-                div { class: "alert alert-info",
-                    i { class: "bi bi-info-circle me-2" }
+                Alert { color: Color::Info,
+                    Icon { name: "info-circle", class: "me-2" }
                     "Keine Mitglieder gefunden."
                 }
             } else {
-                div { class: "card shadow-sm",
-                    div { class: "card-body p-0",
+                Card { class: "shadow-sm", body_class: "p-0",
+                    body: rsx! {
                         div { class: "table-responsive",
                             table { class: "table table-hover mb-0",
                                 thead { class: "table-light",
@@ -77,9 +78,9 @@ pub fn MembersPage() -> Element {
                                                     td { small { class: "text-muted", "{account.email}" } }
                                                     td {
                                                         if account.is_active {
-                                                            span { class: "badge bg-success", "Aktiv" }
+                                                            Badge { color: Color::Success, "Aktiv" }
                                                         } else {
-                                                            span { class: "badge bg-danger", "Inaktiv" }
+                                                            Badge { color: Color::Danger, "Inaktiv" }
                                                         }
                                                     }
                                                     td {
@@ -95,7 +96,7 @@ pub fn MembersPage() -> Element {
                                                                     });
                                                                 let remove = remove_subscription.clone();
                                                                 rsx! {
-                                                                    span { class: "badge bg-primary me-1 mb-1 d-inline-flex align-items-center gap-1",
+                                                                    Badge { color: Color::Primary, class: "me-1 mb-1 d-inline-flex align-items-center gap-1",
                                                                         "{cat_name}"
                                                                         button {
                                                                             class: "btn-close btn-close-white",
@@ -152,8 +153,9 @@ pub fn MembersPage() -> Element {
                                                                     let add = add_subscription.clone();
                                                                     let email_for_add = acct_email.clone();
                                                                     rsx! {
-                                                                        button {
-                                                                            class: "btn btn-success btn-sm",
+                                                                        Button {
+                                                                            color: Color::Success,
+                                                                            size: Size::Sm,
                                                                             disabled: add_form_category() == 0,
                                                                             onclick: move |_| {
                                                                                 let cat_id = add_form_category();
@@ -176,27 +178,30 @@ pub fn MembersPage() -> Element {
                                                                                     add_form_category.set(0);
                                                                                 }
                                                                             },
-                                                                            i { class: "bi bi-check-lg" }
+                                                                            Icon { name: "check-lg" }
                                                                         }
-                                                                        button {
-                                                                            class: "btn btn-secondary btn-sm",
+                                                                        Button {
+                                                                            color: Color::Secondary,
+                                                                            size: Size::Sm,
                                                                             onclick: move |_| {
                                                                                 add_form_account.set(None);
                                                                                 add_form_category.set(0);
                                                                             },
-                                                                            i { class: "bi bi-x-lg" }
+                                                                            Icon { name: "x-lg" }
                                                                         }
                                                                     }
                                                                 }
                                                             }
                                                         } else {
-                                                            button {
-                                                                class: "btn btn-outline-primary btn-sm",
+                                                            Button {
+                                                                color: Color::Primary,
+                                                                outline: true,
+                                                                size: Size::Sm,
                                                                 onclick: move |_| {
                                                                     add_form_account.set(Some(acct_id));
                                                                     add_form_category.set(0);
                                                                 },
-                                                                i { class: "bi bi-plus-lg me-1" }
+                                                                Icon { name: "plus-lg", class: "me-1" }
                                                                 "Kategorie"
                                                             }
                                                         }
