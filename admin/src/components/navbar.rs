@@ -13,11 +13,10 @@ pub fn Navbar(
 ) -> Element {
     let is_admin = use_is_admin();
     let collapsed = use_signal(|| true);
-    let user_dropdown_open = use_signal(|| false);
+    let mut user_dropdown_open = use_signal(|| false);
 
     rsx! {
-        nav {
-            class: "navbar navbar-expand-lg bg-primary",
+        nav { class: "navbar navbar-expand-lg bg-primary navbar-dark",
             div { class: "container-fluid",
                 span { class: "navbar-brand",
                     i { class: "bi bi-envelope-fill me-2" }
@@ -27,7 +26,7 @@ pub fn Navbar(
                 NavbarCollapse { collapsed,
                     ul { class: "navbar-nav me-auto",
                         NavLink {
-                            label: "Meine Kategorien",
+                            label: "Meine Themen",
                             icon: "bi-envelope-check",
                             view: ActiveView::MySubscriptions,
                             active_view,
@@ -35,7 +34,7 @@ pub fn Navbar(
                         }
                         if is_admin {
                             NavLink {
-                                label: "Kategorien",
+                                label: "Themen",
                                 icon: "bi-tags-fill",
                                 view: ActiveView::Categories,
                                 active_view,
@@ -60,7 +59,7 @@ pub fn Navbar(
                     ul { class: "navbar-nav ms-auto",
                         // Theme toggle (from dioxus-bootstrap)
                         li { class: "nav-item",
-                            ThemeToggle { theme: theme }
+                            ThemeToggle { theme }
                         }
                         li { class: "nav-item dropdown",
                             // Invisible overlay to close on outside click
@@ -70,12 +69,7 @@ pub fn Navbar(
                                     onclick: move |_| user_dropdown_open.set(false),
                                 }
                             }
-                            div {
-                                style: if user_dropdown_open() {
-                                    "position: relative; z-index: 991;"
-                                } else {
-                                    ""
-                                },
+                            div { style: if user_dropdown_open() { "position: relative; z-index: 991;" } else { "" },
                                 a {
                                     class: "nav-link dropdown-toggle",
                                     href: "#",
@@ -93,11 +87,7 @@ pub fn Navbar(
                                     }
                                 }
                                 ul {
-                                    class: if user_dropdown_open() {
-                                        "dropdown-menu dropdown-menu-end show"
-                                    } else {
-                                        "dropdown-menu dropdown-menu-end"
-                                    },
+                                    class: if user_dropdown_open() { "dropdown-menu dropdown-menu-end show" } else { "dropdown-menu dropdown-menu-end" },
                                     onclick: move |_| user_dropdown_open.set(false),
                                     li {
                                         button {
@@ -132,13 +122,13 @@ fn NavLink(
         if theme_dark {
             "text-white fw-bold"
         } else {
-            "text-dark fw-bold"
+            "text-white fw-bold"
         }
     } else {
         if theme_dark {
             "text-white-50"
         } else {
-            "text-muted"
+            "text-white-70"
         }
     };
     rsx! {

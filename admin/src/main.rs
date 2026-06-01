@@ -29,12 +29,12 @@ fn solawi_theme() -> BootstrapTheme {
             info: Some(SemanticColorScale::new("#0b7285")),
             warning: Some(SemanticColorScale::new("#e67700")),
             danger: Some(SemanticColorScale::new("#c92a2a")),
-            light: Some(SemanticColorScale::new("#f5f8f5")),
+            light: Some(SemanticColorScale::new("#e9f2ea")),
             dark: Some(SemanticColorScale::new("#092817")),
         },
         surfaces: SurfaceColors {
             body_bg: Some("#f7fbf7".into()),
-            body_color: Some("#1d2b1f".into()),
+            body_color: Some("#165317".into()),
             secondary_bg: Some("#edf3ed".into()),
             secondary_color: Some("#314033".into()),
             tertiary_bg: None,
@@ -45,13 +45,13 @@ fn solawi_theme() -> BootstrapTheme {
         },
         dark: Some(ThemeModeTokens {
             colors: ThemeColors {
-                primary: Some(SemanticColorScale::new("#4e9f53")),
+                primary: Some(SemanticColorScale::new("#1D480D")),
                 secondary: Some(SemanticColorScale::new("#7b8b7d")),
-                success: Some(SemanticColorScale::new("#51cf66")),
-                info: Some(SemanticColorScale::new("#3bc9db")),
-                warning: Some(SemanticColorScale::new("#f08c00")),
-                danger: Some(SemanticColorScale::new("#ff6b6b")),
-                light: Some(SemanticColorScale::new("#e9f2ea")),
+                success: Some(SemanticColorScale::new("#004E00")),
+                info: Some(SemanticColorScale::new("#15b")),
+                warning: Some(SemanticColorScale::new("#940")),
+                danger: Some(SemanticColorScale::new("#922")),
+                light: Some(SemanticColorScale::new("#49624a")),
                 dark: Some(SemanticColorScale::new("#081e12")),
             },
             surfaces: SurfaceColors {
@@ -80,7 +80,7 @@ fn App() -> Element {
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
-        ThemeProvider { theme: theme }
+        ThemeProvider { theme }
         BootstrapHead {}
         BootstrapThemeProvider { theme: solawi_theme() }
         match &*auth_state.read() {
@@ -91,7 +91,7 @@ fn App() -> Element {
                 AuthenticatingPage {}
             },
             AuthState::Authenticated(user_info) => rsx! {
-                AuthenticatedApp { user_info: user_info.clone(), on_logout: logout, theme: theme }
+                AuthenticatedApp { user_info: user_info.clone(), on_logout: logout, theme }
             },
             AuthState::Error(error) => rsx! {
                 ErrorPage { error: error.clone(), on_retry: login }
@@ -112,7 +112,7 @@ fn LoginPage(on_login: Callback<()>) -> Element {
                 div { class: "text-center mb-4",
                     Icon { name: "envelope-fill", class: "text-primary" }
                     h4 { class: "mt-2 mb-0", "Kommunikationszentrum" }
-                    p { class: "text-muted small", "SoLaWi Nachrichtenkategorien" }
+                    p { class: "text-muted small", "SoLaWi Nachrichten verwaltung" }
                 }
                 Button {
                     color: Color::Primary,
@@ -143,10 +143,7 @@ fn ErrorPage(error: String, on_retry: Callback<()>) -> Element {
     rsx! {
         div { class: "d-flex justify-content-center align-items-center vh-100 bg-light",
             Card { class: "shadow p-4 text-center", style: "min-width: 320px;",
-                Icon {
-                    name: "exclamation-triangle-fill",
-                    class: "text-danger",
-                }
+                Icon { name: "exclamation-triangle-fill", class: "text-danger" }
                 h5 { class: "mt-3 text-danger", "Authentifizierungsfehler" }
                 p { class: "text-muted small mb-4", "{error}" }
                 Button {
@@ -197,32 +194,32 @@ fn AuthenticatedApp(
         }
         {
             match state() {
-                ConnectionState::Connected(_, _) => match active_view() {
-                    ActiveView::MySubscriptions => rsx! {
-                        pages::subscriptions::SubscriptionsPage {
-                            user_info: user_info.clone(),
-                        }
-                    },
-                    ActiveView::Categories => rsx! {
-                        pages::categories::CategoriesPage {}
-                    },
-                    ActiveView::Members => rsx! {
-                        pages::members::MembersPage {}
-                    },
-                    ActiveView::Debug => rsx! {
-                        pages::debug::DebugPage { user_info: user_info.clone() }
-                    },
-                },
-                ConnectionState::Connecting | ConnectionState::Reconnecting { .. } => rsx! {
-                    div { class: "d-flex justify-content-center align-items-center mt-5",
-                        div { class: "text-center",
-                            Spinner { color: Color::Primary, class: "mb-3", "Laden…" }
-                            p { class: "text-muted",
-                                "Verbindung zu SpacetimeDB wird hergestellt…"
+                ConnectionState::Connected(_, _) => {
+                    match active_view() {
+                        ActiveView::MySubscriptions => rsx! {
+                            pages::subscriptions::SubscriptionsPage { user_info: user_info.clone() }
+                        },
+                        ActiveView::Categories => rsx! {
+                            pages::categories::CategoriesPage {}
+                        },
+                        ActiveView::Members => rsx! {
+                            pages::members::MembersPage {}
+                        },
+                        ActiveView::Debug => rsx! {
+                            pages::debug::DebugPage { user_info: user_info.clone() }
+                        },
+                    }
+                }
+                ConnectionState::Connecting | ConnectionState::Reconnecting { .. } => {
+                    rsx! {
+                        div { class: "d-flex justify-content-center align-items-center mt-5",
+                            div { class: "text-center",
+                                Spinner { color: Color::Primary, class: "mb-3", "Laden…" }
+                                p { class: "text-muted", "Verbindung zu SpacetimeDB wird hergestellt…" }
                             }
                         }
                     }
-                },
+                }
                 _ => rsx! {
                     Container { class: "mt-5",
                         Alert { color: Color::Danger, class: "d-flex align-items-center",

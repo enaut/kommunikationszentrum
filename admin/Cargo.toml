@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 dioxus = { version = "0.7", features = [] }
-dioxus-bootstrap-css = { git = "https://github.com/enaut/dioxus-bootstrap", branch = "copilot/add-bootstrap-theme-provider" }
+dioxus-bootstrap-css = { git = "https://github.com/enaut/dioxus-bootstrap", branch = "development" }
 futures-util = "0.3"
 spacetimedb-sdk = { version = "2.3.0" }
 stalwart_mta_hook_types = { version = "0.1" }

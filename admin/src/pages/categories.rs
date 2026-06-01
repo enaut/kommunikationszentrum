@@ -26,7 +26,7 @@ pub fn CategoriesPage() -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "tags-fill", class: "me-2" }
-                        "Kategorien"
+                        "Themen"
                     }
                 }
             }
@@ -40,17 +40,17 @@ pub fn CategoriesPage() -> Element {
                         header: rsx! {
                             h5 { class: "card-title mb-0",
                                 Icon { name: "plus-circle", class: "me-2" }
-                                "Neue Kategorie"
+                                "Neues Thema hinzufügen"
                             }
                         },
                         body: rsx! {
                             Row { class: "g-3 align-items-end",
                                 Col { md: ColumnSize::Span(3),
-                                    label { class: "form-label", "Name" }
+                                    label { class: "form-label", "Thema" }
                                     input {
                                         class: "form-control",
                                         r#type: "text",
-                                        placeholder: "Kategoriename",
+                                        placeholder: "Thema Name",
                                         value: "{name}",
                                         oninput: move |e| name.set(e.value()),
                                     }
@@ -60,7 +60,7 @@ pub fn CategoriesPage() -> Element {
                                     input {
                                         class: "form-control",
                                         r#type: "email",
-                                        placeholder: "kategorie@example.com",
+                                        placeholder: "thema@example.com",
                                         value: "{email_address}",
                                         oninput: move |e| email_address.set(e.value()),
                                     }
@@ -115,18 +115,16 @@ pub fn CategoriesPage() -> Element {
                         header: rsx! {
                             h5 { class: "card-title mb-0",
                                 Icon { name: "list-ul", class: "me-2" }
-                                "Vorhandene Kategorien"
+                                "Vorhandene Themen"
                                 // No Color::White in dioxus-bootstrap-css; keep as raw HTML.
-                                span { class: "badge bg-white text-primary ms-2",
-                                    "{categories().len()}"
-                                }
+                                span { class: "badge bg-white text-primary ms-2", "{categories().len()}" }
                             }
                         },
                         body: rsx! {
                             if categories().is_empty() {
                                 div { class: "p-4 text-muted",
                                     Icon { name: "inbox", class: "me-2" }
-                                    "Keine Kategorien vorhanden."
+                                    "Keine Themen vorhanden."
                                 }
                             } else {
                                 div { class: "table-responsive",
@@ -147,8 +145,12 @@ pub fn CategoriesPage() -> Element {
                                                     let remove = remove_category.clone();
                                                     rsx! {
                                                         tr {
-                                                            td { strong { "{cat.name}" } }
-                                                            td { code { "{cat.email_address}" } }
+                                                            td {
+                                                                strong { "{cat.name}" }
+                                                            }
+                                                            td {
+                                                                code { "{cat.email_address}" }
+                                                            }
                                                             td { class: "text-muted", "{cat.description}" }
                                                             td {
                                                                 if cat.active {
@@ -160,14 +162,11 @@ pub fn CategoriesPage() -> Element {
                                                             td { class: "text-end",
                                                                 Button {
                                                                     color: Color::Danger,
-                                                                    outline: true,
                                                                     size: Size::Sm,
                                                                     onclick: move |_| {
                                                                         info!("Removing category {cat_id}");
                                                                         if let Err(e) = remove(cat_id) {
-                                                                            error!(
-                                                                                "remove_message_category failed: {e:?}"
-                                                                            );
+                                                                            error!("remove_message_category failed: {e:?}");
                                                                         }
                                                                     },
                                                                     Icon { name: "trash", class: "me-1" }

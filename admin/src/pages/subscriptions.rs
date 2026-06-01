@@ -28,21 +28,24 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "envelope-check", class: "me-2" }
-                        "Meine Kategorien"
+                        "Meine Themen"
                     }
                     p { class: "text-muted mt-1",
-                        "Wähle die Kategorien aus, über die du E-Mails empfangen möchtest."
+                        "Wähle die Themen aus, über die du E-Mails empfangen möchtest."
                     }
                 }
             }
 
             {
-                let active_cats: Vec<_> = categories().into_iter().filter(|c| c.active).collect();
+                let active_cats: Vec<_> = categories()
+                    .into_iter()
+                    .filter(|c| c.active)
+                    .collect();
                 if active_cats.is_empty() {
                     rsx! {
                         Alert { color: Color::Info,
                             Icon { name: "info-circle", class: "me-2" }
-                            "Keine Kategorien vorhanden."
+                            "Keine Themen vorhanden."
                         }
                     }
                 } else {
@@ -63,27 +66,18 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                     let add = add_subscription.clone();
                                     let remove = remove_subscription.clone();
                                     rsx! {
-                                        Col {
-                                            md: ColumnSize::Span(6),
-                                            lg: ColumnSize::Span(4),
-                                            class: "mb-3",
+                                        Col { md: ColumnSize::Span(6), lg: ColumnSize::Span(4), class: "mb-3",
                                             Card {
-                                                class: if sub_id.is_some() {
-                                                    "h-100 border-success"
-                                                } else {
-                                                    "h-100"
-                                                },
+                                                class: if sub_id.is_some() { "h-100 border-dark bg-light" } else { "h-100 border-light" },
                                                 body_class: "d-flex flex-column",
+                                                header: rsx! {
+                                                    h5 { class: "card-title mb-0", "{cat.name}" }
+                                                    if sub_id.is_some() {
+                                                        Badge { color: Color::Success, class: "ms-2", "Abonniert" }
+                                                    }
+                                                },
                                                 body: rsx! {
-                                                    div { class: "d-flex justify-content-between align-items-start mb-2",
-                                                        h5 { class: "card-title mb-0", "{cat.name}" }
-                                                        if sub_id.is_some() {
-                                                            Badge { color: Color::Success, class: "ms-2", "Abonniert" }
-                                                        }
-                                                    }
-                                                    p { class: "card-text text-muted small flex-grow-1",
-                                                        "{cat.description}"
-                                                    }
+                                                    p { class: "card-text text-muted small flex-grow-1", "{cat.description}" }
                                                     p { class: "card-text mb-3",
                                                         small { class: "text-muted",
                                                             Icon { name: "envelope", class: "me-1" }
@@ -93,7 +87,6 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                     if let Some(id) = sub_id {
                                                         Button {
                                                             color: Color::Danger,
-                                                            outline: true,
                                                             size: Size::Sm,
                                                             class: "mt-auto",
                                                             onclick: move |_| {
@@ -109,7 +102,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                         Button {
                                                             color: Color::Success,
                                                             size: Size::Sm,
-                                                            class: "mt-auto",
+                                                            class: "mt-auto ",
                                                             onclick: move |_| {
                                                                 info!("Subscribing to category {cat_id}");
                                                                 if let Err(e) =
@@ -122,7 +115,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                             "Abonnieren"
                                                         }
                                                     }
-                                                }
+                                                },
                                             }
                                         }
                                     }

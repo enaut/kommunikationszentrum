@@ -16,7 +16,7 @@ current single-file monolith with a proper multi-page application split by role.
 ## What is wrong today
 
 - All UI lives in a single `main.rs` (~400 lines).
-- The only rendered view is an accounts list with a placeholder "Kategorie hinzufügen" button
+- The only rendered view is an accounts list with a placeholder "Thema hinzufügen" button
   that passes a hardcoded category name — it does not work as intended.
 - The `message_categories` and `subscriptions` tables are never subscribed to or displayed.
 - No role-based view separation: every authenticated user sees the same admin-style layout.
