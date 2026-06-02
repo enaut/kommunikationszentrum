@@ -23,6 +23,7 @@ pub struct TableSignals {
     pub admin_identities: SyncSignal<Vec<AdminIdentity>>,
     pub message_categories: SyncSignal<Vec<MessageCategory>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
+    pub visible_messages: SyncSignal<Vec<ReceivedMessage>>,
     pub visible_subscriptions: SyncSignal<Vec<Subscription>>,
 }
 
@@ -174,6 +175,7 @@ pub fn use_spacetimedb_context_provider(
         admin_identities: use_signal_sync(Vec::new),
         message_categories: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
+        visible_messages: use_signal_sync(Vec::new),
         visible_subscriptions: use_signal_sync(Vec::new),
     };
 
@@ -302,6 +304,22 @@ pub fn use_spacetimedb_context_provider(
                         conn.db.visible_accounts().on_delete(move |ctx, _row| {
                             let updated: Vec<Account> = ctx.db.visible_accounts().iter().collect();
                             table_signals_on_connect.visible_accounts.set(updated);
+                        });
+                        // Populate initial rows for visible_messages
+                        let current: Vec<ReceivedMessage> =
+                            conn.db.visible_messages().iter().collect();
+                        table_signals_on_connect.visible_messages.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.visible_messages().on_insert(move |ctx, _row| {
+                            let updated: Vec<ReceivedMessage> =
+                                ctx.db.visible_messages().iter().collect();
+                            table_signals_on_connect.visible_messages.set(updated);
+                        });
+                        conn.db.visible_messages().on_delete(move |ctx, _row| {
+                            let updated: Vec<ReceivedMessage> =
+                                ctx.db.visible_messages().iter().collect();
+                            table_signals_on_connect.visible_messages.set(updated);
                         });
                         // Populate initial rows for visible_subscriptions
                         let current: Vec<Subscription> =
@@ -505,6 +523,13 @@ pub fn use_table_message_categories() -> SyncSignal<Vec<MessageCategory>> {
 pub fn use_table_visible_accounts() -> SyncSignal<Vec<Account>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.visible_accounts
+}
+
+/// Get a reactive signal containing all rows of the `visible_messages` table.
+#[must_use]
+pub fn use_table_visible_messages() -> SyncSignal<Vec<ReceivedMessage>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_messages
 }
 
 /// Get a reactive signal containing all rows of the `visible_subscriptions` table.

@@ -17,6 +17,7 @@ pub struct Account {
     #[unique]
     pub identity: Identity,
     pub name: String,
+    #[index(btree)]
     pub email: String,
     pub is_active: bool,
     #[index(btree)]

@@ -20,6 +20,7 @@ pub mod message_categories_table;
 pub mod message_category_type;
 pub mod mta_connection_log_type;
 pub mod mta_message_log_type;
+pub mod received_message_type;
 pub mod register_admin_identity_reducer;
 pub mod remove_message_category_reducer;
 pub mod remove_subscription_reducer;
@@ -27,6 +28,7 @@ pub mod subscription_type;
 pub mod sync_user_reducer;
 pub mod unregister_admin_identity_reducer;
 pub mod visible_accounts_table;
+pub mod visible_messages_table;
 pub mod visible_subscriptions_table;
 
 pub use account_table::*;
@@ -43,6 +45,7 @@ pub use message_categories_table::*;
 pub use message_category_type::MessageCategory;
 pub use mta_connection_log_type::MtaConnectionLog;
 pub use mta_message_log_type::MtaMessageLog;
+pub use received_message_type::ReceivedMessage;
 pub use register_admin_identity_reducer::register_admin_identity;
 pub use remove_message_category_reducer::remove_message_category;
 pub use remove_subscription_reducer::remove_subscription;
@@ -50,6 +53,7 @@ pub use subscription_type::Subscription;
 pub use sync_user_reducer::sync_user;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
 pub use visible_accounts_table::*;
+pub use visible_messages_table::*;
 pub use visible_subscriptions_table::*;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -190,6 +194,7 @@ pub struct DbUpdate {
     admin_identities: __sdk::TableUpdate<AdminIdentity>,
     message_categories: __sdk::TableUpdate<MessageCategory>,
     visible_accounts: __sdk::TableUpdate<Account>,
+    visible_messages: __sdk::TableUpdate<ReceivedMessage>,
     visible_subscriptions: __sdk::TableUpdate<Subscription>,
 }
 
@@ -211,6 +216,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "visible_accounts" => db_update
                     .visible_accounts
                     .append(visible_accounts_table::parse_table_update(table_update)?),
+                "visible_messages" => db_update
+                    .visible_messages
+                    .append(visible_messages_table::parse_table_update(table_update)?),
                 "visible_subscriptions" => db_update.visible_subscriptions.append(
                     visible_subscriptions_table::parse_table_update(table_update)?,
                 ),
@@ -251,6 +259,8 @@ impl __sdk::DbUpdate for DbUpdate {
             .with_updates_by_pk(|row| &row.id);
         diff.visible_accounts =
             cache.apply_diff_to_table::<Account>("visible_accounts", &self.visible_accounts);
+        diff.visible_messages = cache
+            .apply_diff_to_table::<ReceivedMessage>("visible_messages", &self.visible_messages);
         diff.visible_subscriptions = cache.apply_diff_to_table::<Subscription>(
             "visible_subscriptions",
             &self.visible_subscriptions,
@@ -273,6 +283,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_accounts" => db_update
                     .visible_accounts
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_messages" => db_update
+                    .visible_messages
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_subscriptions" => db_update
                     .visible_subscriptions
@@ -302,6 +315,9 @@ impl __sdk::DbUpdate for DbUpdate {
                 "visible_accounts" => db_update
                     .visible_accounts
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_messages" => db_update
+                    .visible_messages
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_subscriptions" => db_update
                     .visible_subscriptions
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -324,6 +340,7 @@ pub struct AppliedDiff<'r> {
     admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
     message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
+    visible_messages: __sdk::TableAppliedDiff<'r, ReceivedMessage>,
     visible_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     __unused: std::marker::PhantomData<&'r ()>,
 }
@@ -352,6 +369,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<Account>(
             "visible_accounts",
             &self.visible_accounts,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<ReceivedMessage>(
+            "visible_messages",
+            &self.visible_messages,
             event,
         );
         callbacks.invoke_table_row_callbacks::<Subscription>(
@@ -1023,6 +1045,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         admin_identities_table::register_table(client_cache);
         message_categories_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
+        visible_messages_table::register_table(client_cache);
         visible_subscriptions_table::register_table(client_cache);
     }
     const ALL_TABLE_NAMES: &'static [&'static str] = &[
@@ -1030,6 +1053,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "admin_identities",
         "message_categories",
         "visible_accounts",
+        "visible_messages",
         "visible_subscriptions",
     ];
 }

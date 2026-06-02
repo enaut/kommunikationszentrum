@@ -32,6 +32,13 @@ pub fn Navbar(
                             active_view,
                             theme: theme.clone(),
                         }
+                        NavLink {
+                            label: "Nachrichten",
+                            icon: "bi-envelope",
+                            view: ActiveView::Messages,
+                            active_view,
+                            theme: theme.clone(),
+                        }
                         if is_admin {
                             NavLink {
                                 label: "Themen",

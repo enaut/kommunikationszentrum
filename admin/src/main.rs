@@ -180,6 +180,7 @@ fn AuthenticatedApp(
         "SELECT * FROM admin_identities",
         "SELECT * FROM message_categories",
         "SELECT * FROM visible_subscriptions",
+        "SELECT * FROM visible_messages",
     ]);
 
     let state = use_connection_state();
@@ -198,6 +199,9 @@ fn AuthenticatedApp(
                     match active_view() {
                         ActiveView::MySubscriptions => rsx! {
                             pages::subscriptions::SubscriptionsPage { user_info: user_info.clone() }
+                        },
+                        ActiveView::Messages => rsx! {
+                            pages::messages::MessagesPage {}
                         },
                         ActiveView::Categories => rsx! {
                             pages::categories::CategoriesPage {}

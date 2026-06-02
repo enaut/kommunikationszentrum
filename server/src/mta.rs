@@ -1,8 +1,8 @@
-use spacetimedb::{ReducerContext, Table, Timestamp};
+use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
 use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
-use crate::account::is_admin_identity;
-use crate::mailing::{message_categories, subscriptions};
+use crate::account::{account, account__view, admin_identities__view, is_admin_identity};
+use crate::mailing::{message_categories, subscriptions, subscriptions__view};
 
 #[spacetimedb::table(accessor = mta_connection_log)]
 pub struct MtaConnectionLog {
@@ -38,6 +38,42 @@ pub struct BlockedIp {
     pub reason: String,
     pub blocked_at: Timestamp,
     pub active: bool,
+}
+
+/// One row per accepted email delivery, linked to its sender and the target mailing list category.
+/// Not directly public — exposed to clients through the `visible_messages` view.
+#[spacetimedb::table(accessor = received_message)]
+pub struct ReceivedMessage {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    /// Stalwart queue ID from `context.queue.id`
+    pub queue_id: Option<String>,
+    /// When this row was inserted (used for range scan in admin view)
+    #[index(btree)]
+    pub received_at: Timestamp,
+    /// FK → Account.id; None when the sender is not a known SoLaWi member
+    pub sender_account_id: Option<u64>,
+    /// Raw envelope sender address
+    pub sender_email: String,
+    /// FK → MessageCategory.id (used for per-category lookup in user view)
+    #[index(btree)]
+    pub category_id: u64,
+    /// The mailing-list address this message was delivered to
+    pub category_email: String,
+    /// Parsed Subject header (capped at 500 chars)
+    pub subject: String,
+    /// Raw From header value
+    pub from_header: String,
+    pub date_header: Option<String>,
+    pub message_id: Option<String>,
+    pub reply_to: Option<String>,
+    pub cc_header: Option<String>,
+    /// JSON array of [name, value] pairs covering all headers (original + server-added)
+    pub headers_raw: String,
+    /// Full message body; empty string when the message exceeds 2 MB
+    pub body_raw: String,
+    pub message_size: u64,
 }
 
 #[spacetimedb::reducer]
@@ -132,7 +168,7 @@ fn handle_mail_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
         .map(|env| env.from.address.as_str())
         .unwrap_or("unknown");
 
-    log::info!("MAIL stage - From: [REDACTED]");
+    log::info!("MAIL stage - From: {}", from_address);
 
     // Basic sender validation
     let is_valid = from_address.contains('@') && !from_address.is_empty();
@@ -156,7 +192,7 @@ fn handle_rcpt_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
     if let Some(envelope) = &request.envelope {
         for recipient in &envelope.to {
             let to_address = recipient.address.as_str();
-            log::info!("RCPT stage - To: [REDACTED]");
+            log::info!("RCPT stage - To: {}", to_address);
 
             // O(1) unique-index lookup instead of full table scan
             let category_found = ctx
@@ -198,13 +234,21 @@ fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
     let subject = extract_subject_from_request(request);
 
     log::info!(
-        "DATA stage - From: [REDACTED], Size: {}, Subject: [REDACTED]",
-        message_size
+        "DATA stage - From: {}, Size: {}, Subject: {}",
+        from_address,
+        message_size,
+        subject
     );
 
     let mut to_addresses = Vec::new();
-    let mut valid_categories = Vec::new();
+    let mut valid_categories: Vec<(u64, String)> = Vec::new();
 
+    log::info!(
+        "envelope: {}",
+        serde_json::to_string(&request).unwrap_or_default()
+    );
+
+    // First try the envelope recipients (canonical SMTP recipients)
     if let Some(envelope) = &request.envelope {
         for recipient in &envelope.to {
             let to_address = recipient.address.as_str();
@@ -227,17 +271,68 @@ fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
                     .any(|s| s.category_id == category.id && s.active);
 
                 if is_subscribed {
-                    valid_categories.push(category.id);
+                    log::info!("Sender is subscribed.");
+                    valid_categories.push((category.id, category.email_address.clone()));
                 } else {
-                    log::info!("Sender not subscribed to category: [REDACTED]");
+                    log::info!("Sender not subscribed");
+                }
+            }
+        }
+    }
+
+    // Fallback: if no valid categories found from envelope recipients, try parsing the
+    // "To" header from the message (some MTAs rewrite/alias envelope recipients).
+    if valid_categories.is_empty() {
+        if let Some(message) = &request.message {
+            if let Some(to_header) = extract_header(&message.headers, "to") {
+                let header_addrs = parse_email_addresses(&to_header);
+                if !header_addrs.is_empty() {
+                    // Replace to_addresses for logging with header-derived recipients
+                    to_addresses = header_addrs.clone();
+
+                    for to_address in header_addrs {
+                        if let Some(category) = ctx
+                            .db
+                            .message_categories()
+                            .email_address()
+                            .find(&to_address)
+                            .filter(|c| c.active)
+                        {
+                            let is_subscribed = ctx
+                                .db
+                                .subscriptions()
+                                .subscriber_email()
+                                .filter(&from_address.to_string())
+                                .any(|s| s.category_id == category.id && s.active);
+
+                            if is_subscribed {
+                                log::info!(
+                                    "Sender is subscribed (via header-derived recipient): {}",
+                                    to_address
+                                );
+                                valid_categories
+                                    .push((category.id, category.email_address.clone()));
+                            } else {
+                                log::info!(
+                                    "Sender not subscribed (via header-derived recipient): {}",
+                                    to_address
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
     let action = if !valid_categories.is_empty() {
+        log::info!(
+            "Accepting message for {} valid category deliveries",
+            valid_categories.len()
+        );
         "accept"
     } else {
+        log::warn!("No valid category deliveries found, quarantining message");
         "quarantine"
     };
 
@@ -252,6 +347,72 @@ fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
         timestamp,
         queue_id: request.context.queue.as_ref().map(|q| q.id.clone()),
     });
+
+    // Persist the full message for each accepted category delivery
+    if !valid_categories.is_empty() {
+        if let Some(message) = &request.message {
+            // Look up sender's SoLaWi account by email (None for external senders)
+            let sender_account_id = ctx
+                .db
+                .account()
+                .email()
+                .filter(&from_address.to_string())
+                .next()
+                .map(|a| a.id);
+
+            // Extract parsed header fields
+            let from_header = extract_header(&message.headers, "from")
+                .unwrap_or_else(|| from_address.to_string());
+            let date_header = extract_header(&message.headers, "date");
+            let message_id = extract_header(&message.headers, "message-id");
+            let reply_to = extract_header(&message.headers, "reply-to");
+            let cc_header = extract_header(&message.headers, "cc");
+
+            // Combine original and server-added headers into a single JSON array
+            let all_headers: Vec<(&str, &str)> = message
+                .headers
+                .iter()
+                .chain(message.server_headers.iter())
+                .map(|(n, v)| (n.as_str(), v.as_str()))
+                .collect();
+            let headers_raw = serde_json::to_string(&all_headers).unwrap_or_default();
+
+            // Skip body storage for very large messages to avoid excessive memory use
+            const MAX_BODY_SIZE: usize = 2_000_000;
+            let body_raw = if message.size > MAX_BODY_SIZE {
+                log::warn!(
+                    "Message body exceeds 2 MB ({} bytes), storing headers only",
+                    message.size
+                );
+                String::new()
+            } else {
+                message.contents.clone()
+            };
+
+            let queue_id = request.context.queue.as_ref().map(|q| q.id.clone());
+
+            for (category_id, category_email) in &valid_categories {
+                ctx.db.received_message().insert(ReceivedMessage {
+                    id: 0,
+                    queue_id: queue_id.clone(),
+                    received_at: timestamp,
+                    sender_account_id,
+                    sender_email: from_address.to_string(),
+                    category_id: *category_id,
+                    category_email: category_email.clone(),
+                    subject: subject.chars().take(500).collect(),
+                    from_header: from_header.clone(),
+                    date_header: date_header.clone(),
+                    message_id: message_id.clone(),
+                    reply_to: reply_to.clone(),
+                    cc_header: cc_header.clone(),
+                    headers_raw: headers_raw.clone(),
+                    body_raw: body_raw.clone(),
+                    message_size,
+                });
+            }
+        }
+    }
 }
 
 fn handle_auth_stage(ctx: &ReducerContext, _request: &MtaHookRequest, timestamp: Timestamp) {
@@ -267,15 +428,65 @@ fn handle_auth_stage(ctx: &ReducerContext, _request: &MtaHookRequest, timestamp:
     });
 }
 
+/// Find the first header whose name (case-insensitive) matches `name` and return its trimmed value.
+fn extract_header(headers: &[(String, String)], name: &str) -> Option<String> {
+    headers
+        .iter()
+        .find(|(n, _)| n.to_lowercase() == name)
+        .map(|(_, v)| v.trim().to_string())
+}
+
 fn extract_subject_from_request(request: &MtaHookRequest) -> String {
-    if let Some(message) = &request.message {
-        for (name, value) in &message.headers {
-            if name.to_lowercase() == "subject" {
-                return value.trim().to_string();
+    request
+        .message
+        .as_ref()
+        .and_then(|m| extract_header(&m.headers, "subject"))
+        .unwrap_or_else(|| "No subject".to_string())
+}
+
+/// Parse a `To`-style header value into individual email addresses.
+/// This is a permissive, heuristic parser that handles common forms like:
+/// - "Alice <alice@example.com>, bob@example.com"
+/// - "bob@example.com; carol@example.org"
+fn parse_email_addresses(header: &str) -> Vec<String> {
+    header
+        .split(|c| c == ',' || c == ';')
+        .filter_map(|part| {
+            let s = part.trim();
+            if s.is_empty() {
+                return None;
             }
-        }
-    }
-    "No subject".to_string()
+            // Prefer angle-bracket form: Name <addr@domain>
+            if let Some(start) = s.find('<') {
+                if let Some(end) = s.find('>') {
+                    let addr = s[start + 1..end].trim();
+                    if addr.contains('@') {
+                        return Some(addr.to_string());
+                    }
+                }
+            }
+            // Otherwise, take the first whitespace-delimited token that contains '@'
+            if let Some(tok) = s.split_whitespace().find(|t| t.contains('@')) {
+                let addr = tok
+                    .trim_matches(|c: char| c == '<' || c == '>' || c == '"' || c == '\'')
+                    .trim()
+                    .to_string();
+                if addr.contains('@') {
+                    return Some(addr);
+                }
+            }
+            // Last-resort: if the whole part contains '@', return it cleaned
+            if s.contains('@') {
+                Some(
+                    s.trim_matches(|c: char| c == '<' || c == '>' || c == '"' || c == '\'')
+                        .trim()
+                        .to_string(),
+                )
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 #[spacetimedb::reducer]
@@ -289,6 +500,47 @@ pub fn block_ip(ctx: &ReducerContext, ip: String, reason: String) {
         active: true,
     });
     log::info!("Blocked IP address");
+}
+
+/// Returns all received messages for admins; for regular users returns only messages
+/// belonging to categories they are actively subscribed to.
+#[spacetimedb::view(accessor = visible_messages, public)]
+pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
+    let sender = ctx.sender();
+    let is_admin = ctx.db.admin_identities().identity().find(&sender).is_some();
+    if is_admin {
+        ctx.db
+            .received_message()
+            .received_at()
+            .filter(Timestamp::UNIX_EPOCH..)
+            .collect()
+    } else {
+        match ctx.db.account().identity().find(&sender) {
+            Some(acc) => {
+                // Collect subscribed category IDs first to release the borrow on ctx.db
+                // before the second round of indexed lookups.
+                let subscribed_category_ids: Vec<u64> = ctx
+                    .db
+                    .subscriptions()
+                    .subscriber_account_id()
+                    .filter(&acc.id)
+                    .filter(|s| s.active)
+                    .map(|s| s.category_id)
+                    .collect();
+                subscribed_category_ids
+                    .into_iter()
+                    .flat_map(|cat_id| {
+                        ctx.db
+                            .received_message()
+                            .category_id()
+                            .filter(&cat_id)
+                            .collect::<Vec<_>>()
+                    })
+                    .collect()
+            }
+            None => vec![],
+        }
+    }
 }
 
 #[spacetimedb::reducer]

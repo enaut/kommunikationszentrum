@@ -5,6 +5,7 @@ use crate::module_bindings::dioxus::{
 #[derive(Clone, PartialEq)]
 pub enum ActiveView {
     MySubscriptions,
+    Messages,
     Categories,
     Members,
     Debug,

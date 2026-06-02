@@ -5,13 +5,15 @@ use axum::{
     routing::post,
     Router,
 };
+use secrecy::ExposeSecret;
+use spacetimedb_sdk::DbContext as _;
 use stalwart_mta_hook_types::{
     Modification, Request as MtaHookRequest, Response as MtaHookResponse, Stage,
 };
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tower_http::cors::CorsLayer;
 use tracing::{debug, error, info, instrument, warn};
+use tracing_subscriber::field::debug;
 
 mod config;
 mod module_bindings;
@@ -40,35 +42,29 @@ impl MtaHookHandler {
     async fn process_hook(&self, request: MtaHookRequest) -> Result<MtaHookResponse, String> {
         info!("Processing MTA hook request");
 
-        // Convert the request to JSON and send to SpacetimeDB
         let hook_data = serde_json::to_string(&request).map_err(|e| {
             error!(error = %e, "Failed to serialize MTA hook request");
             e.to_string()
         })?;
 
-        debug!(data_size = hook_data.len(), "Calling SpacetimeDB reducer");
-
-        // Call SpacetimeDB reducer and wait for completion
-        match self.db_connection.reducers.handle_mta_hook(hook_data) {
-            Ok(_) => {
-                debug!("Successfully called SpacetimeDB reducer");
-            }
-            Err(e) => {
-                error!(error = %e, "Failed to call SpacetimeDB reducer");
-                return Err(format!("Failed to call SpacetimeDB reducer: {}", e));
-            }
-        }
-
-        // Small delay to ensure reducer execution
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
         let response = match request.context.stage {
-            Stage::Connect => self.handle_connect(&request).await,
-            Stage::Ehlo => self.handle_ehlo(&request).await,
-            Stage::Mail => self.handle_mail(&request).await,
-            Stage::Rcpt => self.handle_rcpt(&request).await,
-            Stage::Data => self.handle_data(&request).await,
-            Stage::Auth => Ok(MtaHookResponse::accept()),
+            // DATA stage: the reducer stores ReceivedMessage — wait for completion.
+            Stage::Data => self.handle_data(&request, hook_data).await,
+            // All other stages: dispatch the reducer for logging (fire-and-forget),
+            // then decide the response using the local client-cache.
+            ref stage => {
+                if let Err(e) = self.db_connection.reducers.handle_mta_hook(hook_data) {
+                    warn!(error = %e, "Failed to dispatch handle_mta_hook reducer");
+                }
+                match stage {
+                    Stage::Connect => self.handle_connect(&request).await,
+                    Stage::Ehlo => self.handle_ehlo(&request).await,
+                    Stage::Mail => self.handle_mail(&request).await,
+                    Stage::Rcpt => self.handle_rcpt(&request).await,
+                    Stage::Auth => Ok(MtaHookResponse::accept()),
+                    Stage::Data => unreachable!(),
+                }
+            }
         };
 
         match &response {
@@ -131,85 +127,134 @@ impl MtaHookHandler {
 
     #[instrument(skip(self, request), fields(recipients = "[REDACTED]"))]
     async fn handle_rcpt(&self, request: &MtaHookRequest) -> Result<MtaHookResponse, String> {
-        if let Some(envelope) = &request.envelope {
+        let Some(envelope) = &request.envelope else {
+            warn!("RCPT TO stage received without envelope");
+            return Ok(MtaHookResponse::reject(550, "No envelope data".to_string()));
+        };
+
+        debug!("{:?},\n{}\n\n", envelope, "Processing RCPT TO stage");
+
+        for (index, recipient) in envelope.to.iter().enumerate() {
+            let to_address = &recipient.address;
             debug!(
-                recipient_count = envelope.to.len(),
-                "Processing RCPT TO stage"
+                recipient_index = index + 1,
+                total_recipients = envelope.to.len(),
+                to_address,
+                "Validating recipient against message categories"
             );
 
-            for (index, recipient) in envelope.to.iter().enumerate() {
-                let to_address = &recipient.address;
-                debug!(
-                    recipient_index = index + 1,
-                    total_recipients = envelope.to.len(),
-                    "Validating recipient"
-                );
+            // O(1) lookup via the unique index cached by the SpacetimeDB subscription.
+            let category = self
+                .db_connection
+                .db
+                .message_categories()
+                .email_address()
+                .find(to_address);
 
-                // For now, accept all recipients that look like email addresses
-                // In a real implementation, you would check against SpacetimeDB categories
-                if !to_address.contains('@') || to_address.trim().is_empty() {
-                    warn!(recipient_index = index, "Invalid recipient address format");
-                    return Ok(MtaHookResponse::reject(
-                        550,
-                        "Invalid recipient address".to_string(),
-                    ));
+            debug!("{:?}", category);
+
+            match category {
+                Some(cat) if cat.active => {
+                    info!(recipient = %to_address, "Recipient is a known active mailing list — accepting RCPT");
+                    // Accept immediately as requested
+                    return Ok(MtaHookResponse::accept());
+                }
+                Some(_) => {
+                    warn!(
+                        recipient_index = index,
+                        "Recipient is an inactive mailing list"
+                    );
+                    // continue checking other recipients
+                }
+                None => {
+                    warn!(
+                        recipient_index = index,
+                        "Recipient address does not match any message category"
+                    );
+                    // continue checking other recipients (likely a catchall/alias)
                 }
             }
         }
 
-        info!("RCPT TO accepted");
-        Ok(MtaHookResponse::accept())
+        warn!("No recipients matched an active mailing list — rejecting RCPT TO");
+        Ok(MtaHookResponse::reject(
+            550,
+            "No such mailing list".to_string(),
+        ))
     }
 
-    #[instrument(skip(self, request), fields(message_size = request.message.as_ref().map(|m| m.size)))]
-    async fn handle_data(&self, request: &MtaHookRequest) -> Result<MtaHookResponse, String> {
-        if let (Some(envelope), Some(message)) = (&request.envelope, &request.message) {
-            let _from_address = &envelope.from.address;
-            let to_count = envelope.to.len();
+    /// Call the `handle_mta_hook` reducer for the DATA stage and wait for it to complete.
+    ///
+    /// The reducer stores the message in `received_message` (when the sender is subscribed).
+    /// We wait for the reducer so we only return "accept" once the message is persisted.
+    #[instrument(skip(self, request, hook_data), fields(message_size = request.message.as_ref().map(|m| m.size)))]
+    async fn handle_data(
+        &self,
+        request: &MtaHookRequest,
+        hook_data: String,
+    ) -> Result<MtaHookResponse, String> {
+        let message_size = request.message.as_ref().map(|m| m.size).unwrap_or(0);
+        let recipient_count = request.envelope.as_ref().map(|e| e.to.len()).unwrap_or(0);
+        info!(
+            message_size = message_size,
+            recipient_count = recipient_count,
+            "Processing DATA stage"
+        );
 
-            info!(
-                message_size = message.size,
-                recipient_count = to_count,
-                "Processing DATA stage"
-            );
+        let (tx, rx) = tokio::sync::oneshot::channel();
 
-            // Extract subject from headers
-            let subject = extract_subject_from_headers(&message.headers);
-            debug!(subject_length = subject.len(), "Message subject extracted");
-
-            // Log message processing details
-            debug!(
-                message_size = message.size,
-                recipient_count = to_count,
-                header_count = message.headers.len(),
-                "Message metadata"
-            );
-
-            // For now, just accept with processing headers
-            let processing_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-                .to_string();
-
-            let modifications = vec![
-                Modification::add_header(
-                    "X-Processed-By".to_string(),
-                    "SpacetimeDB Kommunikationszentrum".to_string(),
-                ),
-                Modification::add_header("X-Processing-Time".to_string(), processing_time.clone()),
-            ];
-
-            info!(
-                processing_time = %processing_time,
-                modifications_count = modifications.len(),
-                "DATA processing completed - accepting with headers"
-            );
-            return Ok(MtaHookResponse::accept().with_modifications(modifications));
+        match self
+            .db_connection
+            .reducers
+            .handle_mta_hook_then(hook_data, move |_ctx, result| {
+                let _ = tx.send(result);
+            }) {
+            Ok(()) => {}
+            Err(e) => {
+                error!(error = %e, "Failed to dispatch handle_mta_hook reducer for DATA stage");
+                return Err(format!("Failed to dispatch reducer: {}", e));
+            }
         }
 
-        warn!("DATA accepted without envelope/message data");
-        Ok(MtaHookResponse::accept())
+        match tokio::time::timeout(std::time::Duration::from_secs(5), rx).await {
+            Ok(Ok(Ok(Ok(())))) => {
+                info!("Message processed by SpacetimeDB — accepting");
+                Ok(
+                    MtaHookResponse::accept().with_modifications(vec![Modification::add_header(
+                        "X-Processed-By".to_string(),
+                        "SpacetimeDB Kommunikationszentrum".to_string(),
+                    )]),
+                )
+            }
+            Ok(Ok(Ok(Err(reducer_err)))) => {
+                error!(error = %reducer_err, "handle_mta_hook reducer returned error during DATA stage");
+                Ok(MtaHookResponse::reject(
+                    450,
+                    "Temporary processing failure — please retry".to_string(),
+                ))
+            }
+            Ok(Ok(Err(sdk_err))) => {
+                error!(error = %sdk_err, "handle_mta_hook SDK error during DATA stage");
+                Ok(MtaHookResponse::reject(
+                    450,
+                    "Temporary processing failure — please retry".to_string(),
+                ))
+            }
+            Ok(Err(_)) => {
+                error!("handle_mta_hook callback channel closed unexpectedly during DATA stage");
+                Ok(MtaHookResponse::reject(
+                    450,
+                    "Temporary processing failure — please retry".to_string(),
+                ))
+            }
+            Err(_elapsed) => {
+                error!("handle_mta_hook reducer timed out after 5s during DATA stage");
+                Ok(MtaHookResponse::reject(
+                    450,
+                    "Temporary processing failure — please retry".to_string(),
+                ))
+            }
+        }
     }
 }
 
@@ -228,6 +273,13 @@ async fn mta_hook_endpoint(
     Json(request): Json<MtaHookRequest>,
 ) -> Result<ResponseJson<MtaHookResponse>, StatusCode> {
     info!("MTA Hook request received");
+
+    // Log the raw incoming payload for debugging recipient/catchall behavior.
+    // This is a temporary diagnostic aid — remove or lower log level once investigated.
+    match serde_json::to_string(&request) {
+        Ok(raw) => debug!(payload = %raw, "Incoming raw MTA hook payload"),
+        Err(e) => error!(error = %e, "Failed to serialize incoming MTA hook request for logging"),
+    }
 
     match handler.process_hook(request).await {
         Ok(response) => {
@@ -331,6 +383,7 @@ async fn main() -> anyhow::Result<()> {
         .with_thread_ids(true)
         .with_file(true)
         .with_line_number(true)
+        .pretty()
         .init();
 
     info!("Starting MTA Hook server");
@@ -347,35 +400,34 @@ async fn main() -> anyhow::Result<()> {
         DbConnection::builder()
             .with_uri(&config.spacetimedb_uri)
             .with_database_name(&config.spacetimedb_module_name)
-            .with_token(config.spacetimedb_token.clone())
+            .with_token(
+                config
+                    .spacetimedb_token
+                    .map(|t| t.expose_secret().to_string()),
+            )
             .on_connect(move |_, identity, token| {
                 if first_start {
                     eprintln!(
                         "
 ╔══════════════════════════════════════════════════════════════════╗
-║        WEBHOOK-PROXY: FIRST START — ACTION REQUIRED             ║
+║        WEBHOOK-PROXY: FIRST START — ACTION REQUIRED              ║
 ╚══════════════════════════════════════════════════════════════════╝
-
 No SPACETIMEDB_TOKEN was set, so a fresh identity was issued.
 This identity will change on every restart until you fix it.
 
 Follow these two steps once, then restart the proxy:
 
-  STEP 1 — Persist the token
+1. Persist the token
   ──────────────────────────
   Create or edit  webhook-proxy/.env  and add:
 
     SPACETIMEDB_TOKEN={token}
 
-  STEP 2 — Grant admin rights
+2. Grant admin rights
   ───────────────────────────
   With spacetimedb running, call the register reducer once:
 
     spacetime call {module_name} register_admin_identity '\"{identity}\"'
-
-  Identity : {identity}
-  Token    : {token}
-
 ══════════════════════════════════════════════════════════════════
 "
                     );
@@ -403,6 +455,28 @@ Follow these two steps once, then restart the proxy:
             error!(error = %e, "SpacetimeDB connection loop error");
         }
     });
+
+    // Subscribe to message_categories so the RCPT handler can validate recipients
+    // against the local client cache without a round-trip to SpacetimeDB.
+    let (sub_ready_tx, sub_ready_rx) = tokio::sync::oneshot::channel::<()>();
+    let sub_ready_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(sub_ready_tx)));
+    db_connection
+        .subscription_builder()
+        .on_applied(move |_ctx| {
+            if let Some(tx) = sub_ready_tx.lock().unwrap().take() {
+                let _ = tx.send(());
+            }
+        })
+        .on_error(|_ctx, err| {
+            error!("message_categories subscription error: {err}");
+        })
+        .subscribe(["SELECT * FROM message_categories"]);
+
+    info!("Waiting for message_categories subscription to populate...");
+    match tokio::time::timeout(std::time::Duration::from_secs(10), sub_ready_rx).await {
+        Ok(_) => info!("message_categories subscription is ready"),
+        Err(_) => warn!("message_categories subscription timed out after 10s — starting anyway"),
+    }
 
     let mta_handler = Arc::new(MtaHookHandler::new(db_connection));
 

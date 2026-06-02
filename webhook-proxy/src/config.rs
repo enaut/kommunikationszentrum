@@ -1,5 +1,7 @@
 use std::env;
 
+use secrecy::SecretString;
+
 /// Configuration for the webhook proxy server
 #[derive(Debug, Clone)]
 pub struct WebhookProxyConfig {
@@ -9,12 +11,9 @@ pub struct WebhookProxyConfig {
     pub spacetimedb_module_name: String,
     /// Server bind address
     pub bind_address: String,
-    /// SpacetimeDB token for a stable service identity.
-    /// Generate once with: spacetime identity new --name webhook-proxy
-    ///                      spacetime identity token <identity-hex>
-    /// Then set SPACETIMEDB_TOKEN in .env or the environment.
-    /// Without this, a fresh ephemeral identity is used on every restart.
-    pub spacetimedb_token: Option<String>,
+    /// SpacetimeDB token for a stable service identity. If not set, an ephemeral identity will be used without permissions to read/write any data.
+    /// This automatic identity-token can be persisted to env var and granted permissions in SpacetimeDB, for persistent use.
+    pub spacetimedb_token: Option<SecretString>,
 }
 
 impl Default for WebhookProxyConfig {
@@ -38,7 +37,9 @@ impl WebhookProxyConfig {
                 .unwrap_or_else(|_| "kommunikation".to_string()),
             bind_address: env::var("WEBHOOK_PROXY_BIND_ADDRESS")
                 .unwrap_or_else(|_| "0.0.0.0:3002".to_string()),
-            spacetimedb_token: env::var("SPACETIMEDB_TOKEN").ok(),
+            spacetimedb_token: env::var("SPACETIMEDB_TOKEN")
+                .ok()
+                .map(secrecy::SecretString::from),
         }
     }
 

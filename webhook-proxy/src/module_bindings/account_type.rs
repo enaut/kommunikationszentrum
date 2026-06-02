@@ -49,6 +49,7 @@ impl __sdk::__query_builder::HasCols for Account {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct AccountIxCols {
+    pub email: __sdk::__query_builder::IxCol<Account, String>,
     pub id: __sdk::__query_builder::IxCol<Account, u64>,
     pub identity: __sdk::__query_builder::IxCol<Account, __sdk::Identity>,
     pub last_synced: __sdk::__query_builder::IxCol<Account, __sdk::Timestamp>,
@@ -58,6 +59,7 @@ impl __sdk::__query_builder::HasIxCols for Account {
     type IxCols = AccountIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         AccountIxCols {
+            email: __sdk::__query_builder::IxCol::new(table_name, "email"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
             identity: __sdk::__query_builder::IxCol::new(table_name, "identity"),
             last_synced: __sdk::__query_builder::IxCol::new(table_name, "last_synced"),
