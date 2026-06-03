@@ -6,14 +6,13 @@ use axum::{
     Router,
 };
 use secrecy::ExposeSecret;
-use spacetimedb_sdk::DbContext as _;
+use spacetimedb_sdk::{DbContext as _, Table};
 use stalwart_mta_hook_types::{
     Modification, Request as MtaHookRequest, Response as MtaHookResponse, Stage,
 };
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing::{debug, error, info, instrument, warn};
-use tracing_subscriber::field::debug;
 
 mod config;
 mod module_bindings;
@@ -408,28 +407,7 @@ async fn main() -> anyhow::Result<()> {
             .on_connect(move |_, identity, token| {
                 if first_start {
                     eprintln!(
-                        "
-╔══════════════════════════════════════════════════════════════════╗
-║        WEBHOOK-PROXY: FIRST START — ACTION REQUIRED              ║
-╚══════════════════════════════════════════════════════════════════╝
-No SPACETIMEDB_TOKEN was set, so a fresh identity was issued.
-This identity will change on every restart until you fix it.
-
-Follow these two steps once, then restart the proxy:
-
-1. Persist the token
-  ──────────────────────────
-  Create or edit  webhook-proxy/.env  and add:
-
-    SPACETIMEDB_TOKEN={token}
-
-2. Grant admin rights
-  ───────────────────────────
-  With spacetimedb running, call the register reducer once:
-
-    spacetime call {module_name} register_admin_identity '\"{identity}\"'
-══════════════════════════════════════════════════════════════════
-"
+                        "\n╔══════════════════════════════════════════════════════════════════╗\n║        WEBHOOK-PROXY: FIRST START — ACTION REQUIRED              ║\n╚══════════════════════════════════════════════════════════════════╝\nNo SPACETIMEDB_TOKEN was set, so a fresh identity was issued.\nThis identity will change on every restart until you fix it.\n\nFollow these two steps once, then restart the proxy:\n\n1. Persist the token\n  ──────────────────────────\n  Create or edit  webhook-proxy/.env  and add:\n\n    SPACETIMEDB_TOKEN={token}\n\n2. Grant admin rights\n  ───────────────────────────\n  With spacetimedb running, call the register reducer once:\n\n    spacetime call {module_name} register_admin_identity '\"{identity}\"'\n══════════════════════════════════════════════════════════════════\n"
                     );
                 } else {
                     info!("Connected to SpacetimeDB as {}", identity);
@@ -460,6 +438,7 @@ Follow these two steps once, then restart the proxy:
     // against the local client cache without a round-trip to SpacetimeDB.
     let (sub_ready_tx, sub_ready_rx) = tokio::sync::oneshot::channel::<()>();
     let sub_ready_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(sub_ready_tx)));
+
     db_connection
         .subscription_builder()
         .on_applied(move |_ctx| {

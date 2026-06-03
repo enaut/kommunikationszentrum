@@ -5,7 +5,7 @@ use ::dioxus::{
 use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
-    use_reducer_add_message_category, use_reducer_remove_message_category,
+    use_procedure_provision_message_category, use_reducer_remove_message_category,
     use_table_message_categories,
 };
 
@@ -13,7 +13,7 @@ use crate::module_bindings::dioxus::{
 #[component]
 pub fn CategoriesPage() -> Element {
     let categories = use_table_message_categories();
-    let add_category = use_reducer_add_message_category();
+    let add_category = use_procedure_provision_message_category();
     let remove_category = use_reducer_remove_message_category();
 
     let mut name = use_signal(String::new);
@@ -83,13 +83,14 @@ pub fn CategoriesPage() -> Element {
                                         onclick: {
                                             let add = add_category.clone();
                                             move |_| {
+                                                warn!("Adding new Category");
                                                 let n = name.read().clone();
                                                 let e = email_address.read().clone();
                                                 let d = description.read().clone();
                                                 info!("Adding category: {n}");
-                                                if let Err(err) = add(n, e, d) {
-                                                    error!("add_message_category failed: {err:?}");
-                                                } else {
+                                                                                                if let Err(err) = add(n, e, d) {
+                                                                                                    error!("provision_message_category failed: {err:?}");
+                                                                                                } else {
                                                     name.set(String::new());
                                                     email_address.set(String::new());
                                                     description.set(String::new());

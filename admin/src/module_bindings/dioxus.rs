@@ -557,6 +557,24 @@ pub fn use_reducer_add_message_category(
     }
 }
 
+/// Get a callback to invoke the `provision_message_category` procedure.
+#[must_use]
+pub fn use_procedure_provision_message_category(
+) -> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |name: String, email_address: String, description: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            // Fire-and-forget procedure call; result delivered asynchronously via callbacks.
+            conn.procedures
+                .provision_message_category(name, email_address, description);
+            Ok(())
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
 /// Get a callback to invoke the `add_subscription` reducer.
 #[must_use]
 pub fn use_reducer_add_subscription(
