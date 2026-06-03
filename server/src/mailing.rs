@@ -1,4 +1,4 @@
-use log::{debug, error, info};
+use log::{error, info};
 use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
 
 use crate::account::{account, account__view, admin_identities__view, is_admin_user, Account};
@@ -218,7 +218,6 @@ pub fn provision_message_category(
             email_address
         ));
     }
-
 
     // 4) Read compile-time configuration for JMAP URL and admin token
     let jmap_base = env!("STALWART_JMAP_URL");

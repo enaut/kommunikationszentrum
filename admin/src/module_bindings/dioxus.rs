@@ -557,24 +557,6 @@ pub fn use_reducer_add_message_category(
     }
 }
 
-/// Get a callback to invoke the `provision_message_category` procedure.
-#[must_use]
-pub fn use_procedure_provision_message_category(
-) -> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |name: String, email_address: String, description: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            // Fire-and-forget procedure call; result delivered asynchronously via callbacks.
-            conn.procedures
-                .provision_message_category(name, email_address, description);
-            Ok(())
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
 /// Get a callback to invoke the `add_subscription` reducer.
 #[must_use]
 pub fn use_reducer_add_subscription(
@@ -709,6 +691,38 @@ pub fn use_reducer_unregister_admin_identity(
             Err(spacetimedb_sdk::Error::Disconnected)
         }
     }
+}
+
+// --- Procedure hooks ---
+
+/// Invoke the `provision_message_category` procedure and get a reactive signal for its result.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the procedure call to the server.
+/// The `result` signal is updated to `Some(Ok(value))` on success or `Some(Err(message))`
+/// on failure once the server responds.
+#[must_use]
+pub fn use_procedure_provision_message_category() -> (
+    impl Fn(String, String, String) + Clone + 'static,
+    SyncSignal<Option<Result<Result<(), String>, String>>>,
+) {
+    let conn_signal = use_connection();
+    let result: SyncSignal<Option<Result<Result<(), String>, String>>> = use_signal_sync(|| None);
+
+    let invoke = move |name: String, email_address: String, description: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            let mut result = result;
+            conn.procedures.provision_message_category_then(
+                name,
+                email_address,
+                description,
+                move |_ctx, res| {
+                    result.set(Some(res.map_err(|e| e.to_string())));
+                },
+            );
+        }
+    };
+
+    (invoke, result)
 }
 
 // --- Connection state hooks ---

@@ -13,12 +13,56 @@ use crate::module_bindings::dioxus::{
 #[component]
 pub fn CategoriesPage() -> Element {
     let categories = use_table_message_categories();
-    let add_category = use_procedure_provision_message_category();
+    // New generated hook returns (invoke, result_signal).
+    let (add_invoke, add_result) = use_procedure_provision_message_category();
     let remove_category = use_reducer_remove_message_category();
 
     let mut name = use_signal(String::new);
     let mut email_address = use_signal(String::new);
     let mut description = use_signal(String::new);
+    let add_error: Signal<Option<(String, Color)>> = use_signal(|| None);
+    let is_sending = use_signal(|| false);
+
+    // React to procedure result signal and update UI accordingly.
+    {
+        let mut add_result = add_result.clone();
+        let mut name = name.clone();
+        let mut email_address = email_address.clone();
+        let mut description = description.clone();
+        let mut add_error = add_error.clone();
+        let mut is_sending = is_sending.clone();
+
+        use_effect(move || {
+            if let Some(res) = add_result() {
+                // request finished
+                is_sending.set(false);
+                match res {
+                    Ok(inner) => match inner {
+                        Ok(()) => {
+                            name.set(String::new());
+                            email_address.set(String::new());
+                            description.set(String::new());
+                            add_error.set(Some((
+                                "Neues Thema erfolgreich erstellt!".to_string(),
+                                Color::Success,
+                            )));
+                        }
+                        Err(proc_err) => {
+                            error!("provision_message_category failed: {proc_err}");
+                            add_error.set(Some((proc_err, Color::Danger)));
+                        }
+                    },
+                    Err(internal_err) => {
+                        error!("provision_message_category internal error: {internal_err}");
+                        add_error.set(Some((internal_err, Color::Danger)));
+                    }
+                }
+
+                // clear the result so the next invocation can be observed
+                add_result.set(None);
+            }
+        });
+    }
 
     rsx! {
         Container { fluid: true, class: "mt-4",
@@ -44,6 +88,15 @@ pub fn CategoriesPage() -> Element {
                             }
                         },
                         body: rsx! {
+                            if add_error().is_some() {
+                                Alert {
+                                    color: add_error.read().clone().unwrap_or_default().1,
+                                    class: "mb-3 d-flex align-items-start",
+                                    role: "alert",
+                                    Icon { name: "exclamation-circle", class: "me-2 mt-1 flex-shrink-0" }
+                                    "{add_error.read().clone().unwrap_or_default().0}"
+                                }
+                            }
                             Row { class: "g-3 align-items-end",
                                 Col { md: ColumnSize::Span(3),
                                     label { class: "form-label", "Thema" }
@@ -79,22 +132,16 @@ pub fn CategoriesPage() -> Element {
                                     Button {
                                         color: Color::Primary,
                                         class: "w-100",
-                                        disabled: name.read().is_empty() || email_address.read().is_empty(),
+                                        disabled: name.read().is_empty() || email_address.read().is_empty() || *is_sending.read(),
                                         onclick: {
-                                            let add = add_category.clone();
+                                            let add = add_invoke.clone();
+                                            let mut is_sending = is_sending.clone();
                                             move |_| {
-                                                warn!("Adding new Category");
                                                 let n = name.read().clone();
                                                 let e = email_address.read().clone();
                                                 let d = description.read().clone();
-                                                info!("Adding category: {n}");
-                                                                                                if let Err(err) = add(n, e, d) {
-                                                                                                    error!("provision_message_category failed: {err:?}");
-                                                                                                } else {
-                                                    name.set(String::new());
-                                                    email_address.set(String::new());
-                                                    description.set(String::new());
-                                                }
+                                                is_sending.set(true);
+                                                add(n, e, d);
                                             }
                                         },
                                         Icon { name: "plus-lg" }
