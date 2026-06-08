@@ -6,7 +6,7 @@ Endpoint
 
 - POST /v1/database/kommunikation/route/user-sync
   - Content-Type: application/json
-  - Authorization: Bearer <token> (requires `sync-user` permission)
+  - Authorization: Bearer {token} (requires `sync-user` permission)
   - Request body:
 
 ```json

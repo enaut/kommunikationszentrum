@@ -11,14 +11,14 @@ For the published module `kommunikation` the current endpoints are:
 - POST /v1/database/kommunikation/route/mta-hook
   - Receives MTA hooks from the Stalwart MTA for each SMTP stage.
   - Content-Type: application/json
-  - Authorization: Bearer <token> (requires `mta-hook` permission)
+  - Authorization: Bearer {token} (requires `mta-hook` permission)
   - Request body: `stalwart_mta_hook_types::Request` JSON
   - Response body: `stalwart_mta_hook_types::Response` JSON
 
 - POST /v1/database/kommunikation/route/user-sync
   - Receives user synchronization requests (from Django).
   - Content-Type: application/json
-  - Authorization: Bearer <token> (requires `sync-user` permission)
+  - Authorization: Bearer {token} (requires `sync-user` permission)
   - Request body: { "action": "upsert" | "delete", "user": UserSyncData }
   - Success response: 200 OK with JSON { status: "success", action: ..., mitgliedsnr: ... }
   - Failure responses: 4xx for client errors, 5xx for server errors

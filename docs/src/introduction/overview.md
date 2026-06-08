@@ -53,9 +53,7 @@ The Kommunikationszentrum is designed for organizations that need:
 ## Technology Stack
 
 ### **Backend Components**
-- **SpacetimeDB**: Modern database with real-time capabilities and WASM modules
-- **Rust**: High-performance, memory-safe systems programming
-- **Axum**: Modern async web framework for HTTP APIs
+- **SpacetimeDB**: Modern database with real-time capabilities and rust/WASM modules
 
 ### **Frontend Components**
 - **Dioxus**: Rust-based WebAssembly frontend framework
@@ -75,7 +73,6 @@ The Kommunikationszentrum follows these key principles:
 ### **Modularity**
 Each component has a single responsibility:
 - **SpacetimeDB Server**: Data storage and business logic
-- **Webhook Proxy**: HTTP-to-database translation
 - **Admin Interface**: User interaction
 - **Django Integration**: User management and authentication
 
@@ -86,6 +83,11 @@ Community members who want to:
 - Manage their email subscriptions
 - Subscribe/unsubscribe from categories
 - View their subscription status
+
+### **Administrators**
+System administrators who:
+- Manage user accounts and permissions
+- Configure email categories
 
 ### **Developers**
 Technical team members who:
