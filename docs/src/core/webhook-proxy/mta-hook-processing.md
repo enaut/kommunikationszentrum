@@ -46,7 +46,7 @@ Best practices
 
 - Keep handlers short and deterministic. Handlers may perform synchronous database work but should avoid long-running external calls.
 - Use `ctx.with_tx(|tx| { ... })` when writing to the DB. Do not hold transactions across blocking I/O.
-- Ensure external systems provide the required bearer token in `Authorization: Bearer <token>` headers. Tokens are created via `create_webhook_token` reducer and can be revoked with `revoke_webhook_token`.
+- Ensure external systems provide the required bearer token in `Authorization: Bearer <token>` headers. Tokens are created via `create_webhook_token` reducer and can be revoked with `revoke_webhook_token`. Note: you can create and manage tokens from the Admin Web UI (Debug → Webhook Tokens) — the UI generates the plaintext token in the browser and sends only a BLAKE3 hash to the module, so CLI usage is optional.
 
 Testing
 

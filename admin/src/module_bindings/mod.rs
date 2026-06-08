@@ -12,10 +12,10 @@ pub mod account_table;
 pub mod account_type;
 pub mod add_message_category_reducer;
 pub mod add_subscription_reducer;
-pub mod admin_identities_table;
 pub mod admin_identity_type;
 pub mod block_ip_reducer;
 pub mod blocked_ip_type;
+pub mod create_webhook_token_reducer;
 pub mod dump_mta_logs_to_server_logs_reducer;
 pub mod handle_mta_hook_reducer;
 pub mod message_categories_table;
@@ -27,21 +27,25 @@ pub mod received_message_type;
 pub mod register_admin_identity_reducer;
 pub mod remove_message_category_reducer;
 pub mod remove_subscription_reducer;
+pub mod revoke_webhook_token_reducer;
 pub mod subscription_type;
 pub mod sync_user_reducer;
 pub mod unregister_admin_identity_reducer;
 pub mod visible_accounts_table;
+pub mod visible_admin_identities_table;
 pub mod visible_messages_table;
 pub mod visible_subscriptions_table;
+pub mod visible_webhook_tokens_table;
+pub mod webhook_token_type;
 
 pub use account_table::*;
 pub use account_type::Account;
 pub use add_message_category_reducer::add_message_category;
 pub use add_subscription_reducer::add_subscription;
-pub use admin_identities_table::*;
 pub use admin_identity_type::AdminIdentity;
 pub use block_ip_reducer::block_ip;
 pub use blocked_ip_type::BlockedIp;
+pub use create_webhook_token_reducer::create_webhook_token;
 pub use dump_mta_logs_to_server_logs_reducer::dump_mta_logs_to_server_logs;
 pub use handle_mta_hook_reducer::handle_mta_hook;
 pub use message_categories_table::*;
@@ -53,12 +57,16 @@ pub use received_message_type::ReceivedMessage;
 pub use register_admin_identity_reducer::register_admin_identity;
 pub use remove_message_category_reducer::remove_message_category;
 pub use remove_subscription_reducer::remove_subscription;
+pub use revoke_webhook_token_reducer::revoke_webhook_token;
 pub use subscription_type::Subscription;
 pub use sync_user_reducer::sync_user;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
 pub use visible_accounts_table::*;
+pub use visible_admin_identities_table::*;
 pub use visible_messages_table::*;
 pub use visible_subscriptions_table::*;
+pub use visible_webhook_tokens_table::*;
+pub use webhook_token_type::WebhookToken;
 
 #[derive(Clone, PartialEq, Debug)]
 
@@ -82,6 +90,11 @@ pub enum Reducer {
         ip: String,
         reason: String,
     },
+    CreateWebhookToken {
+        token_hash: String,
+        label: String,
+        permissions: Vec<String>,
+    },
     DumpMtaLogsToServerLogs,
     HandleMtaHook {
         hook_data: String,
@@ -94,6 +107,9 @@ pub enum Reducer {
     },
     RemoveSubscription {
         subscription_id: u64,
+    },
+    RevokeWebhookToken {
+        token_hash: String,
     },
     SyncUser {
         action: String,
@@ -114,11 +130,13 @@ impl __sdk::Reducer for Reducer {
             Reducer::AddMessageCategory { .. } => "add_message_category",
             Reducer::AddSubscription { .. } => "add_subscription",
             Reducer::BlockIp { .. } => "block_ip",
+            Reducer::CreateWebhookToken { .. } => "create_webhook_token",
             Reducer::DumpMtaLogsToServerLogs => "dump_mta_logs_to_server_logs",
             Reducer::HandleMtaHook { .. } => "handle_mta_hook",
             Reducer::RegisterAdminIdentity { .. } => "register_admin_identity",
             Reducer::RemoveMessageCategory { .. } => "remove_message_category",
             Reducer::RemoveSubscription { .. } => "remove_subscription",
+            Reducer::RevokeWebhookToken { .. } => "revoke_webhook_token",
             Reducer::SyncUser { .. } => "sync_user",
             Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
             _ => unreachable!(),
@@ -151,6 +169,15 @@ impl __sdk::Reducer for Reducer {
                     reason: reason.clone(),
                 })
             }
+            Reducer::CreateWebhookToken {
+                token_hash,
+                label,
+                permissions,
+            } => __sats::bsatn::to_vec(&create_webhook_token_reducer::CreateWebhookTokenArgs {
+                token_hash: token_hash.clone(),
+                label: label.clone(),
+                permissions: permissions.clone(),
+            }),
             Reducer::DumpMtaLogsToServerLogs => __sats::bsatn::to_vec(
                 &dump_mta_logs_to_server_logs_reducer::DumpMtaLogsToServerLogsArgs {},
             ),
@@ -174,6 +201,11 @@ impl __sdk::Reducer for Reducer {
                     subscription_id: subscription_id.clone(),
                 })
             }
+            Reducer::RevokeWebhookToken { token_hash } => {
+                __sats::bsatn::to_vec(&revoke_webhook_token_reducer::RevokeWebhookTokenArgs {
+                    token_hash: token_hash.clone(),
+                })
+            }
             Reducer::SyncUser { action, user_data } => {
                 __sats::bsatn::to_vec(&sync_user_reducer::SyncUserArgs {
                     action: action.clone(),
@@ -195,11 +227,12 @@ impl __sdk::Reducer for Reducer {
 #[doc(hidden)]
 pub struct DbUpdate {
     account: __sdk::TableUpdate<Account>,
-    admin_identities: __sdk::TableUpdate<AdminIdentity>,
     message_categories: __sdk::TableUpdate<MessageCategory>,
     visible_accounts: __sdk::TableUpdate<Account>,
+    visible_admin_identities: __sdk::TableUpdate<AdminIdentity>,
     visible_messages: __sdk::TableUpdate<ReceivedMessage>,
     visible_subscriptions: __sdk::TableUpdate<Subscription>,
+    visible_webhook_tokens: __sdk::TableUpdate<WebhookToken>,
 }
 
 impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
@@ -211,20 +244,23 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "account" => db_update
                     .account
                     .append(account_table::parse_table_update(table_update)?),
-                "admin_identities" => db_update
-                    .admin_identities
-                    .append(admin_identities_table::parse_table_update(table_update)?),
                 "message_categories" => db_update
                     .message_categories
                     .append(message_categories_table::parse_table_update(table_update)?),
                 "visible_accounts" => db_update
                     .visible_accounts
                     .append(visible_accounts_table::parse_table_update(table_update)?),
+                "visible_admin_identities" => db_update.visible_admin_identities.append(
+                    visible_admin_identities_table::parse_table_update(table_update)?,
+                ),
                 "visible_messages" => db_update
                     .visible_messages
                     .append(visible_messages_table::parse_table_update(table_update)?),
                 "visible_subscriptions" => db_update.visible_subscriptions.append(
                     visible_subscriptions_table::parse_table_update(table_update)?,
+                ),
+                "visible_webhook_tokens" => db_update.visible_webhook_tokens.append(
+                    visible_webhook_tokens_table::parse_table_update(table_update)?,
                 ),
 
                 unknown => {
@@ -255,20 +291,29 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.account = cache
             .apply_diff_to_table::<Account>("account", &self.account)
             .with_updates_by_pk(|row| &row.id);
-        diff.admin_identities = cache
-            .apply_diff_to_table::<AdminIdentity>("admin_identities", &self.admin_identities)
-            .with_updates_by_pk(|row| &row.identity);
         diff.message_categories = cache
             .apply_diff_to_table::<MessageCategory>("message_categories", &self.message_categories)
             .with_updates_by_pk(|row| &row.id);
         diff.visible_accounts =
             cache.apply_diff_to_table::<Account>("visible_accounts", &self.visible_accounts);
+        diff.visible_admin_identities = cache
+            .apply_diff_to_table::<AdminIdentity>(
+                "visible_admin_identities",
+                &self.visible_admin_identities,
+            )
+            .with_updates_by_pk(|row| &row.identity);
         diff.visible_messages = cache
             .apply_diff_to_table::<ReceivedMessage>("visible_messages", &self.visible_messages);
         diff.visible_subscriptions = cache.apply_diff_to_table::<Subscription>(
             "visible_subscriptions",
             &self.visible_subscriptions,
         );
+        diff.visible_webhook_tokens = cache
+            .apply_diff_to_table::<WebhookToken>(
+                "visible_webhook_tokens",
+                &self.visible_webhook_tokens,
+            )
+            .with_updates_by_pk(|row| &row.id);
 
         diff
     }
@@ -279,20 +324,23 @@ impl __sdk::DbUpdate for DbUpdate {
                 "account" => db_update
                     .account
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
-                "admin_identities" => db_update
-                    .admin_identities
-                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "message_categories" => db_update
                     .message_categories
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_accounts" => db_update
                     .visible_accounts
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_admin_identities" => db_update
+                    .visible_admin_identities
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_messages" => db_update
                     .visible_messages
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_subscriptions" => db_update
                     .visible_subscriptions
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_webhook_tokens" => db_update
+                    .visible_webhook_tokens
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 unknown => {
                     return Err(
@@ -310,20 +358,23 @@ impl __sdk::DbUpdate for DbUpdate {
                 "account" => db_update
                     .account
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
-                "admin_identities" => db_update
-                    .admin_identities
-                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "message_categories" => db_update
                     .message_categories
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_accounts" => db_update
                     .visible_accounts
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_admin_identities" => db_update
+                    .visible_admin_identities
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_messages" => db_update
                     .visible_messages
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_subscriptions" => db_update
                     .visible_subscriptions
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_webhook_tokens" => db_update
+                    .visible_webhook_tokens
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 unknown => {
                     return Err(
@@ -341,11 +392,12 @@ impl __sdk::DbUpdate for DbUpdate {
 #[doc(hidden)]
 pub struct AppliedDiff<'r> {
     account: __sdk::TableAppliedDiff<'r, Account>,
-    admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
     message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
+    visible_admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
     visible_messages: __sdk::TableAppliedDiff<'r, ReceivedMessage>,
     visible_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
+    visible_webhook_tokens: __sdk::TableAppliedDiff<'r, WebhookToken>,
     __unused: std::marker::PhantomData<&'r ()>,
 }
 
@@ -360,11 +412,6 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks: &mut __sdk::DbCallbacks<RemoteModule>,
     ) {
         callbacks.invoke_table_row_callbacks::<Account>("account", &self.account, event);
-        callbacks.invoke_table_row_callbacks::<AdminIdentity>(
-            "admin_identities",
-            &self.admin_identities,
-            event,
-        );
         callbacks.invoke_table_row_callbacks::<MessageCategory>(
             "message_categories",
             &self.message_categories,
@@ -375,6 +422,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.visible_accounts,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<AdminIdentity>(
+            "visible_admin_identities",
+            &self.visible_admin_identities,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<ReceivedMessage>(
             "visible_messages",
             &self.visible_messages,
@@ -383,6 +435,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<Subscription>(
             "visible_subscriptions",
             &self.visible_subscriptions,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<WebhookToken>(
+            "visible_webhook_tokens",
+            &self.visible_webhook_tokens,
             event,
         );
     }
@@ -1046,18 +1103,20 @@ impl __sdk::SpacetimeModule for RemoteModule {
 
     fn register_tables(client_cache: &mut __sdk::ClientCache<Self>) {
         account_table::register_table(client_cache);
-        admin_identities_table::register_table(client_cache);
         message_categories_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
+        visible_admin_identities_table::register_table(client_cache);
         visible_messages_table::register_table(client_cache);
         visible_subscriptions_table::register_table(client_cache);
+        visible_webhook_tokens_table::register_table(client_cache);
     }
     const ALL_TABLE_NAMES: &'static [&'static str] = &[
         "account",
-        "admin_identities",
         "message_categories",
         "visible_accounts",
+        "visible_admin_identities",
         "visible_messages",
         "visible_subscriptions",
+        "visible_webhook_tokens",
     ];
 }

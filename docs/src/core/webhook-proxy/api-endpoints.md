@@ -49,10 +49,14 @@ curl -X POST "http://localhost:3000/v1/database/kommunikation/route/user-sync" \
 
 Creating tokens
 
-- Tokens are created via reducer calls that only admins may run. Example using the `spacetime` CLI (run as an admin identity):
+- Tokens are created via reducer calls that only admins may run. You can create and manage tokens from the Admin Web UI (Debug → Webhook Tokens) — the UI generates a secure token in the browser, computes the BLAKE3 hex hash client-side, and sends only the hash to the module. Using the UI means the CLI is not required for token creation.
+
+- If you prefer the CLI, compute the BLAKE3 hex hash locally and pass the hash (not the plaintext) to the reducer. Example (pseudo):
 
 ```bash
-spacetime call kommunikation create_webhook_token "supersecret-token" "label-django-sync" '["sync-user"]'
+# Compute BLAKE3 hex hash locally (example using python+blake3)
+HASH=$(python -c "import blake3; print(blake3.blake3(b'supersecret-token').hexdigest())")
+spacetime call kommunikation create_webhook_token "$HASH" "label-django-sync" '["sync-user"]'
 ```
 
 The reducer stores only a hash of the token. Keep the plaintext token secret — it must be stored in calling systems (for example, Django `settings_local.py`) to authenticate requests.

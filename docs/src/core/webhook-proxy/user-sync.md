@@ -39,10 +39,13 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 
 Token lifecycle and permissions
 
-- Create tokens using the admin-only reducer `create_webhook_token` (example below). Grant only the minimal permissions required for the caller.
+- Create tokens using the admin-only reducer `create_webhook_token`. You can create tokens from the Admin Web UI (Debug → Webhook Tokens); the UI generates a secure token in the browser, computes the BLAKE3 hex hash client-side, and sends only the hash to the module. Using the UI means the CLI is not required for token creation.
+
+- If you prefer the CLI, compute the BLAKE3 hex hash locally and pass the hash (not the plaintext) to the reducer. Example (pseudo):
 
 ```bash
-spacetime call kommunikation create_webhook_token "supersecret-token" "django-sync" '["sync-user"]'
+HASH=$(python -c "import blake3; print(blake3.blake3(b'supersecret-token').hexdigest())")
+spacetime call kommunikation create_webhook_token "$HASH" "django-sync" '["sync-user"]'
 ```
 
 - Revoke tokens with `revoke_webhook_token` (needs token hash). Consider adding a small admin reducer to revoke by label in the future.

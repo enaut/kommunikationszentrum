@@ -177,10 +177,11 @@ fn AuthenticatedApp(
 
     use_subscription(&[
         "SELECT * FROM visible_accounts",
-        "SELECT * FROM admin_identities",
+        "SELECT * FROM visible_admin_identities",
         "SELECT * FROM message_categories",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_messages",
+        "SELECT * FROM visible_webhook_tokens",
     ]);
 
     let state = use_connection_state();

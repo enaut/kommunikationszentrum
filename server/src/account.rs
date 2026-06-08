@@ -1,5 +1,6 @@
+use log::info;
 use serde::{Deserialize, Serialize};
-use spacetimedb::{Filter, Identity, ReducerContext, Table, Timestamp, ViewContext};
+use spacetimedb::{Filter, Identity, Query, ReducerContext, Table, Timestamp, ViewContext};
 
 // Configuration constants that can be set at compile time via environment variables
 const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
@@ -22,38 +23,6 @@ pub struct Account {
     pub is_active: bool,
     #[index(btree)]
     pub last_synced: Timestamp,
-}
-
-#[spacetimedb::table(accessor = admin_identities, public)]
-pub struct AdminIdentity {
-    #[primary_key]
-    pub identity: Identity,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct UserSyncData {
-    pub mitgliedsnr: u64,
-    pub name: Option<String>,
-    pub email: Option<String>,
-    pub is_active: Option<bool>,
-    pub is_admin: Option<bool>,
-    pub updated_at: Option<String>,
-    // Optional: precomputed Spacetime Identity as hex string (provided by Django)
-    pub identity_hex: Option<String>,
-}
-
-// Webhook token table: stores hashed bearer tokens and permissions.
-#[spacetimedb::table(accessor = webhook_tokens)]
-pub struct WebhookToken {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    #[unique]
-    pub token_hash: String,
-    pub label: String,
-    pub permissions: Vec<String>,
-    pub created_at: Timestamp,
-    pub active: bool,
 }
 
 // Direct queries to `account` are restricted to the caller's own row.
@@ -82,6 +51,66 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
             .into_iter()
             .collect()
     }
+}
+
+#[spacetimedb::table(accessor = admin_identities)]
+pub struct AdminIdentity {
+    #[primary_key]
+    pub identity: Identity,
+}
+
+/// A view that restricts admin_identities to only show the admin identities to admins.
+/// This allows the admin UI to check if the current user is an admin without exposing the full list of admin identities.
+#[spacetimedb::view(accessor = visible_admin_identities, public)]
+pub fn visible_admin_identities(ctx: &ViewContext) -> impl Query<AdminIdentity> {
+    let is_admin = ctx
+        .db
+        .admin_identities()
+        .identity()
+        .find(&ctx.sender())
+        .is_some();
+    info!("Ist Admin: {}", is_admin);
+    ctx.from.admin_identities().r#filter(move |_| is_admin)
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UserSyncData {
+    pub mitgliedsnr: u64,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub is_active: Option<bool>,
+    pub is_admin: Option<bool>,
+    pub updated_at: Option<String>,
+    // Optional: precomputed Spacetime Identity as hex string (provided by Django)
+    pub identity_hex: Option<String>,
+}
+
+// Webhook token table: stores hashed bearer tokens and permissions.
+#[spacetimedb::table(accessor = webhook_tokens)]
+pub struct WebhookToken {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    #[unique]
+    pub token_hash: String,
+    pub label: String,
+    pub permissions: Vec<String>,
+    #[index(btree)]
+    pub created_at: Timestamp,
+    pub active: bool,
+}
+
+/// A view that only returns the webhook_tokens when the user is admin. Regular users get an empty list.
+/// This is used by the admin UI to list and manage webhook tokens without exposing them to regular users.
+#[spacetimedb::view(accessor = visible_webhook_tokens, public)]
+pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
+    let is_admin = ctx
+        .db
+        .admin_identities()
+        .identity()
+        .find(&ctx.sender())
+        .is_some();
+    ctx.from.webhook_tokens().r#filter(move |_| is_admin)
 }
 
 /// Check if the current user has admin permissions.
@@ -139,20 +168,26 @@ pub fn unregister_admin_identity(ctx: &ReducerContext, identity_hex: String) -> 
 #[spacetimedb::reducer]
 pub fn create_webhook_token(
     ctx: &ReducerContext,
-    token_plain: String,
+    token_hash: String,
     label: String,
     permissions: Vec<String>,
 ) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: only admins can create webhook tokens".into());
     }
-    let hash = hex::encode(blake3::hash(token_plain.as_bytes()).as_bytes());
-    if ctx.db.webhook_tokens().token_hash().find(&hash).is_some() {
+    // The token hash must be computed client-side (BLAKE3 hex). The reducer never receives the plaintext token.
+    if ctx
+        .db
+        .webhook_tokens()
+        .token_hash()
+        .find(&token_hash)
+        .is_some()
+    {
         return Err("Token already exists".into());
     }
     ctx.db.webhook_tokens().insert(WebhookToken {
         id: 0,
-        token_hash: hash,
+        token_hash: token_hash.clone(),
         label: label.clone(),
         permissions,
         created_at: ctx.timestamp,

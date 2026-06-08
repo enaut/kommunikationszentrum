@@ -187,13 +187,14 @@ pub fn provision_message_category(
         "Provisioning a new Category: {}, {}, {}",
         name, email_address, description
     );
-    // 1) Authorization check inside a transaction
+    // 1) Authorization check: capture the procedure caller identity and check inside a transaction
+    let caller = ctx.sender();
+    info!("Checking permissions for identity: {:?}", caller);
     let is_admin: bool = ctx.with_tx(|tx| {
-        let sender = tx.sender();
-        if sender == tx.database_identity() {
+        if caller == tx.database_identity() {
             return true;
         }
-        tx.db.admin_identities().identity().find(&sender).is_some()
+        tx.db.admin_identities().identity().find(&caller).is_some()
     });
 
     if !is_admin {
@@ -219,7 +220,7 @@ pub fn provision_message_category(
         ));
     }
 
-    // 4) Read compile-time configuration for JMAP URL and admin token
+    // 3) Read compile-time configuration for JMAP URL and admin token
     let jmap_base = env!("STALWART_JMAP_URL");
     let admin_token = env!("STALWART_ADMIN_TOKEN");
 
@@ -229,7 +230,7 @@ pub fn provision_message_category(
         format!("{}/jmap", jmap_base.trim_end_matches('/'))
     };
 
-    // 5) Build JMAP payload
+    // 4) Build JMAP payload
     let create_map = serde_json::json!({
         "create": {
             "create-1": {
@@ -237,7 +238,6 @@ pub fn provision_message_category(
                 "name": email_address.split("@").next(),
                 "description": name,
                 "domainId": "c",
-                "credentials": {},
                 "roles": {
                   "@type": "User"
                 },
@@ -283,7 +283,7 @@ pub fn provision_message_category(
         .body(body)
         .map_err(|e| format!("Failed to build HTTP request: {:?}", e))?;
     info!("request created!");
-    // 6) Perform HTTP request
+    // 5) Perform HTTP request
     let response = ctx.http.send(request).map_err(|e| {
         error!("Failed to perform request: {}", e);
         format!("HTTP send failed: {:?}", e)

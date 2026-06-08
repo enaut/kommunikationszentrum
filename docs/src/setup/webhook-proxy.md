@@ -13,11 +13,15 @@ This page describes how to configure external systems (Stalwart MTA, Django) to 
 
 2) Create a webhook token
 
-- Choose a secure, long random token value and create it in the module. Only admin identities may create tokens:
+- You can create and manage webhook tokens from the Admin Web UI (Debug → Webhook Tokens). The UI generates a secure token in the browser, displays it once for copying, computes the BLAKE3 hex hash client-side, and sends only the hash to the module. Using the UI means you do not need the CLI for token creation.
+
+- If you prefer to use the CLI, compute the BLAKE3 hex hash locally and pass the hash (not the plaintext) to the reducer. For example (pseudo):
 
   ```bash
+  # Compute BLAKE3 hex hash locally (example using python+blake3)
+  HASH=$(python -c "import blake3; print(blake3.blake3(b's3cure-token-value').hexdigest())")
   spacetimedb_call="spacetime call kommunikation"
-  $spacetimedb_call create_webhook_token "s3cure-token-value" "django-sync" '["sync-user"]'
+  $spacetimedb_call create_webhook_token "$HASH" "django-sync" '["sync-user"]'
   ```
 
 - Keep the plaintext token secret; the module stores only a BLAKE3 hash of the token.

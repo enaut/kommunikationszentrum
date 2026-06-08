@@ -263,7 +263,7 @@ pub(crate) fn handle_data_stage(
     let mut to_addresses = Vec::new();
     let mut valid_categories: Vec<(u64, String)> = Vec::new();
 
-    log::info!(
+    log::trace!(
         "envelope: {}",
         serde_json::to_string(&request).unwrap_or_default()
     );

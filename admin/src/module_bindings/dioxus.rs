@@ -20,11 +20,12 @@ pub type SharedConnection = Arc<DbConnection>;
 #[derive(Clone)]
 pub struct TableSignals {
     pub account: SyncSignal<Vec<Account>>,
-    pub admin_identities: SyncSignal<Vec<AdminIdentity>>,
     pub message_categories: SyncSignal<Vec<MessageCategory>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
+    pub visible_admin_identities: SyncSignal<Vec<AdminIdentity>>,
     pub visible_messages: SyncSignal<Vec<ReceivedMessage>>,
     pub visible_subscriptions: SyncSignal<Vec<Subscription>>,
+    pub visible_webhook_tokens: SyncSignal<Vec<WebhookToken>>,
 }
 
 /// Internal state for managing the SpacetimeDB connection.
@@ -172,11 +173,12 @@ pub fn use_spacetimedb_context_provider(
 
     let mut table_signals = TableSignals {
         account: use_signal_sync(Vec::new),
-        admin_identities: use_signal_sync(Vec::new),
         message_categories: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
+        visible_admin_identities: use_signal_sync(Vec::new),
         visible_messages: use_signal_sync(Vec::new),
         visible_subscriptions: use_signal_sync(Vec::new),
+        visible_webhook_tokens: use_signal_sync(Vec::new),
     };
 
     let ctx = SpacetimeDbContext {
@@ -246,29 +248,6 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<Account> = ctx.db.account().iter().collect();
                             table_signals_on_connect.account.set(updated);
                         });
-                        // Populate initial rows for admin_identities
-                        let current: Vec<AdminIdentity> =
-                            conn.db.admin_identities().iter().collect();
-                        table_signals_on_connect.admin_identities.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.admin_identities().on_insert(move |ctx, _row| {
-                            let updated: Vec<AdminIdentity> =
-                                ctx.db.admin_identities().iter().collect();
-                            table_signals_on_connect.admin_identities.set(updated);
-                        });
-                        conn.db
-                            .admin_identities()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<AdminIdentity> =
-                                    ctx.db.admin_identities().iter().collect();
-                                table_signals_on_connect.admin_identities.set(updated);
-                            });
-                        conn.db.admin_identities().on_delete(move |ctx, _row| {
-                            let updated: Vec<AdminIdentity> =
-                                ctx.db.admin_identities().iter().collect();
-                            table_signals_on_connect.admin_identities.set(updated);
-                        });
                         // Populate initial rows for message_categories
                         let current: Vec<MessageCategory> =
                             conn.db.message_categories().iter().collect();
@@ -305,6 +284,32 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<Account> = ctx.db.visible_accounts().iter().collect();
                             table_signals_on_connect.visible_accounts.set(updated);
                         });
+                        // Populate initial rows for visible_admin_identities
+                        let current: Vec<AdminIdentity> =
+                            conn.db.visible_admin_identities().iter().collect();
+                        table_signals_on_connect
+                            .visible_admin_identities
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .visible_admin_identities()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<AdminIdentity> =
+                                    ctx.db.visible_admin_identities().iter().collect();
+                                table_signals_on_connect
+                                    .visible_admin_identities
+                                    .set(updated);
+                            });
+                        conn.db
+                            .visible_admin_identities()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<AdminIdentity> =
+                                    ctx.db.visible_admin_identities().iter().collect();
+                                table_signals_on_connect
+                                    .visible_admin_identities
+                                    .set(updated);
+                            });
                         // Populate initial rows for visible_messages
                         let current: Vec<ReceivedMessage> =
                             conn.db.visible_messages().iter().collect();
@@ -337,6 +342,26 @@ pub fn use_spacetimedb_context_provider(
                                 ctx.db.visible_subscriptions().iter().collect();
                             table_signals_on_connect.visible_subscriptions.set(updated);
                         });
+                        // Populate initial rows for visible_webhook_tokens
+                        let current: Vec<WebhookToken> =
+                            conn.db.visible_webhook_tokens().iter().collect();
+                        table_signals_on_connect.visible_webhook_tokens.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .visible_webhook_tokens()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<WebhookToken> =
+                                    ctx.db.visible_webhook_tokens().iter().collect();
+                                table_signals_on_connect.visible_webhook_tokens.set(updated);
+                            });
+                        conn.db
+                            .visible_webhook_tokens()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<WebhookToken> =
+                                    ctx.db.visible_webhook_tokens().iter().collect();
+                                table_signals_on_connect.visible_webhook_tokens.set(updated);
+                            });
                         if let Ok(mut token_store) = active_token_on_connect.lock() {
                             *token_store = Some(token.to_string());
                         }
@@ -504,13 +529,6 @@ pub fn use_table_account() -> SyncSignal<Vec<Account>> {
     ctx.tables.account
 }
 
-/// Get a reactive signal containing all rows of the `admin_identities` table.
-#[must_use]
-pub fn use_table_admin_identities() -> SyncSignal<Vec<AdminIdentity>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.admin_identities
-}
-
 /// Get a reactive signal containing all rows of the `message_categories` table.
 #[must_use]
 pub fn use_table_message_categories() -> SyncSignal<Vec<MessageCategory>> {
@@ -525,6 +543,13 @@ pub fn use_table_visible_accounts() -> SyncSignal<Vec<Account>> {
     ctx.tables.visible_accounts
 }
 
+/// Get a reactive signal containing all rows of the `visible_admin_identities` table.
+#[must_use]
+pub fn use_table_visible_admin_identities() -> SyncSignal<Vec<AdminIdentity>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_admin_identities
+}
+
 /// Get a reactive signal containing all rows of the `visible_messages` table.
 #[must_use]
 pub fn use_table_visible_messages() -> SyncSignal<Vec<ReceivedMessage>> {
@@ -537,6 +562,13 @@ pub fn use_table_visible_messages() -> SyncSignal<Vec<ReceivedMessage>> {
 pub fn use_table_visible_subscriptions() -> SyncSignal<Vec<Subscription>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.visible_subscriptions
+}
+
+/// Get a reactive signal containing all rows of the `visible_webhook_tokens` table.
+#[must_use]
+pub fn use_table_visible_webhook_tokens() -> SyncSignal<Vec<WebhookToken>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_webhook_tokens
 }
 
 // --- Reducer hooks ---
@@ -582,6 +614,22 @@ pub fn use_reducer_block_ip(
     move |ip: String, reason: String| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.block_ip(ip, reason)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `create_webhook_token` reducer.
+#[must_use]
+pub fn use_reducer_create_webhook_token(
+) -> impl Fn(String, String, Vec<String>) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |token_hash: String, label: String, permissions: Vec<String>| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .create_webhook_token(token_hash, label, permissions)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
@@ -657,6 +705,21 @@ pub fn use_reducer_remove_subscription(
     move |subscription_id: u64| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.remove_subscription(subscription_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `revoke_webhook_token` reducer.
+#[must_use]
+pub fn use_reducer_revoke_webhook_token(
+) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |token_hash: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.revoke_webhook_token(token_hash)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
