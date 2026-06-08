@@ -105,7 +105,11 @@ pub fn handle_mta_hook(ctx: &ReducerContext, hook_data: String) -> Result<(), St
     Ok(())
 }
 
-fn handle_connect_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: Timestamp) {
+pub(crate) fn handle_connect_stage(
+    ctx: &ReducerContext,
+    request: &MtaHookRequest,
+    timestamp: Timestamp,
+) {
     let client_ip = &request.context.client.ip;
 
     log::info!("Connect stage - IP: [REDACTED]");
@@ -136,7 +140,11 @@ fn handle_connect_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestam
     });
 }
 
-fn handle_ehlo_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: Timestamp) {
+pub(crate) fn handle_ehlo_stage(
+    ctx: &ReducerContext,
+    request: &MtaHookRequest,
+    timestamp: Timestamp,
+) {
     let client_ip = request.context.client.ip.as_str();
     let helo = request.context.client.helo.as_deref().unwrap_or("unknown");
 
@@ -161,7 +169,11 @@ fn handle_ehlo_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
     });
 }
 
-fn handle_mail_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: Timestamp) {
+pub(crate) fn handle_mail_stage(
+    ctx: &ReducerContext,
+    request: &MtaHookRequest,
+    timestamp: Timestamp,
+) {
     let from_address = request
         .envelope
         .as_ref()
@@ -188,7 +200,11 @@ fn handle_mail_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
     });
 }
 
-fn handle_rcpt_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: Timestamp) {
+pub(crate) fn handle_rcpt_stage(
+    ctx: &ReducerContext,
+    request: &MtaHookRequest,
+    timestamp: Timestamp,
+) {
     if let Some(envelope) = &request.envelope {
         for recipient in &envelope.to {
             let to_address = recipient.address.as_str();
@@ -220,7 +236,11 @@ fn handle_rcpt_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
     }
 }
 
-fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: Timestamp) {
+pub(crate) fn handle_data_stage(
+    ctx: &ReducerContext,
+    request: &MtaHookRequest,
+    timestamp: Timestamp,
+) {
     let from_address = request
         .envelope
         .as_ref()
@@ -415,7 +435,11 @@ fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: 
     }
 }
 
-fn handle_auth_stage(ctx: &ReducerContext, _request: &MtaHookRequest, timestamp: Timestamp) {
+pub(crate) fn handle_auth_stage(
+    ctx: &ReducerContext,
+    _request: &MtaHookRequest,
+    timestamp: Timestamp,
+) {
     log::info!("AUTH stage - accepting");
 
     ctx.db.mta_connection_log().insert(MtaConnectionLog {
@@ -436,7 +460,7 @@ fn extract_header(headers: &[(String, String)], name: &str) -> Option<String> {
         .map(|(_, v)| v.trim().to_string())
 }
 
-fn extract_subject_from_request(request: &MtaHookRequest) -> String {
+pub(crate) fn extract_subject_from_request(request: &MtaHookRequest) -> String {
     request
         .message
         .as_ref()
@@ -502,8 +526,6 @@ pub fn block_ip(ctx: &ReducerContext, ip: String, reason: String) {
     log::info!("Blocked IP address");
 }
 
-/// Returns all received messages for admins; for regular users returns only messages
-/// belonging to categories they are actively subscribed to.
 #[spacetimedb::view(accessor = visible_messages, public)]
 pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
     let sender = ctx.sender();

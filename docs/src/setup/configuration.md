@@ -19,11 +19,7 @@ All components support environment-based configuration with sensible defaults fo
 | `SPACETIMEDB_URI` | `http://localhost:3000` | SpacetimeDB server endpoint |
 | `SPACETIMEDB_MODULE_NAME` | `kommunikation` | SpacetimeDB module name |
 
-### Webhook Proxy Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WEBHOOK_PROXY_BIND_ADDRESS` | `0.0.0.0:3002` | HTTP server bind address and port |
 
 ### OAuth/Authentication Configuration
 
@@ -58,9 +54,6 @@ The `.env.example` file contains all variables with development-appropriate defa
 SPACETIMEDB_URI=http://localhost:3000
 SPACETIMEDB_MODULE_NAME=kommunikation
 
-# Webhook Proxy Configuration
-WEBHOOK_PROXY_BIND_ADDRESS=0.0.0.0:3002
-
 # Django/OAuth Configuration
 DJANGO_BASE_URL=http://127.0.0.1:8000
 OIDC_ISSUER_URL=http://127.0.0.1:8000/o
@@ -89,16 +82,7 @@ RUST_LOG=warn
 
 ## Component-Specific Configuration
 
-### Webhook Proxy
 
-The webhook proxy loads configuration via the `WebhookProxyConfig::load()` method:
-
-```rust
-// Automatically loads from .env file and environment variables
-let config = WebhookProxyConfig::load()?;
-```
-
-Configuration is logged at startup for verification.
 
 ### Admin Web Interface
 
@@ -180,8 +164,8 @@ export RUST_LOG=warn
 Check configuration loading by examining startup logs:
 
 ```bash
-# Webhook proxy logs configuration at startup
-cargo run --package webhook-proxy
+# View module logs at startup
+spacetime logs kommunikation --follow
 ```
 
 ### Common Issues
@@ -190,7 +174,7 @@ cargo run --package webhook-proxy
 
 **OAuth errors**: Check `DJANGO_BASE_URL` and `OIDC_CLIENT_ID` match your OAuth provider configuration.
 
-**Port conflicts**: Ensure `WEBHOOK_PROXY_BIND_ADDRESS` uses an available port.
+**Port conflicts**: Ensure the SpacetimeDB host port and any reverse-proxy ports are available.
 
 ### Configuration Validation
 

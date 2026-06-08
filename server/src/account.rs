@@ -42,6 +42,20 @@ pub struct UserSyncData {
     pub identity_hex: Option<String>,
 }
 
+// Webhook token table: stores hashed bearer tokens and permissions.
+#[spacetimedb::table(accessor = webhook_tokens)]
+pub struct WebhookToken {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    #[unique]
+    pub token_hash: String,
+    pub label: String,
+    pub permissions: Vec<String>,
+    pub created_at: Timestamp,
+    pub active: bool,
+}
+
 // Direct queries to `account` are restricted to the caller's own row.
 #[spacetimedb::client_visibility_filter]
 pub const ACCOUNT_VISIBILITY: Filter =
@@ -50,9 +64,6 @@ pub const ACCOUNT_VISIBILITY: Filter =
 /// Returns only the caller's own account for regular users.
 /// Returns all accounts for admins (identity present in admin_identities).
 /// The admin UI subscribes to this view instead of the raw account table.
-///
-/// Uses the `last_synced` btree index to scan all accounts without `.iter()`
-/// (views cannot use `.iter()` — it would create an unbounded read set).
 #[spacetimedb::view(accessor = visible_accounts, public)]
 pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
     let sender = ctx.sender();
@@ -124,15 +135,50 @@ pub fn unregister_admin_identity(ctx: &ReducerContext, identity_hex: String) -> 
     Ok(())
 }
 
-// User synchronization from Django
+// New reducers for webhook token management
 #[spacetimedb::reducer]
-pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) -> Result<(), String> {
-    let caller = ctx.sender();
-    if !is_admin_identity(ctx, caller) {
-        log::warn!("Unauthorized sync_user call from {:?}", caller);
-        return Err(format!("Unauthorized: sync_user called by {:?}", caller));
+pub fn create_webhook_token(
+    ctx: &ReducerContext,
+    token_plain: String,
+    label: String,
+    permissions: Vec<String>,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: only admins can create webhook tokens".into());
     }
+    let hash = hex::encode(blake3::hash(token_plain.as_bytes()).as_bytes());
+    if ctx.db.webhook_tokens().token_hash().find(&hash).is_some() {
+        return Err("Token already exists".into());
+    }
+    ctx.db.webhook_tokens().insert(WebhookToken {
+        id: 0,
+        token_hash: hash,
+        label: label.clone(),
+        permissions,
+        created_at: ctx.timestamp,
+        active: true,
+    });
+    log::info!("Created webhook token (label: {})", label);
+    Ok(())
+}
 
+#[spacetimedb::reducer]
+pub fn revoke_webhook_token(ctx: &ReducerContext, token_hash: String) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: only admins can revoke webhook tokens".into());
+    }
+    ctx.db.webhook_tokens().token_hash().delete(&token_hash);
+    log::info!("Revoked webhook token: {}", token_hash);
+    Ok(())
+}
+
+// Keep existing sync_user logic but factor into helper so HTTP handler can call it.
+
+pub(crate) fn do_sync_user(
+    ctx: &ReducerContext,
+    action: String,
+    user_data: String,
+) -> Result<(), String> {
     let timestamp = ctx.timestamp;
 
     log::info!("Syncing user with action: {}", action);
@@ -237,4 +283,16 @@ pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) -> Res
         }
     }
     Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String) -> Result<(), String> {
+    if !is_admin_identity(ctx, ctx.sender()) {
+        log::warn!("Unauthorized sync_user call from {:?}", ctx.sender());
+        return Err(format!(
+            "Unauthorized: sync_user called by {:?}",
+            ctx.sender()
+        ));
+    }
+    do_sync_user(ctx, action, user_data)
 }

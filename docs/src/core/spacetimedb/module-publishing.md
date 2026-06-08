@@ -48,7 +48,7 @@ Typical Development Cycle:
 1. **Make Changes**: Edit reducers or schema in `server/src/lib.rs`
 2. **Build**: `cargo build --target wasm32-unknown-unknown --release`
 3. **Publish**: `spacetime publish --project-path server kommunikation`
-4. **Test**: Use `spacetime call` or test via webhook proxy
+4. **Test**: Use `spacetime call` or test the module HTTP routes using the provided test scripts
 5. **Debug**: Check logs with `spacetime logs kommunikation`
 
 Schema Migration Workflow:
@@ -65,7 +65,7 @@ Schema Migration Workflow:
 - **View logs**: `spacetime call kommunikation get_mta_logs`
 
 
-- **Test MTA hooks**: `cd server/docs && ./test-mta-hooks.sh`
+- **Test MTA hooks**: `docs/testscripts/test-mta-hooks.sh` (use `WEBHOOK_TOKEN` env var to provide token)
 
 ## Common Issues and Solutions
 

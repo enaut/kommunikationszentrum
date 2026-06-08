@@ -1,10 +1,10 @@
 # Stalwart MTA Setup
 
-The Kommunikationszentrum integrates with the Stalwart MTA (Mail Transfer Agent) to process incoming emails through a sophisticated hook-based system. This document covers the setup and configuration requirements.
+The Kommunikationszentrum integrates with the Stalwart MTA (Mail Transfer Agent) to process incoming emails through a hook-based system. This document covers the Stalwart-side configuration required to POST hooks directly to the SpacetimeDB module HTTP routes.
 
 ## Overview
 
-Stalwart MTA is a modern mail server that supports webhook-based processing hooks. The integration enables the Kommunikationszentrum to:
+Stalwart MTA supports webhook-based processing hooks. The integration enables the Kommunikationszentrum to:
 
 - Validate incoming emails against subscription lists
 - Block spam and unwanted content
@@ -45,10 +45,9 @@ digraph stalwart_integration {
         style=filled;
         fillcolor=lightgreen;
         
-        webhook_proxy [label="Webhook Proxy\nPort 3002"];
-        spacetimedb [label="SpacetimeDB\nPort 3000"];
+        spacetimedb [label="SpacetimeDB\nPort 3000\nModule HTTP Routes", shape=box];
         
-        webhook_proxy -> spacetimedb;
+        spacetimedb;
     }
     
     // Email delivery
@@ -58,13 +57,13 @@ digraph stalwart_integration {
     // Flow connections
     internet -> smtp_server;
     
-    // Hook connections (each stage can call webhook)
-    connect_stage -> webhook_proxy [label="HTTP Hook", style=dashed, color=red];
-    ehlo_stage -> webhook_proxy [label="HTTP Hook", style=dashed, color=red];
-    mail_stage -> webhook_proxy [label="HTTP Hook", style=dashed, color=red];
-    rcpt_stage -> webhook_proxy [label="HTTP Hook", style=dashed, color=red];
-    data_stage -> webhook_proxy [label="HTTP Hook", style=dashed, color=red];
-    auth_stage -> webhook_proxy [label="HTTP Hook", style=dashed, color=red];
+    // Hook connections (each stage posts to the module route)
+    connect_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
+    ehlo_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
+    mail_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
+    rcpt_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
+    data_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
+    auth_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
     
     // Final decisions
     auth_stage -> local_delivery [label="ACCEPT"];
@@ -74,25 +73,24 @@ digraph stalwart_integration {
 
 ## Prerequisites
 
-Before setting up Stalwart MTA integration, ensure you have:
+Before configuring Stalwart hooks, ensure you have:
 
 1. **Stalwart MTA installed** and running
-2. **Kommunikationszentrum components** deployed:
-   - SpacetimeDB server (port 3000)
-   - Webhook proxy (port 3002)
-3. **Network connectivity** between Stalwart and webhook proxy
+2. **Kommunikationszentrum module published**:
+   - SpacetimeDB server running and the `kommunikation` module published (port 3000)
+3. **Network connectivity** between Stalwart and the SpacetimeDB host
 4. **Administrative access** to Stalwart configuration
 
 ## Basic Stalwart Configuration
 
 Hook Configuration:
 
-Add the following to your Stalwart MTA configuration file (typically `/etc/stalwart-mail/config.toml`):
+Add the following to your Stalwart MTA configuration file (typically `/etc/stalwart-mail/config.toml`) and point it at the module route:
 
 ```toml
 [session.hook]
-# URL of the Kommunikationszentrum webhook proxy
-url = "http://localhost:3002/mta-hook"
+# URL of the module HTTP route for MTA hooks
+url = "http://localhost:3000/v1/database/kommunikation/route/mta-hook"
 
 # Timeout for webhook responses
 timeout = "30s"
@@ -101,6 +99,8 @@ timeout = "30s"
 retry.max = 3
 retry.delay = "1s"
 ```
+
+You must also ensure Stalwart sends an `Authorization: Bearer <token>` header. Configure Stalwart's hook client appropriately or place a proxy in front of SpacetimeDB that injects the header.
 
 Hook Stages:
 
@@ -129,7 +129,7 @@ auth = true
 
 Error Handling:
 
-Configure how Stalwart handles webhook errors:
+Configure how Stalwart handles webhook errors (application-specific policy):
 
 ```toml
 [session.hook.error]
@@ -156,11 +156,12 @@ stalwart-mail --config /etc/stalwart-mail/config.toml --dry-run
 
 ### 2. Hook Connectivity Test
 
-Verify that Stalwart can reach the webhook:
+Verify that Stalwart can reach the module route (use the token the module expects):
 
 ```bash
-curl -X POST http://localhost:3002/mta-hook \
+curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "context": {
       "stage": "connect",

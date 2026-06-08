@@ -8,7 +8,7 @@ Complete reference of all environment variables supported by Kommunikationszentr
 
 #### `SPACETIMEDB_URI`
 - **Default**: `http://localhost:3000`
-- **Used by**: webhook-proxy, admin
+- **Used by**: admin, module
 - **Description**: URI for the SpacetimeDB server
 - **Format**: `http://host:port` or `https://host:port`
 - **Examples**:
@@ -17,24 +17,14 @@ Complete reference of all environment variables supported by Kommunikationszentr
 
 #### `SPACETIMEDB_MODULE_NAME`
 - **Default**: `kommunikation`
-- **Used by**: webhook-proxy, admin
+- **Used by**: module, admin
 - **Description**: Name of the SpacetimeDB module
 - **Format**: String identifier
 - **Examples**: `kommunikation`, `email-prod`, `test-module`
 
 ## Network Configuration
 
-### Webhook Proxy Server
 
-#### `WEBHOOK_PROXY_BIND_ADDRESS`
-- **Default**: `0.0.0.0:3002`
-- **Used by**: webhook-proxy
-- **Description**: Address and port for the HTTP server
-- **Format**: `host:port`
-- **Examples**:
-  - Listen on all interfaces: `0.0.0.0:3002`
-  - Listen on localhost only: `127.0.0.1:3002`
-  - Custom port: `0.0.0.0:8080`
 
 ## Authentication Configuration
 
@@ -91,7 +81,7 @@ Complete reference of all environment variables supported by Kommunikationszentr
 - **Used by**: All Rust components
 - **Description**: Rust tracing/logging level
 - **Values**: `error`, `warn`, `info`, `debug`, `trace`
-- **Module-specific**: `webhook_proxy=debug,admin=info`
+- **Module-specific**: `server=debug,admin=info`
 
 ## Development-Only Variables
 
@@ -145,12 +135,10 @@ These variables must be set for production deployments:
 
 ### Common Validation Commands
 ```bash
-# Check webhook proxy configuration
-cargo run --package webhook-proxy -- --help
-
 # Validate admin configuration
 cargo check --package admin
 
-# Test SpacetimeDB connection
-spacetime call kommunikation get_mta_logs
+# Test SpacetimeDB module and logs
+spacetime describe kommunikation
+spacetime logs kommunikation
 ```

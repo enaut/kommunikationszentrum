@@ -244,12 +244,25 @@ if !is_admin_user(ctx) {
 
 ## Calling Reducers
 
-### From Webhook Proxy
-```rust
-// Via SpacetimeDB SDK
-db_connection.reducers.handle_mta_hook(hook_json)?;
-db_connection.reducers.sync_user("upsert".to_string(), user_json)?;
+### From HTTP Route (external webhook)
+
+External systems POST JSON directly to the module HTTP routes. The handlers in the module parse the request and call the same stage-processing helpers and reducers inside `ctx.with_tx(...)`. Example (curl):
+
+```bash
+# MTA hook (JSON payload is the Stalwart hook format)
+curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d @hook_payload.json
+
+# User sync
+curl -X POST "http://localhost:3000/v1/database/kommunikation/route/user-sync" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"action":"upsert","user":{...}}'
 ```
+
+Handlers call internal helpers to perform the database work and return an HTTP response indicating success or failure. When possible, handlers run the persistence path inside a transaction so the request caller receives a definitive accept/reject decision synchronously.
 
 ### From Command Line
 ```bash

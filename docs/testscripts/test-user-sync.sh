@@ -1,11 +1,21 @@
 #!/bin/bash
+set -euo pipefail
 
-# Test script for Django-SpacetimeDB user synchronization
-echo "=== Testing Django-SpacetimeDB User Synchronization ==="
+# Test script for Django-SpacetimeDB user synchronization via module route.
+# Requires a bearer token in environment variable: WEBHOOK_TOKEN
+
+TOKEN="${WEBHOOK_TOKEN:-}"
+if [ -z "$TOKEN" ]; then
+  echo "ERROR: WEBHOOK_TOKEN environment variable is not set."
+  echo "Export it and re-run, e.g."
+  echo "  export WEBHOOK_TOKEN=your-long-secure-token"
+  exit 1
+fi
 
 # Configuration
-WEBHOOK_PROXY_URL="http://localhost:3002"
-USER_SYNC_ENDPOINT="$WEBHOOK_PROXY_URL/user-sync"
+SPACETIME_HOST="${SPACETIME_HOST:-http://localhost:3000}"
+DATABASE_NAME="${DATABASE_NAME:-kommunikation}"
+USER_SYNC_ENDPOINT="$SPACETIME_HOST/v1/database/$DATABASE_NAME/route/user-sync"
 
 # Colors for output
 RED='\033[0;31m'
@@ -21,14 +31,13 @@ print_status() {
     echo -e "${color}${message}${NC}"
 }
 
-# Check if webhook proxy is running
-print_status $BLUE "Checking if webhook proxy is running..."
-if curl -s "$WEBHOOK_PROXY_URL" > /dev/null 2>&1; then
-    print_status $GREEN "✓ Webhook proxy is running"
+# Check if SpacetimeDB host is reachable
+print_status $BLUE "Checking if SpacetimeDB host is reachable..."
+if curl -s "$SPACETIME_HOST" > /dev/null 2>&1; then
+    print_status $GREEN "✓ SpacetimeDB host appears reachable"
 else
-    print_status $RED "✗ Webhook proxy is not running at $WEBHOOK_PROXY_URL"
-    print_status $YELLOW "Please start the webhook proxy first:"
-    print_status $YELLOW "cd webhook-proxy && cargo run --bin mta_hook"
+    print_status $RED "✗ SpacetimeDB host is not reachable at $SPACETIME_HOST"
+    print_status $YELLOW "Please start SpacetimeDB and publish the module, or set SPACETIME_HOST to the correct address"
     exit 1
 fi
 
@@ -48,6 +57,7 @@ UPSERT_PAYLOAD='{
 echo "Sending upsert request..."
 UPSERT_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
     -d "$UPSERT_PAYLOAD" \
     "$USER_SYNC_ENDPOINT")
 
@@ -80,6 +90,7 @@ UPDATE_PAYLOAD='{
 echo "Sending update request..."
 UPDATE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
     -d "$UPDATE_PAYLOAD" \
     "$USER_SYNC_ENDPOINT")
 
@@ -112,6 +123,7 @@ DELETE_PAYLOAD='{
 echo "Sending delete request..."
 DELETE_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
     -d "$DELETE_PAYLOAD" \
     "$USER_SYNC_ENDPOINT")
 
@@ -135,6 +147,7 @@ MALFORMED_PAYLOAD='{"invalid": "data"}'
 echo "Sending malformed request..."
 MALFORMED_RESPONSE=$(curl -s -w "%{http_code}" -X POST \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
     -d "$MALFORMED_PAYLOAD" \
     "$USER_SYNC_ENDPOINT")
 

@@ -1,6 +1,6 @@
 # Architecture
 
-The Kommunikationszentrum consists of four main components that work together to provide email management for the SoLaWi project.
+The Kommunikationszentrum consists of three main running components that work together to provide email management for the SoLaWi project.
 
 ## System Overview
 
@@ -10,35 +10,32 @@ digraph system_architecture {
     rankdir=TB;
     node [shape=box, fontname="Arial", fontsize=11, style=filled];
     edge [fontname="Arial", fontsize=9];
-    
+
     // Main components
     admin_ui [label="Admin Web UI\n(Dioxus)\nPort 8080", fillcolor=lightblue];
-    webhook_proxy [label="Webhook Proxy\n(Axum HTTP)\nPort 3002", fillcolor=lightgreen];
-    spacetimedb [label="SpacetimeDB\n(Database)\nPort 3000", fillcolor=lightcoral];
-    
+    spacetimedb [label="SpacetimeDB\n(Database + HTTP Routes)\nPort 3000", fillcolor=lightcoral];
+
     // External dependencies
     django [label="OAuth Provider\nsolawispielplatz\nDjango Port 8000", fillcolor=lightyellow];
-    // External dependencies
     django_user [label="User database\nsolawispielplatz\nDjango Port 8000", fillcolor=lightyellow];
     stalwart [label="Stalwart MTA\n(External)", fillcolor=lightgray];
-    
+
     // Connections
     admin_ui -> spacetimedb [label="WebSocket\nSubscriptions", color=blue];
-    webhook_proxy -> spacetimedb [label="Reducer\nCalls", color=green];
     admin_ui -> django [label="OAuth\nLogin", color=orange];
     django_user -> admin_ui [label="User Synchronization", color=orange];
-    stalwart -> webhook_proxy [label="MTA\nHooks", color=red];
-    
+    stalwart -> spacetimedb [label="MTA\nHooks (HTTP)", color=red];
+    django -> spacetimedb [label="User Sync (HTTP)", color=green];
+
     // Grouping
     subgraph cluster_core {
         label="Core Kommunikationszentrum";
         style=filled;
         fillcolor=white;
         admin_ui;
-        webhook_proxy;
         spacetimedb;
     }
-    
+
     subgraph cluster_external {
         label="External Systems";
         style=filled;
@@ -58,50 +55,45 @@ digraph data_flow {
     rankdir=LR;
     node [shape=ellipse, fontname="Arial", fontsize=10, style=filled];
     edge [fontname="Arial", fontsize=8];
-    
+
     // Data sources
     incoming_email [label="Incoming\nEmail", fillcolor=lightcoral];
     user_changes [label="User\nChanges", fillcolor=lightblue];
     admin_actions [label="Admin\nActions", fillcolor=lightgreen];
-    
+
     // Processing components
     stalwart_mta [label="Stalwart\nMTA", fillcolor=lightgray];
-    webhook_proxy [label="Webhook\nProxy", fillcolor=lightgreen];
     spacetimedb [label="SpacetimeDB", fillcolor=lightcoral];
     admin_ui [label="Admin UI", fillcolor=lightblue];
     django [label="Django", fillcolor=lightyellow];
-    
+
     // Flow 1: Email Processing
-    incoming_email -> stalwart_mta -> webhook_proxy -> spacetimedb [label="1", color=red];
-    
+    incoming_email -> stalwart_mta -> spacetimedb [label="1", color=red];
+
     // Flow 2: User Management
-    user_changes -> django -> webhook_proxy -> spacetimedb [label="2", color=blue];
-    
+    user_changes -> django -> spacetimedb [label="2", color=blue];
+
     // Flow 3: Admin Interface
     admin_actions -> admin_ui -> spacetimedb [label="3", color=green];
     admin_ui -> django [label="OAuth", color=orange, style=dashed];
-    
+
     // Real-time updates
     spacetimedb -> admin_ui [label="WebSocket\nUpdates", color=purple, style=dotted];
 }
 ```
 
 **Legend:**
-- **1: Email Processing** – Incoming emails are processed through Stalwart MTA, sent to the webhook proxy, and stored in SpacetimeDB.
-- **2: User Management** – User changes are managed in Django, synchronized via the webhook proxy, and updated in SpacetimeDB.
+- **1: Email Processing** – Incoming emails are processed by Stalwart MTA and delivered to SpacetimeDB via the module's HTTP routes where the delivery is validated and persisted.
+- **2: User Management** – User changes are managed in Django and synchronized to SpacetimeDB over the module's user-sync HTTP route.
 - **3: Admin Interface** – Admin actions are performed in the Admin UI and reflected in SpacetimeDB.
 
 ## Components
 
 ### SpacetimeDB Server (`/server`)
 - Database and business logic layer
-- WASM modules with Rust reducers
+- WASM modules with Rust reducers and HTTP handlers
+- Exposes module-specific HTTP routes under `/v1/database/:name/route/{*path}`
 - Real-time subscriptions for UI updates
-
-### Webhook Proxy (`/webhook-proxy`)
-- HTTP API gateway
-- Translates HTTP requests to SpacetimeDB reducer calls
-- Handles MTA hooks and user synchronization
 
 ### Admin Web Interface (`/admin`)
 - Dioxus WebAssembly frontend
@@ -110,7 +102,7 @@ digraph data_flow {
 
 ### External Dependencies
 - **Django solawispielplatz**: User management and OAuth provider
-- **Stalwart MTA**: Email server that sends hooks to webhook proxy
+- **Stalwart MTA**: Email server that posts stage hooks directly to the module HTTP routes
 
 ## Authentication Flow
 
@@ -131,4 +123,4 @@ digraph authentication_flow {
 }
 ```
 
-The system uses OAuth 2.0 with Django as the identity provider. JWT tokens are validated by SpacetimeDB for all authenticated operations.
+The system uses OAuth 2.0 with Django as the identity provider. JWT tokens are validated by SpacetimeDB for all authenticated WebSocket connections. External systems (MTA, Django sync) use module HTTP routes secured with bearer tokens and permissions.

@@ -1,20 +1,5 @@
 [
   {
-    "label": "Start Webhook Proxy",
-    "env": {
-      "RUST_LOG": "debug",
-    },
-    "command": "cargo run --package webhook-proxy",
-    "cwd": "$ZED_WORKTREE_ROOT/webhook-proxy",
-    "use_new_terminal": true,
-    "allow_concurrent_runs": false,
-    "reveal": "always",
-    "hide": "never",
-    "show_summary": true,
-    "show_command": true,
-    "save": "all",
-  },
-  {
     "label": "Start SpacetimeDB",
     "command": "spacetime start",
     "cwd": "$ZED_WORKTREE_ROOT",

@@ -1,246 +1,79 @@
 # MTA Hook Configuration
 
-The MTA Hook Configuration defines how the Kommunikationszentrum webhook proxy processes hooks from Stalwart MTA. This document covers the configuration options, hook formats, and processing logic.
+This page documents how the Kommunikationszentrum SpacetimeDB module accepts and processes MTA hooks from Stalwart. The module exposes an HTTP handler that implements per-stage processing and persists message deliveries to the database.
 
 ## Hook Protocol
 
-The Kommunikationszentrum uses the standard Stalwart MTA hook protocol, which sends HTTP POST requests with JSON payloads for each SMTP stage.
+The module implements the standard Stalwart MTA hook protocol. External systems POST a JSON payload for each SMTP stage to the module route. The request format follows the `stalwart_mta_hook_types::Request` type.
 
 ### Hook Request Format
 
-```json
-{
-  "context": {
-    "stage": "connect|ehlo|mail|rcpt|data|auth",
-    "client": {
-      "ip": "192.168.1.100",
-      "helo": "sender.example.com",
-      "hostname": "mail.example.com"
-    },
-    "session": {
-      "id": "session-uuid",
-      "timestamp": 1672531200
-    }
-  },
-  "envelope": {
-    "from": {
-      "address": "sender@example.com"
-    },
-    "to": [
-      {
-        "address": "recipient@solawi.org"
-      }
-    ]
-  },
-  "message": {
-    "size": 1024,
-    "headers": [
-      ["Subject", "Test Message"],
-      ["From", "sender@example.com"],
-      ["To", "recipient@solawi.org"]
-    ]
-  }
-}
-```
+A typical hook request contains `context` (stage, client/server metadata), optional `envelope`, and optional `message` fields. See the API Endpoints page for exact examples and test payloads.
 
 ### Hook Response Format
+
+Handlers return a `stalwart_mta_hook_types::Response` JSON object with fields similar to:
 
 ```json
 {
   "action": "accept|reject|quarantine",
   "code": 250,
   "reason": "Message accepted",
-  "modifications": [
-    {
-      "type": "add_header",
-      "name": "X-Processed-By",
-      "value": "Kommunikationszentrum"
-    }
-  ]
+  "modifications": [ /* optional server-side headers to add */ ]
 }
 ```
 
-## Configuration File
+## Stage-specific handling
 
-The webhook proxy configuration is handled through environment variables and compile-time settings. Key configuration options:
+The module implements stage-specific logic inside the handler. Highlights:
 
-### Environment Variables
+- CONNECT: checks `blocked_ips` and logs connection attempts. Returns `reject` if the IP is actively blocked.
+- EHLO/HELO: basic validation of the HELO argument; rejects empty values.
+- MAIL FROM: basic sender address validation (syntax checks).
+- RCPT TO: fast indexed lookup on `message_categories.email_address` to determine whether to accept the recipient for delivery to a mailing list.
+- DATA: extracts headers/body, determines matching categories, checks sender subscriptions, and persists `received_message` rows for each accepted delivery. If no matching deliveries are found, the message is quarantined.
+- AUTH: currently a pass-through that logs the authentication attempt.
 
-```bash
-# SpacetimeDB connection
-SPACETIMEDB_URI=http://localhost:3000
-SPACETIMEDB_MODULE=kommunikation
+All persistence is executed inside `ctx.with_tx(...)` transactions to keep operations atomic.
 
-# Webhook proxy server
-WEBHOOK_BIND_ADDRESS=0.0.0.0:3002
-WEBHOOK_TIMEOUT=30
+## Deployment and configuration
 
-# Logging configuration
-RUST_LOG=webhook_proxy=debug,mta_hook=info
-LOG_FORMAT=json|text
-LOG_REDACT_IPS=true
-```
+- The module registers routes under the host path `/v1/database/:name/route/{*path}`. For example:
 
-## Stage-Specific Configuration
-- **CONNECT Stage**:
+  - `POST http://localhost:3000/v1/database/kommunikation/route/mta-hook`
 
-    - Current Implementation:
-        - Accepts all connections (no IP blocking implemented yet)
-        - Logs connection attempts
-        - Uses hardcoded URI: `http://localhost:3000` for SpacetimeDB
+- External callers must present `Authorization: Bearer <token>` headers with a token that has the `mta-hook` permission.
 
-    - Processing Logic:
-        1. Check IP against `blocked_ips` table (placeholder - currently accepts all)
-        2. Log connection attempt with timestamp
+- Tokens are created with the `create_webhook_token` reducer and stored only as a BLAKE3 hash in the `webhook_tokens` table.
 
-- **EHLO Stage**:
+## Error handling
 
-    - Current Implementation:
-        - Performs basic validation: checks that the HELO/EHLO parameter is not empty.
-        - Rejects with a 501 error code if the parameter is empty.
+Errors fall into the following categories:
 
-    - Processing Logic:
-        1. Validate that the HELO/EHLO parameter is not empty.
-        2. Log the result of the validation.
-        3. Return ACCEPT if valid, REJECT (501) if invalid.
+- Validation errors (invalid envelope, malformed headers) → typically `reject(550, ...)`.
+- Temporary server or IO errors → handlers may respond with a temporary failure and the caller should retry. Logged and queued failures can be inspected and retried by operator tooling.
+- Unknown conditions → quarantined or rejected depending on severity.
 
-- **MAIL FROM Stage**:
+## Testing
 
-    - Current Implementation:
-        - Performs basic email validation: checks for the presence of the '@' character and that the address is not empty.
-        - Rejects with a 550 error code if the format is invalid.
+- Use `docs/testscripts/test-mta-hooks.sh` to exercise the MTA stages. The script posts to the module route and includes the required bearer token via the `WEBHOOK_TOKEN` environment variable.
 
-    - Processing Logic:
-        1. Validate that the sender email address contains an '@' and is not empty.
-        2. Log the sender information.
-        3. Return ACCEPT for valid addresses, REJECT (550) for invalid ones.
-
-- **RCPT TO Stage**:
-
-    - Current Implementation:
-        - Performs basic validation of the recipient email format.
-        - Accepts all valid email formats; category validation is currently a placeholder.
-
-    - Processing Logic:
-        1. Validate that the recipient email address contains an '@' and is not empty.
-        2. Log the result of the recipient validation.
-        3. Return ACCEPT for valid addresses, REJECT (550) for invalid ones.
-
-- **DATA Stage**:
-
-    - Current Implementation:
-        - Extracts message metadata such as size, subject, and headers.
-        - Adds processing headers (`X-Processed-By`, `X-Processing-Time`).
-        - Always accepts messages.
-
-    - Processing Logic:
-        1. Extract message metadata (size, subject, headers).
-        2. Add processing headers to the message.
-        3. Log complete message information.
-        4. Return ACCEPT with modifications.
-
-- **AUTH Stage**:
-
-    - Current Implementation:
-        - Pass-through: always accepts authentication attempts.
-        - No authentication validation is performed.
-
-    - Processing Logic:
-        1. Accept all authentication attempts (placeholder).
-
-
-## Database Integration
-
-### Connection Configuration
-
-**Current Hardcoded Values:**
-- SpacetimeDB URI: `"http://localhost:3000"`
-- Module Name: `"kommunikation"`
-- Default bind address: `"0.0.0.0:3002"`
-
-### Reducer Calls
-
-The webhook proxy calls specific SpacetimeDB reducers for each operation:
-
-```rust
-// Core reducer call
-self.db_connection.reducers.handle_mta_hook(hook_data)
-
-// Logging reducers (called automatically by handle_mta_hook)
-// - log_mta_connection()
-// - log_mta_message() 
-// - check_blocked_ip()
-// - validate_category()
-// - check_subscription()
-```
-
-## Error Handling
-
-### Error Categories
-
-```rust
-pub enum MtaHookError {
-    // Connection errors
-    DatabaseConnection(String),
-    DatabaseTimeout(String),
-    
-    // Validation errors  
-    InvalidEmailFormat(String),
-    UnknownCategory(String),
-    NoSubscription(String),
-    
-    // System errors
-    SerializationError(String),
-    ConfigurationError(String),
-}
-```
-
-### Error Responses
-
-```rust
-// Default error handling
-match error {
-    MtaHookError::DatabaseConnection(_) => MtaHookResponse::quarantine(),
-    MtaHookError::InvalidEmailFormat(_) => MtaHookResponse::reject(550, "Invalid format"),
-    MtaHookError::UnknownCategory(_) => MtaHookResponse::reject(550, "Unknown recipient"),
-    MtaHookError::NoSubscription(_) => MtaHookResponse::quarantine(),
-    _ => MtaHookResponse::reject(550, "Processing error"),
-}
-```
-
-## Testing Configuration
-
-Test Hook Generation:
-
-Use the provided test script to generate sample hooks:
+- Example curl for the DATA stage:
 
 ```bash
-cd server/docs
-./test-mta-hooks.sh
+curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d @test_data/data_stage_hook.json
 ```
 
-Integration Testing:
+## Database integration
 
-Test specific hook scenarios:
+- The handler uses indexed lookups and B-Tree filters for efficient category and subscription checks.
+- Message and connection logs are written to `mta_message_log` and `mta_connection_log` tables for operational visibility.
 
-```bash
-# Test CONNECT stage with blocked IP
-curl -X POST http://localhost:3002/mta-hook \
-  -H "Content-Type: application/json" \
-  -d @test_data/blocked_ip_hook.json
+## Operational notes
 
-# Test RCPT stage with unknown category  
-curl -X POST http://localhost:3002/mta-hook \
-  -H "Content-Type: application/json" \
-  -d @test_data/unknown_category_hook.json
-  
-# Test DATA stage with subscription check
-curl -X POST http://localhost:3002/mta-hook \
-  -H "Content-Type: application/json" \
-  -d @test_data/subscription_test_hook.json
-```
-
-### Available Endpoints
-
-- `/mta-hook` - Main MTA hook processing endpoint  
-- `/user-sync` - User synchronization endpoint
+- If running SpacetimeDB in production, place a TLS-terminating reverse proxy in front of the host to protect the HTTP routes.
+- Use labeled tokens and rotate them regularly. Revoke tokens you no longer need.
+- Monitor the `mta_*` log tables to detect processing anomalies.
