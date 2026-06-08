@@ -11,6 +11,7 @@ use crate::module_bindings::dioxus::{
     use_table_visible_admin_identities, use_table_visible_webhook_tokens, ConnectionState,
 };
 use crate::oauth::UserInfo;
+use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 /// Admin-only view: SpacetimeDB connection details, identity info, and admin identity management.
 #[component]
@@ -283,16 +284,14 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                                         size: Size::Sm,
                                         onclick: move |_| {
                                             // Generate a random token (32 bytes hex)
-                                                                                        // Fallback token generation using JS Math.random() (works in browser). Not cryptographically perfect
-                                                                                        let mut bytes = [0u8; 32];
-                                                                                        for i in 0..32 {
-                                                                                            let r = (js_sys::Math::random() * 256.0) as u8;
-                                                                                            bytes[i] = r;
-                                                                                        }
-                                                                                        let token = hex::encode(bytes);
-                                                                                        token_plain.set(token.clone());
-                                                                                        let hash = hex::encode(blake3::hash(token.as_bytes()).as_bytes());
-                                                                                        token_hash.set(hash);
+                                                let mut bytes = [0u8; 32];
+                                                if getrandom::fill(&mut bytes).is_err() {
+                                                    error!("Failed to generate secure random bytes"); return;
+                                                }
+                                                let token = hex::encode(bytes);
+                                                token_plain.set(token.clone());
+                                                let hash = hex::encode(blake3::hash(token.as_bytes()).as_bytes());
+                                                token_hash.set(hash);
                                         },
                                         Icon { name: "plus", class: "me-1" }
                                         "Generate Token"
@@ -301,8 +300,24 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                             }
 
                             if token_plain.read().len() > 0 {
-                                                            div { class: "mb-2",
-                                                                code { class: "small text-break", "{token_plain}" }
+                                                            div { class: "mb-2 d-flex align-items-start",
+                                                                code { class: "small text-break flex-grow-1", "{token_plain}" }
+                                                                Button { color: Color::Secondary, outline: true, size: Size::Sm, class: "ms-2 flex-shrink-0",
+                                                                    onclick: move |_| {
+                                                                        let token_to_copy = token_plain.read().clone();
+                                                                        spawn_local(async move {
+                                                                            if let Some(window) = web_sys::window() {
+                                                                                let promise = window.navigator().clipboard().write_text(&token_to_copy);
+                                                                                let _ = JsFuture::from(promise).await;
+                                                                                info!("Token copied to clipboard");
+                                                                            } else {
+                                                                                error!("No window object available to access clipboard");
+                                                                            }
+                                                                        });
+                                                                    },
+                                                                    Icon { name: "clipboard", class: "me-1" }
+                                                                    "Copy"
+                                                                }
                                                             }
                                                         }
 

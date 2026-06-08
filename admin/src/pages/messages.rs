@@ -98,9 +98,7 @@ pub fn MessagesPage() -> Element {
                         "Nachrichten"
                     }
                     p { class: "text-muted mt-1",
-                        Badge { color: Color::Primary, class: "me-2",
-                            "{messages().len()}"
-                        }
+                        Badge { color: Color::Primary, class: "me-2", "{messages().len()}" }
                         "empfangene Nachrichten"
                     }
                 }
@@ -112,11 +110,7 @@ pub fn MessagesPage() -> Element {
                     div { class: "d-flex flex-wrap gap-2 align-items-center",
                         span { class: "text-muted small me-1", "Filtern:" }
                         button {
-                            class: if filter_category().is_none() {
-                                "btn btn-sm btn-primary"
-                            } else {
-                                "btn btn-sm btn-outline-secondary"
-                            },
+                            class: if filter_category().is_none() { "btn btn-sm btn-primary" } else { "btn btn-sm btn-outline-secondary" },
                             onclick: move |_| {
                                 filter_category.set(None);
                                 selected_id.set(None);
@@ -180,36 +174,21 @@ pub fn MessagesPage() -> Element {
                                             let badge_color = cat_badge_color(msg.category_id);
                                             rsx! {
                                                 button {
-                                                    class: if is_sel {
-                                                        "list-group-item list-group-item-action active px-3 py-2"
-                                                    } else {
-                                                        "list-group-item list-group-item-action px-3 py-2"
-                                                    },
+                                                    class: if is_sel { "list-group-item list-group-item-action active px-3 py-2" } else { "list-group-item list-group-item-action px-3 py-2" },
                                                     onclick: move |_| selected_id.set(Some(msg_id)),
                                                     div { class: "d-flex justify-content-between align-items-start mb-1",
-                                                        Badge { color: badge_color,
+                                                        Badge {
+                                                            color: badge_color,
                                                             class: "text-truncate",
                                                             style: "max-width: 10rem;",
                                                             "{cat_email}"
                                                         }
-                                                        small {
-                                                            class: if is_sel {
-                                                                "text-white-50 text-nowrap ms-2"
-                                                            } else {
-                                                                "text-muted text-nowrap ms-2"
-                                                            },
+                                                        small { class: if is_sel { "text-white-50 text-nowrap ms-2" } else { "text-muted text-nowrap ms-2" },
                                                             "{date_str}"
                                                         }
                                                     }
-                                                    div { class: "fw-semibold small text-truncate",
-                                                        "{subject}"
-                                                    }
-                                                    div {
-                                                        class: if is_sel {
-                                                            "small text-white-50 text-truncate"
-                                                        } else {
-                                                            "small text-muted text-truncate"
-                                                        },
+                                                    div { class: "fw-semibold small text-truncate", "{subject}" }
+                                                    div { class: if is_sel { "small text-white-50 text-truncate" } else { "small text-muted text-truncate" },
                                                         "{sender}"
                                                     }
                                                 }
@@ -228,9 +207,7 @@ pub fn MessagesPage() -> Element {
                                 class: "shadow-sm",
                                 header: rsx! {
                                     div { class: "d-flex align-items-center gap-2 flex-wrap",
-                                        Badge { color: cat_badge_color(msg.category_id),
-                                            "{msg.category_email}"
-                                        }
+                                        Badge { color: cat_badge_color(msg.category_id), "{msg.category_email}" }
                                         span { class: "fw-semibold",
                                             if msg.subject.is_empty() {
                                                 "(kein Betreff)"
@@ -238,9 +215,7 @@ pub fn MessagesPage() -> Element {
                                                 "{msg.subject}"
                                             }
                                         }
-                                        small { class: "text-muted ms-auto",
-                                            {msg.received_at.to_string()}
-                                        }
+                                        small { class: "text-muted ms-auto", {msg.received_at.to_string()} }
                                     }
                                 },
                                 body: rsx! {
@@ -248,7 +223,8 @@ pub fn MessagesPage() -> Element {
                                     table { class: "table table-sm table-borderless mb-0",
                                         tbody {
                                             tr {
-                                                th { class: "text-muted small pe-3",
+                                                th {
+                                                    class: "text-muted small pe-3",
                                                     style: "width: 5.5rem; white-space: nowrap;",
                                                     "Von"
                                                 }
@@ -267,7 +243,7 @@ pub fn MessagesPage() -> Element {
                                             if let Some(date) = &msg.date_header {
                                                 tr {
                                                     th { class: "text-muted small pe-3", "Datum" }
-                                                    td { class: "small", "{date}" }
+                                                    td { class: "small", "{date}" } // ── Body ──────────────────────────────
                                                 }
                                             }
                                             if let Some(mid) = &msg.message_id {

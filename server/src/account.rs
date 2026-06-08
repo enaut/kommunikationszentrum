@@ -69,7 +69,6 @@ pub fn visible_admin_identities(ctx: &ViewContext) -> impl Query<AdminIdentity> 
         .identity()
         .find(&ctx.sender())
         .is_some();
-    info!("Ist Admin: {}", is_admin);
     ctx.from.admin_identities().r#filter(move |_| is_admin)
 }
 
