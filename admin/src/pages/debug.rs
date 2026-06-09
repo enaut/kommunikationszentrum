@@ -33,6 +33,7 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
     let mut token_plain = use_signal(String::new);
     let mut token_hash = use_signal(String::new);
     let mut token_label = use_signal(String::new);
+    let mut token_copy_button_label = use_signal(|| "Copy".to_string());
     let mut permissions_input = use_signal(String::new);
 
     let (alert_color, icon_name, status_text): (Color, &'static str, String) = match state() {
@@ -300,26 +301,37 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
                             }
 
                             if token_plain.read().len() > 0 {
-                                                            div { class: "mb-2 d-flex align-items-start",
-                                                                code { class: "small text-break flex-grow-1", "{token_plain}" }
-                                                                Button { color: Color::Secondary, outline: true, size: Size::Sm, class: "ms-2 flex-shrink-0",
-                                                                    onclick: move |_| {
-                                                                        let token_to_copy = token_plain.read().clone();
-                                                                        spawn_local(async move {
-                                                                            if let Some(window) = web_sys::window() {
-                                                                                let promise = window.navigator().clipboard().write_text(&token_to_copy);
-                                                                                let _ = JsFuture::from(promise).await;
-                                                                                info!("Token copied to clipboard");
-                                                                            } else {
-                                                                                error!("No window object available to access clipboard");
-                                                                            }
-                                                                        });
-                                                                    },
-                                                                    Icon { name: "clipboard", class: "me-1" }
-                                                                    "Copy"
-                                                                }
-                                                            }
-                                                        }
+                                div { class: "mb-2 d-flex align-items-start",
+                                    code { class: "small text-break flex-grow-1", "{token_plain}" }
+                                    Button { color: Color::Secondary, outline: true, size: Size::Sm, class: "ms-2 flex-shrink-0",
+                                        onclick: move |_| {
+                                            let token_to_copy = token_plain.read().clone();
+                                            spawn_local(async move {
+                                                if let Some(window) = web_sys::window() {
+                                                    let promise = window.navigator().clipboard().write_text(&token_to_copy);
+                                                    let ret = JsFuture::from(promise).await;
+                                                    match ret {
+                                                        Ok(_) =>
+                                                            {
+                                                                token_copy_button_label.set("Copied!".to_string());
+                                                                info!("Token copied to clipboard")
+                                                            },
+                                                        Err(e) =>
+                                                            {
+                                                                token_copy_button_label.set("Failed to Copy!".to_string());
+                                                                error!("Failed to copy token to clipboard: {e:?}")
+                                                            },
+                                                    }
+                                                } else {
+                                                    error!("No window object available to access clipboard");
+                                                }
+                                            });
+                                        },
+                                        Icon { name: "clipboard", class: "me-1" }
+                                        {token_copy_button_label}
+                                    }
+                                }
+                            }
 
                             Button {
                                 color: Color::Success,
