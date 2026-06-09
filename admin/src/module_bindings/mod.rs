@@ -13,7 +13,6 @@ pub mod account_type;
 pub mod add_message_category_reducer;
 pub mod add_subscription_reducer;
 pub mod admin_identity_type;
-pub mod block_ip_reducer;
 pub mod blocked_ip_type;
 pub mod create_webhook_token_reducer;
 pub mod dump_mta_logs_to_server_logs_reducer;
@@ -43,7 +42,6 @@ pub use account_type::Account;
 pub use add_message_category_reducer::add_message_category;
 pub use add_subscription_reducer::add_subscription;
 pub use admin_identity_type::AdminIdentity;
-pub use block_ip_reducer::block_ip;
 pub use blocked_ip_type::BlockedIp;
 pub use create_webhook_token_reducer::create_webhook_token;
 pub use dump_mta_logs_to_server_logs_reducer::dump_mta_logs_to_server_logs;
@@ -86,10 +84,6 @@ pub enum Reducer {
         subscriber_email: String,
         category_id: u64,
     },
-    BlockIp {
-        ip: String,
-        reason: String,
-    },
     CreateWebhookToken {
         token_hash: String,
         label: String,
@@ -129,7 +123,6 @@ impl __sdk::Reducer for Reducer {
         match self {
             Reducer::AddMessageCategory { .. } => "add_message_category",
             Reducer::AddSubscription { .. } => "add_subscription",
-            Reducer::BlockIp { .. } => "block_ip",
             Reducer::CreateWebhookToken { .. } => "create_webhook_token",
             Reducer::DumpMtaLogsToServerLogs => "dump_mta_logs_to_server_logs",
             Reducer::HandleMtaHook { .. } => "handle_mta_hook",
@@ -163,12 +156,6 @@ impl __sdk::Reducer for Reducer {
                 subscriber_email: subscriber_email.clone(),
                 category_id: category_id.clone(),
             }),
-            Reducer::BlockIp { ip, reason } => {
-                __sats::bsatn::to_vec(&block_ip_reducer::BlockIpArgs {
-                    ip: ip.clone(),
-                    reason: reason.clone(),
-                })
-            }
             Reducer::CreateWebhookToken {
                 token_hash,
                 label,

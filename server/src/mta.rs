@@ -180,7 +180,7 @@ pub(crate) fn handle_mail_stage(
         .map(|env| env.from.address.as_str())
         .unwrap_or("unknown");
 
-    log::info!("MAIL stage - From: {}", from_address);
+    log::trace!("MAIL stage - From: {}", from_address);
 
     // Basic sender validation
     let is_valid = from_address.contains('@') && !from_address.is_empty();
@@ -208,7 +208,7 @@ pub(crate) fn handle_rcpt_stage(
     if let Some(envelope) = &request.envelope {
         for recipient in &envelope.to {
             let to_address = recipient.address.as_str();
-            log::info!("RCPT stage - To: {}", to_address);
+            log::trace!("RCPT stage - To: {}", to_address);
 
             // O(1) unique-index lookup instead of full table scan
             let category_found = ctx
@@ -253,7 +253,7 @@ pub(crate) fn handle_data_stage(
         .unwrap_or(0);
     let subject = extract_subject_from_request(request);
 
-    log::info!(
+    log::trace!(
         "DATA stage - From: {}, Size: {}, Subject: {}",
         from_address,
         message_size,
@@ -326,14 +326,14 @@ pub(crate) fn handle_data_stage(
                                 .any(|s| s.category_id == category.id && s.active);
 
                             if is_subscribed {
-                                log::info!(
+                                log::trace!(
                                     "Sender is subscribed (via header-derived recipient): {}",
                                     to_address
                                 );
                                 valid_categories
                                     .push((category.id, category.email_address.clone()));
                             } else {
-                                log::info!(
+                                log::trace!(
                                     "Sender not subscribed (via header-derived recipient): {}",
                                     to_address
                                 );
@@ -511,19 +511,6 @@ fn parse_email_addresses(header: &str) -> Vec<String> {
             }
         })
         .collect()
-}
-
-#[spacetimedb::reducer]
-pub fn block_ip(ctx: &ReducerContext, ip: String, reason: String) {
-    let timestamp = ctx.timestamp;
-
-    ctx.db.blocked_ips().insert(BlockedIp {
-        ip,
-        reason,
-        blocked_at: timestamp,
-        active: true,
-    });
-    log::info!("Blocked IP address");
 }
 
 #[spacetimedb::view(accessor = visible_messages, public)]

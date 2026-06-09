@@ -605,21 +605,6 @@ pub fn use_reducer_add_subscription(
     }
 }
 
-/// Get a callback to invoke the `block_ip` reducer.
-#[must_use]
-pub fn use_reducer_block_ip(
-) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |ip: String, reason: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.block_ip(ip, reason)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
 /// Get a callback to invoke the `create_webhook_token` reducer.
 #[must_use]
 pub fn use_reducer_create_webhook_token(
