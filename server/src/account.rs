@@ -1,4 +1,3 @@
-use log::info;
 use serde::{Deserialize, Serialize};
 use spacetimedb::{Filter, Identity, Query, ReducerContext, Table, Timestamp, ViewContext};
 

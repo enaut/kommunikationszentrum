@@ -1,6 +1,6 @@
 use crate::account::webhook_tokens;
 use crate::account::UserSyncData;
-use crate::mailing::message_categories;
+use crate::mailing::{message_categories, unsubscribe_subscription_by_token};
 use crate::mta::MtaConnectionLog;
 use crate::mta::{blocked_ips, mta_connection_log};
 use log::info;
@@ -36,6 +36,19 @@ fn token_has_permission(ctx: &mut HandlerContext, token: &str, permission: &str)
             false
         }
     })
+}
+
+fn query_param_token(request: &HttpRequest) -> Option<String> {
+    let query = request.uri().query()?;
+    for pair in query.split('&') {
+        let mut parts = pair.splitn(2, '=');
+        let key = parts.next()?.trim();
+        let value = parts.next().unwrap_or_default().trim();
+        if key == "token" && !value.is_empty() {
+            return Some(value.to_string());
+        }
+    }
+    None
 }
 
 #[spacetimedb::http::handler]
@@ -283,6 +296,44 @@ struct UserSyncPayload {
 }
 
 #[spacetimedb::http::handler]
+fn mailing_list_unsubscribe_handler(
+    ctx: &mut HandlerContext,
+    request: HttpRequest,
+) -> HttpResponse {
+    if request.method().as_str() != "POST" {
+        return HttpResponse::builder()
+            .status(405)
+            .header("allow", "POST")
+            .body(Body::from_bytes(b"method not allowed".to_vec()))
+            .unwrap();
+    }
+
+    let token = match query_param_token(&request) {
+        Some(token) => token,
+        None => return json_response(400, json!({"error": "missing token query parameter"})),
+    };
+
+    let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
+    let body = String::from_utf8_lossy(&body_bytes).trim().to_string();
+    if body != "List-Unsubscribe=One-Click" {
+        return json_response(400, json!({"error": "invalid one-click payload"}));
+    }
+
+    let result: Result<(), String> =
+        ctx.with_tx(|tx| unsubscribe_subscription_by_token(tx, token.clone()));
+    match result {
+        Ok(()) => json_response(200, json!({"status": "unsubscribed"})),
+        Err(e) => {
+            if e.contains("token") || e.contains("Subscription") {
+                json_response(404, json!({"error": e}))
+            } else {
+                json_response(500, json!({"error": e}))
+            }
+        }
+    }
+}
+
+#[spacetimedb::http::handler]
 fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResponse {
     let token = match request
         .headers()
@@ -336,4 +387,8 @@ fn router() -> Router {
     Router::new()
         .post("/mta-hook", mta_hook_handler)
         .post("/user-sync", user_sync_handler)
+        .post(
+            "/mailing-list/unsubscribe",
+            mailing_list_unsubscribe_handler,
+        )
 }

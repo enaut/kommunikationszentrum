@@ -2,7 +2,8 @@ use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
 use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
 use crate::account::{account, account__view, admin_identities__view, is_admin_identity};
-use crate::mailing::{message_categories, subscriptions, subscriptions__view};
+use crate::delivery;
+use crate::mailing::{message_categories, subscriptions__view};
 
 #[spacetimedb::table(accessor = mta_connection_log)]
 pub struct MtaConnectionLog {
@@ -268,13 +269,12 @@ pub(crate) fn handle_data_stage(
         serde_json::to_string(&request).unwrap_or_default()
     );
 
-    // First try the envelope recipients (canonical SMTP recipients)
+    // Try the canonical SMTP recipients first.
     if let Some(envelope) = &request.envelope {
         for recipient in &envelope.to {
             let to_address = recipient.address.as_str();
             to_addresses.push(to_address.to_string());
 
-            // O(1) unique-index lookup for the category
             if let Some(category) = ctx
                 .db
                 .message_categories()
@@ -282,32 +282,17 @@ pub(crate) fn handle_data_stage(
                 .find(&to_address.to_string())
                 .filter(|c| c.active)
             {
-                // O(sender subscriptions) scan via btree index instead of full table scan
-                let is_subscribed = ctx
-                    .db
-                    .subscriptions()
-                    .subscriber_email()
-                    .filter(&from_address.to_string())
-                    .any(|s| s.category_id == category.id && s.active);
-
-                if is_subscribed {
-                    log::info!("Sender is subscribed.");
-                    valid_categories.push((category.id, category.email_address.clone()));
-                } else {
-                    log::info!("Sender not subscribed");
-                }
+                valid_categories.push((category.id, category.email_address.clone()));
             }
         }
     }
 
-    // Fallback: if no valid categories found from envelope recipients, try parsing the
-    // "To" header from the message (some MTAs rewrite/alias envelope recipients).
+    // Fallback: some MTAs rewrite the envelope and only preserve the `To` header.
     if valid_categories.is_empty() {
         if let Some(message) = &request.message {
             if let Some(to_header) = extract_header(&message.headers, "to") {
                 let header_addrs = parse_email_addresses(&to_header);
                 if !header_addrs.is_empty() {
-                    // Replace to_addresses for logging with header-derived recipients
                     to_addresses = header_addrs.clone();
 
                     for to_address in header_addrs {
@@ -318,26 +303,7 @@ pub(crate) fn handle_data_stage(
                             .find(&to_address)
                             .filter(|c| c.active)
                         {
-                            let is_subscribed = ctx
-                                .db
-                                .subscriptions()
-                                .subscriber_email()
-                                .filter(&from_address.to_string())
-                                .any(|s| s.category_id == category.id && s.active);
-
-                            if is_subscribed {
-                                log::trace!(
-                                    "Sender is subscribed (via header-derived recipient): {}",
-                                    to_address
-                                );
-                                valid_categories
-                                    .push((category.id, category.email_address.clone()));
-                            } else {
-                                log::trace!(
-                                    "Sender not subscribed (via header-derived recipient): {}",
-                                    to_address
-                                );
-                            }
+                            valid_categories.push((category.id, category.email_address.clone()));
                         }
                     }
                 }
@@ -430,6 +396,30 @@ pub(crate) fn handle_data_stage(
                     body_raw: body_raw.clone(),
                     message_size,
                 });
+
+                let ingress_id = delivery::upsert_mail_ingress(
+                    ctx,
+                    queue_id.clone(),
+                    *category_id,
+                    category_email.clone(),
+                    sender_account_id,
+                    from_address.to_string(),
+                    subject.chars().take(500).collect(),
+                    from_header.clone(),
+                    reply_to.clone(),
+                    date_header.clone(),
+                    message_id.clone(),
+                    cc_header.clone(),
+                    headers_raw.clone(),
+                    body_raw.clone(),
+                    message_size,
+                );
+                log::info!(
+                    "Queued ingress {} for category {} ({})",
+                    ingress_id,
+                    category_id,
+                    category_email
+                );
             }
         }
     }

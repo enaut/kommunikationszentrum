@@ -6,8 +6,6 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
-pub mod dioxus;
-
 pub mod account_table;
 pub mod account_type;
 pub mod active_subscriptions_table;

@@ -1,5 +1,5 @@
 use log::{error, info};
-use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
+use spacetimedb::{Query, ReducerContext, Table, Timestamp, ViewContext};
 
 use crate::account::{account, account__view, admin_identities__view, is_admin_user, Account};
 
@@ -15,7 +15,8 @@ pub struct MessageCategory {
     pub active: bool,
 }
 
-#[spacetimedb::table(accessor = subscriptions)]
+#[derive(Clone)]
+#[spacetimedb::table(accessor = subscriptions, public)]
 pub struct Subscription {
     #[primary_key]
     #[auto_inc]
@@ -28,6 +29,19 @@ pub struct Subscription {
     pub category_id: u64,
     pub subscribed_at: Timestamp,
     pub active: bool,
+}
+
+#[derive(Clone)]
+#[spacetimedb::table(accessor = subscription_unsubscribe_tokens, public)]
+pub struct SubscriptionUnsubscribeToken {
+    #[primary_key]
+    pub token: String,
+    #[unique]
+    pub subscription_id: u64,
+    #[index(btree)]
+    pub created_at: Timestamp,
+    pub active: bool,
+    pub revoked_at: Timestamp,
 }
 
 /// Returns all subscriptions for admins; only the caller's own subscriptions for regular users.
@@ -53,6 +67,18 @@ pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
             None => vec![],
         }
     }
+}
+
+#[spacetimedb::view(accessor = active_subscriptions, public)]
+pub fn active_subscriptions(ctx: &ViewContext) -> impl Query<Subscription> {
+    ctx.from.subscriptions().r#filter(|sub| sub.active)
+}
+
+#[spacetimedb::view(accessor = active_unsubscribe_tokens, public)]
+pub fn active_unsubscribe_tokens(ctx: &ViewContext) -> impl Query<SubscriptionUnsubscribeToken> {
+    ctx.from
+        .subscription_unsubscribe_tokens()
+        .r#filter(|token| token.active)
 }
 
 #[spacetimedb::reducer]
@@ -125,17 +151,45 @@ pub fn add_subscription(
 
     let timestamp = ctx.timestamp;
 
-    ctx.db.subscriptions().insert(Subscription {
-        id: 0,
-        subscriber_account_id,
-        subscriber_email,
-        category_id,
-        subscribed_at: timestamp,
-        active: true,
-    });
+    let existing = ctx
+        .db
+        .subscriptions()
+        .subscriber_account_id()
+        .filter(&subscriber_account_id)
+        .find(|sub| sub.category_id == category_id);
+
+    let subscription = if let Some(existing) = existing {
+        let updated = Subscription {
+            subscriber_email: subscriber_email.clone(),
+            subscribed_at: timestamp,
+            active: true,
+            ..existing
+        };
+        ctx.db.subscriptions().id().update(updated.clone());
+        updated
+    } else {
+        let candidate = Subscription {
+            id: 0,
+            subscriber_account_id,
+            subscriber_email: subscriber_email.clone(),
+            category_id,
+            subscribed_at: timestamp,
+            active: true,
+        };
+        ctx.db.subscriptions().insert(candidate);
+        ctx.db
+            .subscriptions()
+            .subscriber_account_id()
+            .filter(&subscriber_account_id)
+            .find(|sub| sub.category_id == category_id)
+            .ok_or_else(|| "Subscription insert failed".to_string())?
+    };
+
+    let token = upsert_subscription_unsubscribe_token(ctx, subscription.id)?;
     log::info!(
-        "Added subscription for account {} (by identity: {:?})",
+        "Added subscription for account {} (token: {}, by identity: {:?})",
         subscriber_account_id,
+        token,
         ctx.sender()
     );
     Ok(())
@@ -165,12 +219,104 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
         );
     }
 
-    ctx.db.subscriptions().id().delete(&subscription_id);
+    let mut updated = sub.clone();
+    updated.active = false;
+    ctx.db.subscriptions().id().update(updated);
+    deactivate_subscription_unsubscribe_token(ctx, subscription_id);
     log::info!(
-        "Removed subscription {} (by identity: {:?})",
+        "Deactivated subscription {} (by identity: {:?})",
         subscription_id,
         ctx.sender()
     );
+    Ok(())
+}
+
+fn upsert_subscription_unsubscribe_token(
+    ctx: &ReducerContext,
+    subscription_id: u64,
+) -> Result<String, String> {
+    if let Some(existing) = ctx
+        .db
+        .subscription_unsubscribe_tokens()
+        .subscription_id()
+        .find(&subscription_id)
+    {
+        if existing.active {
+            return Ok(existing.token);
+        }
+
+        let mut updated = existing.clone();
+        updated.active = true;
+        updated.revoked_at = Timestamp::UNIX_EPOCH;
+        updated.created_at = ctx.timestamp;
+        ctx.db
+            .subscription_unsubscribe_tokens()
+            .token()
+            .update(updated.clone());
+        return Ok(updated.token);
+    }
+
+    let token = format!("sub-{subscription_id}-{:032x}", ctx.random::<u128>());
+    ctx.db
+        .subscription_unsubscribe_tokens()
+        .insert(SubscriptionUnsubscribeToken {
+            token: token.clone(),
+            subscription_id,
+            created_at: ctx.timestamp,
+            active: true,
+            revoked_at: Timestamp::UNIX_EPOCH,
+        });
+    Ok(token)
+}
+
+fn deactivate_subscription_unsubscribe_token(ctx: &ReducerContext, subscription_id: u64) {
+    if let Some(existing) = ctx
+        .db
+        .subscription_unsubscribe_tokens()
+        .subscription_id()
+        .find(&subscription_id)
+    {
+        let mut updated = existing.clone();
+        updated.active = false;
+        updated.revoked_at = ctx.timestamp;
+        ctx.db
+            .subscription_unsubscribe_tokens()
+            .token()
+            .update(updated);
+    }
+}
+
+#[spacetimedb::reducer]
+pub fn ensure_subscription_unsubscribe_token(
+    ctx: &ReducerContext,
+    subscription_id: u64,
+) -> Result<(), String> {
+    upsert_subscription_unsubscribe_token(ctx, subscription_id).map(|_| ())
+}
+
+pub(crate) fn unsubscribe_subscription_by_token(
+    ctx: &ReducerContext,
+    token: String,
+) -> Result<(), String> {
+    let token_row = ctx
+        .db
+        .subscription_unsubscribe_tokens()
+        .token()
+        .find(&token)
+        .ok_or_else(|| "Unknown unsubscribe token".to_string())?;
+
+    let Some(subscription) = ctx.db.subscriptions().id().find(&token_row.subscription_id) else {
+        return Err("Subscription missing for token".to_string());
+    };
+
+    if !subscription.active {
+        return Ok(());
+    }
+
+    let mut updated_subscription = subscription.clone();
+    updated_subscription.active = false;
+    ctx.db.subscriptions().id().update(updated_subscription);
+    deactivate_subscription_unsubscribe_token(ctx, token_row.subscription_id);
     Ok(())
 }
 
