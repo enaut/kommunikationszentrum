@@ -28,7 +28,7 @@ fn delivery_retry_backoff(attempt_count: u32) -> TimeDuration {
         3 => TimeDuration::from_micros(10 * 60 * 1_000_000),
         4 => TimeDuration::from_micros(30 * 60 * 1_000_000),
         5 => TimeDuration::from_micros(60 * 60 * 1_000_000),
-        _ => TimeDuration::from_micros(2 * 60 * 60 * 1_000_000),
+        _ => TimeDuration::from_micros(12 * 60 * 60 * 1_000_000),
     }
 }
 
@@ -715,8 +715,4 @@ pub fn mark_mail_delivery_bounced(
         worker_identity: Some(ctx.sender()),
     });
     Ok(())
-}
-
-pub(crate) fn retry_count_limit_reached(attempt_count: u32) -> bool {
-    attempt_count >= 5
 }

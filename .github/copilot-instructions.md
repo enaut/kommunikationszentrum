@@ -50,8 +50,6 @@ kommunikationszentrum/
 │   └── src/                # Markdown documentation sources
 ├── server/                  # SpacetimeDB module (port 3000)
 │   └── src/                # Database schema and reducer logic
-├── webhook-proxy/           # HTTP API gateway (port 3002)
-│   └── src/                # Axum web server handling MTA hooks and user sync
 ├── dioxusllms.txt          # Dioxus framework documentation reference  
 └── spacetimellms.txt       # SpacetimeDB documentation reference
 ```
@@ -77,18 +75,8 @@ kommunikationszentrum/
 /home/dietrich/.envs/Solawis/current/bin/python /home/dietrich/Projekte/Source/solawispielplatz/src/manage.py sync_users_to_spacetimedb
 ```
 
-## webhook-proxy (HTTP API Gateway)
-**Purpose**: Handles MTA hooks from Stalwart email server and user synchronization  
-**Port**: 3002 (default)
-
-**Commands**:
-```bash
-# Start the webhook proxy server
-cargo run --package webhook-proxy
-```
-
 ## server (SpacetimeDB Module)
-**Purpose**: Database and business logic layer  
+**Purpose**: Database and business logic layer and MTA hook processing
 **Port**: 3000 (default)
 
 **Commands**:
@@ -122,11 +110,11 @@ The Kommunikationszentrum is a distributed email management system for the SoLaW
 ## Component Overview
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Admin Web UI  │    │ Webhook Proxy   │    │   SpacetimeDB   │
-│   (Dioxus)      │◄──►│   (Axum HTTP)   │◄──►│   (Database)    │
-│   Port 8080     │    │   Port 3002     │    │   Port 3000     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐
+│   Admin Web UI  │    │   SpacetimeDB   │
+│   (Dioxus)      │◄──►│   (Database)    │
+│   Port 8080     │    │   Port 3000     │
+└─────────────────┘    └─────────────────┘
          │                       ▲
          │                       │
          ▼                       ▼
@@ -139,8 +127,8 @@ The Kommunikationszentrum is a distributed email management system for the SoLaW
 
 ## Data Flow
 
-1. **Email Processing**: Stalwart MTA → webhook-proxy → SpacetimeDB
-2. **User Management**: Django → webhook-proxy → SpacetimeDB
+1. **Email Processing**: Stalwart MTA → SpacetimeDB
+2. **User Management**: Django → SpacetimeDB
 3. **Admin Interface**: Admin UI ↔ SpacetimeDB (OAuth via Django)
 
 ## Components Description
@@ -156,15 +144,7 @@ The Kommunikationszentrum is a distributed email management system for the SoLaW
   - IP blocking lists (`blocked_ips`)
 
 ### 2. **Webhook Proxy** (`/webhook-proxy`)
-- **Purpose**: HTTP API gateway between external systems and SpacetimeDB
-- **Technology**: Rust + Axum web framework
-- **Endpoints**:
-  - `/mta-hook`: Receives MTA hooks from Stalwart email server
-  - `/user-sync`: Synchronizes users from Django solawispielplatz
-- **Responsibilities**:
-  - MTA hook validation and processing
-  - User synchronization from Django
-  - HTTP-to-SpacetimeDB protocol translation
+- deleted (was deprecated in favor of direct MTA → SpacetimeDB integration)
 
 ### 3. **Admin Web Interface** (`/admin`)
 - **Purpose**: User-facing web application for subscription management
@@ -177,13 +157,13 @@ The Kommunikationszentrum is a distributed email management system for the SoLaW
 
 ### 4. **External Dependencies**
 - **solawispielplatz Django**: User management and OAuth provider
-- **Stalwart MTA**: Email server that sends hooks to webhook-proxy
+- **Stalwart MTA**: Email server that sends hooks to spacetimedb
 - **OAuth Flow**: Django → Admin UI authentication
 
 ## Email Processing Flow
 
 ```
-Incoming Email → Stalwart MTA → MTA Hook → webhook-proxy
+Incoming Email → Stalwart MTA → MTA Hook
                                               ↓
 SpacetimeDB ← Process & Log ← Validate Categories & Subscriptions
      ↓
@@ -202,6 +182,5 @@ Decision: ACCEPT / REJECT / QUARANTINE
 ## Development Workflow
 
 1. **Schema Changes**: Modify `/server` → `spacetime publish`
-2. **API Changes**: Modify `/webhook-proxy` → `cargo run`
-3. **UI Changes**: Modify `/admin` → `dx serve`
-4. **User Sync**: Run `manage.py sync_users_to_spacetimedb` in Django
+2. **UI Changes**: Modify `/admin` → `dx serve`
+3. **User Sync**: Run `manage.py sync_users_to_spacetimedb` in Django

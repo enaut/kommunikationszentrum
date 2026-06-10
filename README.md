@@ -10,8 +10,7 @@ The easiest way to start all development services is to use the vscode tasks.
 
 This will automatically start all required services:
 - SpacetimeDB Server (port 3000)
-- Django Backend (port 8000)  
-- Webhook Proxy (port 3002)
+- Django Backend (port 8000)
 - Admin Web UI (port 8080)
 
 ### Service Management
@@ -61,9 +60,6 @@ Key configuration variables:
 - `SPACETIMEDB_URI` - SpacetimeDB server URI (default: `http://localhost:3000`)
 - `SPACETIMEDB_MODULE_NAME` - Module name (default: `kommunikation`)
 
-#### Webhook Proxy Configuration  
-- `WEBHOOK_PROXY_BIND_ADDRESS` - Server bind address (default: `0.0.0.0:3002`)
-
 #### OAuth/Authentication Configuration
 - `DJANGO_BASE_URL` - Django OAuth provider base URL (default: `http://127.0.0.1:8000`)
 - `OIDC_ISSUER_URL` - OAuth issuer URL (default: `http://127.0.0.1:8000/o`)
@@ -78,8 +74,6 @@ For local development, use defaults from `.env.example`.
 For production deployments, see `.env.production.example` for guidance on production-appropriate values.
 
 ### Configuration Loading
-
-- **Webhook Proxy**: Loads `.env` file automatically and falls back to environment variables
 - **Admin Web UI**: Loads configuration in browser from environment variables set during build
 - **Server Module**: Uses compile-time environment variables for SpacetimeDB WASM module
 
@@ -88,11 +82,11 @@ For production deployments, see `.env.production.example` for guidance on produc
 The system consists of four main components:
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Admin Web UI  │    │ Webhook Proxy   │    │   SpacetimeDB   │
-│   (Dioxus)      │◄──►│   (Axum HTTP)   │◄──►│   (Database)    │
-│   Port 8080     │    │   Port 3002     │    │   Port 3000     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐
+│   Admin Web UI  │    │   SpacetimeDB   │
+│   (Dioxus)      │◄──►│   (Database)    │
+│   Port 8080     │    │   Port 3000     │
+└─────────────────┘    └─────────────────┘
          │                       ▲
          │                       │
          ▼                       ▼
@@ -106,9 +100,8 @@ The system consists of four main components:
 ### Components
 
 1. **SpacetimeDB Server** (`/server`): Core database and business logic layer
-2. **Webhook Proxy** (`/webhook-proxy`): HTTP API gateway for MTA hooks and user sync
-3. **Admin Web Interface** (`/admin`): Dioxus WebAssembly frontend
-4. **Django Backend** (external): User management and OAuth provider
+2. **Admin Web Interface** (`/admin`): Dioxus WebAssembly frontend
+3. **Django Backend** (external): User management and OAuth provider
 
 ## Manual Setup
 
@@ -141,19 +134,13 @@ spacetime publish --project-path server kommunikation
 /home/dietrich/.envs/Solawis/current/bin/python /home/dietrich/Projekte/Source/solawispielplatz/src/manage.py runserver
 ```
 
-#### 4. Start Webhook Proxy
-
-```bash
-cargo run --package webhook-proxy
-```
-
-#### 5. Start Admin Web UI
+#### 4. Start Admin Web UI
 
 ```bash
 dx serve --package admin --platform web
 ```
 
-#### 6. Sync Users to SpacetimeDB
+#### 5. Sync Users to SpacetimeDB
 
 ```bash
 cd /home/dietrich/Projekte/Source/solawispielplatz
@@ -183,7 +170,6 @@ make dev-docs
 
 - **Admin Web UI**: http://localhost:8080
 - **Django Backend**: http://localhost:8000
-- **Webhook Proxy**: http://localhost:3002
 - **SpacetimeDB**: http://localhost:3000
 
 ## Documentation

@@ -12,7 +12,7 @@
   - [Configuration](./setup/configuration.md)
   - [Component Installation](./setup/component-installation.md)
     - [SpacetimeDB Server](./setup/spacetimedb-server.md)
-    - [Webhooks (Module HTTP Handlers)](./setup/webhook-proxy.md)
+    - [Webhooks (Module HTTP Handlers)](./setup/spacetime-http-handlers.md)
     - [Admin Interface](./setup/admin-interface.md)
     - [Django Integration](./setup/django-integration.md)
 
@@ -24,10 +24,10 @@
     - [Reducers Reference](./core/spacetimedb/reducers-reference.md)
     - [Module Publishing](./core/spacetimedb/module-publishing.md)
 
-  - [Webhooks (Module HTTP Handlers)](./core/webhook-proxy/overview.md)
-    - [MTA Hook Processing](./core/webhook-proxy/mta-hook-processing.md)
-    - [User Synchronization](./core/webhook-proxy/user-sync.md)
-    - [API Endpoints](./core/webhook-proxy/api-endpoints.md)
+  - [Webhooks (Module HTTP Handlers)](./core/spacetime-http-handlers/overview.md)
+    - [MTA Hook Processing](./core/spacetime-http-handlers/mta-hook-processing.md)
+    - [User Synchronization](./core/spacetime-http-handlers/user-sync.md)
+    - [API Endpoints](./core/spacetime-http-handlers/api-endpoints.md)
 
   - [Admin Interface](./core/admin/overview.md)
     - [User Guide](./core/admin/user-guide.md)
@@ -72,4 +72,3 @@
   - [Database Diagrams](./appendices/database-diagrams.md)
   - [Glossary]()
   - [Migration Guides]()
-

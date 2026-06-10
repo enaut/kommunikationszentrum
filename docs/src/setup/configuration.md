@@ -181,9 +181,6 @@ spacetime logs kommunikation --follow
 Test configuration without starting full services:
 
 ```bash
-# Test webhook proxy configuration
-SPACETIMEDB_URI=http://test:3000 cargo check --package webhook-proxy
-
 # Test admin configuration  
 DJANGO_BASE_URL=http://test:8000 cargo check --package admin
 ```
