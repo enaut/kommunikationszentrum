@@ -286,10 +286,26 @@ fn send_delivery(
 ) -> Result<(), Box<dyn Error>> {
     use lettre::address::Envelope;
 
-    let envelope = Envelope::new(
-        Some(delivery.original_sender_email.parse()?),
-        vec![delivery.recipient_email.parse()?],
-    )?;
+    // Capture pre-SMTP errors (parsing, etc.) to ensure we update the state in SpaceTimeDB
+    let envelope_result = (|| -> Result<Envelope, Box<dyn Error>> {
+        let from = delivery.original_sender_email.parse()?;
+        let to = vec![delivery.recipient_email.parse()?];
+        Ok(Envelope::new(Some(from), to)?)
+    })();
+
+    let envelope = match envelope_result {
+        Ok(e) => e,
+        Err(error) => {
+            let response = format!("Pre-SMTP error: {error}");
+            connection.reducers().fail_mail_delivery(
+                delivery.id.clone(),
+                Some(0),
+                response,
+                "pre-smtp".to_string(),
+            )?;
+            return Err(error);
+        }
+    };
 
     match transport.send_raw(&envelope, delivery.raw_message.as_bytes()) {
         Ok(response) => {
