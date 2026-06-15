@@ -170,6 +170,7 @@ fn process_ingress_job(
 
     let mut deliveries_created = 0u32;
     let _deliveries_failed = 0u32;
+    let mut waiting_for_tokens = false;
 
     for subscription in subscriptions {
         let token_row = connection
@@ -184,7 +185,8 @@ fn process_ingress_job(
                 connection
                     .reducers()
                     .ensure_subscription_unsubscribe_token(subscription.id)?;
-                return Err("Waiting for unsubscribe token to be generated".into());
+                waiting_for_tokens = true;
+                continue;
             }
         };
 
@@ -208,6 +210,10 @@ fn process_ingress_job(
             token_row.token.clone(),
         )?;
         deliveries_created = deliveries_created.saturating_add(1);
+    }
+
+    if waiting_for_tokens {
+        return Err("Waiting for unsubscribe token to be generated".into());
     }
 
     connection.reducers().complete_mail_ingress(
