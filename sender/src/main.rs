@@ -4,22 +4,20 @@ mod module_bindings;
 
 use config::SenderConfig;
 use lettre::{SmtpTransport, Transport};
-use mail::{
-    build_outgoing_message, build_transport, compose_delivery, is_permanent_error,
-    is_transient_error,
-};
+use mail::{build_transport, compose_delivery, is_permanent_error, is_transient_error};
 use module_bindings::{
     claim_next_mail_delivery, claim_next_mail_ingress, complete_mail_ingress,
     enqueue_mail_delivery, ensure_subscription_unsubscribe_token, fail_mail_delivery,
     fail_mail_ingress, mark_mail_delivery_sent, retry_mail_ingress, schedule_mail_delivery_retry,
-    DbConnection, MailDelivery, MailIngress, Subscription, SubscriptionUnsubscribeToken,
+    DbConnection, MailDelivery, MailIngress, Subscription,
 };
 use spacetimedb_sdk::{DbContext, Table, Timestamp};
 use std::{collections::HashSet, error::Error, thread, time::Duration};
 
 use crate::module_bindings::{
-    ActiveSubscriptionsTableAccess as _, MessageCategoriesTableAccess as _,
-    SenderMailDeliveriesTableAccess as _, SenderMailIngressTableAccess as _,
+    ActiveSubscriptionsTableAccess as _, ActiveUnsubscribeTokensTableAccess as _,
+    MessageCategoriesTableAccess as _, SenderMailDeliveriesTableAccess as _,
+    SenderMailIngressTableAccess as _,
 };
 
 const INGESTED_STATE: &str = "processing";
@@ -159,7 +157,8 @@ fn process_ingress_job(
         .filter(|sub| sub.category_id == ingress.category_id)
         .filter(|sub| sub.active)
         .collect();
-    subscriptions.sort_by(|left, right| left.id.cmp(&right.id));
+
+    subscriptions.sort_by(|left, right| left.subscriber_email.cmp(&right.subscriber_email));
     subscriptions.dedup_by(|left, right| left.subscriber_email == right.subscriber_email);
 
     if subscriptions.is_empty() {
@@ -173,21 +172,22 @@ fn process_ingress_job(
     let _deliveries_failed = 0u32;
 
     for subscription in subscriptions {
-        let token = generate_unsubscribe_token(
-            &ingress.id,
-            subscription.id,
-            &subscription.subscriber_email,
-        );
-        connection
-            .reducers()
-            .ensure_subscription_unsubscribe_token(subscription.id)?;
-        let token_row = SubscriptionUnsubscribeToken {
-            token: token.clone(),
-            subscription_id: subscription.id,
-            created_at: ingress.received_at,
-            active: true,
-            revoked_at: Timestamp::UNIX_EPOCH,
+        let token_row = connection
+            .db
+            .active_unsubscribe_tokens()
+            .iter()
+            .find(|t| t.subscription_id == subscription.id);
+
+        let token_row = match token_row {
+            Some(row) => row,
+            None => {
+                connection
+                    .reducers()
+                    .ensure_subscription_unsubscribe_token(subscription.id)?;
+                return Err("Waiting for unsubscribe token to be generated".into());
+            }
         };
+
         let (headers_raw, raw_message) =
             compose_delivery(config, &ingress, &subscription, &category, &token_row)?;
 
@@ -216,14 +216,6 @@ fn process_ingress_job(
         _deliveries_failed,
     )?;
     Ok(())
-}
-
-fn generate_unsubscribe_token(
-    ingress_id: &str,
-    subscription_id: u64,
-    recipient_email: &str,
-) -> String {
-    format!("sub-{subscription_id}-{ingress_id}-{recipient_email}",)
 }
 
 fn process_delivery_jobs(
@@ -292,17 +284,14 @@ fn send_delivery(
     transport: &SmtpTransport,
     delivery: MailDelivery,
 ) -> Result<(), Box<dyn Error>> {
-    let message = build_outgoing_message(
-        &delivery.list_email,
-        &delivery.recipient_email,
-        &delivery.reply_to,
-        &delivery.subject,
-        &delivery.list_name,
-        &delivery.unsubscribe_token,
-        &delivery.body_raw,
+    use lettre::address::Envelope;
+
+    let envelope = Envelope::new(
+        Some(delivery.original_sender_email.parse()?),
+        vec![delivery.recipient_email.parse()?],
     )?;
 
-    match transport.send(&message) {
+    match transport.send_raw(&envelope, delivery.raw_message.as_bytes()) {
         Ok(response) => {
             let code = response.code().to_string().parse::<u16>().ok();
             connection.reducers().mark_mail_delivery_sent(

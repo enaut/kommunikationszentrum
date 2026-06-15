@@ -1,9 +1,11 @@
 use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
 use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
-use crate::account::{account, account__view, admin_identities__view, is_admin_identity};
+use crate::account::{
+    account, account__view, admin_identities, admin_identities__view, is_admin_identity,
+};
 use crate::delivery;
-use crate::mailing::{message_categories, subscriptions__view};
+use crate::mailing::{message_categories, subscriptions, subscriptions__view};
 
 #[spacetimedb::table(accessor = mta_connection_log)]
 pub struct MtaConnectionLog {
@@ -345,6 +347,54 @@ pub(crate) fn handle_data_stage(
                 .filter(&from_address.to_string())
                 .next()
                 .map(|a| a.id);
+
+            // Filter valid_categories: only allow if sender is an admin OR has an active subscription to that category
+            let sender_is_admin = sender_account_id
+                .and_then(|id| ctx.db.account().id().find(&id))
+                .map_or(false, |acc| {
+                    ctx.db
+                        .admin_identities()
+                        .identity()
+                        .find(&acc.identity)
+                        .is_some()
+                });
+
+            valid_categories.retain(|(cat_id, cat_email)| {
+                if sender_is_admin {
+                    return true;
+                }
+                if let Some(acc_id) = sender_account_id {
+                    let has_sub = ctx
+                        .db
+                        .subscriptions()
+                        .subscriber_account_id()
+                        .filter(&acc_id)
+                        .any(|s| s.category_id == *cat_id && s.active);
+                    if !has_sub {
+                        log::warn!(
+                            "Sender {} (acc {}) is NOT subscribed to category {} ({})",
+                            from_address,
+                            acc_id,
+                            cat_id,
+                            cat_email
+                        );
+                    }
+                    has_sub
+                } else {
+                    log::warn!(
+                        "External sender {} attempted to post to category {} ({})",
+                        from_address,
+                        cat_id,
+                        cat_email
+                    );
+                    false
+                }
+            });
+
+            if valid_categories.is_empty() {
+                log::warn!("No authorized categories left after subscription check");
+                return;
+            }
 
             // Extract parsed header fields
             let from_header = extract_header(&message.headers, "from")

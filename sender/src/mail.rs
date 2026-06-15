@@ -1,9 +1,7 @@
 use chrono::Utc;
-use lettre::message::{header::HeaderName, header::HeaderValue, Mailbox, Message};
 use lettre::transport::smtp::authentication::Credentials;
-use lettre::transport::smtp::response::Response;
 use lettre::transport::smtp::Error as SmtpError;
-use lettre::{SmtpTransport, Transport};
+use lettre::SmtpTransport;
 use serde_json::to_string;
 use std::error::Error;
 
@@ -34,49 +32,6 @@ pub fn is_transient_error(error: &SmtpError) -> bool {
 
 pub fn is_permanent_error(error: &SmtpError) -> bool {
     error.is_permanent()
-}
-
-pub fn build_outgoing_message(
-    list_email: &str,
-    recipient_email: &str,
-    reply_to: &str,
-    subject: &str,
-    list_name: &str,
-    unsubscribe_url: &str,
-    body: &str,
-) -> Result<Message, Box<dyn Error>> {
-    let mut builder = Message::builder()
-        .from(list_email.parse::<Mailbox>()?)
-        .to(recipient_email.parse::<Mailbox>()?)
-        .reply_to(reply_to.parse::<Mailbox>()?)
-        .sender(list_email.parse::<Mailbox>()?)
-        .subject(subject.to_string())
-        .date_now();
-
-    builder = builder.raw_header(custom_header(
-        "List-Id",
-        format!("{} <{}>", list_name, list_email),
-    ));
-    builder = builder.raw_header(custom_header(
-        "List-Post",
-        format!("<mailto:{}>", list_email),
-    ));
-    builder = builder.raw_header(custom_header(
-        "List-Unsubscribe",
-        format!(
-            "<mailto:{}?subject=unsubscribe>, <{}>",
-            list_email, unsubscribe_url
-        ),
-    ));
-    builder = builder.raw_header(custom_header(
-        "List-Unsubscribe-Post",
-        "List-Unsubscribe=One-Click".to_string(),
-    ));
-    builder = builder.raw_header(custom_header("Precedence", "list".to_string()));
-    builder = builder.raw_header(custom_header("X-Mailing-List", list_name.to_string()));
-    builder = builder.raw_header(custom_header("X-BeenThere", list_email.to_string()));
-
-    Ok(builder.body(body.to_string())?)
 }
 
 pub fn compose_delivery(
@@ -142,9 +97,8 @@ pub fn compose_delivery(
     Ok((headers_raw, raw_message))
 }
 
-fn custom_header(name: &str, value: String) -> HeaderValue {
-    let header_name = HeaderName::new_from_ascii(name.to_string()).unwrap();
-    HeaderValue::dangerous_new_pre_encoded(header_name, value.clone(), value)
+fn sanitize_header_value(value: &str) -> String {
+    value.replace(['\r', '\n'], "")
 }
 
 fn rewrite_subject(list_name: &str, subject: &str) -> String {
@@ -162,9 +116,9 @@ fn rewrite_subject(list_name: &str, subject: &str) -> String {
 fn render_raw_message(headers: &[(String, String)], body: &str) -> String {
     let mut raw = String::new();
     for (name, value) in headers {
-        raw.push_str(name);
+        raw.push_str(&sanitize_header_value(name));
         raw.push_str(": ");
-        raw.push_str(value);
+        raw.push_str(&sanitize_header_value(value));
         raw.push_str("\r\n");
     }
     raw.push_str("\r\n");
