@@ -3,6 +3,7 @@ use spacetimedb::{ReducerContext, Table};
 use account::{admin_identities, AdminIdentity};
 
 mod account;
+mod delivery;
 mod http_handlers;
 mod mailing;
 mod mta;

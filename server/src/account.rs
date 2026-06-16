@@ -1,4 +1,3 @@
-use log::info;
 use serde::{Deserialize, Serialize};
 use spacetimedb::{Filter, Identity, Query, ReducerContext, Table, Timestamp, ViewContext};
 
@@ -127,7 +126,7 @@ pub(crate) fn is_admin_identity(ctx: &ReducerContext, who: Identity) -> bool {
 }
 
 /// Add an identity to admin_identities. Only existing admins may call this.
-/// `identity_hex` is the 64-character hex string shown by the webhook-proxy on first start.
+/// `identity_hex` is the 64-character hex string.
 #[spacetimedb::reducer]
 pub fn register_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Result<(), String> {
     if !is_admin_user(ctx) {

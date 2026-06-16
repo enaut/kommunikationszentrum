@@ -20,7 +20,16 @@ pub type SharedConnection = Arc<DbConnection>;
 #[derive(Clone)]
 pub struct TableSignals {
     pub account: SyncSignal<Vec<Account>>,
+    pub active_subscriptions: SyncSignal<Vec<Subscription>>,
+    pub active_unsubscribe_tokens: SyncSignal<Vec<SubscriptionUnsubscribeToken>>,
+    pub mail_deliveries: SyncSignal<Vec<MailDelivery>>,
+    pub mail_delivery_events: SyncSignal<Vec<MailDeliveryEvent>>,
+    pub mail_ingress: SyncSignal<Vec<MailIngress>>,
     pub message_categories: SyncSignal<Vec<MessageCategory>>,
+    pub sender_mail_deliveries: SyncSignal<Vec<MailDelivery>>,
+    pub sender_mail_ingress: SyncSignal<Vec<MailIngress>>,
+    pub subscription_unsubscribe_tokens: SyncSignal<Vec<SubscriptionUnsubscribeToken>>,
+    pub subscriptions: SyncSignal<Vec<Subscription>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
     pub visible_admin_identities: SyncSignal<Vec<AdminIdentity>>,
     pub visible_messages: SyncSignal<Vec<ReceivedMessage>>,
@@ -173,7 +182,16 @@ pub fn use_spacetimedb_context_provider(
 
     let mut table_signals = TableSignals {
         account: use_signal_sync(Vec::new),
+        active_subscriptions: use_signal_sync(Vec::new),
+        active_unsubscribe_tokens: use_signal_sync(Vec::new),
+        mail_deliveries: use_signal_sync(Vec::new),
+        mail_delivery_events: use_signal_sync(Vec::new),
+        mail_ingress: use_signal_sync(Vec::new),
         message_categories: use_signal_sync(Vec::new),
+        sender_mail_deliveries: use_signal_sync(Vec::new),
+        sender_mail_ingress: use_signal_sync(Vec::new),
+        subscription_unsubscribe_tokens: use_signal_sync(Vec::new),
+        subscriptions: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
         visible_admin_identities: use_signal_sync(Vec::new),
         visible_messages: use_signal_sync(Vec::new),
@@ -248,6 +266,108 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<Account> = ctx.db.account().iter().collect();
                             table_signals_on_connect.account.set(updated);
                         });
+                        // Populate initial rows for active_subscriptions
+                        let current: Vec<Subscription> =
+                            conn.db.active_subscriptions().iter().collect();
+                        table_signals_on_connect.active_subscriptions.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.active_subscriptions().on_insert(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.active_subscriptions().iter().collect();
+                            table_signals_on_connect.active_subscriptions.set(updated);
+                        });
+                        conn.db.active_subscriptions().on_delete(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.active_subscriptions().iter().collect();
+                            table_signals_on_connect.active_subscriptions.set(updated);
+                        });
+                        // Populate initial rows for active_unsubscribe_tokens
+                        let current: Vec<SubscriptionUnsubscribeToken> =
+                            conn.db.active_unsubscribe_tokens().iter().collect();
+                        table_signals_on_connect
+                            .active_unsubscribe_tokens
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .active_unsubscribe_tokens()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<SubscriptionUnsubscribeToken> =
+                                    ctx.db.active_unsubscribe_tokens().iter().collect();
+                                table_signals_on_connect
+                                    .active_unsubscribe_tokens
+                                    .set(updated);
+                            });
+                        conn.db
+                            .active_unsubscribe_tokens()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<SubscriptionUnsubscribeToken> =
+                                    ctx.db.active_unsubscribe_tokens().iter().collect();
+                                table_signals_on_connect
+                                    .active_unsubscribe_tokens
+                                    .set(updated);
+                            });
+                        // Populate initial rows for mail_deliveries
+                        let current: Vec<MailDelivery> = conn.db.mail_deliveries().iter().collect();
+                        table_signals_on_connect.mail_deliveries.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.mail_deliveries().on_insert(move |ctx, _row| {
+                            let updated: Vec<MailDelivery> =
+                                ctx.db.mail_deliveries().iter().collect();
+                            table_signals_on_connect.mail_deliveries.set(updated);
+                        });
+                        conn.db.mail_deliveries().on_update(move |ctx, _old, _new| {
+                            let updated: Vec<MailDelivery> =
+                                ctx.db.mail_deliveries().iter().collect();
+                            table_signals_on_connect.mail_deliveries.set(updated);
+                        });
+                        conn.db.mail_deliveries().on_delete(move |ctx, _row| {
+                            let updated: Vec<MailDelivery> =
+                                ctx.db.mail_deliveries().iter().collect();
+                            table_signals_on_connect.mail_deliveries.set(updated);
+                        });
+                        // Populate initial rows for mail_delivery_events
+                        let current: Vec<MailDeliveryEvent> =
+                            conn.db.mail_delivery_events().iter().collect();
+                        table_signals_on_connect.mail_delivery_events.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.mail_delivery_events().on_insert(move |ctx, _row| {
+                            let updated: Vec<MailDeliveryEvent> =
+                                ctx.db.mail_delivery_events().iter().collect();
+                            table_signals_on_connect.mail_delivery_events.set(updated);
+                        });
+                        conn.db
+                            .mail_delivery_events()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<MailDeliveryEvent> =
+                                    ctx.db.mail_delivery_events().iter().collect();
+                                table_signals_on_connect.mail_delivery_events.set(updated);
+                            });
+                        conn.db.mail_delivery_events().on_delete(move |ctx, _row| {
+                            let updated: Vec<MailDeliveryEvent> =
+                                ctx.db.mail_delivery_events().iter().collect();
+                            table_signals_on_connect.mail_delivery_events.set(updated);
+                        });
+                        // Populate initial rows for mail_ingress
+                        let current: Vec<MailIngress> = conn.db.mail_ingress().iter().collect();
+                        table_signals_on_connect.mail_ingress.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.mail_ingress().on_insert(move |ctx, _row| {
+                            let updated: Vec<MailIngress> = ctx.db.mail_ingress().iter().collect();
+                            table_signals_on_connect.mail_ingress.set(updated);
+                        });
+                        conn.db.mail_ingress().on_update(move |ctx, _old, _new| {
+                            let updated: Vec<MailIngress> = ctx.db.mail_ingress().iter().collect();
+                            table_signals_on_connect.mail_ingress.set(updated);
+                        });
+                        conn.db.mail_ingress().on_delete(move |ctx, _row| {
+                            let updated: Vec<MailIngress> = ctx.db.mail_ingress().iter().collect();
+                            table_signals_on_connect.mail_ingress.set(updated);
+                        });
                         // Populate initial rows for message_categories
                         let current: Vec<MessageCategory> =
                             conn.db.message_categories().iter().collect();
@@ -270,6 +390,97 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<MessageCategory> =
                                 ctx.db.message_categories().iter().collect();
                             table_signals_on_connect.message_categories.set(updated);
+                        });
+                        // Populate initial rows for sender_mail_deliveries
+                        let current: Vec<MailDelivery> =
+                            conn.db.sender_mail_deliveries().iter().collect();
+                        table_signals_on_connect.sender_mail_deliveries.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .sender_mail_deliveries()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<MailDelivery> =
+                                    ctx.db.sender_mail_deliveries().iter().collect();
+                                table_signals_on_connect.sender_mail_deliveries.set(updated);
+                            });
+                        conn.db
+                            .sender_mail_deliveries()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<MailDelivery> =
+                                    ctx.db.sender_mail_deliveries().iter().collect();
+                                table_signals_on_connect.sender_mail_deliveries.set(updated);
+                            });
+                        // Populate initial rows for sender_mail_ingress
+                        let current: Vec<MailIngress> =
+                            conn.db.sender_mail_ingress().iter().collect();
+                        table_signals_on_connect.sender_mail_ingress.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.sender_mail_ingress().on_insert(move |ctx, _row| {
+                            let updated: Vec<MailIngress> =
+                                ctx.db.sender_mail_ingress().iter().collect();
+                            table_signals_on_connect.sender_mail_ingress.set(updated);
+                        });
+                        conn.db.sender_mail_ingress().on_delete(move |ctx, _row| {
+                            let updated: Vec<MailIngress> =
+                                ctx.db.sender_mail_ingress().iter().collect();
+                            table_signals_on_connect.sender_mail_ingress.set(updated);
+                        });
+                        // Populate initial rows for subscription_unsubscribe_tokens
+                        let current: Vec<SubscriptionUnsubscribeToken> =
+                            conn.db.subscription_unsubscribe_tokens().iter().collect();
+                        table_signals_on_connect
+                            .subscription_unsubscribe_tokens
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .subscription_unsubscribe_tokens()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<SubscriptionUnsubscribeToken> =
+                                    ctx.db.subscription_unsubscribe_tokens().iter().collect();
+                                table_signals_on_connect
+                                    .subscription_unsubscribe_tokens
+                                    .set(updated);
+                            });
+                        conn.db.subscription_unsubscribe_tokens().on_update(
+                            move |ctx, _old, _new| {
+                                let updated: Vec<SubscriptionUnsubscribeToken> =
+                                    ctx.db.subscription_unsubscribe_tokens().iter().collect();
+                                table_signals_on_connect
+                                    .subscription_unsubscribe_tokens
+                                    .set(updated);
+                            },
+                        );
+                        conn.db
+                            .subscription_unsubscribe_tokens()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<SubscriptionUnsubscribeToken> =
+                                    ctx.db.subscription_unsubscribe_tokens().iter().collect();
+                                table_signals_on_connect
+                                    .subscription_unsubscribe_tokens
+                                    .set(updated);
+                            });
+                        // Populate initial rows for subscriptions
+                        let current: Vec<Subscription> = conn.db.subscriptions().iter().collect();
+                        table_signals_on_connect.subscriptions.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.subscriptions().on_insert(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.subscriptions().iter().collect();
+                            table_signals_on_connect.subscriptions.set(updated);
+                        });
+                        conn.db.subscriptions().on_update(move |ctx, _old, _new| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.subscriptions().iter().collect();
+                            table_signals_on_connect.subscriptions.set(updated);
+                        });
+                        conn.db.subscriptions().on_delete(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.subscriptions().iter().collect();
+                            table_signals_on_connect.subscriptions.set(updated);
                         });
                         // Populate initial rows for visible_accounts
                         let current: Vec<Account> = conn.db.visible_accounts().iter().collect();
@@ -529,11 +740,75 @@ pub fn use_table_account() -> SyncSignal<Vec<Account>> {
     ctx.tables.account
 }
 
+/// Get a reactive signal containing all rows of the `active_subscriptions` table.
+#[must_use]
+pub fn use_table_active_subscriptions() -> SyncSignal<Vec<Subscription>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.active_subscriptions
+}
+
+/// Get a reactive signal containing all rows of the `active_unsubscribe_tokens` table.
+#[must_use]
+pub fn use_table_active_unsubscribe_tokens() -> SyncSignal<Vec<SubscriptionUnsubscribeToken>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.active_unsubscribe_tokens
+}
+
+/// Get a reactive signal containing all rows of the `mail_deliveries` table.
+#[must_use]
+pub fn use_table_mail_deliveries() -> SyncSignal<Vec<MailDelivery>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.mail_deliveries
+}
+
+/// Get a reactive signal containing all rows of the `mail_delivery_events` table.
+#[must_use]
+pub fn use_table_mail_delivery_events() -> SyncSignal<Vec<MailDeliveryEvent>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.mail_delivery_events
+}
+
+/// Get a reactive signal containing all rows of the `mail_ingress` table.
+#[must_use]
+pub fn use_table_mail_ingress() -> SyncSignal<Vec<MailIngress>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.mail_ingress
+}
+
 /// Get a reactive signal containing all rows of the `message_categories` table.
 #[must_use]
 pub fn use_table_message_categories() -> SyncSignal<Vec<MessageCategory>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.message_categories
+}
+
+/// Get a reactive signal containing all rows of the `sender_mail_deliveries` table.
+#[must_use]
+pub fn use_table_sender_mail_deliveries() -> SyncSignal<Vec<MailDelivery>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_mail_deliveries
+}
+
+/// Get a reactive signal containing all rows of the `sender_mail_ingress` table.
+#[must_use]
+pub fn use_table_sender_mail_ingress() -> SyncSignal<Vec<MailIngress>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_mail_ingress
+}
+
+/// Get a reactive signal containing all rows of the `subscription_unsubscribe_tokens` table.
+#[must_use]
+pub fn use_table_subscription_unsubscribe_tokens() -> SyncSignal<Vec<SubscriptionUnsubscribeToken>>
+{
+    let ctx = use_spacetimedb_context();
+    ctx.tables.subscription_unsubscribe_tokens
+}
+
+/// Get a reactive signal containing all rows of the `subscriptions` table.
+#[must_use]
+pub fn use_table_subscriptions() -> SyncSignal<Vec<Subscription>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.subscriptions
 }
 
 /// Get a reactive signal containing all rows of the `visible_accounts` table.
@@ -605,6 +880,52 @@ pub fn use_reducer_add_subscription(
     }
 }
 
+/// Get a callback to invoke the `claim_next_mail_delivery` reducer.
+#[must_use]
+pub fn use_reducer_claim_next_mail_delivery(
+) -> impl Fn() -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move || {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.claim_next_mail_delivery()
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `claim_next_mail_ingress` reducer.
+#[must_use]
+pub fn use_reducer_claim_next_mail_ingress(
+) -> impl Fn() -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move || {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.claim_next_mail_ingress()
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `complete_mail_ingress` reducer.
+#[must_use]
+pub fn use_reducer_complete_mail_ingress(
+) -> impl Fn(String, u32, u32) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |ingress_id: String, delivery_count: u32, failed_delivery_count: u32| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .complete_mail_ingress(ingress_id, delivery_count, failed_delivery_count)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
 /// Get a callback to invoke the `create_webhook_token` reducer.
 #[must_use]
 pub fn use_reducer_create_webhook_token(
@@ -636,6 +957,119 @@ pub fn use_reducer_dump_mta_logs_to_server_logs(
     }
 }
 
+/// Get a callback to invoke the `enqueue_mail_delivery` reducer.
+#[must_use]
+pub fn use_reducer_enqueue_mail_delivery() -> impl Fn(
+    String,
+    u64,
+    String,
+    Option<u64>,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+) -> spacetimedb_sdk::Result<()>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |ingress_id: String,
+          subscription_id: u64,
+          recipient_email: String,
+          recipient_account_id: Option<u64>,
+          list_email: String,
+          list_name: String,
+          original_sender_email: String,
+          from_header: String,
+          reply_to: String,
+          subject: String,
+          body_raw: String,
+          headers_raw: String,
+          raw_message: String,
+          unsubscribe_token: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.enqueue_mail_delivery(
+                ingress_id,
+                subscription_id,
+                recipient_email,
+                recipient_account_id,
+                list_email,
+                list_name,
+                original_sender_email,
+                from_header,
+                reply_to,
+                subject,
+                body_raw,
+                headers_raw,
+                raw_message,
+                unsubscribe_token,
+            )
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `ensure_subscription_unsubscribe_token` reducer.
+#[must_use]
+pub fn use_reducer_ensure_subscription_unsubscribe_token(
+) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |subscription_id: u64| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .ensure_subscription_unsubscribe_token(subscription_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `fail_mail_delivery` reducer.
+#[must_use]
+pub fn use_reducer_fail_mail_delivery(
+) -> impl Fn(String, Option<u16>, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |delivery_id: String,
+          smtp_status_code: Option<u16>,
+          smtp_response: String,
+          error_kind: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.fail_mail_delivery(
+                delivery_id,
+                smtp_status_code,
+                smtp_response,
+                error_kind,
+            )
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `fail_mail_ingress` reducer.
+#[must_use]
+pub fn use_reducer_fail_mail_ingress(
+) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |ingress_id: String, error: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.fail_mail_ingress(ingress_id, error)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
 /// Get a callback to invoke the `handle_mta_hook` reducer.
 #[must_use]
 pub fn use_reducer_handle_mta_hook(
@@ -645,6 +1079,38 @@ pub fn use_reducer_handle_mta_hook(
     move |hook_data: String| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.handle_mta_hook(hook_data)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `mark_mail_delivery_bounced` reducer.
+#[must_use]
+pub fn use_reducer_mark_mail_delivery_bounced(
+) -> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |delivery_id: String, smtp_response: String, error_kind: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .mark_mail_delivery_bounced(delivery_id, smtp_response, error_kind)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `mark_mail_delivery_sent` reducer.
+#[must_use]
+pub fn use_reducer_mark_mail_delivery_sent(
+) -> impl Fn(String, Option<u16>, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |delivery_id: String, smtp_status_code: Option<u16>, smtp_response: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .mark_mail_delivery_sent(delivery_id, smtp_status_code, smtp_response)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
@@ -696,6 +1162,21 @@ pub fn use_reducer_remove_subscription(
     }
 }
 
+/// Get a callback to invoke the `retry_mail_ingress` reducer.
+#[must_use]
+pub fn use_reducer_retry_mail_ingress(
+) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |ingress_id: String, error: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.retry_mail_ingress(ingress_id, error)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
 /// Get a callback to invoke the `revoke_webhook_token` reducer.
 #[must_use]
 pub fn use_reducer_revoke_webhook_token(
@@ -705,6 +1186,29 @@ pub fn use_reducer_revoke_webhook_token(
     move |token_hash: String| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.revoke_webhook_token(token_hash)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `schedule_mail_delivery_retry` reducer.
+#[must_use]
+pub fn use_reducer_schedule_mail_delivery_retry(
+) -> impl Fn(String, Option<u16>, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |delivery_id: String,
+          smtp_status_code: Option<u16>,
+          smtp_response: String,
+          error_kind: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.schedule_mail_delivery_retry(
+                delivery_id,
+                smtp_status_code,
+                smtp_response,
+                error_kind,
+            )
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
