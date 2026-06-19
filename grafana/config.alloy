@@ -1,0 +1,25 @@
+otelcol.receiver.otlp "default" {
+  grpc {}
+  http {}
+
+  output {
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+    logs = [otelcol.exporter.loki.default.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://tempo:4318"
+  }
+}
+
+otelcol.exporter.loki "default" {
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
