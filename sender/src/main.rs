@@ -9,7 +9,7 @@ use module_bindings::{
     claim_next_mail_delivery, claim_next_mail_ingress, complete_mail_ingress,
     enqueue_mail_delivery, ensure_subscription_unsubscribe_token, fail_mail_delivery,
     fail_mail_ingress, mark_mail_delivery_sent, retry_mail_ingress, schedule_mail_delivery_retry,
-    DbConnection, MailDelivery, MailIngress, Subscription,
+    DbConnection, MailDelivery, MailIngress, MessageCategory, Subscription,
 };
 use spacetimedb_sdk::{DbContext, Table, Timestamp};
 use std::{collections::HashSet, error::Error, time::Duration};
@@ -106,7 +106,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let config = SenderConfig::from_env();
     let otel_providers = init_tracing(&config);
 
-    // Test event to verify "dots" in Jaeger
     info!(event = "service_startup", "Starting sender service");
 
     let connection = connect(&config)?;
@@ -193,7 +192,7 @@ async fn process_fanout_jobs(
 ) -> Result<bool, Box<dyn Error>> {
     let owner = match connection.try_identity() {
         Some(identity) => {
-            info!("Identity check succeeded");
+            trace!("Identity check succeeded");
             identity
         }
         None => {
@@ -266,6 +265,59 @@ fn self_owned_ingress_jobs<'a>(
         .collect()
 }
 
+enum SubscriptionJobOutcome {
+    DeliveryQueued,
+    AwaitingToken,
+}
+
+#[instrument(skip(connection, config, ingress, category), fields(subscription_id = %subscription.id, subscription_job = true))]
+fn process_subscription_job(
+    connection: &DbConnection,
+    config: &SenderConfig,
+    ingress: &MailIngress,
+    category: &MessageCategory,
+    subscription: Subscription,
+) -> Result<SubscriptionJobOutcome, Box<dyn Error>> {
+    let token_row = connection
+        .db
+        .active_unsubscribe_tokens()
+        .iter()
+        .find(|t| t.subscription_id == subscription.id);
+
+    let token_row = match token_row {
+        Some(row) => row,
+        None => {
+            info!("Requesting token for {}", subscription.subscriber_email);
+            connection
+                .reducers()
+                .ensure_subscription_unsubscribe_token(subscription.id)?;
+            return Ok(SubscriptionJobOutcome::AwaitingToken);
+        }
+    };
+
+    let (headers_raw, raw_message) =
+        compose_delivery(config, ingress, &subscription, category, &token_row)?;
+
+    connection.reducers().enqueue_mail_delivery(
+        ingress.id.clone(),
+        subscription.id,
+        subscription.subscriber_email.clone(),
+        Some(subscription.subscriber_account_id),
+        category.email_address.clone(),
+        category.name.clone(),
+        ingress.sender_email.clone(),
+        category.email_address.clone(),
+        ingress.sender_email.clone(),
+        ingress.subject.clone(),
+        ingress.body_raw.clone(),
+        headers_raw,
+        raw_message,
+        token_row.token.clone(),
+    )?;
+
+    Ok(SubscriptionJobOutcome::DeliveryQueued)
+}
+
 #[instrument(skip(connection, config), fields(ingress_id = %ingress.id))]
 fn process_ingress_job(
     connection: &DbConnection,
@@ -310,46 +362,14 @@ fn process_ingress_job(
     let mut waiting_for_tokens = false;
 
     for subscription in subscriptions {
-        Span::current().record("subscription_id", &subscription.id);
-        Span::current().record("subscription_job", true);
-        let token_row = connection
-            .db
-            .active_unsubscribe_tokens()
-            .iter()
-            .find(|t| t.subscription_id == subscription.id);
-
-        let token_row = match token_row {
-            Some(row) => row,
-            None => {
-                info!("Requesting token for {}", subscription.subscriber_email);
-                connection
-                    .reducers()
-                    .ensure_subscription_unsubscribe_token(subscription.id)?;
-                waiting_for_tokens = true;
-                continue;
+        match process_subscription_job(connection, config, &ingress, &category, subscription)? {
+            SubscriptionJobOutcome::DeliveryQueued => {
+                deliveries_created = deliveries_created.saturating_add(1);
             }
-        };
-
-        let (headers_raw, raw_message) =
-            compose_delivery(config, &ingress, &subscription, &category, &token_row)?;
-
-        connection.reducers().enqueue_mail_delivery(
-            ingress.id.clone(),
-            subscription.id,
-            subscription.subscriber_email.clone(),
-            Some(subscription.subscriber_account_id),
-            category.email_address.clone(),
-            category.name.clone(),
-            ingress.sender_email.clone(),
-            category.email_address.clone(),
-            ingress.sender_email.clone(),
-            ingress.subject.clone(),
-            ingress.body_raw.clone(),
-            headers_raw,
-            raw_message,
-            token_row.token.clone(),
-        )?;
-        deliveries_created = deliveries_created.saturating_add(1);
+            SubscriptionJobOutcome::AwaitingToken => {
+                waiting_for_tokens = true;
+            }
+        }
     }
 
     if waiting_for_tokens {
@@ -371,7 +391,7 @@ async fn process_delivery_jobs(
 ) -> Result<bool, Box<dyn Error>> {
     let owner = match connection.try_identity() {
         Some(identity) => {
-            info!("Succeeded Identity check");
+            trace!("Succeeded Identity check");
             identity
         }
         None => {
@@ -398,10 +418,11 @@ async fn process_delivery_jobs(
             for delivery in owned_after {
                 if let Err(error) = send_delivery(connection, transport, delivery.clone()) {
                     warn!("delivery {} failed: {}", delivery.id, error);
+                } else {
+                    processed.insert(delivery.id);
+                    trace!("Processed successfully");
+                    did_work = true;
                 }
-                processed.insert(delivery.id);
-                trace!("Processed successfully");
-                did_work = true;
             }
             continue;
         }
