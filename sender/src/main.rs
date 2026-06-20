@@ -11,8 +11,10 @@ use module_bindings::{
     fail_mail_ingress, mark_mail_delivery_sent, retry_mail_ingress, schedule_mail_delivery_retry,
     DbConnection, MailDelivery, MailIngress, MessageCategory, Subscription,
 };
-use spacetimedb_sdk::{DbContext, Table, Timestamp};
+use spacetimedb_sdk::{DbContext, Table, TableWithPrimaryKey as _, Timestamp};
+use std::sync::Arc;
 use std::{collections::HashSet, error::Error, time::Duration};
+use tokio::sync::Notify;
 
 use crate::module_bindings::{
     ActiveSubscriptionsTableAccess as _, ActiveUnsubscribeTokensTableAccess as _,
@@ -27,7 +29,7 @@ use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
-use tracing::{error, info, instrument, trace, warn, Span};
+use tracing::{error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -110,48 +112,90 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let connection = connect(&config)?;
     subscribe(&connection);
-    let _pump = connection.run_threaded();
+
+    // Drive SpacetimeDB natively as a pinned Tokio future
+    let database_pump = connection.run_async();
+    tokio::pin!(database_pump);
+
+    let notify = Arc::new(Notify::new());
+
+    // Wake the loop when ingress rows change
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_ingress()
+            .on_insert(move |_ctx, _row| {
+                notify.notify_one();
+            });
+    }
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_ingress()
+            .on_update(move |_ctx, _old_row, _new_row| {
+                notify.notify_one();
+            });
+    }
+
+    // Wake the loop when delivery rows change
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_deliveries()
+            .on_insert(move |_ctx, _row| {
+                notify.notify_one();
+            });
+    }
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_deliveries()
+            .on_update(move |_ctx, _old_row, _new_row| {
+                notify.notify_one();
+            });
+    }
 
     let transport = build_transport(&config)?;
     info!("sender connected as {:?}", connection.try_identity());
 
-    info!("Entering main processing loop. Press Ctrl+C to stop.");
+    info!("Entering purely reactive processing loop. Press Ctrl+C to stop.");
 
     let shutdown_signal = tokio::signal::ctrl_c();
     tokio::pin!(shutdown_signal);
 
+    // Bootstrap: trigger the doorbell once immediately so it checks for work upon startup
+    notify.notify_one();
+
     loop {
-        let mut did_work = false;
-
         tokio::select! {
+            // Monitor the database connection health
+            db_res = &mut database_pump => {
+                error!("SpacetimeDB async pump terminated unexpectedly: {:?}", db_res);
+                break;
+            }
+
+            // Monitor for system shutdown
             _ = &mut shutdown_signal => {
                 info!("Shutdown signal received");
                 break;
             }
-            fanout_res = process_fanout_jobs(&connection, &config) => {
-                trace!("Completed a fanout processing iteration");
-                did_work |= fanout_res?;
-            }
-        }
 
-        tokio::select! {
-            _ = &mut shutdown_signal => {
-                info!("Shutdown signal received");
-                break;
-            }
-            delivery_res = process_delivery_jobs(&connection, &transport) => {
-                trace!("Processed delivery jobs iteration");
-                did_work |= delivery_res?;
-            }
-        }
+            // 3. Wakes up immediately when notify_one() is called in callbacks
+            _ = notify.notified() => {
+                trace!("Database subscription updated. Processing jobs...");
 
-        if !did_work {
-            tokio::select! {
-                _ = &mut shutdown_signal => {
-                    info!("Shutdown signal received");
-                    break;
+                let fanout_res = process_fanout_jobs(&connection, &config).await?;
+                let delivery_res = process_delivery_jobs(&connection, &transport).await?;
+
+                // If work was successfully performed, there might be more immediate backlogs.
+                // Re-trigger the doorbell so we loop again immediately without sleeping.
+                if fanout_res || delivery_res {
+                    notify.notify_one();
                 }
-                _ = tokio::time::sleep(config.poll_interval) => {}
             }
         }
     }
@@ -185,7 +229,7 @@ fn subscribe(connection: &DbConnection) {
     ]);
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(ingress_id = tracing::field::Empty, ingress_job = tracing::field::Empty))]
 async fn process_fanout_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
@@ -221,8 +265,6 @@ async fn process_fanout_jobs(
             }
             for job in owned_after {
                 info!("Processing ingress job: {}", job.id);
-                Span::current().record("ingress_id", &job.id.as_str());
-                Span::current().record("ingress_job", true);
                 if let Err(error) = process_ingress_job(connection, config, job.clone()) {
                     let _ = connection
                         .reducers()
