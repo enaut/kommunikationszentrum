@@ -15,3 +15,10 @@ serde_json = "1.0"
 spacetimedb-sdk = { version = "2.4" }
 thiserror = "2"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-opentelemetry = "0.33"
+opentelemetry = { version = "0.32", features = ["trace", "logs"] }
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio", "trace", "logs"] }
+opentelemetry-otlp = { version = "0.32", features = ["grpc-tonic", "logs"] }
+opentelemetry-appender-tracing = "0.32"
+tokio = { version = "1", features = ["full"] }

@@ -9,38 +9,202 @@ use module_bindings::{
     claim_next_mail_delivery, claim_next_mail_ingress, complete_mail_ingress,
     enqueue_mail_delivery, ensure_subscription_unsubscribe_token, fail_mail_delivery,
     fail_mail_ingress, mark_mail_delivery_sent, retry_mail_ingress, schedule_mail_delivery_retry,
-    DbConnection, MailDelivery, MailIngress, Subscription,
+    DbConnection, MailDelivery, MailIngress, MessageCategory, Subscription,
 };
-use spacetimedb_sdk::{DbContext, Table, Timestamp};
-use std::{collections::HashSet, error::Error, thread, time::Duration};
+use spacetimedb_sdk::{DbContext, Table, TableWithPrimaryKey as _, Timestamp};
+use std::sync::Arc;
+use std::{collections::HashSet, error::Error, time::Duration};
+use tokio::sync::Notify;
 
 use crate::module_bindings::{
     ActiveSubscriptionsTableAccess as _, ActiveUnsubscribeTokensTableAccess as _,
     MessageCategoriesTableAccess as _, SenderMailDeliveriesTableAccess as _,
     SenderMailIngressTableAccess as _,
 };
+use opentelemetry::global;
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry::KeyValue;
+use opentelemetry_otlp::WithExportConfig as _;
+use opentelemetry_sdk::logs::SdkLoggerProvider;
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::Resource;
+use tracing::{error, info, instrument, trace, warn};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 const INGESTED_STATE: &str = "processing";
 const DELIVERY_STATE: &str = "sending";
 
-fn main() -> Result<(), Box<dyn Error>> {
+struct OTelProviders {
+    tracer_provider: SdkTracerProvider,
+    logger_provider: SdkLoggerProvider,
+}
+
+fn init_tracing(config: &SenderConfig) -> OTelProviders {
+    global::set_text_map_propagator(TraceContextPropagator::new());
+
+    let resource = Resource::builder()
+        .with_attributes(vec![
+            KeyValue::new("service.name", "sender"),
+            KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+        ])
+        .build();
+
+    // Tracing / span setup
+    let span_exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_tonic()
+        .with_endpoint(&config.otlp_endpoint)
+        .build()
+        .expect("Failed to build OTLP span exporter");
+
+    let tracer_provider = SdkTracerProvider::builder()
+        .with_batch_exporter(span_exporter)
+        .with_resource(resource.clone())
+        .build();
+
+    global::set_tracer_provider(tracer_provider.clone());
+
+    let tracer = tracer_provider.tracer("sender");
+    let telemetry_layer = tracing_opentelemetry::layer()
+        .with_tracer(tracer)
+        .with_location(true)
+        .with_tracked_inactivity(true);
+
+    // Log export setup: bridge tracing log events → OTLP logs → Alloy → Loki
+    let log_exporter = opentelemetry_otlp::LogExporter::builder()
+        .with_tonic()
+        .with_endpoint(&config.otlp_endpoint)
+        .build()
+        .expect("Failed to build OTLP log exporter");
+
+    let logger_provider = SdkLoggerProvider::builder()
+        .with_batch_exporter(log_exporter)
+        .with_resource(resource.clone())
+        .build();
+
+    let log_bridge =
+        opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(&logger_provider);
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive("sender=info".parse().unwrap())
+                .from_env_lossy(),
+        )
+        .with(telemetry_layer)
+        .with(log_bridge)
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    OTelProviders {
+        tracer_provider,
+        logger_provider,
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let config = SenderConfig::from_env();
+    let otel_providers = init_tracing(&config);
+
+    info!(event = "service_startup", "Starting sender service");
+
     let connection = connect(&config)?;
     subscribe(&connection);
-    let _pump = connection.run_threaded();
+
+    // Drive SpacetimeDB natively as a pinned Tokio future
+    let database_pump = connection.run_async();
+    tokio::pin!(database_pump);
+
+    let notify = Arc::new(Notify::new());
+
+    // Wake the loop when ingress rows change
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_ingress()
+            .on_insert(move |_ctx, _row| {
+                notify.notify_one();
+            });
+    }
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_ingress()
+            .on_update(move |_ctx, _old_row, _new_row| {
+                notify.notify_one();
+            });
+    }
+
+    // Wake the loop when delivery rows change
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_deliveries()
+            .on_insert(move |_ctx, _row| {
+                notify.notify_one();
+            });
+    }
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_deliveries()
+            .on_update(move |_ctx, _old_row, _new_row| {
+                notify.notify_one();
+            });
+    }
 
     let transport = build_transport(&config)?;
-    println!("sender connected as {:?}", connection.try_identity());
+    info!("sender connected as {:?}", connection.try_identity());
+
+    info!("Entering purely reactive processing loop. Press Ctrl+C to stop.");
+
+    let shutdown_signal = tokio::signal::ctrl_c();
+    tokio::pin!(shutdown_signal);
+
+    // Bootstrap: trigger the doorbell once immediately so it checks for work upon startup
+    notify.notify_one();
 
     loop {
-        let mut did_work = false;
-        did_work |= process_fanout_jobs(&connection, &config)?;
-        did_work |= process_delivery_jobs(&connection, &transport)?;
+        tokio::select! {
+            // Monitor the database connection health
+            db_res = &mut database_pump => {
+                error!("SpacetimeDB async pump terminated unexpectedly: {:?}", db_res);
+                break;
+            }
 
-        if !did_work {
-            thread::sleep(config.poll_interval);
+            // Monitor for system shutdown
+            _ = &mut shutdown_signal => {
+                info!("Shutdown signal received");
+                break;
+            }
+
+            // 3. Wakes up immediately when notify_one() is called in callbacks
+            _ = notify.notified() => {
+                trace!("Database subscription updated. Processing jobs...");
+
+                let fanout_res = process_fanout_jobs(&connection, &config).await?;
+                let delivery_res = process_delivery_jobs(&connection, &transport).await?;
+
+                // If work was successfully performed, there might be more immediate backlogs.
+                // Re-trigger the doorbell so we loop again immediately without sleeping.
+                if fanout_res || delivery_res {
+                    notify.notify_one();
+                }
+            }
         }
     }
+
+    info!("Shutting down tracing and logging...");
+    otel_providers.tracer_provider.shutdown()?;
+    otel_providers.logger_provider.shutdown()?;
+    info!("Sender service stopped.");
+    Ok(())
 }
 
 fn connect(config: &SenderConfig) -> Result<DbConnection, Box<dyn Error>> {
@@ -65,31 +229,42 @@ fn subscribe(connection: &DbConnection) {
     ]);
 }
 
-fn process_fanout_jobs(
+#[instrument(skip_all, fields(ingress_id = tracing::field::Empty, ingress_job = tracing::field::Empty))]
+async fn process_fanout_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
 ) -> Result<bool, Box<dyn Error>> {
     let owner = match connection.try_identity() {
-        Some(identity) => identity,
-        None => return Ok(false),
+        Some(identity) => {
+            trace!("Identity check succeeded");
+            identity
+        }
+        None => {
+            error!("Identity check failed");
+            return Ok(false);
+        }
     };
 
     let mut processed = HashSet::new();
     let mut did_work = false;
 
+    trace!("Checking for mail ingress jobs owned by this instance");
+
     loop {
         let owned_jobs = self_owned_ingress_jobs(connection, owner, &processed);
         if owned_jobs.is_empty() {
             if let Err(error) = connection.reducers().claim_next_mail_ingress() {
-                eprintln!("claim_next_mail_ingress failed: {:?}", error);
+                warn!("claim_next_mail_ingress failed: {:?}", error);
                 break;
             }
-            thread::sleep(Duration::from_millis(50));
+            tokio::time::sleep(Duration::from_millis(50)).await;
             let owned_after = self_owned_ingress_jobs(connection, owner, &processed);
             if owned_after.is_empty() {
+                trace!("No new mail ingress jobs after waiting");
                 break;
             }
             for job in owned_after {
+                info!("Processing ingress job: {}", job.id);
                 if let Err(error) = process_ingress_job(connection, config, job.clone()) {
                     let _ = connection
                         .reducers()
@@ -102,6 +277,7 @@ fn process_fanout_jobs(
         }
 
         for job in owned_jobs {
+            info!("Processing ingress job: {}", job.id);
             if let Err(error) = process_ingress_job(connection, config, job.clone()) {
                 let _ = connection
                     .reducers()
@@ -115,6 +291,7 @@ fn process_fanout_jobs(
     Ok(did_work)
 }
 
+#[instrument(skip(connection, processed))]
 fn self_owned_ingress_jobs<'a>(
     connection: &'a DbConnection,
     owner: spacetimedb_sdk::Identity,
@@ -130,6 +307,60 @@ fn self_owned_ingress_jobs<'a>(
         .collect()
 }
 
+enum SubscriptionJobOutcome {
+    DeliveryQueued,
+    AwaitingToken,
+}
+
+#[instrument(skip(connection, config, ingress, category), fields(subscription_id = %subscription.id, subscription_job = true))]
+fn process_subscription_job(
+    connection: &DbConnection,
+    config: &SenderConfig,
+    ingress: &MailIngress,
+    category: &MessageCategory,
+    subscription: Subscription,
+) -> Result<SubscriptionJobOutcome, Box<dyn Error>> {
+    let token_row = connection
+        .db
+        .active_unsubscribe_tokens()
+        .iter()
+        .find(|t| t.subscription_id == subscription.id);
+
+    let token_row = match token_row {
+        Some(row) => row,
+        None => {
+            info!("Requesting token for {}", subscription.subscriber_email);
+            connection
+                .reducers()
+                .ensure_subscription_unsubscribe_token(subscription.id)?;
+            return Ok(SubscriptionJobOutcome::AwaitingToken);
+        }
+    };
+
+    let (headers_raw, raw_message) =
+        compose_delivery(config, ingress, &subscription, category, &token_row)?;
+
+    connection.reducers().enqueue_mail_delivery(
+        ingress.id.clone(),
+        subscription.id,
+        subscription.subscriber_email.clone(),
+        Some(subscription.subscriber_account_id),
+        category.email_address.clone(),
+        category.name.clone(),
+        ingress.sender_email.clone(),
+        category.email_address.clone(),
+        ingress.sender_email.clone(),
+        ingress.subject.clone(),
+        ingress.body_raw.clone(),
+        headers_raw,
+        raw_message,
+        token_row.token.clone(),
+    )?;
+
+    Ok(SubscriptionJobOutcome::DeliveryQueued)
+}
+
+#[instrument(skip(connection, config), fields(ingress_id = %ingress.id))]
 fn process_ingress_job(
     connection: &DbConnection,
     config: &SenderConfig,
@@ -173,43 +404,14 @@ fn process_ingress_job(
     let mut waiting_for_tokens = false;
 
     for subscription in subscriptions {
-        let token_row = connection
-            .db
-            .active_unsubscribe_tokens()
-            .iter()
-            .find(|t| t.subscription_id == subscription.id);
-
-        let token_row = match token_row {
-            Some(row) => row,
-            None => {
-                connection
-                    .reducers()
-                    .ensure_subscription_unsubscribe_token(subscription.id)?;
-                waiting_for_tokens = true;
-                continue;
+        match process_subscription_job(connection, config, &ingress, &category, subscription)? {
+            SubscriptionJobOutcome::DeliveryQueued => {
+                deliveries_created = deliveries_created.saturating_add(1);
             }
-        };
-
-        let (headers_raw, raw_message) =
-            compose_delivery(config, &ingress, &subscription, &category, &token_row)?;
-
-        connection.reducers().enqueue_mail_delivery(
-            ingress.id.clone(),
-            subscription.id,
-            subscription.subscriber_email.clone(),
-            Some(subscription.subscriber_account_id),
-            category.email_address.clone(),
-            category.name.clone(),
-            ingress.sender_email.clone(),
-            category.email_address.clone(),
-            ingress.sender_email.clone(),
-            ingress.subject.clone(),
-            ingress.body_raw.clone(),
-            headers_raw,
-            raw_message,
-            token_row.token.clone(),
-        )?;
-        deliveries_created = deliveries_created.saturating_add(1);
+            SubscriptionJobOutcome::AwaitingToken => {
+                waiting_for_tokens = true;
+            }
+        }
     }
 
     if waiting_for_tokens {
@@ -224,15 +426,21 @@ fn process_ingress_job(
     Ok(())
 }
 
-fn process_delivery_jobs(
+#[instrument(skip_all)]
+async fn process_delivery_jobs(
     connection: &DbConnection,
     transport: &SmtpTransport,
 ) -> Result<bool, Box<dyn Error>> {
     let owner = match connection.try_identity() {
-        Some(identity) => identity,
-        None => return Ok(false),
+        Some(identity) => {
+            trace!("Succeeded Identity check");
+            identity
+        }
+        None => {
+            error!("No identity set!");
+            return Ok(false);
+        }
     };
-
     let mut processed = HashSet::new();
     let mut did_work = false;
 
@@ -240,27 +448,30 @@ fn process_delivery_jobs(
         let owned_jobs = self_owned_delivery_jobs(connection, owner, &processed);
         if owned_jobs.is_empty() {
             if let Err(error) = connection.reducers().claim_next_mail_delivery() {
-                eprintln!("claim_next_mail_delivery failed: {:?}", error);
+                warn!("claim_next_mail_delivery failed: {:?}", error);
                 break;
             }
-            thread::sleep(Duration::from_millis(50));
+            tokio::time::sleep(Duration::from_millis(50)).await;
             let owned_after = self_owned_delivery_jobs(connection, owner, &processed);
             if owned_after.is_empty() {
+                trace!("No new mail delivery jobs after waiting");
                 break;
             }
             for delivery in owned_after {
                 if let Err(error) = send_delivery(connection, transport, delivery.clone()) {
-                    eprintln!("delivery {} failed: {}", delivery.id, error);
+                    warn!("delivery {} failed: {}", delivery.id, error);
+                } else {
+                    processed.insert(delivery.id);
+                    trace!("Processed successfully");
+                    did_work = true;
                 }
-                processed.insert(delivery.id);
-                did_work = true;
             }
             continue;
         }
 
         for delivery in owned_jobs {
             if let Err(error) = send_delivery(connection, transport, delivery.clone()) {
-                eprintln!("delivery {} failed: {}", delivery.id, error);
+                warn!("delivery {} failed: {}", delivery.id, error);
             }
             processed.insert(delivery.id);
             did_work = true;
@@ -270,6 +481,7 @@ fn process_delivery_jobs(
     Ok(did_work)
 }
 
+#[instrument(skip_all)]
 fn self_owned_delivery_jobs<'a>(
     connection: &'a DbConnection,
     owner: spacetimedb_sdk::Identity,
@@ -285,6 +497,7 @@ fn self_owned_delivery_jobs<'a>(
         .collect()
 }
 
+#[instrument(skip(connection, transport), fields(delivery_id = %delivery.id))]
 fn send_delivery(
     connection: &DbConnection,
     transport: &SmtpTransport,
@@ -316,6 +529,7 @@ fn send_delivery(
     match transport.send_raw(&envelope, delivery.raw_message.as_bytes()) {
         Ok(response) => {
             let code = response.code().to_string().parse::<u16>().ok();
+            info!("Successfully sent delivery {}: {:?}", delivery.id, response);
             connection.reducers().mark_mail_delivery_sent(
                 delivery.id.clone(),
                 code,
@@ -327,6 +541,7 @@ fn send_delivery(
                 .status()
                 .map(|status| status.to_string().parse::<u16>().unwrap_or(0));
             let response = error.to_string();
+            warn!("Failed to send delivery {}: {}", delivery.id, response);
             if is_permanent_error(&error) {
                 connection.reducers().fail_mail_delivery(
                     delivery.id.clone(),

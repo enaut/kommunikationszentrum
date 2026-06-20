@@ -13,6 +13,7 @@ pub struct SenderConfig {
     pub poll_interval: Duration,
     pub message_id_domain: String,
     pub unsubscribe_base_url: String,
+    pub otlp_endpoint: String,
 }
 
 impl SenderConfig {
@@ -21,6 +22,8 @@ impl SenderConfig {
             env::var("SPACETIMEDB_URI").unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
         let spacetimedb_database_name =
             env::var("SPACETIMEDB_DATABASE_NAME").unwrap_or_else(|_| "kommunikation".to_string());
+        let otlp_endpoint =
+            env::var("OTLP_ENDPOINT").unwrap_or_else(|_| "http://localhost:4317".to_string());
         let smtp_host = env::var("SMTP_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
         let smtp_port = env::var("SMTP_PORT")
             .ok()
@@ -36,7 +39,7 @@ impl SenderConfig {
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
             .map(Duration::from_millis)
-            .unwrap_or_else(|| Duration::from_millis(500));
+            .unwrap_or_else(|| Duration::from_millis(5000));
         let message_id_domain = env::var("MAIL_MESSAGE_ID_DOMAIN").unwrap_or_else(|_| {
             spacetimedb_uri
                 .split_once("//")
@@ -63,6 +66,7 @@ impl SenderConfig {
             poll_interval,
             message_id_domain,
             unsubscribe_base_url,
+            otlp_endpoint,
         }
     }
 }
