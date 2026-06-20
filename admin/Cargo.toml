@@ -10,7 +10,7 @@ edition = "2021"
 dioxus = { version = "0.7", features = [] }
 dioxus-bootstrap-css = { git = "https://github.com/enaut/dioxus-bootstrap", branch = "development" }
 futures-util = "0.3"
-spacetimedb-sdk = { version = "2.4" }
+spacetimedb-sdk = { version = "2.6" }
 stalwart_mta_hook_types = { version = "0.1" }
 hex = "0.4"
 blake3 = "1.3"
