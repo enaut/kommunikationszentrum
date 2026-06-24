@@ -320,13 +320,13 @@ pub(crate) fn handle_data_stage(
         );
         "accept"
     } else {
-        log::warn!("No valid category deliveries found, quarantining message");
+        log::warn!("No valid category deliveries found, quarantaining message");
         "quarantine"
     };
 
     ctx.db.mta_message_log().insert(MtaMessageLog {
         id: 0,
-        from_address: "[REDACTED]".to_string(),
+        from_address: from_address.to_string(),
         to_addresses: serde_json::to_string(&to_addresses).unwrap_or_default(),
         subject: subject.chars().take(100).collect(),
         message_size,

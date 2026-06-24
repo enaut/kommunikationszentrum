@@ -24,17 +24,17 @@ impl SenderConfig {
             env::var("SPACETIMEDB_DATABASE_NAME").unwrap_or_else(|_| "kommunikation".to_string());
         let otlp_endpoint =
             env::var("OTLP_ENDPOINT").unwrap_or_else(|_| "http://localhost:4317".to_string());
-        let smtp_host = env::var("SMTP_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let smtp_host = env::var("SMTP_HOST").unwrap_or_else(|_| "mail-eu.smtp2go.com".to_string());
         let smtp_port = env::var("SMTP_PORT")
             .ok()
             .and_then(|value| value.parse::<u16>().ok())
-            .unwrap_or(25);
+            .unwrap_or(8465);
         let smtp_username = env::var("SMTP_USERNAME").ok();
         let smtp_password = env::var("SMTP_PASSWORD").ok();
         let smtp_use_tls = env::var("SMTP_USE_TLS")
             .ok()
             .and_then(|value| value.parse::<bool>().ok())
-            .unwrap_or(false);
+            .unwrap_or(true);
         let poll_interval = env::var("SENDER_POLL_INTERVAL_MS")
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
@@ -43,8 +43,8 @@ impl SenderConfig {
         let message_id_domain = env::var("MAIL_MESSAGE_ID_DOMAIN").unwrap_or_else(|_| {
             spacetimedb_uri
                 .split_once("//")
-                .map(|(_, rest)| rest.split('/').next().unwrap_or("localhost").to_string())
-                .unwrap_or_else(|| "localhost".to_string())
+                .map(|(_, rest)| rest.split('/').next().unwrap_or("solawis.de").to_string())
+                .unwrap_or_else(|| "solawis.de".to_string())
         });
         let unsubscribe_base_url = env::var("MAIL_UNSUBSCRIBE_BASE_URL").unwrap_or_else(|_| {
             format!(
