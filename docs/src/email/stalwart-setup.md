@@ -13,62 +13,51 @@ Stalwart MTA supports webhook-based processing hooks. The integration enables th
 
 ## Architecture
 
-```dot process
-digraph stalwart_integration {
-    rankdir=LR;
-    node [shape=box, fontname="Arial", fontsize=10];
-    edge [fontname="Arial", fontsize=8];
-    
-    // External components
-    internet [label="Internet\n(Email Senders)", shape=ellipse, fillcolor=lightcyan, style=filled];
-    
-    // Stalwart MTA stages
-    subgraph cluster_stalwart {
-        label="Stalwart MTA Processing";
-        style=filled;
-        fillcolor=lightblue;
-        
-        smtp_server [label="SMTP Server"];
-        connect_stage [label="CONNECT Stage"];
-        ehlo_stage [label="EHLO Stage"];
-        mail_stage [label="MAIL FROM Stage"];
-        rcpt_stage [label="RCPT TO Stage"];
-        data_stage [label="DATA Stage"];
-        auth_stage [label="AUTH Stage"];
-        
-        smtp_server -> connect_stage -> ehlo_stage -> mail_stage -> rcpt_stage -> data_stage -> auth_stage;
-    }
-    
-    // Kommunikationszentrum components
-    subgraph cluster_komm {
-        label="Kommunikationszentrum";
-        style=filled;
-        fillcolor=lightgreen;
-        
-        spacetimedb [label="SpacetimeDB\nPort 3000\nModule HTTP Routes", shape=box];
-        
-        spacetimedb;
-    }
-    
-    // Email delivery
-    local_delivery [label="Local Delivery\n(Accepted Emails)", shape=ellipse, fillcolor=lightgreen, style=filled];
-    rejection [label="Rejection\n(Blocked Emails)", shape=ellipse, fillcolor=lightcoral, style=filled];
-    
-    // Flow connections
-    internet -> smtp_server;
-    
-    // Hook connections (each stage posts to the module route)
-    connect_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
-    ehlo_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
-    mail_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
-    rcpt_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
-    data_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
-    auth_stage -> spacetimedb [label="HTTP Hook", style=dashed, color=red];
-    
-    // Final decisions
-    auth_stage -> local_delivery [label="ACCEPT"];
-    auth_stage -> rejection [label="REJECT"];
+```d2
+direction: right
+
+internet: "Internet\n(Email Senders)" {
+  shape: oval
+  style.fill: lightcyan
 }
+
+stalwart: "Stalwart MTA Processing" {
+  style.fill: "#e3f2fd"
+  smtp_server: "SMTP Server"
+  connect_stage: "CONNECT Stage"
+  ehlo_stage: "EHLO Stage"
+  mail_stage: "MAIL FROM Stage"
+  rcpt_stage: "RCPT TO Stage"
+  data_stage: "DATA Stage"
+  auth_stage: "AUTH Stage"
+
+  smtp_server -> connect_stage -> ehlo_stage -> mail_stage -> rcpt_stage -> data_stage -> auth_stage
+}
+
+spacetimedb: "SpacetimeDB\nPort 3000\nModule HTTP Routes" {
+  style.fill: lightgreen
+}
+
+local_delivery: "Local Delivery\n(Accepted Emails)" {
+  shape: oval
+  style.fill: lightgreen
+}
+rejection: "Rejection\n(Blocked Emails)" {
+  shape: oval
+  style.fill: lightcoral
+}
+
+internet -> smtp_server
+
+connect_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+ehlo_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+mail_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+rcpt_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+data_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+auth_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+
+auth_stage -> local_delivery: "ACCEPT"
+auth_stage -> rejection: "REJECT"
 ```
 
 ## Prerequisites

@@ -1,0 +1,6 @@
+img[src$=".svg"] {
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    display: inline-block !important;
+}

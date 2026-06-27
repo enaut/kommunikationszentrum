@@ -29,6 +29,18 @@
     - [User Synchronization](./core/spacetime-http-handlers/user-sync.md)
     - [API Endpoints](./core/spacetime-http-handlers/api-endpoints.md)
 
+  - [Server Module](./core/server/overview.md)
+    - [Tables Reference](./core/server/tables-reference.md)
+    - [Reducers & Procedures](./core/server/reducers-reference.md)
+    - [HTTP Handlers](./core/server/http-handlers.md)
+    - [Event & Trigger Flow](./core/server/event-flow.md)
+    - [Usage Guide](./core/server/usage.md)
+
+  - [Sender Daemon](./core/sender/overview.md)
+    - [Configuration](./core/sender/configuration.md)
+    - [Control Flow](./core/sender/control-flow.md)
+    - [Usage Guide](./core/sender/usage.md)
+
   - [Admin Interface](./core/admin/overview.md)
     - [User Guide](./core/admin/user-guide.md)
     - [Authentication](./core/admin/authentication.md)
@@ -49,10 +61,12 @@
   - [User Permissions](./auth/permissions.md)
 
 - [Development](./development/overview.md)
-  - [Development Workflow]()
-  - [Code Structure]()
-  - [Testing]()
-  - [Debugging]()
+  - [Development Workflow](./development/workflow.md)
+  - [Code Structure](./development/code-structure.md)
+  - [Testing](./development/testing.md)
+  - [Debugging](./development/debugging.md)
+  - [Server Module](./development/server.md)
+  - [Sender Daemon](./development/sender.md)
   - [Admin Frontend Restructure](./development/admin-frontend-restructure.md)
 
 - [Operations](./operations/overview.md)

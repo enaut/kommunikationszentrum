@@ -4,59 +4,70 @@ This appendix contains all database diagrams for the Kommunikationszentrum Space
 
 ## Complete Database Schema
 
-```dot process
-digraph kommunikationszentrum_db {
-    // Graph settings
-    rankdir=TB;
-    node [shape=record, fontname="Arial", fontsize=10];
-    edge [fontname="Arial", fontsize=8];
-    
-    // Updated table definitions based on actual schema
-    account [label="{Account|id: u64 (PK)\lidentity: Option\<Identity\>\lname: String\lemail: String\lis_active: bool\llast_synced: i64\l}"];
-    
-    mta_connection_log [label="{MtaConnectionLog|id: u64 (PK, auto_inc)\lclient_ip: String\lstage: String\laction: String\ltimestamp: i64\ldetails: String\l}"];
-    
-    mta_message_log [label="{MtaMessageLog|id: u64 (PK, auto_inc)\lfrom_address: String\lto_addresses: String (JSON)\lsubject: String\lmessage_size: u64\lstage: String\laction: String\ltimestamp: i64\lqueue_id: Option\<String\>\l}"];
-    
-    blocked_ips [label="{BlockedIp|ip: String (PK)\lreason: String\lblocked_at: i64\lactive: bool\l}"];
-    
-    message_categories [label="{MessageCategory|id: u64 (PK, auto_inc)\lname: String\lemail_address: String\ldescription: String\lactive: bool\l}"];
-    
-    subscriptions [label="{Subscription|id: u64 (PK, auto_inc)\lsubscriber_account_id: u64\lsubscriber_email: String\lcategory_id: u64 (FK)\lsubscribed_at: i64\lactive: bool\l}"];
-    
-    // Relationships
-    subscriptions -> message_categories [label="category_id → id", color="blue"];
-    subscriptions -> account [label="subscriber_account_id → id", color="blue", style=dashed];
-    
-    // Data flow relationships (dotted lines)
-    mta_connection_log -> blocked_ips [style=dotted, label="checks IP blocking", color="red"];
-    mta_message_log -> message_categories [style=dotted, label="validates recipients", color="green"];
-    mta_message_log -> subscriptions [style=dotted, label="checks subscriptions", color="green"];
-    
-    // Grouping by functionality
-    subgraph cluster_mta {
-        label="MTA Processing";
-        style=filled;
-        fillcolor=lightblue;
-        mta_connection_log;
-        mta_message_log;
-        blocked_ips;
-    }
-    
-    subgraph cluster_categories {
-        label="Category Management";
-        style=filled;
-        fillcolor=lightgreen;
-        message_categories;
-        subscriptions;
-    }
-    
-    subgraph cluster_users {
-        label="User Management";
-        style=filled;
-        fillcolor=lightyellow;
-        account;
-    }
+```d2
+direction: down
+
+account: {
+  label: "Account\nid: u64 (PK)\nidentity: Option<Identity>\nname: String\nemail: String\nis_active: bool\nlast_synced: i64"
+}
+
+mta_connection_log: {
+  label: "MtaConnectionLog\nid: u64 (PK, auto_inc)\nclient_ip: String\nstage: String\naction: String\ntimestamp: i64\ndetails: String"
+}
+
+mta_message_log: {
+  label: "MtaMessageLog\nid: u64 (PK, auto_inc)\nfrom_address: String\nto_addresses: String (JSON)\nsubject: String\nmessage_size: u64\nstage: String\naction: String\ntimestamp: i64\nqueue_id: Option<String>"
+}
+
+blocked_ips: {
+  label: "BlockedIp\nip: String (PK)\nreason: String\nblocked_at: i64\nactive: bool"
+}
+
+message_categories: {
+  label: "MessageCategory\nid: u64 (PK, auto_inc)\nname: String\nemail_address: String\ndescription: String\nactive: bool"
+}
+
+subscriptions: {
+  label: "Subscription\nid: u64 (PK, auto_inc)\nsubscriber_account_id: u64\nsubscriber_email: String\ncategory_id: u64 (FK)\nsubscribed_at: i64\nactive: bool"
+}
+
+subscriptions -> message_categories: "category_id → id" {
+  style.stroke: blue
+}
+subscriptions -> account: "subscriber_account_id → id" {
+  style.stroke: blue
+  style.stroke-dash: 5
+}
+
+mta_connection_log -> blocked_ips: "checks IP blocking" {
+  style.stroke: red
+  style.stroke-dash: 2
+}
+mta_message_log -> message_categories: "validates recipients" {
+  style.stroke: green
+  style.stroke-dash: 2
+}
+mta_message_log -> subscriptions: "checks subscriptions" {
+  style.stroke: green
+  style.stroke-dash: 2
+}
+
+mta_processing: "MTA Processing" {
+  style.fill: "#e3f2fd"
+  mta_connection_log
+  mta_message_log
+  blocked_ips
+}
+
+category_mgmt: "Category Management" {
+  style.fill: "#e8f5e9"
+  message_categories
+  subscriptions
+}
+
+user_mgmt: "User Management" {
+  style.fill: "#fffde7"
+  account
 }
 ```
 
@@ -76,145 +87,130 @@ The complete database schema diagram shows:
 
 ## Simplified Entity-Relationship Diagram
 
-```dot process
-digraph simple_er_diagram {
-    // Graph settings
-    rankdir=TB;
-    node [shape=box, fontname="Arial", fontsize=12, style=filled];
-    edge [fontname="Arial", fontsize=10];
-    
-    // Entity colors
-    account [fillcolor=lightblue, label="Account\n(User Management)"];
-    
-    mta_connection_log [fillcolor=lightcoral, label="MtaConnectionLog\n(MTA Processing)"];
-    mta_message_log [fillcolor=lightcoral, label="MtaMessageLog\n(MTA Processing)"];
-    blocked_ips [fillcolor=lightcoral, label="BlockedIp\n(MTA Security)"];
-    
-    message_categories [fillcolor=lightgreen, label="MessageCategory\n(Category System)"];
-    subscriptions [fillcolor=lightgreen, label="Subscription\n(Category System)"];
-    
-    // Primary relationships
-    subscriptions -> message_categories [label="belongs to", style=bold, color=blue];
-    subscriptions -> account [label="subscriber", style=bold, color=blue];
-    
-    // Functional relationships (dotted)
-    mta_connection_log -> blocked_ips [label="checks", style=dashed, color=red];
-    mta_message_log -> message_categories [label="validates", style=dashed, color=green];
-    mta_message_log -> subscriptions [label="verifies", style=dashed, color=green];
-    
-    // Grouping
-    {rank=same; account;}
-    {rank=same; mta_connection_log; mta_message_log; blocked_ips;}
-    {rank=same; message_categories; subscriptions;}
+```d2
+direction: down
+
+account: "Account\n(User Management)" {
+  style.fill: lightblue
+}
+mta_connection_log: "MtaConnectionLog\n(MTA Processing)" {
+  style.fill: lightcoral
+}
+mta_message_log: "MtaMessageLog\n(MTA Processing)" {
+  style.fill: lightcoral
+}
+blocked_ips: "BlockedIp\n(MTA Security)" {
+  style.fill: lightcoral
+}
+message_categories: "MessageCategory\n(Category System)" {
+  style.fill: lightgreen
+}
+subscriptions: "Subscription\n(Category System)" {
+  style.fill: lightgreen
+}
+
+subscriptions -> message_categories: "belongs to" {
+  style.stroke: blue
+}
+subscriptions -> account: "subscriber" {
+  style.stroke: blue
+}
+
+mta_connection_log -> blocked_ips: "checks" {
+  style.stroke: red
+  style.stroke-dash: 5
+}
+mta_message_log -> message_categories: "validates" {
+  style.stroke: green
+  style.stroke-dash: 5
+}
+mta_message_log -> subscriptions: "verifies" {
+  style.stroke: green
+  style.stroke-dash: 5
 }
 ```
 
-The simplified ER diagram focuses on the core relationships:
-
-- **Clear entity boxes** with primary functional areas
-- **Relationship lines** showing connections
-- **Reduced complexity** for quick understanding
-- **Color coding** by functional area
-
-### Key Relationships
-
-- `subscriptions.category_id` → `message_categories.id` (Foreign Key)
-- `subscriptions.subscriber_account_id` → `account.id` (Logical relationship)
-- MTA log tables are independent audit tables
-
 ## MTA Processing Flow
 
-```dot process
-digraph mta_processing_flow {
-    // Graph settings
-    rankdir=LR;
-    node [shape=box, fontname="Arial", fontsize=10];
-    edge [fontname="Arial", fontsize=8];
-    
-    // MTA Hook Stages
-    subgraph cluster_stages {
-        label="MTA Hook Stages";
-        style=filled;
-        fillcolor=lightcyan;
-        
-        connect [label="CONNECT\nStage"];
-        ehlo [label="EHLO\nStage"];
-        mail [label="MAIL FROM\nStage"];
-        rcpt [label="RCPT TO\nStage"];
-        data [label="DATA\nStage"];
-        auth [label="AUTH\nStage"];
-        
-        connect -> ehlo -> mail -> rcpt -> data -> auth;
-    }
-    
-    // Database Tables
-    subgraph cluster_tables {
-        label="Database Tables";
-        style=filled;
-        fillcolor=lightblue;
-        
-        blocked_ips_tbl [label="blocked_ips\n• ip (PK)\n• reason\n• blocked_at\n• active", shape=record];
-        mta_conn_log_tbl [label="mta_connection_log\n• id (PK)\n• client_ip\n• stage\n• action\n• timestamp\n• details", shape=record];
-        mta_msg_log_tbl [label="mta_message_log\n• id (PK)\n• from_address\n• to_addresses\n• subject\n• message_size\n• stage\n• action\n• timestamp\n• queue_id", shape=record];
-        categories_tbl [label="message_categories\n• id (PK)\n• name\n• email_address\n• description\n• active", shape=record];
-        subscriptions_tbl [label="subscriptions\n• id (PK)\n• subscriber_email\n• category_id (FK)\n• subscribed_at\n• active", shape=record];
-    }
-    
-    // Processing Logic
-    subgraph cluster_logic {
-        label="Processing Logic";
-        style=filled;
-        fillcolor=lightyellow;
-        
-        ip_check [label="IP Blocking\nCheck"];
-        email_validation [label="Email Format\nValidation"];
-        category_check [label="Category\nValidation"];
-        subscription_check [label="Subscription\nCheck"];
-        final_decision [label="Final\nDecision", shape=diamond];
-    }
-    
-    // Flow connections
-    connect -> ip_check;
-    ip_check -> blocked_ips_tbl [label="lookup", color="red"];
-    ip_check -> mta_conn_log_tbl [label="log result", color="blue"];
-    
-    ehlo -> email_validation;
-    email_validation -> mta_conn_log_tbl [label="log result", color="blue"];
-    
-    mail -> email_validation;
-    
-    rcpt -> category_check;
-    category_check -> categories_tbl [label="lookup", color="green"];
-    category_check -> mta_conn_log_tbl [label="log result", color="blue"];
-    
-    data -> subscription_check;
-    subscription_check -> subscriptions_tbl [label="lookup", color="green"];
-    subscription_check -> categories_tbl [label="lookup", color="green"];
-    subscription_check -> final_decision;
-    final_decision -> mta_msg_log_tbl [label="log message", color="blue"];
-    
-    auth -> mta_conn_log_tbl [label="log auth", color="blue"];
-    
-    // Foreign key relationship
-    subscriptions_tbl -> categories_tbl [label="category_id → id", color="purple", style=bold];
-    
-    // Actions
-    subgraph cluster_actions {
-        label="Possible Actions";
-        style=filled;
-        fillcolor=lightpink;
-        
-        accept [label="ACCEPT", shape=ellipse, color="green"];
-        reject [label="REJECT", shape=ellipse, color="red"];
-        quarantine [label="QUARANTINE", shape=ellipse, color="orange"];
-    }
-    
-    final_decision -> accept [label="subscribed", color="green"];
-    final_decision -> quarantine [label="not subscribed", color="orange"];
-    ip_check -> reject [label="blocked IP", color="red"];
-    email_validation -> reject [label="invalid format", color="red"];
-    category_check -> reject [label="invalid category", color="red"];
+```d2
+direction: right
+
+stages: "MTA Hook Stages" {
+  style.fill: "#e0f7fa"
+  connect: "CONNECT\nStage"
+  ehlo: "EHLO\nStage"
+  mail: "MAIL FROM\nStage"
+  rcpt: "RCPT TO\nStage"
+  data: "DATA\nStage"
+  auth: "AUTH\nStage"
+
+  connect -> ehlo -> mail -> rcpt -> data -> auth
 }
+
+tables: "Database Tables" {
+  style.fill: "#e3f2fd"
+  blocked_ips_tbl: "blocked_ips\n• ip (PK)\n• reason\n• blocked_at\n• active"
+  mta_conn_log_tbl: "mta_connection_log\n• id (PK)\n• client_ip\n• stage\n• action\n• timestamp"
+  mta_msg_log_tbl: "mta_message_log\n• id (PK)\n• from_address\n• to_addresses\n• subject\n• message_size"
+  categories_tbl: "message_categories\n• id (PK)\n• name\n• email_address\n• active"
+  subscriptions_tbl: "subscriptions\n• id (PK)\n• subscriber_email\n• category_id (FK)\n• active"
+}
+
+logic: "Processing Logic" {
+  style.fill: "#fffde7"
+  ip_check: "IP Blocking\nCheck"
+  email_validation: "Email Format\nValidation"
+  category_check: "Category\nValidation"
+  subscription_check: "Subscription\nCheck"
+  final_decision: "Final\nDecision" {
+    shape: diamond
+  }
+}
+
+actions: "Possible Actions" {
+  style.fill: "#fce4ec"
+  accept: "ACCEPT" {
+    style.stroke: green
+  }
+  reject: "REJECT" {
+    style.stroke: red
+  }
+  quarantine: "QUARANTINE" {
+    style.stroke: orange
+  }
+}
+
+connect -> ip_check
+ip_check -> blocked_ips_tbl: "lookup" { style.stroke: red }
+ip_check -> mta_conn_log_tbl: "log result" { style.stroke: blue }
+
+ehlo -> email_validation
+email_validation -> mta_conn_log_tbl: "log result" { style.stroke: blue }
+
+mail -> email_validation
+
+rcpt -> category_check
+category_check -> categories_tbl: "lookup" { style.stroke: green }
+category_check -> mta_conn_log_tbl: "log result" { style.stroke: blue }
+
+data -> subscription_check
+subscription_check -> subscriptions_tbl: "lookup" { style.stroke: green }
+subscription_check -> categories_tbl: "lookup" { style.stroke: green }
+subscription_check -> final_decision
+
+final_decision -> mta_msg_log_tbl: "log message" { style.stroke: blue }
+
+auth -> mta_conn_log_tbl: "log auth" { style.stroke: blue }
+
+subscriptions_tbl -> categories_tbl: "category_id → id" {
+  style.stroke: purple
+}
+
+final_decision -> accept: "subscribed" { style.stroke: green }
+final_decision -> quarantine: "not subscribed" { style.stroke: orange }
+ip_check -> reject: "blocked IP" { style.stroke: red }
+email_validation -> reject: "invalid format" { style.stroke: red }
+category_check -> reject: "invalid category" { style.stroke: red }
 ```
 
 The MTA processing flow diagram illustrates:
@@ -256,18 +252,18 @@ Each stage can result in:
 - **Logging**: Write to `mta_connection_log` and `mta_message_log`
 - **Privacy**: IP addresses redacted in logs as "[REDACTED]"
 
-## Using mdbook-graphviz
+## Using mdbook-d2
 
-All diagrams in this documentation are rendered using mdbook-graphviz, which processes DOT code blocks directly. This means:
+All diagrams in this documentation are rendered using mdbook-d2, which compiles D2 syntax directly during mdBook building. This means:
 
 ### Advantages
 - **No image files needed**: Diagrams are generated at build time
-- **Always up-to-date**: Diagrams can't become stale
-- **Scalable**: SVG output scales perfectly
-- **Version controlled**: DOT source is in git with the documentation
+- **Clean and readable syntax**: Native layout and nesting support
+- **Vector output**: SVGs that scale perfectly and support dark mode
+- **Plain-text diagram definitions**: Fully diff-friendly and version-controlled with documentation
 
 ### Updating Diagrams
-To update any diagram, simply edit the DOT code in the markdown file and rebuild the documentation:
+To update a diagram, simply edit the D2 code in the markdown file and rebuild:
 
 ```bash
 cd docs

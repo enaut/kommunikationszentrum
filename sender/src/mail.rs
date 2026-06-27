@@ -27,7 +27,10 @@ pub fn build_transport(config: &SenderConfig) -> Result<SmtpTransport, Box<dyn E
 }
 
 pub fn is_transient_error(error: &SmtpError) -> bool {
-    error.is_transient() || error.is_timeout() || error.is_response()
+    // is_response() is intentionally excluded: it matches any non-success SMTP response,
+    // including 5xx codes that are already caught by is_permanent_error. Including it here
+    // would risk scheduling retries for permanent failures.
+    error.is_transient() || error.is_timeout()
 }
 
 pub fn is_permanent_error(error: &SmtpError) -> bool {

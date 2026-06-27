@@ -24,25 +24,20 @@ The authentication architecture integrates three core components:
 
 ## Authentication Flow
 
-```dot process
-digraph AuthenticationFlow {
-    rankdir=LR;
-    node [shape=box, style="rounded, filled", color="lightblue", fontname="Arial", fontsize=10];
-    edge [fontname="Arial", fontsize=9];
+```d2
+direction: right
+User: "User" { style.fill: lightyellow }
+AdminUI: "Admin Web Interface" { style.fill: lightgreen }
+Django: "Django OAuth2 Provider" { style.fill: lightpink }
+SpacetimeDB: "SpacetimeDB Server" { style.fill: lightcyan }
 
-    User [label="User", fillcolor="lightyellow"];
-    AdminUI [label="Admin Web Interface", fillcolor="lightgreen"];
-    Django [label="Django OAuth2 Provider", fillcolor="lightpink"];
-    SpacetimeDB [label="SpacetimeDB Server", fillcolor="lightcyan"];
-
-    User -> AdminUI [label="Initiate Login", color="blue"];
-    AdminUI -> Django [label="OAuth2 Authorization Request", color="blue"];
-    Django -> User [label="User Authenticates", color="blue"];
-    Django -> AdminUI [label="Return Authorization Code", color="blue"];
-    AdminUI -> Django [label="Token Exchange", color="blue"];
-    Django -> AdminUI [label="Access Token & JWT ID Token", color="blue"];
-    AdminUI -> SpacetimeDB [label="Send JWT ID Token", color="blue"];
-    SpacetimeDB -> Django [label="Validate JWT", color="blue"];
-    SpacetimeDB -> AdminUI [label="Authenticated Connection", color="blue"];
-}
+User -> AdminUI: "Initiate Login" { style.stroke: blue }
+AdminUI -> Django: "OAuth2 Authorization Request" { style.stroke: blue }
+Django -> User: "User Authenticates" { style.stroke: blue }
+Django -> AdminUI: "Return Authorization Code" { style.stroke: blue }
+AdminUI -> Django: "Token Exchange" { style.stroke: blue }
+Django -> AdminUI: "Access Token & JWT ID Token" { style.stroke: blue }
+AdminUI -> SpacetimeDB: "Send JWT ID Token" { style.stroke: blue }
+SpacetimeDB -> Django: "Validate JWT" { style.stroke: blue }
+SpacetimeDB -> AdminUI: "Authenticated Connection" { style.stroke: blue }
 ```

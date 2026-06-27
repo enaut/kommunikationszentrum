@@ -32,44 +32,53 @@ pub struct MessageCategory {
 
 ### Visual Representation
 
-```dot process
-digraph email_categories {
-    rankdir=TB;
-    node [shape=record, fontname="Arial", fontsize=10];
-    
-    // Categories table
-    categories [label="{MessageCategories|{id|name|email_address|description|active}|{1|\"SoLaWi News\"|\"news@solawi.org\"|\"Weekly newsletter\"|true}|{2|\"Events\"|\"events@solawi.org\"|\"Event announcements\"|true}|{3|\"General\"|\"general@solawi.org\"|\"General discussions\"|false}|{4|\"Admin\"|\"admin@solawi.org\"|\"Administrative notices\"|true}}"];
-    
-    // Incoming emails
-    subgraph cluster_incoming {
-        label="Incoming Emails";
-        style=filled;
-        fillcolor=lightcyan;
-        
-        news_email [label="To: news@solawi.org", shape=ellipse];
-        events_email [label="To: events@solawi.org", shape=ellipse];
-        invalid_email [label="To: invalid@solawi.org", shape=ellipse, color=red];
-    }
-    
-    // Processing results
-    subgraph cluster_results {
-        label="Processing Results";
-        style=filled;
-        fillcolor=lightgreen;
-        
-        accepted [label="ACCEPT\n(Valid Category)", shape=ellipse, color=green];
-        rejected [label="REJECT\n(Unknown Category)", shape=ellipse, color=red];
-        disabled [label="REJECT\n(Inactive Category)", shape=ellipse, color=orange];
-    }
-    
-    // Routing decisions
-    news_email -> categories [label="lookup"];
-    events_email -> categories [label="lookup"];
-    invalid_email -> categories [label="lookup"];
-    
-    categories -> accepted [label="active=true", color=green];
-    categories -> disabled [label="active=false", color=orange];
-    categories -> rejected [label="not found", color=red];
+```d2
+direction: down
+
+categories: {
+  label: "MessageCategories\n• id: u64\n• name: String\n• email_address: String\n• active: bool"
+}
+
+news_email: "To: news@solawi.org" { shape: oval }
+events_email: "To: events@solawi.org" { shape: oval }
+invalid_email: "To: invalid@solawi.org" {
+  shape: oval
+  style.stroke: red
+}
+
+accepted: "ACCEPT\n(Valid Category)" {
+  shape: oval
+  style.stroke: green
+}
+rejected: "REJECT\n(Unknown Category)" {
+  shape: oval
+  style.stroke: red
+}
+disabled: "REJECT\n(Inactive Category)" {
+  shape: oval
+  style.stroke: orange
+}
+
+news_email -> categories: "lookup"
+events_email -> categories: "lookup"
+invalid_email -> categories: "lookup"
+
+categories -> accepted: "active=true" { style.stroke: green }
+categories -> disabled: "active=false" { style.stroke: orange }
+categories -> rejected: "not found" { style.stroke: red }
+
+incoming: "Incoming Emails" {
+  style.fill: "#e0f7fa"
+  news_email
+  events_email
+  invalid_email
+}
+
+results: "Processing Results" {
+  style.fill: "#e8f5e9"
+  accepted
+  rejected
+  disabled
 }
 ```
 
@@ -166,33 +175,32 @@ volunteers@solawi.org    # Volunteer coordination
 
 ### Validation Flow
 
-```dot process
-digraph category_validation {
-    rankdir=TB;
-    node [shape=box, fontname="Arial", fontsize=10];
-    edge [fontname="Arial", fontsize=8];
-    
-    incoming_email [label="Incoming Email\nTo: recipient@domain.org"];
-    
-    extract_address [label="Extract Recipient\nAddress"];
-    
-    lookup_category [label="Lookup in\nmessage_categories", shape=cylinder];
-    
-    check_active [label="Check if\nCategory Active", shape=diamond];
-    
-    accept_email [label="ACCEPT\nContinue Processing", color=green];
-    reject_inactive [label="REJECT 550\nCategory Inactive", color=orange];
-    reject_unknown [label="REJECT 550\nUnknown Recipient", color=red];
-    
-    incoming_email -> extract_address;
-    extract_address -> lookup_category;
-    
-    lookup_category -> check_active [label="Found"];
-    lookup_category -> reject_unknown [label="Not Found"];
-    
-    check_active -> accept_email [label="active=true"];
-    check_active -> reject_inactive [label="active=false"];
+```d2
+direction: down
+
+incoming_email: "Incoming Email\nTo: recipient@domain.org"
+extract_address: "Extract Recipient\nAddress"
+lookup_category: "Lookup in\nmessage_categories" { shape: cylinder }
+check_active: "Check if\nCategory Active" { shape: diamond }
+
+accept_email: "ACCEPT\nContinue Processing" {
+  style.stroke: green
 }
+reject_inactive: "REJECT 550\nCategory Inactive" {
+  style.stroke: orange
+}
+reject_unknown: "REJECT 550\nUnknown Recipient" {
+  style.stroke: red
+}
+
+incoming_email -> extract_address
+extract_address -> lookup_category
+
+lookup_category -> check_active: "Found"
+lookup_category -> reject_unknown: "Not Found"
+
+check_active -> accept_email: "active=true"
+check_active -> reject_inactive: "active=false"
 ```
 
 ### Implementation Details
@@ -235,33 +243,29 @@ Categories work closely with the subscription system:
 
 ### Subscription Relationship
 
-```dot process
-digraph category_subscription_relation {
-    rankdir=LR;
-    node [shape=record, fontname="Arial", fontsize=10];
-    
-    // Tables
-    categories [label="{MessageCategory|id: 1\lname: \"SoLaWi News\"\lemail_address: \"news@solawi.org\"\lactive: true}"];
-    
-    subscriptions [label="{Subscription|id: 101\lcategory_id: 1\lsubscriber_email: \"member@example.com\"\lactive: true}"];
-    
-    // Relationships
-    subscriptions -> categories [label="category_id → id", color=blue];
-    
-    // Users
-    subgraph cluster_users {
-        label="Subscribers";
-        style=filled;
-        fillcolor=lightgreen;
-        
-        user1 [label="member@example.com", shape=ellipse];
-        user2 [label="volunteer@example.com", shape=ellipse];  
-        user3 [label="admin@example.com", shape=ellipse];
-    }
-    
-    user1 -> subscriptions [label="subscribes to"];
-    user2 -> subscriptions [label="subscribes to", style=dashed];
-    user3 -> subscriptions [label="subscribes to", style=dashed];
+```d2
+direction: right
+
+categories: "MessageCategory\nid: 1\nname: \"SoLaWi News\"\nemail_address: \"news@solawi.org\"\nactive: true"
+subscriptions: "Subscription\nid: 101\ncategory_id: 1\nsubscriber_email: \"member@example.com\"\nactive: true"
+
+subscriptions -> categories: "category_id → id" {
+  style.stroke: blue
+}
+
+user1: "member@example.com" { shape: oval }
+user2: "volunteer@example.com" { shape: oval }
+user3: "admin@example.com" { shape: oval }
+
+user1 -> subscriptions: "subscribes to"
+user2 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
+user3 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
+
+subscribers: "Subscribers" {
+  style.fill: "#e8f5e9"
+  user1
+  user2
+  user3
 }
 ```
 

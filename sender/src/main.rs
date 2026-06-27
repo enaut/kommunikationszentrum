@@ -12,7 +12,7 @@ use module_bindings::{
     DbConnection, MailDelivery, MailIngress, MessageCategory, Subscription,
 };
 use spacetimedb_sdk::{DbContext, Table, TableWithPrimaryKey as _, Timestamp};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{collections::HashSet, error::Error, time::Duration};
 use tokio::sync::Notify;
 
@@ -119,7 +119,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let notify = Arc::new(Notify::new());
 
-    // Wake the loop when ingress rows change
+    // Persistent in-flight tracking prevents duplicate processing during the window between
+    // firing a reducer (mark_mail_delivery_sent / complete_mail_ingress) and the local cache
+    // reflecting the resulting state change. Items are added BEFORE processing starts and
+    // removed via on_update callbacks once the server confirms the state transition.
+    let in_flight_ingresses: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+    let in_flight_deliveries: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+
+    // Wake the loop when ingress rows are inserted
     {
         let notify = notify.clone();
         connection
@@ -129,17 +136,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 notify.notify_one();
             });
     }
+    // Wake the loop and clean up in-flight tracking when ingress rows change
     {
         let notify = notify.clone();
+        let set = in_flight_ingresses.clone();
         connection
             .db
             .sender_mail_ingress()
-            .on_update(move |_ctx, _old_row, _new_row| {
+            .on_update(move |_ctx, old_row, new_row| {
+                // Remove from in-flight once the server confirms the ingress left "processing".
+                if old_row.state == INGESTED_STATE && new_row.state != INGESTED_STATE {
+                    set.lock().unwrap().remove(&old_row.id);
+                }
                 notify.notify_one();
             });
     }
 
-    // Wake the loop when delivery rows change
+    // Wake the loop when delivery rows are inserted
     {
         let notify = notify.clone();
         connection
@@ -149,12 +162,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 notify.notify_one();
             });
     }
+    // Wake the loop and clean up in-flight tracking when delivery rows change
     {
         let notify = notify.clone();
+        let set = in_flight_deliveries.clone();
         connection
             .db
             .sender_mail_deliveries()
-            .on_update(move |_ctx, _old_row, _new_row| {
+            .on_update(move |_ctx, old_row, new_row| {
+                // Remove from in-flight once the server confirms the delivery left "sending".
+                if old_row.state == DELIVERY_STATE && new_row.state != DELIVERY_STATE {
+                    set.lock().unwrap().remove(&old_row.id);
+                }
                 notify.notify_one();
             });
     }
@@ -184,15 +203,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 break;
             }
 
-            // 3. Wakes up immediately when notify_one() is called in callbacks
+            // Wakes up immediately when notify_one() is called in callbacks
             _ = notify.notified() => {
                 trace!("Database subscription updated. Processing jobs...");
 
-                let fanout_res = process_fanout_jobs(&connection, &config).await?;
-                let delivery_res = process_delivery_jobs(&connection, &transport).await?;
+                let fanout_res = process_fanout_jobs(&connection, &config, &in_flight_ingresses).await?;
+                let delivery_res = process_delivery_jobs(&connection, &transport, &in_flight_deliveries).await?;
 
                 // If work was successfully performed, there might be more immediate backlogs.
-                // Re-trigger the doorbell so we loop again immediately without sleeping.
+                // Re-trigger the doorbell so we loop again without sleeping.
+                // The persistent in-flight sets ensure that items already being processed are
+                // not picked up again before the server confirms the state change.
                 if fanout_res || delivery_res {
                     notify.notify_one();
                 }
@@ -233,6 +254,7 @@ fn subscribe(connection: &DbConnection) {
 async fn process_fanout_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
+    in_flight: &Mutex<HashSet<String>>,
 ) -> Result<bool, Box<dyn Error>> {
     let owner = match connection.try_identity() {
         Some(identity) => {
@@ -245,32 +267,37 @@ async fn process_fanout_jobs(
         }
     };
 
-    let mut processed = HashSet::new();
     let mut did_work = false;
 
     trace!("Checking for mail ingress jobs owned by this instance");
 
     loop {
-        let owned_jobs = self_owned_ingress_jobs(connection, owner, &processed);
+        let snapshot = in_flight.lock().unwrap().clone();
+        let owned_jobs = self_owned_ingress_jobs(connection, owner, &snapshot);
+
         if owned_jobs.is_empty() {
             if let Err(error) = connection.reducers().claim_next_mail_ingress() {
                 warn!("claim_next_mail_ingress failed: {:?}", error);
                 break;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
-            let owned_after = self_owned_ingress_jobs(connection, owner, &processed);
+            let snapshot = in_flight.lock().unwrap().clone();
+            let owned_after = self_owned_ingress_jobs(connection, owner, &snapshot);
             if owned_after.is_empty() {
                 trace!("No new mail ingress jobs after waiting");
                 break;
             }
             for job in owned_after {
                 info!("Processing ingress job: {}", job.id);
+                // Mark as in-flight BEFORE processing so that re-triggers of the main loop
+                // (from on_insert callbacks for newly enqueued deliveries) do not pick up
+                // this ingress again before complete_mail_ingress propagates back.
+                in_flight.lock().unwrap().insert(job.id.clone());
                 if let Err(error) = process_ingress_job(connection, config, job.clone()) {
                     let _ = connection
                         .reducers()
                         .retry_mail_ingress(job.id.clone(), error.to_string());
                 }
-                processed.insert(job.id);
                 did_work = true;
             }
             continue;
@@ -278,12 +305,12 @@ async fn process_fanout_jobs(
 
         for job in owned_jobs {
             info!("Processing ingress job: {}", job.id);
+            in_flight.lock().unwrap().insert(job.id.clone());
             if let Err(error) = process_ingress_job(connection, config, job.clone()) {
                 let _ = connection
                     .reducers()
                     .retry_mail_ingress(job.id.clone(), error.to_string());
             }
-            processed.insert(job.id);
             did_work = true;
         }
     }
@@ -291,11 +318,11 @@ async fn process_fanout_jobs(
     Ok(did_work)
 }
 
-#[instrument(skip(connection, processed))]
-fn self_owned_ingress_jobs<'a>(
-    connection: &'a DbConnection,
+#[instrument(skip(connection, in_flight))]
+fn self_owned_ingress_jobs(
+    connection: &DbConnection,
     owner: spacetimedb_sdk::Identity,
-    processed: &HashSet<String>,
+    in_flight: &HashSet<String>,
 ) -> Vec<MailIngress> {
     connection
         .db
@@ -303,7 +330,7 @@ fn self_owned_ingress_jobs<'a>(
         .iter()
         .filter(|row| row.state == INGESTED_STATE && row.claim_owner == Some(owner))
         .filter(|row| row.completed_at == Timestamp::UNIX_EPOCH)
-        .filter(|row| !processed.contains(&row.id))
+        .filter(|row| !in_flight.contains(&row.id))
         .collect()
 }
 
@@ -320,6 +347,24 @@ fn process_subscription_job(
     category: &MessageCategory,
     subscription: Subscription,
 ) -> Result<SubscriptionJobOutcome, Box<dyn Error>> {
+    // Skip re-enqueue if a delivery already exists for this (ingress, subscription) pair.
+    // This prevents creating duplicate delivery records when the ingress is retried after a
+    // "waiting for token" error — on retry all subscriptions are re-visited, but those that
+    // already had deliveries created should not receive another enqueue call.
+    let delivery_id = format!(
+        "{}:{}:{}",
+        ingress.id, subscription.id, subscription.subscriber_email
+    );
+    if connection
+        .db
+        .sender_mail_deliveries()
+        .id()
+        .find(&delivery_id)
+        .is_some()
+    {
+        return Ok(SubscriptionJobOutcome::DeliveryQueued);
+    }
+
     let token_row = connection
         .db
         .active_unsubscribe_tokens()
@@ -400,7 +445,6 @@ fn process_ingress_job(
     }
 
     let mut deliveries_created = 0u32;
-    let _deliveries_failed = 0u32;
     let mut waiting_for_tokens = false;
 
     for subscription in subscriptions {
@@ -418,11 +462,9 @@ fn process_ingress_job(
         return Err("Waiting for unsubscribe token to be generated".into());
     }
 
-    connection.reducers().complete_mail_ingress(
-        ingress.id.clone(),
-        deliveries_created,
-        _deliveries_failed,
-    )?;
+    connection
+        .reducers()
+        .complete_mail_ingress(ingress.id.clone(), deliveries_created, 0)?; //TODO: count failed deliveries and pass that as the third argument to complete_mail_ingress
     Ok(())
 }
 
@@ -430,6 +472,7 @@ fn process_ingress_job(
 async fn process_delivery_jobs(
     connection: &DbConnection,
     transport: &SmtpTransport,
+    in_flight: &Mutex<HashSet<String>>,
 ) -> Result<bool, Box<dyn Error>> {
     let owner = match connection.try_identity() {
         Some(identity) => {
@@ -441,39 +484,42 @@ async fn process_delivery_jobs(
             return Ok(false);
         }
     };
-    let mut processed = HashSet::new();
     let mut did_work = false;
 
     loop {
-        let owned_jobs = self_owned_delivery_jobs(connection, owner, &processed);
+        let snapshot = in_flight.lock().unwrap().clone();
+        let owned_jobs = self_owned_delivery_jobs(connection, owner, &snapshot);
+
         if owned_jobs.is_empty() {
             if let Err(error) = connection.reducers().claim_next_mail_delivery() {
                 warn!("claim_next_mail_delivery failed: {:?}", error);
                 break;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
-            let owned_after = self_owned_delivery_jobs(connection, owner, &processed);
+            let snapshot = in_flight.lock().unwrap().clone();
+            let owned_after = self_owned_delivery_jobs(connection, owner, &snapshot);
             if owned_after.is_empty() {
                 trace!("No new mail delivery jobs after waiting");
                 break;
             }
             for delivery in owned_after {
+                // Mark as in-flight BEFORE sending, unconditionally, so that a re-trigger of
+                // the main loop before mark_mail_delivery_sent propagates does not find this
+                // delivery again and attempt a second SMTP send.
+                in_flight.lock().unwrap().insert(delivery.id.clone());
                 if let Err(error) = send_delivery(connection, transport, delivery.clone()) {
                     warn!("delivery {} failed: {}", delivery.id, error);
-                } else {
-                    processed.insert(delivery.id);
-                    trace!("Processed successfully");
-                    did_work = true;
                 }
+                did_work = true;
             }
             continue;
         }
 
         for delivery in owned_jobs {
+            in_flight.lock().unwrap().insert(delivery.id.clone());
             if let Err(error) = send_delivery(connection, transport, delivery.clone()) {
                 warn!("delivery {} failed: {}", delivery.id, error);
             }
-            processed.insert(delivery.id);
             did_work = true;
         }
     }
@@ -482,10 +528,10 @@ async fn process_delivery_jobs(
 }
 
 #[instrument(skip_all)]
-fn self_owned_delivery_jobs<'a>(
-    connection: &'a DbConnection,
+fn self_owned_delivery_jobs(
+    connection: &DbConnection,
     owner: spacetimedb_sdk::Identity,
-    processed: &HashSet<String>,
+    in_flight: &HashSet<String>,
 ) -> Vec<MailDelivery> {
     connection
         .db
@@ -493,7 +539,7 @@ fn self_owned_delivery_jobs<'a>(
         .iter()
         .filter(|row| row.state == DELIVERY_STATE && row.claim_owner == Some(owner))
         .filter(|row| row.sent_at == Timestamp::UNIX_EPOCH)
-        .filter(|row| !processed.contains(&row.id))
+        .filter(|row| !in_flight.contains(&row.id))
         .collect()
 }
 
