@@ -56,6 +56,7 @@
   - [Processing Flow](./email/processing-flow.md)
 
 - [Authentication & Security](./auth/overview.md)
+  - [OAuth in Django](./auth/configure-django.md)
   - [OAuth Integration](./auth/oauth-integration.md)
   - [JWT Token Handling](./auth/jwt-tokens.md)
   - [User Permissions](./auth/permissions.md)
