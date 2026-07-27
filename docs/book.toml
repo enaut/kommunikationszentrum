@@ -10,3 +10,7 @@ additional-css = ["theme/custom.css"]
 [preprocessor.d2]
 layout = "dagre"
 inline = false
+
+[preprocessor.graphviz]
+command = "mdbook-graphviz"
+output-to-file = false

@@ -137,6 +137,7 @@ pub(crate) fn is_admin_identity(ctx: &ReducerContext, who: Identity) -> bool {
 /// `identity_hex` is the 64-character hex string.
 #[spacetimedb::reducer]
 pub fn register_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Result<(), String> {
+    log::info!("Adding admin Identity");
     if !is_admin_user(ctx) {
         return Err("Unauthorized: only admins can register admin identities".into());
     }
@@ -149,6 +150,7 @@ pub fn register_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Re
         .find(&identity)
         .is_some()
     {
+        log::info!("Identity was already listed!");
         return Ok(()); // idempotent
     }
     ctx.db.admin_identities().insert(AdminIdentity { identity });
