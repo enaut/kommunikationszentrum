@@ -88,7 +88,11 @@ Synchronizes a single user account from Django. Only admin identities may call t
     "is_active": true,
     "is_admin": false,
     "updated_at": "2026-01-01T00:00:00Z",
-    "identity_hex": null
+    "identity_hex": null,
+    "categories": [
+      { "name": "VP Reyerhof", "email_address": "vp-reyerhof@example.org", "description": "..." }
+    ],
+    "unsubscribe_category_emails": ["vp-old@example.org"]
   }
   ```
 
@@ -96,6 +100,12 @@ Synchronizes a single user account from Django. Only admin identities may call t
 1. Computes `Identity::from_claims(issuer_url, mitgliedsnr)`.
 2. If the account exists, updates it in place. If not, inserts it.
 3. Syncs `admin_identities`: adds if `is_admin=true`, removes if `is_admin=false`.
+4. For each entry in `categories`, calls `do_add_and_subscribe_category` (see below) to
+   create-if-missing the category and subscribe the account to it. Run on every upsert, not
+   just on first creation, so re-syncing an already-known user still keeps subscriptions current.
+5. For each email in `unsubscribe_category_emails`, calls `do_remove_subscription_for_category_email`
+   to deactivate the account's subscription to that category (the category row itself is untouched).
+6. Failures for an individual category are logged and skipped; they do not abort the account sync.
 
 **Delete behaviour:**
 1. Deletes the `account` row.
@@ -202,6 +212,32 @@ Creates or re-activates a `Subscription`. Callers may subscribe themselves or, i
 
 Also calls `upsert_subscription_unsubscribe_token` to ensure a valid one-click unsubscribe
 token exists for the subscription.
+
+---
+
+### `add_and_subscribe_category`
+
+```rust
+pub fn add_and_subscribe_category(
+    ctx: &ReducerContext,
+    subscriber_account_id: u64,
+    subscriber_email: String,
+    name: String,
+    email_address: String,
+    description: String,
+) -> Result<(), String>
+```
+
+Combines `add_message_category` and `add_subscription` in a single admin-only call: ensures a
+`MessageCategory` exists for `email_address` (inserting it if missing, matched by the column's
+`#[unique]` constraint), then subscribes `subscriber_account_id` to it. **Add-only** -- if the
+category already exists, its `name`/`description`/`active` fields are left untouched.
+
+This is the same logic the `/user-sync` HTTP handler uses internally (via the unguarded
+`do_add_and_subscribe_category` helper) to keep a Django-managed mailing-list assignment (e.g.
+a Verteilpunkt) in sync with `message_categories` and `subscriptions` in one step. Use this
+reducer directly (e.g. via `spacetime call` or the Admin UI) for manual/administrative
+assignment outside of the Django sync flow.
 
 ---
 

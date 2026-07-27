@@ -18,10 +18,28 @@ Endpoint
     "email": "user@example.org",
     "is_active": true,
     "is_admin": false,
-    "updated_at": "2024-01-01T12:00:00Z"
+    "updated_at": "2024-01-01T12:00:00Z",
+    "categories": [
+      {
+        "name": "VP Reyerhof",
+        "email_address": "vp-reyerhof@example.org",
+        "description": "Verteilpunkt Reyerhof"
+      }
+    ],
+    "unsubscribe_category_emails": ["vp-old@example.org"]
   }
 }
 ```
+
+- `categories` (optional) — mailing-list categories (e.g. Verteilpunkte) the user should currently
+  be subscribed to. For each entry, the `message_categories` row is created if it doesn't already
+  exist (matched by `email_address`); an existing category is never modified. The account is then
+  subscribed (or re-activated) for that category. Categories are only ever **added**, never removed,
+  by this field — omit it or send an empty list to leave existing category subscriptions untouched.
+- `unsubscribe_category_emails` (optional) — email addresses of categories the account's
+  subscription should be deactivated for (the category row itself is never touched). This is used
+  by Django when a member's Verteilpunkt assignment changes, to unsubscribe the old mailing list
+  while `categories` adds the new one in the same request.
 
 - Success response: 200 OK with JSON `{ "status": "success", "action": "upsert", "mitgliedsnr": 12345 }`
 - Failure: 4xx for client errors (e.g., missing token, malformed JSON), 5xx for server errors

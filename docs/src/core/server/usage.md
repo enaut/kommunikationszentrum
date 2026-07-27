@@ -112,6 +112,22 @@ set as compile-time environment variables.
 spacetime call kommunikationszentrum remove_message_category <category-id>
 ```
 
+### Create-and-Subscribe in One Step
+
+`add_and_subscribe_category` is add-only for the category (creates it if missing by
+`email_address`, never modifies an existing one) and also subscribes the given account to it.
+This is what the Django `/user-sync` webhook uses internally to keep Verteilpunkt mailing-list
+assignments in sync, but it can also be called directly for manual assignments:
+
+```bash
+spacetime call kommunikationszentrum add_and_subscribe_category \
+  <account-id> \
+  "member@example.org" \
+  "VP Reyerhof" \
+  "vp-reyerhof@solawi.example.org" \
+  "Verteilpunkt Reyerhof"
+```
+
 ---
 
 ## Testing the HTTP Endpoints
@@ -152,10 +168,21 @@ curl -X POST "http://localhost:3000/v1/database/kommunikationszentrum/route/user
       "name": "Alice Example",
       "email": "alice@example.org",
       "is_active": true,
-      "is_admin": false
+      "is_admin": false,
+      "categories": [
+        {
+          "name": "VP Reyerhof",
+          "email_address": "vp-reyerhof@solawi.example.org",
+          "description": "Verteilpunkt Reyerhof"
+        }
+      ],
+      "unsubscribe_category_emails": ["vp-old@solawi.example.org"]
     }
   }'
 ```
+
+`categories` and `unsubscribe_category_emails` are both optional. Omit them to sync only account
+fields, as with earlier payload versions.
 
 ### One-Click Unsubscribe
 

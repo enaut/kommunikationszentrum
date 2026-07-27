@@ -104,7 +104,15 @@ in sync.
     "is_active": true,
     "is_admin": false,
     "updated_at": "2026-01-01T00:00:00Z",
-    "identity_hex": null
+    "identity_hex": null,
+    "categories": [
+      {
+        "name": "VP Reyerhof",
+        "email_address": "vp-reyerhof@example.org",
+        "description": "Verteilpunkt Reyerhof"
+      }
+    ],
+    "unsubscribe_category_emails": ["vp-old@example.org"]
   }
 }
 ```
@@ -119,6 +127,13 @@ in sync.
 | `user.is_admin` | `bool?` | Whether to grant/revoke admin status |
 | `user.updated_at` | `String?` | Last modification timestamp from Django |
 | `user.identity_hex` | `String?` | Pre-computed SpacetimeDB identity (optional) |
+| `user.categories` | `CategorySyncData[]?` | Mailing-list categories (e.g. Verteilpunkte) to ensure the account is subscribed to. Each entry is `{ name, email_address, description }`. The `message_categories` row is created if missing (matched by `email_address`); an existing category's fields are never modified. The account's subscription to it is created or re-activated. **Add-only**: omit or leave empty to make no category changes. |
+| `user.unsubscribe_category_emails` | `String[]?` | Category email addresses to deactivate the account's subscription for. Only the `subscriptions` row is deactivated; the `message_categories` row is never touched. Used to unsubscribe a previous Verteilpunkt when a member's assignment changes. |
+
+On `"upsert"`, `categories` and `unsubscribe_category_emails` are processed on every call (not
+just on first creation), so a full re-sync also keeps mailing-list subscriptions up to date. A
+failure to add/subscribe or unsubscribe an individual category is logged and skipped; it does not
+abort the rest of the account sync.
 
 **Responses:**
 

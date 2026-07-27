@@ -81,6 +81,14 @@ pub struct UserSyncData {
     pub updated_at: Option<String>,
     // Optional: precomputed Spacetime Identity as hex string (provided by Django)
     pub identity_hex: Option<String>,
+    // Categories (e.g. Verteilpunkt mailing lists) the user should currently be
+    // subscribed to. Categories are created if missing and never modified or
+    // removed by this sync path.
+    pub categories: Option<Vec<crate::mailing::CategorySyncData>>,
+    // Email addresses of categories the user should be unsubscribed from as
+    // part of this sync (e.g. their previous Verteilpunkt, after a change).
+    // Only the subscription is deactivated; the category itself is untouched.
+    pub unsubscribe_category_emails: Option<Vec<String>>,
 }
 
 // Webhook token table: stores hashed bearer tokens and permissions.
@@ -226,6 +234,8 @@ pub(crate) fn do_sync_user(
                 let issuer_url = format!("{}{}", DJANGO_OAUTH_BASE_URL, DJANGO_OAUTH_ISSUER_PATH);
                 let identity_of_user = Identity::from_claims(&issuer_url, &mitgliedsnr);
                 let is_admin = data.is_admin.unwrap_or(false);
+                // Captured before `data.email` is moved into the Account below.
+                let subscriber_email = data.email.clone().unwrap_or_default();
 
                 if let Some(existing) = ctx.db.account().id().find(&data.mitgliedsnr) {
                     // Update in place — Django is source of truth for is_admin
@@ -280,6 +290,47 @@ pub(crate) fn do_sync_user(
                         .identity()
                         .delete(&identity_of_user);
                     log::info!("Revoked admin_identities for account: {}", data.mitgliedsnr);
+                }
+
+                // Ensure category subscriptions (e.g. Verteilpunkt mailing lists) match
+                // what Django reports as current. Categories are created if missing but
+                // never modified or removed; failures for one category are logged and
+                // skipped so they don't block the rest of the account sync.
+                for category in data.categories.unwrap_or_default() {
+                    let category_email = category.email_address.clone();
+                    if let Err(e) = crate::mailing::do_add_and_subscribe_category(
+                        ctx,
+                        data.mitgliedsnr,
+                        subscriber_email.clone(),
+                        category.name,
+                        category.email_address,
+                        category.description,
+                    ) {
+                        log::error!(
+                            "Failed to add/subscribe category '{}' for account {}: {}",
+                            category_email,
+                            data.mitgliedsnr,
+                            e
+                        );
+                    }
+                }
+
+                // Explicit unsubscribes (e.g. the account's previous Verteilpunkt after a
+                // change) only ever deactivate a subscription; the category row itself is
+                // never touched.
+                for category_email in data.unsubscribe_category_emails.unwrap_or_default() {
+                    if let Err(e) = crate::mailing::do_remove_subscription_for_category_email(
+                        ctx,
+                        data.mitgliedsnr,
+                        &category_email,
+                    ) {
+                        log::error!(
+                            "Failed to remove subscription to category '{}' for account {}: {}",
+                            category_email,
+                            data.mitgliedsnr,
+                            e
+                        );
+                    }
                 }
             }
             "delete" => {

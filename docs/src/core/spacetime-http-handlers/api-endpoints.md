@@ -20,6 +20,11 @@ For the published module `kommunikation` the current endpoints are:
   - Content-Type: application/json
   - Authorization: Bearer {token} (requires `sync-user` permission)
   - Request body: { "action": "upsert" | "delete", "user": UserSyncData }
+    - `UserSyncData` additionally carries optional `categories` (mailing-list categories,
+      e.g. Verteilpunkte, to create-if-missing and subscribe the user to -- add-only, never
+      modifies or removes an existing category) and `unsubscribe_category_emails` (category
+      email addresses to deactivate the user's subscription for, e.g. after a Verteilpunkt
+      change). See [User Synchronization](./user-sync.md) for the full payload shape.
   - Success response: 200 OK with JSON { status: "success", action: ..., mitgliedsnr: ... }
   - Failure responses: 4xx for client errors, 5xx for server errors
 

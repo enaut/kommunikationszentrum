@@ -1,4 +1,5 @@
 use log::{error, info};
+use serde::{Deserialize, Serialize};
 use spacetimedb::{Query, ReducerContext, Table, Timestamp, ViewContext};
 
 use crate::account::{account, account__view, admin_identities__view, is_admin_user, Account};
@@ -13,6 +14,16 @@ pub struct MessageCategory {
     pub email_address: String,
     pub description: String,
     pub active: bool,
+}
+
+/// Category data as sent by the Django user-sync webhook for a single
+/// mailing-list assignment (e.g. a Verteilpunkt). Used to ensure the
+/// category exists and to subscribe an account to it in one step.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CategorySyncData {
+    pub name: String,
+    pub email_address: String,
+    pub description: String,
 }
 
 #[derive(Clone)]
@@ -129,26 +140,16 @@ pub fn remove_message_category(ctx: &ReducerContext, category_id: u64) -> Result
     Ok(())
 }
 
-#[spacetimedb::reducer]
-pub fn add_subscription(
+/// Core insert-or-update logic for a subscription, without any authorization
+/// checks. Callable both from the admin-guarded `add_subscription` reducer and
+/// from privileged internal flows (e.g. user sync) that already gate access
+/// at a higher level.
+pub(crate) fn do_add_subscription(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
     subscriber_email: String,
     category_id: u64,
-) -> Result<(), String> {
-    let is_admin = is_admin_user(ctx);
-    let is_self = ctx
-        .db
-        .account()
-        .id()
-        .find(&subscriber_account_id)
-        .map(|a: Account| a.identity == ctx.sender())
-        .unwrap_or(false);
-
-    if !is_admin && !is_self {
-        return Err("Unauthorized: can only subscribe yourself or requires admin".to_string());
-    }
-
+) -> Result<Subscription, String> {
     let timestamp = ctx.timestamp;
 
     let existing = ctx
@@ -187,11 +188,143 @@ pub fn add_subscription(
 
     let token = upsert_subscription_unsubscribe_token(ctx, subscription.id)?;
     log::info!(
-        "Added subscription for account {} (token: {}, by identity: {:?})",
+        "Added subscription for account {} (token: {})",
         subscriber_account_id,
-        token,
-        ctx.sender()
+        token
     );
+    Ok(subscription)
+}
+
+#[spacetimedb::reducer]
+pub fn add_subscription(
+    ctx: &ReducerContext,
+    subscriber_account_id: u64,
+    subscriber_email: String,
+    category_id: u64,
+) -> Result<(), String> {
+    let is_admin = is_admin_user(ctx);
+    let is_self = ctx
+        .db
+        .account()
+        .id()
+        .find(&subscriber_account_id)
+        .map(|a: Account| a.identity == ctx.sender())
+        .unwrap_or(false);
+
+    if !is_admin && !is_self {
+        return Err("Unauthorized: can only subscribe yourself or requires admin".to_string());
+    }
+
+    do_add_subscription(ctx, subscriber_account_id, subscriber_email, category_id)?;
+    Ok(())
+}
+
+/// Ensures a message category exists for the given `email_address` (creating
+/// it if necessary, without modifying an already-existing category), then
+/// subscribes the given account to it. Categories are only ever added by this
+/// path, never updated or removed, so manual admin edits to an existing
+/// category are never overwritten by a sync.
+pub(crate) fn do_add_and_subscribe_category(
+    ctx: &ReducerContext,
+    subscriber_account_id: u64,
+    subscriber_email: String,
+    name: String,
+    email_address: String,
+    description: String,
+) -> Result<(), String> {
+    let category = match ctx
+        .db
+        .message_categories()
+        .email_address()
+        .find(&email_address)
+    {
+        Some(existing) => existing,
+        None => {
+            ctx.db.message_categories().insert(MessageCategory {
+                id: 0,
+                name,
+                email_address: email_address.clone(),
+                description,
+                active: true,
+            });
+            ctx.db
+                .message_categories()
+                .email_address()
+                .find(&email_address)
+                .ok_or_else(|| "Category insert failed".to_string())?
+        }
+    };
+
+    do_add_subscription(ctx, subscriber_account_id, subscriber_email, category.id)?;
+    Ok(())
+}
+
+/// Admin-callable reducer combining `add_message_category` (idempotent,
+/// add-only) and `add_subscription` in a single call.
+#[spacetimedb::reducer]
+pub fn add_and_subscribe_category(
+    ctx: &ReducerContext,
+    subscriber_account_id: u64,
+    subscriber_email: String,
+    name: String,
+    email_address: String,
+    description: String,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+    do_add_and_subscribe_category(
+        ctx,
+        subscriber_account_id,
+        subscriber_email,
+        name,
+        email_address,
+        description,
+    )
+}
+
+/// Deactivates (without deleting) the given account's subscription to the
+/// category identified by `category_email_address`, if both exist and the
+/// subscription is currently active. No-op if the category or subscription is
+/// missing, or already inactive. Used to keep a single user's Verteilpunkt
+/// subscription consistent when their Verteilpunkt assignment changes.
+pub(crate) fn do_remove_subscription_for_category_email(
+    ctx: &ReducerContext,
+    subscriber_account_id: u64,
+    category_email_address: &str,
+) -> Result<(), String> {
+    let Some(category) = ctx
+        .db
+        .message_categories()
+        .email_address()
+        .find(&category_email_address.to_string())
+    else {
+        return Ok(());
+    };
+
+    let Some(sub) = ctx
+        .db
+        .subscriptions()
+        .subscriber_account_id()
+        .filter(&subscriber_account_id)
+        .find(|s| s.category_id == category.id)
+    else {
+        return Ok(());
+    };
+
+    if sub.active {
+        let sub_id = sub.id;
+        let mut updated = sub;
+        updated.active = false;
+        ctx.db.subscriptions().id().update(updated);
+        deactivate_subscription_unsubscribe_token(ctx, sub_id);
+        log::info!(
+            "Deactivated subscription {} for account {} (category email: {})",
+            sub_id,
+            subscriber_account_id,
+            category_email_address
+        );
+    }
     Ok(())
 }
 
