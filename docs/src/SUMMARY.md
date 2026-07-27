@@ -86,4 +86,4 @@
 - [Appendices](./appendices/overview.md)
   - [Database Diagrams](./appendices/database-diagrams.md)
   - [Glossary]()
-  - [Migration Guides]()
+  - [Migration Guides](./appendices/migrating-imap.md)
