@@ -1,7 +1,12 @@
+use std::collections::HashSet;
+
 use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::*;
 
-use crate::module_bindings::dioxus::{use_table_message_categories, use_table_visible_messages};
+use crate::module_bindings::dioxus::{
+    use_table_message_categories, use_table_visible_messages, use_table_visible_subscriptions,
+};
+use crate::oauth::UserInfo;
 
 // ---------------------------------------------------------------------------
 // Visual helpers
@@ -64,12 +69,24 @@ fn cat_badge_color(category_id: u64) -> Color {
 // ---------------------------------------------------------------------------
 
 #[component]
-pub fn MessagesPage() -> Element {
+pub fn MessagesPage(user_info: UserInfo) -> Element {
     let messages = use_table_visible_messages();
     let categories = use_table_message_categories();
+    let subscriptions = use_table_visible_subscriptions();
+
+    let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
 
     let mut selected_id: Signal<Option<u64>> = use_signal(|| None);
     let mut filter_category: Signal<Option<u64>> = use_signal(|| None);
+
+    // Only offer filter chips for categories the current account is actively
+    // subscribed to; `visible_messages` already restricts non-admins to these
+    // categories, so the chips should match what's actually being shown.
+    let subscribed_category_ids: HashSet<u64> = subscriptions()
+        .into_iter()
+        .filter(|s| s.subscriber_account_id == account_id && s.active)
+        .map(|s| s.category_id)
+        .collect();
 
     // Newest-first
     let mut sorted = messages();
@@ -117,7 +134,10 @@ pub fn MessagesPage() -> Element {
                             },
                             "Alle"
                         }
-                        for cat in categories().into_iter().filter(|c| c.active) {
+                        for cat in categories()
+                            .into_iter()
+                            .filter(|c| c.active && subscribed_category_ids.contains(&c.id))
+                        {
                             {
                                 let cat_id = cat.id;
                                 let is_active = filter_category() == Some(cat_id);

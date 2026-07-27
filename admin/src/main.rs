@@ -202,7 +202,7 @@ fn AuthenticatedApp(
                             pages::subscriptions::SubscriptionsPage { user_info: user_info.clone() }
                         },
                         ActiveView::Messages => rsx! {
-                            pages::messages::MessagesPage {}
+                            pages::messages::MessagesPage { user_info: user_info.clone() }
                         },
                         ActiveView::Categories => rsx! {
                             pages::categories::CategoriesPage {}
