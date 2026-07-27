@@ -10,6 +10,7 @@ pub mod account_table;
 pub mod account_type;
 pub mod active_subscriptions_table;
 pub mod active_unsubscribe_tokens_table;
+pub mod add_and_subscribe_category_reducer;
 pub mod add_message_category_reducer;
 pub mod add_subscription_reducer;
 pub mod admin_identity_type;
@@ -52,6 +53,7 @@ pub mod subscription_unsubscribe_tokens_table;
 pub mod subscriptions_table;
 pub mod sync_user_reducer;
 pub mod unregister_admin_identity_reducer;
+pub mod update_message_category_reducer;
 pub mod visible_accounts_table;
 pub mod visible_admin_identities_table;
 pub mod visible_messages_table;
@@ -63,6 +65,7 @@ pub use account_table::*;
 pub use account_type::Account;
 pub use active_subscriptions_table::*;
 pub use active_unsubscribe_tokens_table::*;
+pub use add_and_subscribe_category_reducer::add_and_subscribe_category;
 pub use add_message_category_reducer::add_message_category;
 pub use add_subscription_reducer::add_subscription;
 pub use admin_identity_type::AdminIdentity;
@@ -105,6 +108,7 @@ pub use subscription_unsubscribe_tokens_table::*;
 pub use subscriptions_table::*;
 pub use sync_user_reducer::sync_user;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
+pub use update_message_category_reducer::update_message_category;
 pub use visible_accounts_table::*;
 pub use visible_admin_identities_table::*;
 pub use visible_messages_table::*;
@@ -120,6 +124,13 @@ pub use webhook_token_type::WebhookToken;
 /// to indicate which reducer caused the event.
 
 pub enum Reducer {
+    AddAndSubscribeCategory {
+        subscriber_account_id: u64,
+        subscriber_email: String,
+        name: String,
+        email_address: String,
+        description: String,
+    },
     AddMessageCategory {
         name: String,
         email_address: String,
@@ -214,6 +225,11 @@ pub enum Reducer {
     UnregisterAdminIdentity {
         identity_hex: String,
     },
+    UpdateMessageCategory {
+        category_id: u64,
+        name: String,
+        description: String,
+    },
 }
 
 impl __sdk::InModule for Reducer {
@@ -223,6 +239,7 @@ impl __sdk::InModule for Reducer {
 impl __sdk::Reducer for Reducer {
     fn reducer_name(&self) -> &'static str {
         match self {
+            Reducer::AddAndSubscribeCategory { .. } => "add_and_subscribe_category",
             Reducer::AddMessageCategory { .. } => "add_message_category",
             Reducer::AddSubscription { .. } => "add_subscription",
             Reducer::ClaimNextMailDelivery => "claim_next_mail_delivery",
@@ -247,13 +264,27 @@ impl __sdk::Reducer for Reducer {
             Reducer::ScheduleMailDeliveryRetry { .. } => "schedule_mail_delivery_retry",
             Reducer::SyncUser { .. } => "sync_user",
             Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
+            Reducer::UpdateMessageCategory { .. } => "update_message_category",
             _ => unreachable!(),
         }
     }
     #[allow(clippy::clone_on_copy)]
     fn args_bsatn(&self) -> Result<Vec<u8>, __sats::bsatn::EncodeError> {
         match self {
-                        Reducer::AddMessageCategory{
+                        Reducer::AddAndSubscribeCategory{
+                subscriber_account_id,
+                subscriber_email,
+                name,
+                email_address,
+                description,
+}             => __sats::bsatn::to_vec(&add_and_subscribe_category_reducer::AddAndSubscribeCategoryArgs {
+                subscriber_account_id: subscriber_account_id.clone(),
+                subscriber_email: subscriber_email.clone(),
+                name: name.clone(),
+                email_address: email_address.clone(),
+                description: description.clone(),
+}),
+            Reducer::AddMessageCategory{
                 name,
                 email_address,
                 description,
@@ -421,6 +452,15 @@ Reducer::EnqueueMailDelivery{
                 identity_hex,
 }             => __sats::bsatn::to_vec(&unregister_admin_identity_reducer::UnregisterAdminIdentityArgs {
                 identity_hex: identity_hex.clone(),
+}),
+            Reducer::UpdateMessageCategory{
+                category_id,
+                name,
+                description,
+}             => __sats::bsatn::to_vec(&update_message_category_reducer::UpdateMessageCategoryArgs {
+                category_id: category_id.clone(),
+                name: name.clone(),
+                description: description.clone(),
 }),
             _ => unreachable!(),
 }

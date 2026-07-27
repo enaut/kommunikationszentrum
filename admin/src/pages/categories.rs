@@ -6,16 +6,21 @@ use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
     use_procedure_provision_message_category, use_reducer_remove_message_category,
-    use_table_message_categories,
+    use_table_message_categories, use_table_visible_subscriptions,
 };
+use crate::pages::category_detail::CategoryDetailPage;
 
 /// Admin-only view: lists all message categories with inline add and delete controls.
 #[component]
 pub fn CategoriesPage() -> Element {
     let categories = use_table_message_categories();
+    let subscriptions = use_table_visible_subscriptions();
     // New generated hook returns (invoke, result_signal).
     let (add_invoke, add_result) = use_procedure_provision_message_category();
     let remove_category = use_reducer_remove_message_category();
+
+    // When set, the detail/edit page for this category is shown instead of the list.
+    let mut selected_category: Signal<Option<u64>> = use_signal(|| None);
 
     let mut name = use_signal(String::new);
     let mut email_address = use_signal(String::new);
@@ -65,15 +70,18 @@ pub fn CategoriesPage() -> Element {
     }
 
     rsx! {
-        Container { fluid: true, class: "mt-4",
-            Row { class: "mb-3",
-                Col {
-                    h2 { class: "mb-0",
-                        Icon { name: "tags-fill", class: "me-2" }
-                        "Themen"
+        if let Some(id) = selected_category() {
+            CategoryDetailPage { category_id: id, on_back: move |_| selected_category.set(None) }
+        } else {
+            Container { fluid: true, class: "mt-4",
+                Row { class: "mb-3",
+                    Col {
+                        h2 { class: "mb-0",
+                            Icon { name: "tags-fill", class: "me-2" }
+                            "Themen"
+                        }
                     }
                 }
-            }
 
             // Add form
             Row { class: "mb-4",
@@ -183,6 +191,7 @@ pub fn CategoriesPage() -> Element {
                                                 th { "E-Mail-Adresse" }
                                                 th { "Beschreibung" }
                                                 th { "Status" }
+                                                th { class: "text-end", "Abonnenten" }
                                                 th { class: "text-end", "Aktionen" }
                                             }
                                         }
@@ -191,8 +200,14 @@ pub fn CategoriesPage() -> Element {
                                                 {
                                                     let cat_id = cat.id;
                                                     let remove = remove_category.clone();
+                                                    let subscriber_count = subscriptions()
+                                                        .iter()
+                                                        .filter(|s| s.category_id == cat_id && s.active)
+                                                        .count();
                                                     rsx! {
                                                         tr {
+                                                            style: "cursor: pointer;",
+                                                            onclick: move |_| selected_category.set(Some(cat_id)),
                                                             td {
                                                                 strong { "{cat.name}" }
                                                             }
@@ -208,10 +223,25 @@ pub fn CategoriesPage() -> Element {
                                                                 }
                                                             }
                                                             td { class: "text-end",
+                                                                Badge { color: Color::Primary, "{subscriber_count}" }
+                                                            }
+                                                            td { class: "text-end",
+                                                                Button {
+                                                                    color: Color::Primary,
+                                                                    size: Size::Sm,
+                                                                    class: "me-1",
+                                                                    onclick: move |evt: MouseEvent| {
+                                                                        evt.stop_propagation();
+                                                                        selected_category.set(Some(cat_id));
+                                                                    },
+                                                                    Icon { name: "pencil-square", class: "me-1" }
+                                                                    "Details"
+                                                                }
                                                                 Button {
                                                                     color: Color::Danger,
                                                                     size: Size::Sm,
-                                                                    onclick: move |_| {
+                                                                    onclick: move |evt: MouseEvent| {
+                                                                        evt.stop_propagation();
                                                                         info!("Removing category {cat_id}");
                                                                         if let Err(e) = remove(cat_id) {
                                                                             error!("remove_message_category failed: {e:?}");
@@ -232,6 +262,7 @@ pub fn CategoriesPage() -> Element {
                         },
                     }
                 }
+            }
             }
         }
     }

@@ -140,6 +140,44 @@ pub fn remove_message_category(ctx: &ReducerContext, category_id: u64) -> Result
     Ok(())
 }
 
+/// Updates the editable fields (name, description) of an existing message
+/// category. The `email_address` is immutable via this reducer since it is
+/// used to route incoming mail and to match categories during user sync.
+#[spacetimedb::reducer]
+pub fn update_message_category(
+    ctx: &ReducerContext,
+    category_id: u64,
+    name: String,
+    description: String,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+    let existing = ctx
+        .db
+        .message_categories()
+        .id()
+        .find(&category_id)
+        .ok_or_else(|| format!("Message category {} not found", category_id))?;
+
+    if name.trim().is_empty() {
+        return Err("Name must not be empty".to_string());
+    }
+
+    let updated = MessageCategory {
+        name,
+        description,
+        ..existing
+    };
+    ctx.db.message_categories().id().update(updated);
+    log::info!(
+        "Updated message category {} (by identity: {:?})",
+        category_id,
+        ctx.sender()
+    );
+    Ok(())
+}
+
 /// Core insert-or-update logic for a subscription, without any authorization
 /// checks. Callable both from the admin-guarded `add_subscription` reducer and
 /// from privileged internal flows (e.g. user sync) that already gate access

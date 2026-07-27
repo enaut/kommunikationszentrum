@@ -848,6 +848,31 @@ pub fn use_table_visible_webhook_tokens() -> SyncSignal<Vec<WebhookToken>> {
 
 // --- Reducer hooks ---
 
+/// Get a callback to invoke the `add_and_subscribe_category` reducer.
+#[must_use]
+pub fn use_reducer_add_and_subscribe_category(
+) -> impl Fn(u64, String, String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |subscriber_account_id: u64,
+          subscriber_email: String,
+          name: String,
+          email_address: String,
+          description: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.add_and_subscribe_category(
+                subscriber_account_id,
+                subscriber_email,
+                name,
+                email_address,
+                description,
+            )
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
 /// Get a callback to invoke the `add_message_category` reducer.
 #[must_use]
 pub fn use_reducer_add_message_category(
@@ -1239,6 +1264,22 @@ pub fn use_reducer_unregister_admin_identity(
     move |identity_hex: String| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.unregister_admin_identity(identity_hex)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `update_message_category` reducer.
+#[must_use]
+pub fn use_reducer_update_message_category(
+) -> impl Fn(u64, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |category_id: u64, name: String, description: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .update_message_category(category_id, name, description)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
