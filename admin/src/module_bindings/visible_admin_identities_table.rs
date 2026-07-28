@@ -18,6 +18,18 @@ pub struct VisibleAdminIdentitiesTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `visible_admin_identities`.
+pub struct VisibleAdminIdentitiesTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for VisibleAdminIdentitiesTableAccessor {
+    type Row = AdminIdentity;
+    type Handle<'db> = VisibleAdminIdentitiesTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.visible_admin_identities()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `visible_admin_identities`.
 ///
@@ -41,6 +53,18 @@ impl VisibleAdminIdentitiesTableAccess for super::RemoteTables {
 
 pub struct VisibleAdminIdentitiesInsertCallbackId(__sdk::CallbackId);
 pub struct VisibleAdminIdentitiesDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for VisibleAdminIdentitiesTableHandle<'ctx> {
+    type Row = AdminIdentity;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = AdminIdentity> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for VisibleAdminIdentitiesTableHandle<'ctx> {
     type Row = AdminIdentity;
@@ -80,9 +104,54 @@ impl<'ctx> __sdk::Table for VisibleAdminIdentitiesTableHandle<'ctx> {
     }
 }
 
+impl<'ctx> __sdk::WithInsert for VisibleAdminIdentitiesTableHandle<'ctx> {
+    type InsertCallbackId = VisibleAdminIdentitiesInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleAdminIdentitiesInsertCallbackId {
+        VisibleAdminIdentitiesInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: VisibleAdminIdentitiesInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for VisibleAdminIdentitiesTableHandle<'ctx> {
+    type DeleteCallbackId = VisibleAdminIdentitiesDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleAdminIdentitiesDeleteCallbackId {
+        VisibleAdminIdentitiesDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: VisibleAdminIdentitiesDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
 pub struct VisibleAdminIdentitiesUpdateCallbackId(__sdk::CallbackId);
 
 impl<'ctx> __sdk::TableWithPrimaryKey for VisibleAdminIdentitiesTableHandle<'ctx> {
+    type UpdateCallbackId = VisibleAdminIdentitiesUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> VisibleAdminIdentitiesUpdateCallbackId {
+        VisibleAdminIdentitiesUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: VisibleAdminIdentitiesUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithUpdate for VisibleAdminIdentitiesTableHandle<'ctx> {
     type UpdateCallbackId = VisibleAdminIdentitiesUpdateCallbackId;
 
     fn on_update(

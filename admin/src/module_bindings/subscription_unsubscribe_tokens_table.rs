@@ -18,6 +18,18 @@ pub struct SubscriptionUnsubscribeTokensTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `subscription_unsubscribe_tokens`.
+pub struct SubscriptionUnsubscribeTokensTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for SubscriptionUnsubscribeTokensTableAccessor {
+    type Row = SubscriptionUnsubscribeToken;
+    type Handle<'db> = SubscriptionUnsubscribeTokensTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.subscription_unsubscribe_tokens()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `subscription_unsubscribe_tokens`.
 ///
@@ -41,6 +53,18 @@ impl SubscriptionUnsubscribeTokensTableAccess for super::RemoteTables {
 
 pub struct SubscriptionUnsubscribeTokensInsertCallbackId(__sdk::CallbackId);
 pub struct SubscriptionUnsubscribeTokensDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for SubscriptionUnsubscribeTokensTableHandle<'ctx> {
+    type Row = SubscriptionUnsubscribeToken;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = SubscriptionUnsubscribeToken> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for SubscriptionUnsubscribeTokensTableHandle<'ctx> {
     type Row = SubscriptionUnsubscribeToken;
@@ -80,9 +104,54 @@ impl<'ctx> __sdk::Table for SubscriptionUnsubscribeTokensTableHandle<'ctx> {
     }
 }
 
+impl<'ctx> __sdk::WithInsert for SubscriptionUnsubscribeTokensTableHandle<'ctx> {
+    type InsertCallbackId = SubscriptionUnsubscribeTokensInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> SubscriptionUnsubscribeTokensInsertCallbackId {
+        SubscriptionUnsubscribeTokensInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: SubscriptionUnsubscribeTokensInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for SubscriptionUnsubscribeTokensTableHandle<'ctx> {
+    type DeleteCallbackId = SubscriptionUnsubscribeTokensDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> SubscriptionUnsubscribeTokensDeleteCallbackId {
+        SubscriptionUnsubscribeTokensDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: SubscriptionUnsubscribeTokensDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
 pub struct SubscriptionUnsubscribeTokensUpdateCallbackId(__sdk::CallbackId);
 
 impl<'ctx> __sdk::TableWithPrimaryKey for SubscriptionUnsubscribeTokensTableHandle<'ctx> {
+    type UpdateCallbackId = SubscriptionUnsubscribeTokensUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> SubscriptionUnsubscribeTokensUpdateCallbackId {
+        SubscriptionUnsubscribeTokensUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: SubscriptionUnsubscribeTokensUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithUpdate for SubscriptionUnsubscribeTokensTableHandle<'ctx> {
     type UpdateCallbackId = SubscriptionUnsubscribeTokensUpdateCallbackId;
 
     fn on_update(

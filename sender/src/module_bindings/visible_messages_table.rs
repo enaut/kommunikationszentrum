@@ -18,6 +18,18 @@ pub struct VisibleMessagesTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `visible_messages`.
+pub struct VisibleMessagesTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for VisibleMessagesTableAccessor {
+    type Row = ReceivedMessage;
+    type Handle<'db> = VisibleMessagesTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.visible_messages()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `visible_messages`.
 ///
@@ -39,6 +51,18 @@ impl VisibleMessagesTableAccess for super::RemoteTables {
 
 pub struct VisibleMessagesInsertCallbackId(__sdk::CallbackId);
 pub struct VisibleMessagesDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for VisibleMessagesTableHandle<'ctx> {
+    type Row = ReceivedMessage;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = ReceivedMessage> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for VisibleMessagesTableHandle<'ctx> {
     type Row = ReceivedMessage;
@@ -64,6 +88,36 @@ impl<'ctx> __sdk::Table for VisibleMessagesTableHandle<'ctx> {
         self.imp.remove_on_insert(callback.0)
     }
 
+    type DeleteCallbackId = VisibleMessagesDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleMessagesDeleteCallbackId {
+        VisibleMessagesDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: VisibleMessagesDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithInsert for VisibleMessagesTableHandle<'ctx> {
+    type InsertCallbackId = VisibleMessagesInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleMessagesInsertCallbackId {
+        VisibleMessagesInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: VisibleMessagesInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for VisibleMessagesTableHandle<'ctx> {
     type DeleteCallbackId = VisibleMessagesDeleteCallbackId;
 
     fn on_delete(

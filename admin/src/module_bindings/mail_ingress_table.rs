@@ -18,6 +18,18 @@ pub struct MailIngressTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `mail_ingress`.
+pub struct MailIngressTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for MailIngressTableAccessor {
+    type Row = MailIngress;
+    type Handle<'db> = MailIngressTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.mail_ingress()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `mail_ingress`.
 ///
@@ -39,6 +51,18 @@ impl MailIngressTableAccess for super::RemoteTables {
 
 pub struct MailIngressInsertCallbackId(__sdk::CallbackId);
 pub struct MailIngressDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for MailIngressTableHandle<'ctx> {
+    type Row = MailIngress;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = MailIngress> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for MailIngressTableHandle<'ctx> {
     type Row = MailIngress;
@@ -78,9 +102,54 @@ impl<'ctx> __sdk::Table for MailIngressTableHandle<'ctx> {
     }
 }
 
+impl<'ctx> __sdk::WithInsert for MailIngressTableHandle<'ctx> {
+    type InsertCallbackId = MailIngressInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> MailIngressInsertCallbackId {
+        MailIngressInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: MailIngressInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for MailIngressTableHandle<'ctx> {
+    type DeleteCallbackId = MailIngressDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> MailIngressDeleteCallbackId {
+        MailIngressDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: MailIngressDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
 pub struct MailIngressUpdateCallbackId(__sdk::CallbackId);
 
 impl<'ctx> __sdk::TableWithPrimaryKey for MailIngressTableHandle<'ctx> {
+    type UpdateCallbackId = MailIngressUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> MailIngressUpdateCallbackId {
+        MailIngressUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: MailIngressUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithUpdate for MailIngressTableHandle<'ctx> {
     type UpdateCallbackId = MailIngressUpdateCallbackId;
 
     fn on_update(

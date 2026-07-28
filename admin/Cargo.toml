@@ -10,7 +10,7 @@ edition = "2021"
 dioxus = { version = "0.7", features = [] }
 dioxus-bootstrap-css = "0.5.15"
 futures-util = "0.3"
-spacetimedb-sdk = { version = "2.6" }
+spacetimedb-sdk = { version = "2.7" }
 stalwart_mta_hook_types = { version = "0.1" }
 hex = "0.4"
 blake3 = "1.3"
@@ -24,7 +24,7 @@ urlencoding = "2.1"
 openidconnect = { version = "4", default-features = false, features = [
     "reqwest",
 ] }
-base64 = "0.22"
+base64 = "0.23"
 url = "2"
 web-sys = { version = "0.3", features = [
     "Window",

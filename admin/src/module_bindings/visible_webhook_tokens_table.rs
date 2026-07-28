@@ -18,6 +18,18 @@ pub struct VisibleWebhookTokensTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `visible_webhook_tokens`.
+pub struct VisibleWebhookTokensTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for VisibleWebhookTokensTableAccessor {
+    type Row = WebhookToken;
+    type Handle<'db> = VisibleWebhookTokensTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.visible_webhook_tokens()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `visible_webhook_tokens`.
 ///
@@ -39,6 +51,18 @@ impl VisibleWebhookTokensTableAccess for super::RemoteTables {
 
 pub struct VisibleWebhookTokensInsertCallbackId(__sdk::CallbackId);
 pub struct VisibleWebhookTokensDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for VisibleWebhookTokensTableHandle<'ctx> {
+    type Row = WebhookToken;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = WebhookToken> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for VisibleWebhookTokensTableHandle<'ctx> {
     type Row = WebhookToken;
@@ -78,9 +102,54 @@ impl<'ctx> __sdk::Table for VisibleWebhookTokensTableHandle<'ctx> {
     }
 }
 
+impl<'ctx> __sdk::WithInsert for VisibleWebhookTokensTableHandle<'ctx> {
+    type InsertCallbackId = VisibleWebhookTokensInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleWebhookTokensInsertCallbackId {
+        VisibleWebhookTokensInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: VisibleWebhookTokensInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for VisibleWebhookTokensTableHandle<'ctx> {
+    type DeleteCallbackId = VisibleWebhookTokensDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleWebhookTokensDeleteCallbackId {
+        VisibleWebhookTokensDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: VisibleWebhookTokensDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
 pub struct VisibleWebhookTokensUpdateCallbackId(__sdk::CallbackId);
 
 impl<'ctx> __sdk::TableWithPrimaryKey for VisibleWebhookTokensTableHandle<'ctx> {
+    type UpdateCallbackId = VisibleWebhookTokensUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> VisibleWebhookTokensUpdateCallbackId {
+        VisibleWebhookTokensUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: VisibleWebhookTokensUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithUpdate for VisibleWebhookTokensTableHandle<'ctx> {
     type UpdateCallbackId = VisibleWebhookTokensUpdateCallbackId;
 
     fn on_update(

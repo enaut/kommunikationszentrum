@@ -18,6 +18,18 @@ pub struct VisibleAccountsTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `visible_accounts`.
+pub struct VisibleAccountsTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for VisibleAccountsTableAccessor {
+    type Row = Account;
+    type Handle<'db> = VisibleAccountsTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.visible_accounts()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `visible_accounts`.
 ///
@@ -39,6 +51,18 @@ impl VisibleAccountsTableAccess for super::RemoteTables {
 
 pub struct VisibleAccountsInsertCallbackId(__sdk::CallbackId);
 pub struct VisibleAccountsDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for VisibleAccountsTableHandle<'ctx> {
+    type Row = Account;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = Account> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for VisibleAccountsTableHandle<'ctx> {
     type Row = Account;
@@ -64,6 +88,36 @@ impl<'ctx> __sdk::Table for VisibleAccountsTableHandle<'ctx> {
         self.imp.remove_on_insert(callback.0)
     }
 
+    type DeleteCallbackId = VisibleAccountsDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleAccountsDeleteCallbackId {
+        VisibleAccountsDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: VisibleAccountsDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithInsert for VisibleAccountsTableHandle<'ctx> {
+    type InsertCallbackId = VisibleAccountsInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleAccountsInsertCallbackId {
+        VisibleAccountsInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: VisibleAccountsInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for VisibleAccountsTableHandle<'ctx> {
     type DeleteCallbackId = VisibleAccountsDeleteCallbackId;
 
     fn on_delete(

@@ -18,6 +18,18 @@ pub struct MessageCategoriesTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `message_categories`.
+pub struct MessageCategoriesTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for MessageCategoriesTableAccessor {
+    type Row = MessageCategory;
+    type Handle<'db> = MessageCategoriesTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.message_categories()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `message_categories`.
 ///
@@ -39,6 +51,18 @@ impl MessageCategoriesTableAccess for super::RemoteTables {
 
 pub struct MessageCategoriesInsertCallbackId(__sdk::CallbackId);
 pub struct MessageCategoriesDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for MessageCategoriesTableHandle<'ctx> {
+    type Row = MessageCategory;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = MessageCategory> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for MessageCategoriesTableHandle<'ctx> {
     type Row = MessageCategory;
@@ -78,9 +102,54 @@ impl<'ctx> __sdk::Table for MessageCategoriesTableHandle<'ctx> {
     }
 }
 
+impl<'ctx> __sdk::WithInsert for MessageCategoriesTableHandle<'ctx> {
+    type InsertCallbackId = MessageCategoriesInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> MessageCategoriesInsertCallbackId {
+        MessageCategoriesInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: MessageCategoriesInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for MessageCategoriesTableHandle<'ctx> {
+    type DeleteCallbackId = MessageCategoriesDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> MessageCategoriesDeleteCallbackId {
+        MessageCategoriesDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: MessageCategoriesDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
 pub struct MessageCategoriesUpdateCallbackId(__sdk::CallbackId);
 
 impl<'ctx> __sdk::TableWithPrimaryKey for MessageCategoriesTableHandle<'ctx> {
+    type UpdateCallbackId = MessageCategoriesUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> MessageCategoriesUpdateCallbackId {
+        MessageCategoriesUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: MessageCategoriesUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithUpdate for MessageCategoriesTableHandle<'ctx> {
     type UpdateCallbackId = MessageCategoriesUpdateCallbackId;
 
     fn on_update(

@@ -18,6 +18,18 @@ pub struct MailDeliveryEventsTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `mail_delivery_events`.
+pub struct MailDeliveryEventsTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for MailDeliveryEventsTableAccessor {
+    type Row = MailDeliveryEvent;
+    type Handle<'db> = MailDeliveryEventsTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.mail_delivery_events()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `mail_delivery_events`.
 ///
@@ -41,6 +53,18 @@ impl MailDeliveryEventsTableAccess for super::RemoteTables {
 
 pub struct MailDeliveryEventsInsertCallbackId(__sdk::CallbackId);
 pub struct MailDeliveryEventsDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for MailDeliveryEventsTableHandle<'ctx> {
+    type Row = MailDeliveryEvent;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = MailDeliveryEvent> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for MailDeliveryEventsTableHandle<'ctx> {
     type Row = MailDeliveryEvent;
@@ -80,9 +104,54 @@ impl<'ctx> __sdk::Table for MailDeliveryEventsTableHandle<'ctx> {
     }
 }
 
+impl<'ctx> __sdk::WithInsert for MailDeliveryEventsTableHandle<'ctx> {
+    type InsertCallbackId = MailDeliveryEventsInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> MailDeliveryEventsInsertCallbackId {
+        MailDeliveryEventsInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: MailDeliveryEventsInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for MailDeliveryEventsTableHandle<'ctx> {
+    type DeleteCallbackId = MailDeliveryEventsDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> MailDeliveryEventsDeleteCallbackId {
+        MailDeliveryEventsDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: MailDeliveryEventsDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
 pub struct MailDeliveryEventsUpdateCallbackId(__sdk::CallbackId);
 
 impl<'ctx> __sdk::TableWithPrimaryKey for MailDeliveryEventsTableHandle<'ctx> {
+    type UpdateCallbackId = MailDeliveryEventsUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> MailDeliveryEventsUpdateCallbackId {
+        MailDeliveryEventsUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: MailDeliveryEventsUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithUpdate for MailDeliveryEventsTableHandle<'ctx> {
     type UpdateCallbackId = MailDeliveryEventsUpdateCallbackId;
 
     fn on_update(

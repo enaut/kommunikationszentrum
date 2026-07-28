@@ -18,6 +18,18 @@ pub struct SenderMailIngressTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `sender_mail_ingress`.
+pub struct SenderMailIngressTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for SenderMailIngressTableAccessor {
+    type Row = MailIngress;
+    type Handle<'db> = SenderMailIngressTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.sender_mail_ingress()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `sender_mail_ingress`.
 ///
@@ -39,6 +51,18 @@ impl SenderMailIngressTableAccess for super::RemoteTables {
 
 pub struct SenderMailIngressInsertCallbackId(__sdk::CallbackId);
 pub struct SenderMailIngressDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for SenderMailIngressTableHandle<'ctx> {
+    type Row = MailIngress;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = MailIngress> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for SenderMailIngressTableHandle<'ctx> {
     type Row = MailIngress;
@@ -78,9 +102,54 @@ impl<'ctx> __sdk::Table for SenderMailIngressTableHandle<'ctx> {
     }
 }
 
+impl<'ctx> __sdk::WithInsert for SenderMailIngressTableHandle<'ctx> {
+    type InsertCallbackId = SenderMailIngressInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> SenderMailIngressInsertCallbackId {
+        SenderMailIngressInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: SenderMailIngressInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for SenderMailIngressTableHandle<'ctx> {
+    type DeleteCallbackId = SenderMailIngressDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> SenderMailIngressDeleteCallbackId {
+        SenderMailIngressDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: SenderMailIngressDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
 pub struct SenderMailIngressUpdateCallbackId(__sdk::CallbackId);
 
 impl<'ctx> __sdk::TableWithPrimaryKey for SenderMailIngressTableHandle<'ctx> {
+    type UpdateCallbackId = SenderMailIngressUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> SenderMailIngressUpdateCallbackId {
+        SenderMailIngressUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: SenderMailIngressUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithUpdate for SenderMailIngressTableHandle<'ctx> {
     type UpdateCallbackId = SenderMailIngressUpdateCallbackId;
 
     fn on_update(

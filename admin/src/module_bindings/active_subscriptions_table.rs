@@ -18,6 +18,18 @@ pub struct ActiveSubscriptionsTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `active_subscriptions`.
+pub struct ActiveSubscriptionsTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for ActiveSubscriptionsTableAccessor {
+    type Row = Subscription;
+    type Handle<'db> = ActiveSubscriptionsTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.active_subscriptions()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `active_subscriptions`.
 ///
@@ -39,6 +51,18 @@ impl ActiveSubscriptionsTableAccess for super::RemoteTables {
 
 pub struct ActiveSubscriptionsInsertCallbackId(__sdk::CallbackId);
 pub struct ActiveSubscriptionsDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for ActiveSubscriptionsTableHandle<'ctx> {
+    type Row = Subscription;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = Subscription> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for ActiveSubscriptionsTableHandle<'ctx> {
     type Row = Subscription;
@@ -78,9 +102,54 @@ impl<'ctx> __sdk::Table for ActiveSubscriptionsTableHandle<'ctx> {
     }
 }
 
+impl<'ctx> __sdk::WithInsert for ActiveSubscriptionsTableHandle<'ctx> {
+    type InsertCallbackId = ActiveSubscriptionsInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> ActiveSubscriptionsInsertCallbackId {
+        ActiveSubscriptionsInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: ActiveSubscriptionsInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for ActiveSubscriptionsTableHandle<'ctx> {
+    type DeleteCallbackId = ActiveSubscriptionsDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> ActiveSubscriptionsDeleteCallbackId {
+        ActiveSubscriptionsDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: ActiveSubscriptionsDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
 pub struct ActiveSubscriptionsUpdateCallbackId(__sdk::CallbackId);
 
 impl<'ctx> __sdk::TableWithPrimaryKey for ActiveSubscriptionsTableHandle<'ctx> {
+    type UpdateCallbackId = ActiveSubscriptionsUpdateCallbackId;
+
+    fn on_update(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
+    ) -> ActiveSubscriptionsUpdateCallbackId {
+        ActiveSubscriptionsUpdateCallbackId(self.imp.on_update(Box::new(callback)))
+    }
+
+    fn remove_on_update(&self, callback: ActiveSubscriptionsUpdateCallbackId) {
+        self.imp.remove_on_update(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithUpdate for ActiveSubscriptionsTableHandle<'ctx> {
     type UpdateCallbackId = ActiveSubscriptionsUpdateCallbackId;
 
     fn on_update(

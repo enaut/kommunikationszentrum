@@ -18,6 +18,18 @@ pub struct VisibleSubscriptionsTableHandle<'ctx> {
     ctx: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
+/// Lifetime-aware accessor marker for the table `visible_subscriptions`.
+pub struct VisibleSubscriptionsTableAccessor;
+
+impl __sdk::TableAccessor<super::RemoteTables> for VisibleSubscriptionsTableAccessor {
+    type Row = Subscription;
+    type Handle<'db> = VisibleSubscriptionsTableHandle<'db>;
+
+    fn get<'db>(db: &'db super::RemoteTables) -> Self::Handle<'db> {
+        db.visible_subscriptions()
+    }
+}
+
 #[allow(non_camel_case_types)]
 /// Extension trait for access to the table `visible_subscriptions`.
 ///
@@ -39,6 +51,18 @@ impl VisibleSubscriptionsTableAccess for super::RemoteTables {
 
 pub struct VisibleSubscriptionsInsertCallbackId(__sdk::CallbackId);
 pub struct VisibleSubscriptionsDeleteCallbackId(__sdk::CallbackId);
+
+impl<'ctx> __sdk::TableLike for VisibleSubscriptionsTableHandle<'ctx> {
+    type Row = Subscription;
+    type EventContext = super::EventContext;
+
+    fn count(&self) -> u64 {
+        self.imp.count()
+    }
+    fn iter(&self) -> impl Iterator<Item = Subscription> + '_ {
+        self.imp.iter()
+    }
+}
 
 impl<'ctx> __sdk::Table for VisibleSubscriptionsTableHandle<'ctx> {
     type Row = Subscription;
@@ -64,6 +88,36 @@ impl<'ctx> __sdk::Table for VisibleSubscriptionsTableHandle<'ctx> {
         self.imp.remove_on_insert(callback.0)
     }
 
+    type DeleteCallbackId = VisibleSubscriptionsDeleteCallbackId;
+
+    fn on_delete(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleSubscriptionsDeleteCallbackId {
+        VisibleSubscriptionsDeleteCallbackId(self.imp.on_delete(Box::new(callback)))
+    }
+
+    fn remove_on_delete(&self, callback: VisibleSubscriptionsDeleteCallbackId) {
+        self.imp.remove_on_delete(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithInsert for VisibleSubscriptionsTableHandle<'ctx> {
+    type InsertCallbackId = VisibleSubscriptionsInsertCallbackId;
+
+    fn on_insert(
+        &self,
+        callback: impl FnMut(&Self::EventContext, &Self::Row) + Send + 'static,
+    ) -> VisibleSubscriptionsInsertCallbackId {
+        VisibleSubscriptionsInsertCallbackId(self.imp.on_insert(Box::new(callback)))
+    }
+
+    fn remove_on_insert(&self, callback: VisibleSubscriptionsInsertCallbackId) {
+        self.imp.remove_on_insert(callback.0)
+    }
+}
+
+impl<'ctx> __sdk::WithDelete for VisibleSubscriptionsTableHandle<'ctx> {
     type DeleteCallbackId = VisibleSubscriptionsDeleteCallbackId;
 
     fn on_delete(
