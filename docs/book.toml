@@ -8,7 +8,8 @@ title = "Kommunikationszentrum setup and maintenance"
 additional-css = ["theme/custom.css"]
 
 [preprocessor.d2]
-layout = "dagre"
+path = "./d2-sketch.sh"
+layout = "tala"
 inline = false
 
 [preprocessor.graphviz]

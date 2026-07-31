@@ -4,3 +4,8 @@ img[src$=".svg"] {
     height: auto !important;
     display: inline-block !important;
 }
+
+svg > text:last-of-type {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
