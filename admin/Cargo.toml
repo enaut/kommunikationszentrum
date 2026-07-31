@@ -8,12 +8,12 @@ edition = "2021"
 
 [dependencies]
 dioxus = { version = "0.7", features = [] }
-dioxus-bootstrap-css = "0.5.15"
+dioxus-bootstrap-css = "0.7"
 futures-util = "0.3"
 spacetimedb-sdk = { version = "2.7" }
 stalwart_mta_hook_types = { version = "0.1" }
 hex = "0.4"
-blake3 = "1.3"
+blake3 = "1.8"
 gloo-timers = { version = "0.3", features = ["futures"] }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
