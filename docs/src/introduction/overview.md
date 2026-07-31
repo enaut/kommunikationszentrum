@@ -66,7 +66,11 @@ Mailclients: "Mailclients" {
 
 # Contabo Server Gruppe
 Contabo: "Contabo (Server)" {
-  Django: "Django\n(Webportal wir.solawis.de)" 
+  Django: "Django\n(Webportal wir.solawis.de)" {
+  sync_users_to_spacetime: "sync_users_to_spacetime\n(mitgliederverwaltung.management.commands)"
+  mailing
+  django-oauth
+  }
 }
 
 # Verbindungen und Beziehungen
@@ -88,8 +92,10 @@ Mail-Infrastruktur.Stalwart -> Kommunikationszentrum.Server: "Mailinglistenmail\
 Kommunikationszentrum.Sender -> Mail-Infrastruktur.Stalwart: "Sendet via SMTP\n(direkt)"
 Kommunikationszentrum.Sender -> Internet.smtp2go: "Sendet via SMTP\n(relay)"
 
-Contabo.Django -> Mail-Infrastruktur.Stalwart: "Mailversand"
-Contabo.Django -> Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
+Contabo.Django.mailing -> Mail-Infrastruktur.Stalwart: "Mailversand"
+Contabo.Django.signale -> Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
+Contabo.Django.sync_users_to_spacetime -> Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
+Contabo.Django.django-oauth <-> Kommunikationszentrum.Admin: "OAuth2.0\nAuthentifizierung"
 ```
 
 ## Key Features

@@ -6,6 +6,7 @@ title = "Kommunikationszentrum setup and maintenance"
 
 [output.html]
 additional-css = ["theme/custom.css"]
+additional-js = ["theme/svg-replace.js"]
 
 [preprocessor.d2]
 path = "./d2-sketch.sh"

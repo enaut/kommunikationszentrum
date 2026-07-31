@@ -133,18 +133,27 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
     let config_signal = use_signal(|| config);
 
     // OIDC Client (lazy). Kein expliziter Typ für die Endpoint-Typzustände.
-    let oidc_client: Rc<RefCell<Option<_>>> = Rc::new(RefCell::new(None));
+    //
+    // IMPORTANT: `use_oauth` re-runs on every render of the calling component (e.g. after
+    // `auth_state` changes on login/logout). A plain `Rc::new(RefCell::new(None))` here would
+    // therefore be recreated on every render, leaving the `login`/`logout` closures of later
+    // renders pointing at a fresh, never-populated client while the discovery `use_effect`
+    // below (which has no reactive dependencies) only ever runs once for the very first
+    // instance. `use_hook` ensures the same `Rc` is reused for the lifetime of the component.
+    let oidc_client: Rc<RefCell<Option<_>>> = use_hook(|| Rc::new(RefCell::new(None)));
     // Persistenter HTTP Client (AsyncHttpClient Trait). Redirects (SSRF Schutz) nur deaktivieren außerhalb WASM.
-    let http_client = Rc::new({
-        #[allow(unused_mut)]
-        let mut builder = HttpClient::builder();
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            builder = builder.redirect(reqwest::redirect::Policy::none());
-        }
-        builder
-            .build()
-            .expect("failed to build reqwest HTTP client for OIDC")
+    let http_client = use_hook(|| {
+        Rc::new({
+            #[allow(unused_mut)]
+            let mut builder = HttpClient::builder();
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                builder = builder.redirect(reqwest::redirect::Policy::none());
+            }
+            builder
+                .build()
+                .expect("failed to build reqwest HTTP client for OIDC")
+        })
     });
 
     // Initialisierung & Callback Handling
