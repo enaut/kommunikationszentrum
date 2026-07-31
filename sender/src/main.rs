@@ -426,12 +426,13 @@ fn process_ingress_job(
         }
     };
 
+    // `active_subscriptions` already excludes inactive statuses server-side, so no
+    // additional filter is needed here.
     let mut subscriptions: Vec<Subscription> = connection
         .db
         .active_subscriptions()
         .iter()
         .filter(|sub| sub.category_id == ingress.category_id)
-        .filter(|sub| sub.active)
         .collect();
 
     subscriptions.sort_by(|left, right| left.subscriber_email.cmp(&right.subscriber_email));

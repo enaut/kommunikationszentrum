@@ -57,6 +57,22 @@ spacetime call kommunikationszentrum create_webhook_token \
   '["mta-hook"]'
 ```
 
+```bash
+# 1. Generate a random token
+TOKEN=$(openssl rand -hex 32)
+echo "Save this token securely: $TOKEN"
+
+# 2. Hash it with BLAKE3 (requires b3sum or the spacetime CLI)
+TOKEN_HASH=$(echo -n "$TOKEN" | b3sum --no-names)
+# Or, using the Admin UI token management page
+
+# 3. Register the hash with the module
+spacetime call kommunikationszentrum create_webhook_token \
+  "$TOKEN_HASH" \
+  "Sync User Token" \
+  '["sync-user"]'
+```
+
 ### Revoke a Token
 
 ```bash

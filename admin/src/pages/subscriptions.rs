@@ -58,7 +58,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                         .find(|s| {
                                             s.category_id == cat.id
                                                 && s.subscriber_account_id == account_id
-                                                && s.active
+                                                && crate::pages::is_active_subscription(&s.status)
                                         })
                                         .map(|s| s.id);
                                     let cat_id = cat.id;

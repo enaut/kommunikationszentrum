@@ -369,7 +369,7 @@ pub(crate) fn handle_data_stage(
                         .subscriptions()
                         .subscriber_account_id()
                         .filter(&acc_id)
-                        .any(|s| s.category_id == *cat_id && s.active);
+                        .any(|s| s.category_id == *cat_id && s.status.is_active());
                     if !has_sub {
                         log::warn!(
                             "Sender {} (acc {}) is NOT subscribed to category {} ({})",
@@ -573,7 +573,7 @@ pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
                     .subscriptions()
                     .subscriber_account_id()
                     .filter(&acc.id)
-                    .filter(|s| s.active)
+                    .filter(|s| s.status.is_active())
                     .map(|s| s.category_id)
                     .collect();
                 subscribed_category_ids

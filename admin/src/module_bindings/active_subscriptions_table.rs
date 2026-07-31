@@ -2,6 +2,7 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN YOUR MODULE SOURCE CODE INSTEAD.
 
 #![allow(unused, clippy::all)]
+use super::subscription_status_type::SubscriptionStatus;
 use super::subscription_type::Subscription;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
@@ -132,72 +133,9 @@ impl<'ctx> __sdk::WithDelete for ActiveSubscriptionsTableHandle<'ctx> {
     }
 }
 
-pub struct ActiveSubscriptionsUpdateCallbackId(__sdk::CallbackId);
-
-impl<'ctx> __sdk::TableWithPrimaryKey for ActiveSubscriptionsTableHandle<'ctx> {
-    type UpdateCallbackId = ActiveSubscriptionsUpdateCallbackId;
-
-    fn on_update(
-        &self,
-        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
-    ) -> ActiveSubscriptionsUpdateCallbackId {
-        ActiveSubscriptionsUpdateCallbackId(self.imp.on_update(Box::new(callback)))
-    }
-
-    fn remove_on_update(&self, callback: ActiveSubscriptionsUpdateCallbackId) {
-        self.imp.remove_on_update(callback.0)
-    }
-}
-
-impl<'ctx> __sdk::WithUpdate for ActiveSubscriptionsTableHandle<'ctx> {
-    type UpdateCallbackId = ActiveSubscriptionsUpdateCallbackId;
-
-    fn on_update(
-        &self,
-        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
-    ) -> ActiveSubscriptionsUpdateCallbackId {
-        ActiveSubscriptionsUpdateCallbackId(self.imp.on_update(Box::new(callback)))
-    }
-
-    fn remove_on_update(&self, callback: ActiveSubscriptionsUpdateCallbackId) {
-        self.imp.remove_on_update(callback.0)
-    }
-}
-
-/// Access to the `id` unique index on the table `active_subscriptions`,
-/// which allows point queries on the field of the same name
-/// via the [`ActiveSubscriptionsIdUnique::find`] method.
-///
-/// Users are encouraged not to explicitly reference this type,
-/// but to directly chain method calls,
-/// like `ctx.db.active_subscriptions().id().find(...)`.
-pub struct ActiveSubscriptionsIdUnique<'ctx> {
-    imp: __sdk::UniqueConstraintHandle<Subscription, u64>,
-    phantom: std::marker::PhantomData<&'ctx super::RemoteTables>,
-}
-
-impl<'ctx> ActiveSubscriptionsTableHandle<'ctx> {
-    /// Get a handle on the `id` unique index on the table `active_subscriptions`.
-    pub fn id(&self) -> ActiveSubscriptionsIdUnique<'ctx> {
-        ActiveSubscriptionsIdUnique {
-            imp: self.imp.get_unique_constraint::<u64>("id"),
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<'ctx> ActiveSubscriptionsIdUnique<'ctx> {
-    /// Find the subscribed row whose `id` column value is equal to `col_val`,
-    /// if such a row is present in the client cache.
-    pub fn find(&self, col_val: &u64) -> Option<Subscription> {
-        self.imp.find(col_val)
-    }
-}
-
 #[doc(hidden)]
 pub(super) fn register_table(client_cache: &mut __sdk::ClientCache<super::RemoteModule>) {
     let _table = client_cache.get_or_make_table::<Subscription>("active_subscriptions");
-    _table.add_unique_constraint::<u64>("id", |row| &row.id);
 }
 
 #[doc(hidden)]

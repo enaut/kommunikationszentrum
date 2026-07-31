@@ -49,6 +49,7 @@ pub mod revoke_webhook_token_reducer;
 pub mod schedule_mail_delivery_retry_reducer;
 pub mod sender_mail_deliveries_table;
 pub mod sender_mail_ingress_table;
+pub mod subscription_status_type;
 pub mod subscription_type;
 pub mod subscription_unsubscribe_token_type;
 pub mod subscription_unsubscribe_tokens_table;
@@ -104,6 +105,7 @@ pub use revoke_webhook_token_reducer::revoke_webhook_token;
 pub use schedule_mail_delivery_retry_reducer::schedule_mail_delivery_retry;
 pub use sender_mail_deliveries_table::*;
 pub use sender_mail_ingress_table::*;
+pub use subscription_status_type::SubscriptionStatus;
 pub use subscription_type::Subscription;
 pub use subscription_unsubscribe_token_type::SubscriptionUnsubscribeToken;
 pub use subscription_unsubscribe_tokens_table::*;
@@ -600,9 +602,10 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.subscriptions = cache
             .apply_diff_to_table::<Subscription>("subscriptions", &self.subscriptions)
             .with_updates_by_pk(|row| &row.id);
-        diff.active_subscriptions = cache
-            .apply_diff_to_table::<Subscription>("active_subscriptions", &self.active_subscriptions)
-            .with_updates_by_pk(|row| &row.id);
+        diff.active_subscriptions = cache.apply_diff_to_table::<Subscription>(
+            "active_subscriptions",
+            &self.active_subscriptions,
+        );
         diff.active_unsubscribe_tokens = cache
             .apply_diff_to_table::<SubscriptionUnsubscribeToken>(
                 "active_unsubscribe_tokens",

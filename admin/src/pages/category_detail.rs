@@ -67,7 +67,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
 
     let category_subscriptions: Vec<_> = subscriptions()
         .into_iter()
-        .filter(|s| s.category_id == category_id && s.active)
+        .filter(|s| s.category_id == category_id && crate::pages::is_active_subscription(&s.status))
         .collect();
 
     let all_accounts = accounts();

@@ -4,6 +4,8 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::subscription_status_type::SubscriptionStatus;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub struct Subscription {
@@ -12,7 +14,7 @@ pub struct Subscription {
     pub subscriber_email: String,
     pub category_id: u64,
     pub subscribed_at: __sdk::Timestamp,
-    pub active: bool,
+    pub status: SubscriptionStatus,
 }
 
 impl __sdk::InModule for Subscription {
@@ -28,7 +30,7 @@ pub struct SubscriptionCols {
     pub subscriber_email: __sdk::__query_builder::Col<Subscription, String>,
     pub category_id: __sdk::__query_builder::Col<Subscription, u64>,
     pub subscribed_at: __sdk::__query_builder::Col<Subscription, __sdk::Timestamp>,
-    pub active: __sdk::__query_builder::Col<Subscription, bool>,
+    pub status: __sdk::__query_builder::Col<Subscription, SubscriptionStatus>,
 }
 
 impl __sdk::__query_builder::HasCols for Subscription {
@@ -43,7 +45,7 @@ impl __sdk::__query_builder::HasCols for Subscription {
             subscriber_email: __sdk::__query_builder::Col::new(table_name, "subscriber_email"),
             category_id: __sdk::__query_builder::Col::new(table_name, "category_id"),
             subscribed_at: __sdk::__query_builder::Col::new(table_name, "subscribed_at"),
-            active: __sdk::__query_builder::Col::new(table_name, "active"),
+            status: __sdk::__query_builder::Col::new(table_name, "status"),
         }
     }
 }
@@ -54,6 +56,7 @@ impl __sdk::__query_builder::HasCols for Subscription {
 pub struct SubscriptionIxCols {
     pub category_id: __sdk::__query_builder::IxCol<Subscription, u64>,
     pub id: __sdk::__query_builder::IxCol<Subscription, u64>,
+    pub status: __sdk::__query_builder::IxCol<Subscription, SubscriptionStatus>,
     pub subscriber_account_id: __sdk::__query_builder::IxCol<Subscription, u64>,
     pub subscriber_email: __sdk::__query_builder::IxCol<Subscription, String>,
 }
@@ -64,6 +67,7 @@ impl __sdk::__query_builder::HasIxCols for Subscription {
         SubscriptionIxCols {
             category_id: __sdk::__query_builder::IxCol::new(table_name, "category_id"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
+            status: __sdk::__query_builder::IxCol::new(table_name, "status"),
             subscriber_account_id: __sdk::__query_builder::IxCol::new(
                 table_name,
                 "subscriber_account_id",

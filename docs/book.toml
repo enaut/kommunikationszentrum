@@ -12,7 +12,3 @@ additional-js = ["theme/svg-replace.js"]
 path = "./d2-sketch.sh"
 layout = "tala"
 inline = false
-
-[preprocessor.graphviz]
-command = "mdbook-graphviz"
-output-to-file = false

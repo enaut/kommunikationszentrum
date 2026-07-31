@@ -1,6 +1,6 @@
 use log::{error, info};
 use serde::{Deserialize, Serialize};
-use spacetimedb::{Query, ReducerContext, Table, Timestamp, ViewContext};
+use spacetimedb::{Query, ReducerContext, SpacetimeType, Table, Timestamp, ViewContext};
 
 use crate::account::{account, account__view, admin_identities__view, is_admin_user, Account};
 
@@ -26,6 +26,43 @@ pub struct CategorySyncData {
     pub description: String,
 }
 
+/// Lifecycle status of a [`Subscription`]. `AutomaticallySubscribed` and
+/// `AutomaticallyUnsubscribed` are the only variants the sync path (driven by the Django
+/// user-sync webhook, e.g. Verteilpunkt mailing-list assignment changes) is ever allowed to
+/// write. `ManuallySubscribed` / `ManuallyUnsubscribed` are set by an explicit admin or member
+/// action (e.g. via the admin UI). `LinkUnsubscribed` is set when a member unsubscribes via the
+/// one-click `List-Unsubscribe` link in an email. Once a subscription is in a manual or
+/// link-unsubscribed state, the sync path must never overwrite it (see
+/// [`SubscriptionStatus::is_automatic`]).
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubscriptionStatus {
+    AutomaticallySubscribed,
+    AutomaticallyUnsubscribed,
+    ManuallySubscribed,
+    ManuallyUnsubscribed,
+    LinkUnsubscribed,
+}
+
+impl SubscriptionStatus {
+    /// Whether a subscription with this status should currently receive mail.
+    pub fn is_active(&self) -> bool {
+        matches!(
+            self,
+            Self::AutomaticallySubscribed | Self::ManuallySubscribed
+        )
+    }
+
+    /// Whether this status was set by the automatic sync path, as opposed to a manual
+    /// admin/member action or a mail-link unsubscribe. Only subscriptions currently in an
+    /// automatic status may be overwritten by the sync path.
+    fn is_automatic(&self) -> bool {
+        matches!(
+            self,
+            Self::AutomaticallySubscribed | Self::AutomaticallyUnsubscribed
+        )
+    }
+}
+
 #[derive(Clone)]
 #[spacetimedb::table(accessor = subscriptions, public)]
 pub struct Subscription {
@@ -39,7 +76,8 @@ pub struct Subscription {
     #[index(btree)]
     pub category_id: u64,
     pub subscribed_at: Timestamp,
-    pub active: bool,
+    #[index(btree)]
+    pub status: SubscriptionStatus,
 }
 
 #[derive(Clone)]
@@ -81,8 +119,19 @@ pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
 }
 
 #[spacetimedb::view(accessor = active_subscriptions, public)]
-pub fn active_subscriptions(ctx: &ViewContext) -> impl Query<Subscription> {
-    ctx.from.subscriptions().r#filter(|sub| sub.active)
+pub fn active_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
+    // Uses the `status` B-tree index instead of scanning the whole table.
+    ctx.db
+        .subscriptions()
+        .status()
+        .filter(SubscriptionStatus::AutomaticallySubscribed)
+        .chain(
+            ctx.db
+                .subscriptions()
+                .status()
+                .filter(SubscriptionStatus::ManuallySubscribed),
+        )
+        .collect()
 }
 
 #[spacetimedb::view(accessor = active_unsubscribe_tokens, public)]
@@ -182,11 +231,17 @@ pub fn update_message_category(
 /// checks. Callable both from the admin-guarded `add_subscription` reducer and
 /// from privileged internal flows (e.g. user sync) that already gate access
 /// at a higher level.
+///
+/// `status` is the status to apply. When it is an automatic status (i.e. this is being called
+/// from the sync path), an existing subscription that is currently in a manual or
+/// link-unsubscribed status is left completely untouched (returned as-is) so that the sync path
+/// never overrides an explicit member/admin decision.
 pub(crate) fn do_add_subscription(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
     subscriber_email: String,
     category_id: u64,
+    status: SubscriptionStatus,
 ) -> Result<Subscription, String> {
     let timestamp = ctx.timestamp;
 
@@ -198,10 +253,13 @@ pub(crate) fn do_add_subscription(
         .find(|sub| sub.category_id == category_id);
 
     let subscription = if let Some(existing) = existing {
+        if status.is_automatic() && !existing.status.is_automatic() {
+            return Ok(existing);
+        }
         let updated = Subscription {
             subscriber_email: subscriber_email.clone(),
             subscribed_at: timestamp,
-            active: true,
+            status,
             ..existing
         };
         ctx.db.subscriptions().id().update(updated.clone());
@@ -213,7 +271,7 @@ pub(crate) fn do_add_subscription(
             subscriber_email: subscriber_email.clone(),
             category_id,
             subscribed_at: timestamp,
-            active: true,
+            status,
         };
         ctx.db.subscriptions().insert(candidate);
         ctx.db
@@ -253,7 +311,13 @@ pub fn add_subscription(
         return Err("Unauthorized: can only subscribe yourself or requires admin".to_string());
     }
 
-    do_add_subscription(ctx, subscriber_account_id, subscriber_email, category_id)?;
+    do_add_subscription(
+        ctx,
+        subscriber_account_id,
+        subscriber_email,
+        category_id,
+        SubscriptionStatus::ManuallySubscribed,
+    )?;
     Ok(())
 }
 
@@ -293,7 +357,13 @@ pub(crate) fn do_add_and_subscribe_category(
         }
     };
 
-    do_add_subscription(ctx, subscriber_account_id, subscriber_email, category.id)?;
+    do_add_subscription(
+        ctx,
+        subscriber_account_id,
+        subscriber_email,
+        category.id,
+        SubscriptionStatus::AutomaticallySubscribed,
+    )?;
     Ok(())
 }
 
@@ -321,11 +391,32 @@ pub fn add_and_subscribe_category(
     )
 }
 
+/// Core deactivation logic shared by manual removal, sync-driven automatic unsubscription, and
+/// mail-link unsubscription. When `status` is an automatic status, a subscription that is
+/// currently in a manual or link-unsubscribed status is left untouched, so the sync path never
+/// overrides an explicit member/admin decision. Returns whether the update was actually applied.
+fn do_deactivate_subscription(
+    ctx: &ReducerContext,
+    subscription: Subscription,
+    status: SubscriptionStatus,
+) -> bool {
+    if status.is_automatic() && !subscription.status.is_automatic() {
+        return false;
+    }
+    let sub_id = subscription.id;
+    let mut updated = subscription;
+    updated.status = status;
+    ctx.db.subscriptions().id().update(updated);
+    deactivate_subscription_unsubscribe_token(ctx, sub_id);
+    true
+}
+
 /// Deactivates (without deleting) the given account's subscription to the
 /// category identified by `category_email_address`, if both exist and the
 /// subscription is currently active. No-op if the category or subscription is
-/// missing, or already inactive. Used to keep a single user's Verteilpunkt
-/// subscription consistent when their Verteilpunkt assignment changes.
+/// missing, already inactive, or currently in a manually-managed / link-unsubscribed status
+/// (those are never touched by the automatic sync path). Used to keep a single user's
+/// Verteilpunkt subscription consistent when their Verteilpunkt assignment changes.
 pub(crate) fn do_remove_subscription_for_category_email(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
@@ -350,18 +441,23 @@ pub(crate) fn do_remove_subscription_for_category_email(
         return Ok(());
     };
 
-    if sub.active {
+    if sub.status.is_active() {
         let sub_id = sub.id;
-        let mut updated = sub;
-        updated.active = false;
-        ctx.db.subscriptions().id().update(updated);
-        deactivate_subscription_unsubscribe_token(ctx, sub_id);
-        log::info!(
-            "Deactivated subscription {} for account {} (category email: {})",
-            sub_id,
-            subscriber_account_id,
-            category_email_address
-        );
+        if do_deactivate_subscription(ctx, sub, SubscriptionStatus::AutomaticallyUnsubscribed) {
+            log::info!(
+                "Deactivated subscription {} for account {} (category email: {})",
+                sub_id,
+                subscriber_account_id,
+                category_email_address
+            );
+        } else {
+            log::info!(
+                "Skipped sync-driven unsubscribe of subscription {} for account {} (category email: {}): manually managed",
+                sub_id,
+                subscriber_account_id,
+                category_email_address
+            );
+        }
     }
     Ok(())
 }
@@ -390,10 +486,7 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
         );
     }
 
-    let mut updated = sub.clone();
-    updated.active = false;
-    ctx.db.subscriptions().id().update(updated);
-    deactivate_subscription_unsubscribe_token(ctx, subscription_id);
+    do_deactivate_subscription(ctx, sub, SubscriptionStatus::ManuallyUnsubscribed);
     log::info!(
         "Deactivated subscription {} (by identity: {:?})",
         subscription_id,
@@ -480,14 +573,11 @@ pub(crate) fn unsubscribe_subscription_by_token(
         return Err("Subscription missing for token".to_string());
     };
 
-    if !subscription.active {
+    if !subscription.status.is_active() {
         return Ok(());
     }
 
-    let mut updated_subscription = subscription.clone();
-    updated_subscription.active = false;
-    ctx.db.subscriptions().id().update(updated_subscription);
-    deactivate_subscription_unsubscribe_token(ctx, token_row.subscription_id);
+    do_deactivate_subscription(ctx, subscription, SubscriptionStatus::LinkUnsubscribed);
     Ok(())
 }
 

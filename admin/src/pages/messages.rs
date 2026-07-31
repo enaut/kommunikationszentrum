@@ -84,7 +84,9 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     // categories, so the chips should match what's actually being shown.
     let subscribed_category_ids: HashSet<u64> = subscriptions()
         .into_iter()
-        .filter(|s| s.subscriber_account_id == account_id && s.active)
+        .filter(|s| {
+            s.subscriber_account_id == account_id && crate::pages::is_active_subscription(&s.status)
+        })
         .map(|s| s.category_id)
         .collect();
 

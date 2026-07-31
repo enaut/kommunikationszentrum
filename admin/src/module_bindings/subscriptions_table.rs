@@ -2,6 +2,7 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN YOUR MODULE SOURCE CODE INSTEAD.
 
 #![allow(unused, clippy::all)]
+use super::subscription_status_type::SubscriptionStatus;
 use super::subscription_type::Subscription;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 

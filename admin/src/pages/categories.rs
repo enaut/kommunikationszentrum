@@ -202,7 +202,7 @@ pub fn CategoriesPage() -> Element {
                                                     let remove = remove_category.clone();
                                                     let subscriber_count = subscriptions()
                                                         .iter()
-                                                        .filter(|s| s.category_id == cat_id && s.active)
+                                                        .filter(|s| s.category_id == cat_id && crate::pages::is_active_subscription(&s.status))
                                                         .count();
                                                     rsx! {
                                                         tr {
