@@ -2,7 +2,7 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use spacetimedb::{Query, ReducerContext, SpacetimeType, Table, Timestamp, ViewContext};
 
-use crate::account::{account, account__view, admin_identities__view, is_admin_user, Account};
+use crate::account::{account, account__view, is_admin_identity, is_admin_user, Account};
 
 #[spacetimedb::table(accessor = message_categories, public)]
 pub struct MessageCategory {
@@ -41,6 +41,7 @@ pub enum SubscriptionStatus {
     ManuallySubscribed,
     ManuallyUnsubscribed,
     LinkUnsubscribed,
+    RequiredSubscribed,
 }
 
 impl SubscriptionStatus {
@@ -48,7 +49,7 @@ impl SubscriptionStatus {
     pub fn is_active(&self) -> bool {
         matches!(
             self,
-            Self::AutomaticallySubscribed | Self::ManuallySubscribed
+            Self::AutomaticallySubscribed | Self::ManuallySubscribed | Self::RequiredSubscribed
         )
     }
 
@@ -98,7 +99,7 @@ pub struct SubscriptionUnsubscribeToken {
 #[spacetimedb::view(accessor = visible_subscriptions, public)]
 pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
     let sender = ctx.sender();
-    let is_admin = ctx.db.admin_identities().identity().find(&sender).is_some();
+    let is_admin = is_admin_user(ctx);
     if is_admin {
         ctx.db
             .subscriptions()
@@ -130,6 +131,12 @@ pub fn active_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
                 .subscriptions()
                 .status()
                 .filter(SubscriptionStatus::ManuallySubscribed),
+        )
+        .chain(
+            ctx.db
+                .subscriptions()
+                .status()
+                .filter(SubscriptionStatus::RequiredSubscribed),
         )
         .collect()
 }
@@ -232,16 +239,19 @@ pub fn update_message_category(
 /// from privileged internal flows (e.g. user sync) that already gate access
 /// at a higher level.
 ///
-/// `status` is the status to apply. When it is an automatic status (i.e. this is being called
-/// from the sync path), an existing subscription that is currently in a manual or
-/// link-unsubscribed status is left completely untouched (returned as-is) so that the sync path
-/// never overrides an explicit member/admin decision.
+/// `status` is the status to apply. When `force` is `false` and the requested status is
+/// automatic (i.e. this is being called from the sync path), an existing subscription that is
+/// currently in a manual or link-unsubscribed status is left completely untouched (returned
+/// as-is) so that the sync path never overrides an explicit member/admin decision.
+/// When `force` is `true` (explicit admin/member action), the status is always applied
+/// unconditionally, overwriting any existing status.
 pub(crate) fn do_add_subscription(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
     subscriber_email: String,
     category_id: u64,
     status: SubscriptionStatus,
+    force: bool,
 ) -> Result<Subscription, String> {
     let timestamp = ctx.timestamp;
 
@@ -253,7 +263,8 @@ pub(crate) fn do_add_subscription(
         .find(|sub| sub.category_id == category_id);
 
     let subscription = if let Some(existing) = existing {
-        if status.is_automatic() && !existing.status.is_automatic() {
+        // When not forced and the new status is automatic, protect manual/link-unsubscribed state.
+        if !force && status.is_automatic() && !existing.status.is_automatic() {
             return Ok(existing);
         }
         let updated = Subscription {
@@ -317,6 +328,33 @@ pub fn add_subscription(
         subscriber_email,
         category_id,
         SubscriptionStatus::ManuallySubscribed,
+        true, // force: explicit user/admin action always applies
+    )?;
+    Ok(())
+}
+
+/// Admin-only reducer that adds or updates a subscription with an explicitly chosen status.
+/// Unlike `add_subscription` (which always uses `ManuallySubscribed`), this lets admins set
+/// any status — useful for pre-marking someone as `ManuallyUnsubscribed` or correcting state.
+/// Because this is an explicit admin action, it always overwrites the existing status (force=true).
+#[spacetimedb::reducer]
+pub fn admin_add_subscription(
+    ctx: &ReducerContext,
+    subscriber_account_id: u64,
+    subscriber_email: String,
+    category_id: u64,
+    status: SubscriptionStatus,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+    do_add_subscription(
+        ctx,
+        subscriber_account_id,
+        subscriber_email,
+        category_id,
+        status,
+        true, // force: explicit admin action always overwrites existing status
     )?;
     Ok(())
 }
@@ -363,6 +401,7 @@ pub(crate) fn do_add_and_subscribe_category(
         subscriber_email,
         category.id,
         SubscriptionStatus::AutomaticallySubscribed,
+        false, // force=false: sync path must not overwrite manual/link-unsubscribed status
     )?;
     Ok(())
 }
@@ -464,14 +503,13 @@ pub(crate) fn do_remove_subscription_for_category_email(
 
 #[spacetimedb::reducer]
 pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result<(), String> {
+    let is_admin = is_admin_user(ctx);
     let sub = ctx
         .db
         .subscriptions()
         .id()
         .find(&subscription_id)
         .ok_or_else(|| format!("Subscription {} not found", subscription_id))?;
-
-    let is_admin = is_admin_user(ctx);
     let is_self = ctx
         .db
         .account()
@@ -485,6 +523,13 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
             "Unauthorized: can only remove your own subscriptions or requires admin".to_string(),
         );
     }
+
+    let sub = ctx
+        .db
+        .subscriptions()
+        .id()
+        .find(&subscription_id)
+        .ok_or_else(|| format!("Subscription {} not found", subscription_id))?;
 
     do_deactivate_subscription(ctx, sub, SubscriptionStatus::ManuallyUnsubscribed);
     log::info!(
@@ -589,7 +634,6 @@ pub fn provision_message_category(
     email_address: String,
     description: String,
 ) -> Result<(), String> {
-    use crate::account::admin_identities;
     info!(
         "Provisioning a new Category: {}, {}, {}",
         name, email_address, description
@@ -597,12 +641,7 @@ pub fn provision_message_category(
     // 1) Authorization check: capture the procedure caller identity and check inside a transaction
     let caller = ctx.sender();
     info!("Checking permissions for identity: {:?}", caller);
-    let is_admin: bool = ctx.with_tx(|tx| {
-        if caller == tx.database_identity() {
-            return true;
-        }
-        tx.db.admin_identities().identity().find(&caller).is_some()
-    });
+    let is_admin: bool = ctx.with_tx(|tx| is_admin_identity(tx, caller));
 
     if !is_admin {
         return Err("Unauthorized: Admin access required".to_string());

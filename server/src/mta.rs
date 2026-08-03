@@ -1,9 +1,7 @@
 use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
 use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
-use crate::account::{
-    account, account__view, admin_identities, admin_identities__view, is_admin_identity,
-};
+use crate::account::{account, account__view, admin_identities, is_admin_identity, is_admin_user};
 use crate::delivery;
 use crate::mailing::{message_categories, subscriptions, subscriptions__view};
 
@@ -556,7 +554,7 @@ fn parse_email_addresses(header: &str) -> Vec<String> {
 #[spacetimedb::view(accessor = visible_messages, public)]
 pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
     let sender = ctx.sender();
-    let is_admin = ctx.db.admin_identities().identity().find(&sender).is_some();
+    let is_admin = is_admin_user(ctx);
     if is_admin {
         ctx.db
             .received_message()

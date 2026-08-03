@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use spacetimedb::{Filter, Identity, Query, ReducerContext, Table, Timestamp, ViewContext};
+use spacetimedb::{
+    CtxDbRead, CtxWithSender, Filter, Identity, Query, ReducerContext, Table, Timestamp,
+    ViewContext,
+};
 
 // Configuration constants that can be set at compile time via environment variables
 const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
@@ -35,7 +38,7 @@ pub const ACCOUNT_VISIBILITY: Filter =
 #[spacetimedb::view(accessor = visible_accounts, public)]
 pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
     let sender = ctx.sender();
-    let is_admin = ctx.db.admin_identities().identity().find(&sender).is_some();
+    let is_admin = is_admin_user(ctx);
     if is_admin {
         ctx.db
             .account()
@@ -62,12 +65,7 @@ pub struct AdminIdentity {
 /// This allows the admin UI to check if the current user is an admin without exposing the full list of admin identities.
 #[spacetimedb::view(accessor = visible_admin_identities, public)]
 pub fn visible_admin_identities(ctx: &ViewContext) -> impl Query<AdminIdentity> {
-    let is_admin = ctx
-        .db
-        .admin_identities()
-        .identity()
-        .find(&ctx.sender())
-        .is_some();
+    let is_admin = is_admin_user(ctx);
     ctx.from.admin_identities().r#filter(move |_| is_admin)
 }
 
@@ -110,27 +108,32 @@ pub struct WebhookToken {
 /// This is used by the admin UI to list and manage webhook tokens without exposing them to regular users.
 #[spacetimedb::view(accessor = visible_webhook_tokens, public)]
 pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
-    let is_admin = ctx
-        .db
-        .admin_identities()
-        .identity()
-        .find(&ctx.sender())
-        .is_some();
+    let is_admin = is_admin_user(ctx);
     ctx.from.webhook_tokens().r#filter(move |_| is_admin)
 }
 
 /// Check if the current user has admin permissions.
-pub(crate) fn is_admin_user(ctx: &ReducerContext) -> bool {
+/// Works with any context that exposes a sender and read-only DB access
+/// (`ReducerContext`, `ViewContext`, `TxContext`, …).
+pub(crate) fn is_admin_user(ctx: &(impl CtxDbRead + CtxWithSender)) -> bool {
     is_admin_identity(ctx, ctx.sender())
 }
 
-/// True if the provided identity is the module owner or listed in admin_identities.
-pub(crate) fn is_admin_identity(ctx: &ReducerContext, who: Identity) -> bool {
-    // Module owner is always admin
-    if who == ctx.database_identity() {
+/// True if the provided identity is the module identity or listed in admin_identities.
+///
+/// Generic over [`CtxDbRead`] so it can be shared by reducers, views, and
+/// procedure/HTTP transactions (`ReducerContext`, `ViewContext`, `TxContext`, …).
+pub(crate) fn is_admin_identity(ctx: &impl CtxDbRead, who: Identity) -> bool {
+    // Same host call as `ReducerContext::database_identity()` — available outside reducers.
+    let module_identity = Identity::from_byte_array(spacetimedb::sys::identity());
+    if who == module_identity {
         return true;
     }
-    ctx.db.admin_identities().identity().find(&who).is_some()
+    ctx.db_read_only()
+        .admin_identities()
+        .identity()
+        .find(&who)
+        .is_some()
 }
 
 /// Add an identity to admin_identities. Only existing admins may call this.
