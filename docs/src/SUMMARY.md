@@ -20,7 +20,6 @@
 
   - [SpacetimeDB Server](./core/spacetimedb/overview.md)
     - [Database Schema](./core/spacetimedb/database-schema.md)
-    - [Tables Reference](./core/spacetimedb/tables-reference.md)
     - [Reducers Reference](./core/spacetimedb/reducers-reference.md)
     - [Module Publishing](./core/spacetimedb/module-publishing.md)
 

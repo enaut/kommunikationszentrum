@@ -1,280 +1,201 @@
-# Reducers Reference
+# Reducers & Procedures Reference
 
-Reducers are the business logic functions in SpacetimeDB that handle all database operations and system events. This chapter documents all reducers available in the Kommunikationszentrum.
+Reducers are atomic, transactional WebAssembly functions in SpacetimeDB that execute database state transitions. Procedures extend reducers with side-effecting external I/O capabilities (such as Stalwart MTA JMAP REST calls).
 
-## System Lifecycle Reducers
+## Caller-to-Reducer Architecture
 
-### `init`
-```rust
-#[spacetimedb::reducer(init)]
-pub fn init(_ctx: &ReducerContext)
+```d2
+direction: down
+
+"Client & Integration Callers": {
+  AdminUI: {
+    shape: person
+    label: "Admin UI Client"
+  }
+  UserClient: {
+    shape: person
+    label: "Member Client"
+  }
+  MTAHook: {
+    shape: cloud
+    label: "Stalwart MTA Hook (HTTP)"
+  }
+  DjangoWebhook: {
+    shape: cloud
+    label: "Django Webhook (HTTP)"
+  }
+  SenderDaemon: {
+    shape: rectangle
+    label: "Sender Daemon Worker"
+  }
+}
+
+"SpacetimeDB Reducers & Procedures": {
+  "Auth & Identity": {
+    register_admin_identity
+    unregister_admin_identity
+    generate_webhook_token
+    revoke_webhook_token
+    sync_user
+  }
+
+  "Category Management": {
+    add_message_category
+    update_message_category
+    set_message_category_active
+    delete_message_category
+    provision_message_category: "Procedure (JMAP REST Call)"
+  }
+
+  "Subscription Flow": {
+    subscribe
+    unsubscribe
+    unsubscribe_by_token: "List-Unsubscribe POST"
+    admin_set_subscription_status
+  }
+
+  "MTA Hook & Security": {
+    handle_mta_hook
+    block_ip
+  }
+
+  "Delivery Pipeline": {
+    ingress_reducers: "claim / heartbeat / complete ingress"
+    delivery_reducers: "fan-out / claim / record success & failure"
+  }
+}
+
+"Database Tables": {
+  account
+  admin_identities
+  webhook_tokens
+  message_categories
+  subscriptions
+  subscription_unsubscribe_tokens
+  mta_connection_log
+  mta_message_log
+  received_message
+  blocked_ips
+  mail_ingress
+  mail_deliveries
+  mail_delivery_events
+}
+
+# Invocations & Mutations
+"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Auth & Identity": "Admin actions"
+"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Category Management": "Manage categories"
+"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."MTA Hook & Security".block_ip: "IP block"
+
+"Client & Integration Callers".UserClient -> "SpacetimeDB Reducers & Procedures"."Subscription Flow".subscribe: "User opt-in"
+
+"Client & Integration Callers".DjangoWebhook -> "SpacetimeDB Reducers & Procedures"."Auth & Identity".sync_user: "User/VP Sync"
+"Client & Integration Callers".MTAHook -> "SpacetimeDB Reducers & Procedures"."MTA Hook & Security".handle_mta_hook: "Hook Events"
+
+"Client & Integration Callers".SenderDaemon -> "SpacetimeDB Reducers & Procedures"."Delivery Pipeline": "Lease & Execute"
+
+"SpacetimeDB Reducers & Procedures" -> "Database Tables": "Transactional Mutate"
 ```
-Called when the SpacetimeDB module is initially published. Currently performs no operations but can be extended for initial setup tasks.
 
-### `identity_connected`
-```rust
-#[spacetimedb::reducer(client_connected)]
-pub fn identity_connected(ctx: &ReducerContext)
-```
-Called every time a new client connects via WebSocket. Logs the connection and can be extended to:
-- Check if the identity is authorized
-- Link the identity to an account in the database
-- Set up user-specific permissions
+---
 
-### `identity_disconnected`
-```rust
-#[spacetimedb::reducer(client_disconnected)]
-pub fn identity_disconnected(_ctx: &ReducerContext)
-```
-Called every time a client disconnects. Currently performs no operations.
+## Delivery Pipeline State Machine & Reducers
 
-## MTA Hook Processing
+The async delivery pipeline transitions ingress records and individual recipient delivery records via worker leases.
 
-### `handle_mta_hook`
-```rust
-#[spacetimedb::reducer]
-pub fn handle_mta_hook(ctx: &ReducerContext, hook_data: String)
-```
+```d2
+direction: right
 
-**Purpose**: Main entry point for processing MTA hooks from Stalwart email server.
+IngressLifecycle: {
+  pending -> processing: "claim_pending_ingress()"
+  processing -> processing: "heartbeat_ingress_claim()"
+  processing -> completed: "complete_ingress()"
+}
 
-**Parameters**:
-- `hook_data`: JSON string containing the MTA hook request
-
-**Behavior**:
-- Parses the incoming JSON into `MtaHookRequest`
-- Routes to appropriate stage handler based on `request.context.stage`
-- Logs all operations with redacted sensitive information
-
-**Stage Handlers**:
-- `handle_connect_stage`: IP blocking validation
-- `handle_ehlo_stage`: HELO/EHLO validation
-- `handle_mail_stage`: MAIL FROM validation
-- `handle_rcpt_stage`: RCPT TO and category validation
-- `handle_data_stage`: Full message processing with subscription checks
-- `handle_auth_stage`: Authentication handling (currently accept-all)
-
-**Processing Flow**:
-1. Parse JSON hook data
-2. Extract timestamp from context
-3. Route to stage-specific handler
-4. Log connection and/or message details
-5. Make ACCEPT/REJECT/QUARANTINE decision
-
-## User Management
-
-### `sync_user`
-```rust
-#[spacetimedb::reducer]
-pub fn sync_user(ctx: &ReducerContext, action: String, user_data: String)
-```
-
-**Purpose**: Synchronizes user accounts from Django solawispielplatz.
-
-**Parameters**:
-- `action`: Either "upsert" or "delete"
-- `user_data`: JSON string containing `UserSyncData`
-
-**Actions**:
-- **"upsert"**: Creates or updates user account
-  - Deletes existing account if it exists
-  - Inserts new account with updated data
-- **"delete"**: Removes user account from database
-
-**UserSyncData Structure**:
-```rust
-{
-    "mitgliedsnr": u64,         // Django user ID
-    "name": Option<String>,     // User's display name
-    "email": Option<String>,    // Primary email address
-    "is_active": Option<bool>,  // Account active status
-    "updated_at": Option<String> // Last update timestamp
+DeliveryLifecycle: {
+  queued -> sending: "claim_pending_deliveries()"
+  sending -> sending: "heartbeat_delivery_claim()"
+  sending -> sent: "record_delivery_success()"
+  sending -> retry_scheduled: "record_delivery_failure() [transient]"
+  sending -> failed: "record_delivery_failure() [max retries]"
+  sending -> bounced: "record_delivery_failure() [permanent]"
+  retry_scheduled -> queued: "next_attempt_at reached"
 }
 ```
 
-## Category Management
+---
 
-### `add_message_category`
-```rust
-#[spacetimedb::reducer]
-pub fn add_message_category(
-    ctx: &ReducerContext,
-    name: String,
-    email_address: String,
-    description: String,
-) -> Result<(), String>
-```
+## Reducer & Procedure Reference
 
-**Purpose**: Creates new email categories (mailing lists).
+### Auth & System Reducers
 
-**Parameters**:
-- `name`: Human-readable category name (e.g., "SoLaWi News")
-- `email_address`: Category email address (e.g., "news@solawi.org")  
-- `description`: Longer description of the category's purpose
+| Function | Visibility | Parameters | Description |
+|---|---|---|---|
+| `init` | System | `_ctx: &ReducerContext` | Lifecycle initializer. Seeds publisher identity into `admin_identities`. |
+| `identity_connected` | System | `ctx: &ReducerContext` | Triggered on WebSocket connect. Logs client identity. |
+| `identity_disconnected` | System | `_ctx: &ReducerContext` | Triggered on WebSocket disconnect. No-op. |
+| `register_admin_identity` | Admin | `identity_hex: String` | Grants admin privileges to identity hex string. |
+| `unregister_admin_identity` | Admin | `identity_hex: String` | Revokes admin privileges from identity. |
+| `generate_webhook_token` | Admin | `label: String, permissions: Vec<String>` | Generates a hashed bearer token for external webhooks. |
+| `revoke_webhook_token` | Admin | `id: u64` | Deactivates a bearer webhook token by ID. |
+| `sync_user` | Admin/Webhook | `action: String, user_data: String` | Upserts/deletes user account & syncs category subscriptions from Django. |
 
-**Authorization**: Checks `is_admin_user()` - returns error if not authorized.
+### Category & Subscription Reducers
 
-**Behavior**:
-- Creates new `MessageCategory` with `active: true`
-- Auto-generates ID via `#[auto_inc]`
-- Logs the creation with the creating identity
+| Function | Visibility | Parameters | Description |
+|---|---|---|---|
+| `add_message_category` | Admin | `name: String, email_address: String, description: String` | Creates new mailing list category. |
+| `update_message_category` | Admin | `id: u64, name: String, description: String` | Updates display metadata of a category. |
+| `set_message_category_active` | Admin | `id: u64, active: bool` | Toggles category active status. |
+| `delete_message_category` | Admin | `id: u64` | Removes message category by ID. |
+| `provision_message_category` **`[Procedure]`** | Admin | `name: String, email_address: String, description: String` | Inserts category into DB **and** calls Stalwart JMAP REST API to create mailbox. |
+| `subscribe` | User/Admin | `subscriber_account_id: u64, subscriber_email: String, category_id: u64` | Subscribes account to a category (`ManuallySubscribed`). |
+| `unsubscribe` | User/Admin | `subscription_id: u64` | Unsubscribes account (`ManuallyUnsubscribed`). |
+| `unsubscribe_by_token` | Public | `token: String` | Processes one-click `List-Unsubscribe-Post` HTTP link (`LinkUnsubscribed`). |
+| `admin_set_subscription_status` | Admin | `subscription_id: u64, status: SubscriptionStatus` | Overrides subscription status directly. |
 
-## Subscription Management
+### MTA Hook & Security Reducers
 
-### `add_subscription`
-```rust
-#[spacetimedb::reducer]
-pub fn add_subscription(
-    ctx: &ReducerContext,
-    subscriber_account_id: u64,
-    subscriber_email: String,
-    category_id: u64,
-)
-```
+| Function | Visibility | Parameters | Description |
+|---|---|---|---|
+| `handle_mta_hook` | MTA Webhook | `hook_data: String` | Parses Stalwart hook JSON (CONNECT, EHLO, MAIL, RCPT, DATA, AUTH), validates IP/subscriptions, logs audit events, creates `mail_ingress`. |
+| `block_ip` | Admin | `ip: String, reason: String` | Blacklists IP address in `blocked_ips`. |
 
-**Purpose**: Creates subscriptions linking users to email categories.
+### Delivery Pipeline Reducers
 
-**Parameters**:
-- `subscriber_account_id`: Links to `account.id`
-- `subscriber_email`: Email address that will receive category emails
-- `category_id`: Foreign key to `message_categories.id`
+| Function | Visibility | Parameters | Description |
+|---|---|---|---|
+| `create_mail_ingress` | Module Internal | `ingress: MailIngress` | Inserts new `mail_ingress` record in `pending` state. |
+| `claim_pending_ingress` | Sender Daemon | `worker_identity: Identity` | Claims pending ingress lease (`claim_owner`, `claim_expires_at`). |
+| `heartbeat_ingress_claim` | Sender Daemon | `ingress_id: String` | Renews 10-minute ingress lease. |
+| `complete_ingress` | Sender Daemon | `ingress_id: String` | Marks fan-out processing complete. |
+| `create_mail_deliveries` | Sender Daemon | `ingress_id: String, deliveries: Vec<MailDelivery>` | Bulk-inserts subscriber delivery records. |
+| `claim_pending_deliveries` | Sender Daemon | `worker_identity: Identity, limit: u32` | Claims pending delivery leases (`claim_owner`, `claim_expires_at`). |
+| `heartbeat_delivery_claim` | Sender Daemon | `delivery_ids: Vec<String>` | Renews 5-minute delivery worker leases. |
+| `record_delivery_attempt` | Sender Daemon | `delivery_id: String, attempt_no: u32, ...` | Appends audit event record to `mail_delivery_events`. |
+| `record_delivery_success` | Sender Daemon | `delivery_id: String, smtp_code: u16, smtp_response: String` | Transitions delivery to `sent` state. |
+| `record_delivery_failure` | Sender Daemon | `delivery_id: String, error_kind: String, details: String, is_permanent: bool` | Handles back-off reschedule (`retry_scheduled`), max attempts (`failed`), or bounce (`bounced`). |
 
-**Behavior**:
-- Creates new `Subscription` with `active: true`
-- Sets `subscribed_at` to current timestamp
-- Auto-generates ID via `#[auto_inc]`
+---
 
-**Note**: Currently no authorization check - should be extended to verify the user can create subscriptions.
+## Provisioning Procedure Architecture
 
-## IP Blocking Management
+Procedures execute external HTTP side effects outside SpacetimeDB's transactional boundaries before committing database state:
 
-### `block_ip`
-```rust
-#[spacetimedb::reducer]
-pub fn block_ip(ctx: &ReducerContext, ip: String, reason: String)
-```
+```d2
+direction: right
 
-**Purpose**: Adds IP addresses to the spam protection blacklist.
+Client -> SpacetimeDB: "Call provision_message_category()"
 
-**Parameters**:
-- `ip`: IP address to block (string format)
-- `reason`: Human-readable reason for blocking
-
-**Behavior**:
-- Creates new `BlockedIp` with `active: true`
-- Sets `blocked_at` to current timestamp
-- IP address becomes primary key
-
-**Note**: Currently no authorization check - should be extended to admin-only access.
-
-## Utility and Debug Reducers
-
-### `get_mta_logs`
-```rust
-#[spacetimedb::reducer]
-pub fn get_mta_logs(ctx: &ReducerContext)
-```
-
-**Purpose**: Debug function to output all MTA logs to the SpacetimeDB console.
-
-**Behavior**:
-- Iterates through all `mta_connection_log` entries
-- Iterates through all `mta_message_log` entries
-- Logs details to SpacetimeDB log output
-
-**Usage**: Call via `spacetime call kommunikationszentrum get_mta_logs`
-
-### `add_test_accounts`
-```rust
-#[spacetimedb::reducer]
-pub fn add_test_accounts(ctx: &ReducerContext)
-```
-
-**Purpose**: Debug function to add sample user accounts for testing.
-
-**Behavior**:
-- Creates two test accounts with IDs 1 and 2
-- Sets basic user information for testing purposes
-
-**Note**: Should be removed or protected in production environments.
-
-## Authorization Helper Functions
-
-### `is_admin_user`
-```rust
-fn is_admin_user(_ctx: &ReducerContext) -> bool
-```
-
-**Purpose**: Determines if the current user has administrative privileges.
-
-**Current Implementation**: Returns `true` for all authenticated users (demo purposes).
-
-**Production Implementation Should**:
-- Check JWT claims (e.g., `is_staff`, `is_superuser`, `groups`)
-- Maintain whitelist of admin identities
-- Implement role-based permissions
-
-## Error Handling
-
-All reducers follow these error handling patterns:
-
-**JSON Parsing Errors**:
-```rust
-match serde_json::from_str::<Type>(&json_data) {
-    Ok(data) => { /* process */ },
-    Err(e) => { 
-        log::error!("Failed to parse data: {}", e); 
-        return; // or return Err(e.to_string())
-    }
+SpacetimeDB: {
+  DB_Check: "Verify Admin Identity & Unique Email"
+  Stalwart_HTTP: {
+    shape: cloud
+    label: "Stalwart JMAP API\nPOST /jmap/session"
+  }
+  DB_Insert: "Insert message_categories row"
+  DB_Check -> Stalwart_HTTP: "Create Mailbox"
+  Stalwart_HTTP -> DB_Insert: "Mailbox Created (200 OK)"
 }
-```
 
-**Authorization Errors**:
-```rust
-if !is_admin_user(ctx) {
-    return Err("Unauthorized: Admin access required".to_string());
-}
-```
-
-**Logging Standards**:
-- Use `log::info!()` for normal operations
-- Use `log::warn!()` for suspicious but handleable events
-- Use `log::error!()` for errors that prevent operation completion
-- Always redact sensitive information (IPs, emails, etc.)
-
-## Calling Reducers
-
-### From HTTP Route (external webhook)
-
-External systems POST JSON directly to the module HTTP routes. The handlers in the module parse the request and call the same stage-processing helpers and reducers inside `ctx.with_tx(...)`. Example (curl):
-
-```bash
-# MTA hook (JSON payload is the Stalwart hook format)
-curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d @hook_payload.json
-
-# User sync
-curl -X POST "http://localhost:3000/v1/database/kommunikation/route/user-sync" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{"action":"upsert","user":{...}}'
-```
-
-Handlers call internal helpers to perform the database work and return an HTTP response indicating success or failure. When possible, handlers run the persistence path inside a transaction so the request caller receives a definitive accept/reject decision synchronously.
-
-### From Command Line
-```bash
-# Call reducer directly
-spacetime call kommunikationszentrum get_mta_logs
-
-# Call with parameters
-spacetime call kommunikationszentrum add_message_category "News" "news@solawi.org" "Weekly newsletter"
-```
-
-### From Admin Interface
-```rust
-// Via SpacetimeDB client connection
-client.add_message_category("Events".to_string(), "events@solawi.org".to_string(), "Event announcements".to_string()).await?;
+SpacetimeDB -> Client: "Result: Ok(category_id)"
 ```
