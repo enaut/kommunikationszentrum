@@ -905,6 +905,30 @@ pub fn use_reducer_add_subscription(
     }
 }
 
+/// Get a callback to invoke the `admin_add_subscription` reducer.
+#[must_use]
+pub fn use_reducer_admin_add_subscription(
+) -> impl Fn(u64, String, u64, SubscriptionStatus) -> spacetimedb_sdk::Result<()> + Clone + 'static
+{
+    let conn_signal = use_connection();
+
+    move |subscriber_account_id: u64,
+          subscriber_email: String,
+          category_id: u64,
+          status: SubscriptionStatus| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.admin_add_subscription(
+                subscriber_account_id,
+                subscriber_email,
+                category_id,
+                status,
+            )
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
 /// Get a callback to invoke the `claim_next_mail_delivery` reducer.
 #[must_use]
 pub fn use_reducer_claim_next_mail_delivery(

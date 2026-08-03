@@ -15,6 +15,7 @@ pub mod active_unsubscribe_tokens_table;
 pub mod add_and_subscribe_category_reducer;
 pub mod add_message_category_reducer;
 pub mod add_subscription_reducer;
+pub mod admin_add_subscription_reducer;
 pub mod admin_identity_type;
 pub mod blocked_ip_type;
 pub mod claim_next_mail_delivery_reducer;
@@ -71,6 +72,7 @@ pub use active_unsubscribe_tokens_table::*;
 pub use add_and_subscribe_category_reducer::add_and_subscribe_category;
 pub use add_message_category_reducer::add_message_category;
 pub use add_subscription_reducer::add_subscription;
+pub use admin_add_subscription_reducer::admin_add_subscription;
 pub use admin_identity_type::AdminIdentity;
 pub use blocked_ip_type::BlockedIp;
 pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
@@ -144,6 +146,12 @@ pub enum Reducer {
         subscriber_account_id: u64,
         subscriber_email: String,
         category_id: u64,
+    },
+    AdminAddSubscription {
+        subscriber_account_id: u64,
+        subscriber_email: String,
+        category_id: u64,
+        status: SubscriptionStatus,
     },
     ClaimNextMailDelivery,
     ClaimNextMailIngress,
@@ -246,6 +254,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::AddAndSubscribeCategory { .. } => "add_and_subscribe_category",
             Reducer::AddMessageCategory { .. } => "add_message_category",
             Reducer::AddSubscription { .. } => "add_subscription",
+            Reducer::AdminAddSubscription { .. } => "admin_add_subscription",
             Reducer::ClaimNextMailDelivery => "claim_next_mail_delivery",
             Reducer::ClaimNextMailIngress => "claim_next_mail_ingress",
             Reducer::CompleteMailIngress { .. } => "complete_mail_ingress",
@@ -305,6 +314,17 @@ impl __sdk::Reducer for Reducer {
                 subscriber_account_id: subscriber_account_id.clone(),
                 subscriber_email: subscriber_email.clone(),
                 category_id: category_id.clone(),
+}),
+            Reducer::AdminAddSubscription{
+                subscriber_account_id,
+                subscriber_email,
+                category_id,
+                status,
+}             => __sats::bsatn::to_vec(&admin_add_subscription_reducer::AdminAddSubscriptionArgs {
+                subscriber_account_id: subscriber_account_id.clone(),
+                subscriber_email: subscriber_email.clone(),
+                category_id: category_id.clone(),
+                status: status.clone(),
 }),
             Reducer::ClaimNextMailDelivery => __sats::bsatn::to_vec(&claim_next_mail_delivery_reducer::ClaimNextMailDeliveryArgs {
                 }),
