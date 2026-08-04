@@ -1,6 +1,6 @@
 use log::{error, info};
 use serde::{Deserialize, Serialize};
-use spacetimedb::{Query, ReducerContext, SpacetimeType, Table, Timestamp, ViewContext};
+use spacetimedb::{ReducerContext, SpacetimeType, Table, Timestamp, ViewContext};
 
 use crate::account::{account, account__view, is_admin_identity, is_admin_user, Account};
 
@@ -16,6 +16,53 @@ pub struct MessageCategory {
     pub email_address: String,
     pub description: String,
     pub active: bool,
+    /// Controls whether regular members can see this category. Admins can see
+    /// both variants.
+    #[index(btree)]
+    #[default(CategoryVisibility::Public)]
+    pub visibility: CategoryVisibility,
+}
+
+/// Determines who can discover a message category in the member-facing view.
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CategoryVisibility {
+    #[default]
+    Public,
+    Private,
+}
+
+impl CategoryVisibility {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "public" | "Public" => Ok(Self::Public),
+            "private" | "Private" => Ok(Self::Private),
+            _ => Err(format!(
+                "Invalid category visibility '{value}'; expected 'public' or 'private'"
+            )),
+        }
+    }
+}
+
+/// A reusable category tag, such as `verteilpunkt` or `arbeitsgruppe`.
+#[spacetimedb::table(accessor = topics)]
+pub struct Topic {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    #[unique]
+    pub name: String,
+}
+
+/// Many-to-many assignment of topics to message categories.
+#[spacetimedb::table(accessor = message_category_topics)]
+pub struct MessageCategoryTopic {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    #[index(btree)]
+    pub category_id: u64,
+    #[index(btree)]
+    pub topic_id: u64,
 }
 
 /// Category data as sent by the Django user-sync webhook for a single
@@ -26,8 +73,18 @@ pub struct CategorySyncData {
     pub name: String,
     pub email_address: String,
     pub description: String,
+    #[serde(default = "default_category_visibility")]
+    pub visibility: String,
+    /// `None` leaves an existing category's topics unchanged. An empty array
+    /// explicitly removes all of its topic assignments.
+    #[serde(default)]
+    pub topics: Option<Vec<String>>,
     #[serde(default)]
     pub required: bool,
+}
+
+fn default_category_visibility() -> String {
+    "public".to_string()
 }
 
 /// Lifecycle status of a [`Subscription`]. The Django sync path controls automatic and required
@@ -175,15 +232,26 @@ pub fn active_unsubscribe_tokens(ctx: &ViewContext) -> Vec<SubscriptionUnsubscri
 }
 
 /// Returns all message categories once the caller has an associated account
-/// (i.e. is a known SoLaWi member) or is an admin. Identities without an
-/// account (not yet synced, or never a member) see an empty list. Clients
-/// subscribe to this view instead of the raw `message_categories` table.
+/// (i.e. is a known SoLaWi member) see public categories; admins see both
+/// public and private categories. Identities without an account (not yet
+/// synced, or never a member) see an empty list. Clients subscribe to this
+/// view instead of the raw `message_categories` table.
 #[spacetimedb::view(accessor = visible_message_categories, public)]
-pub fn visible_message_categories(ctx: &ViewContext) -> impl Query<MessageCategory> {
+pub fn visible_message_categories(ctx: &ViewContext) -> Vec<MessageCategory> {
     let sender = ctx.sender();
     let has_account = ctx.db.account().identity().find(&sender).is_some();
-    let visible = has_account || is_admin_user(ctx);
-    ctx.from.message_categories().r#filter(move |_| visible)
+    let is_admin = is_admin_user(ctx);
+    let categories = ctx.db.message_categories().visibility();
+    if is_admin {
+        categories
+            .filter(CategoryVisibility::Public)
+            .chain(categories.filter(CategoryVisibility::Private))
+            .collect()
+    } else if has_account {
+        categories.filter(CategoryVisibility::Public).collect()
+    } else {
+        vec![]
+    }
 }
 
 #[spacetimedb::reducer]
@@ -203,6 +271,7 @@ pub fn add_message_category(
         email_address,
         description,
         active: true,
+        visibility: CategoryVisibility::Public,
     });
     log::info!(
         "Added new message category (by identity: {:?})",
@@ -402,6 +471,65 @@ pub fn admin_add_subscription(
 /// subscribes the given account to it. Categories are only ever added by this
 /// path, never updated or removed, so manual admin edits to an existing
 /// category are never overwritten by a sync.
+fn sync_category_topics(
+    ctx: &ReducerContext,
+    category_id: u64,
+    topic_names: Vec<String>,
+) -> Result<(), String> {
+    let mut topic_names: Vec<String> = topic_names
+        .into_iter()
+        .map(|name| name.trim().to_string())
+        .collect();
+    if topic_names.iter().any(|name| name.is_empty()) {
+        return Err("Category topics must not be empty".to_string());
+    }
+    topic_names.sort();
+    topic_names.dedup();
+
+    let mut desired_topic_ids = Vec::with_capacity(topic_names.len());
+    for name in topic_names {
+        let topic = match ctx.db.topics().name().find(&name) {
+            Some(topic) => topic,
+            None => {
+                ctx.db.topics().insert(Topic {
+                    id: 0,
+                    name: name.clone(),
+                });
+                ctx.db
+                    .topics()
+                    .name()
+                    .find(&name)
+                    .ok_or_else(|| "Topic insert failed".to_string())?
+            }
+        };
+        desired_topic_ids.push(topic.id);
+    }
+
+    let existing_links: Vec<_> = ctx
+        .db
+        .message_category_topics()
+        .category_id()
+        .filter(&category_id)
+        .collect();
+    for link in &existing_links {
+        if !desired_topic_ids.contains(&link.topic_id) {
+            ctx.db.message_category_topics().id().delete(&link.id);
+        }
+    }
+    for topic_id in desired_topic_ids {
+        if !existing_links.iter().any(|link| link.topic_id == topic_id) {
+            ctx.db
+                .message_category_topics()
+                .insert(MessageCategoryTopic {
+                    id: 0,
+                    category_id,
+                    topic_id,
+                });
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn do_add_and_subscribe_category(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
@@ -409,15 +537,32 @@ pub(crate) fn do_add_and_subscribe_category(
     name: String,
     email_address: String,
     description: String,
+    visibility: String,
+    topics: Option<Vec<String>>,
     required: bool,
 ) -> Result<(), String> {
+    let visibility = CategoryVisibility::parse(&visibility)?;
     let category = match ctx
         .db
         .message_categories()
         .email_address()
         .find(&email_address)
     {
-        Some(existing) => existing,
+        Some(existing) => {
+            // Visibility comes from the authoritative Django sync, unlike the
+            // manually editable category content.
+            if existing.visibility != visibility {
+                ctx.db.message_categories().id().update(MessageCategory {
+                    visibility,
+                    ..existing
+                });
+            }
+            ctx.db
+                .message_categories()
+                .email_address()
+                .find(&email_address)
+                .expect("existing category disappeared during update")
+        }
         None => {
             ctx.db.message_categories().insert(MessageCategory {
                 id: 0,
@@ -425,6 +570,7 @@ pub(crate) fn do_add_and_subscribe_category(
                 email_address: email_address.clone(),
                 description,
                 active: true,
+                visibility,
             });
             ctx.db
                 .message_categories()
@@ -433,6 +579,10 @@ pub(crate) fn do_add_and_subscribe_category(
                 .ok_or_else(|| "Category insert failed".to_string())?
         }
     };
+
+    if let Some(topics) = topics {
+        sync_category_topics(ctx, category.id, topics)?;
+    }
 
     do_add_subscription(
         ctx,
@@ -470,6 +620,8 @@ pub fn add_and_subscribe_category(
         name,
         email_address,
         description,
+        default_category_visibility(),
+        None,
         false,
     )
 }
@@ -837,6 +989,7 @@ pub fn provision_message_category(
                                 email_address: email_address.clone(),
                                 description: description.clone(),
                                 active: true,
+                                visibility: CategoryVisibility::Public,
                             });
                         });
 

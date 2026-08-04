@@ -15,6 +15,7 @@ pub mod add_subscription_reducer;
 pub mod admin_add_subscription_reducer;
 pub mod admin_identity_type;
 pub mod blocked_ip_type;
+pub mod category_visibility_type;
 pub mod claim_next_mail_delivery_reducer;
 pub mod claim_next_mail_ingress_reducer;
 pub mod complete_mail_ingress_reducer;
@@ -30,6 +31,7 @@ pub mod mail_delivery_type;
 pub mod mail_ingress_type;
 pub mod mark_mail_delivery_bounced_reducer;
 pub mod mark_mail_delivery_sent_reducer;
+pub mod message_category_topic_type;
 pub mod message_category_type;
 pub mod mta_connection_log_type;
 pub mod mta_message_log_type;
@@ -47,6 +49,7 @@ pub mod subscription_status_type;
 pub mod subscription_type;
 pub mod subscription_unsubscribe_token_type;
 pub mod sync_user_reducer;
+pub mod topic_type;
 pub mod unregister_admin_identity_reducer;
 pub mod update_message_category_reducer;
 pub mod visible_accounts_table;
@@ -66,6 +69,7 @@ pub use add_subscription_reducer::add_subscription;
 pub use admin_add_subscription_reducer::admin_add_subscription;
 pub use admin_identity_type::AdminIdentity;
 pub use blocked_ip_type::BlockedIp;
+pub use category_visibility_type::CategoryVisibility;
 pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
 pub use claim_next_mail_ingress_reducer::claim_next_mail_ingress;
 pub use complete_mail_ingress_reducer::complete_mail_ingress;
@@ -81,6 +85,7 @@ pub use mail_delivery_type::MailDelivery;
 pub use mail_ingress_type::MailIngress;
 pub use mark_mail_delivery_bounced_reducer::mark_mail_delivery_bounced;
 pub use mark_mail_delivery_sent_reducer::mark_mail_delivery_sent;
+pub use message_category_topic_type::MessageCategoryTopic;
 pub use message_category_type::MessageCategory;
 pub use mta_connection_log_type::MtaConnectionLog;
 pub use mta_message_log_type::MtaMessageLog;
@@ -98,6 +103,7 @@ pub use subscription_status_type::SubscriptionStatus;
 pub use subscription_type::Subscription;
 pub use subscription_unsubscribe_token_type::SubscriptionUnsubscribeToken;
 pub use sync_user_reducer::sync_user;
+pub use topic_type::Topic;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
 pub use update_message_category_reducer::update_message_category;
 pub use visible_accounts_table::*;
@@ -580,12 +586,10 @@ impl __sdk::DbUpdate for DbUpdate {
                 &self.visible_admin_identities,
             )
             .with_updates_by_pk(|row| &row.identity);
-        diff.visible_message_categories = cache
-            .apply_diff_to_table::<MessageCategory>(
-                "visible_message_categories",
-                &self.visible_message_categories,
-            )
-            .with_updates_by_pk(|row| &row.id);
+        diff.visible_message_categories = cache.apply_diff_to_table::<MessageCategory>(
+            "visible_message_categories",
+            &self.visible_message_categories,
+        );
         diff.visible_messages = cache
             .apply_diff_to_table::<ReceivedMessage>("visible_messages", &self.visible_messages);
         diff.visible_subscriptions = cache.apply_diff_to_table::<Subscription>(

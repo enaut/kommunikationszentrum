@@ -4,6 +4,8 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::category_visibility_type::CategoryVisibility;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub struct MessageCategory {
@@ -12,6 +14,7 @@ pub struct MessageCategory {
     pub email_address: String,
     pub description: String,
     pub active: bool,
+    pub visibility: CategoryVisibility,
 }
 
 impl __sdk::InModule for MessageCategory {
@@ -27,6 +30,7 @@ pub struct MessageCategoryCols {
     pub email_address: __sdk::__query_builder::Col<MessageCategory, String>,
     pub description: __sdk::__query_builder::Col<MessageCategory, String>,
     pub active: __sdk::__query_builder::Col<MessageCategory, bool>,
+    pub visibility: __sdk::__query_builder::Col<MessageCategory, CategoryVisibility>,
 }
 
 impl __sdk::__query_builder::HasCols for MessageCategory {
@@ -38,6 +42,7 @@ impl __sdk::__query_builder::HasCols for MessageCategory {
             email_address: __sdk::__query_builder::Col::new(table_name, "email_address"),
             description: __sdk::__query_builder::Col::new(table_name, "description"),
             active: __sdk::__query_builder::Col::new(table_name, "active"),
+            visibility: __sdk::__query_builder::Col::new(table_name, "visibility"),
         }
     }
 }
@@ -48,6 +53,7 @@ impl __sdk::__query_builder::HasCols for MessageCategory {
 pub struct MessageCategoryIxCols {
     pub email_address: __sdk::__query_builder::IxCol<MessageCategory, String>,
     pub id: __sdk::__query_builder::IxCol<MessageCategory, u64>,
+    pub visibility: __sdk::__query_builder::IxCol<MessageCategory, CategoryVisibility>,
 }
 
 impl __sdk::__query_builder::HasIxCols for MessageCategory {
@@ -56,6 +62,7 @@ impl __sdk::__query_builder::HasIxCols for MessageCategory {
         MessageCategoryIxCols {
             email_address: __sdk::__query_builder::IxCol::new(table_name, "email_address"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
+            visibility: __sdk::__query_builder::IxCol::new(table_name, "visibility"),
         }
     }
 }

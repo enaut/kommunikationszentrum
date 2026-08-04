@@ -414,8 +414,8 @@ fn process_ingress_job(
     let category = match connection
         .db
         .visible_message_categories()
-        .id()
-        .find(&ingress.category_id)
+        .iter()
+        .find(|category| category.id == ingress.category_id)
     {
         Some(category) => category,
         None => {

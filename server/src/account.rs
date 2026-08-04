@@ -319,6 +319,8 @@ pub(crate) fn do_sync_user(
                         category.name,
                         category.email_address,
                         category.description,
+                        category.visibility,
+                        category.topics,
                         category.required,
                     ) {
                         log::error!(

@@ -2,6 +2,7 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN YOUR MODULE SOURCE CODE INSTEAD.
 
 #![allow(unused, clippy::all)]
+use super::category_visibility_type::CategoryVisibility;
 use super::message_category_type::MessageCategory;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
@@ -134,72 +135,9 @@ impl<'ctx> __sdk::WithDelete for VisibleMessageCategoriesTableHandle<'ctx> {
     }
 }
 
-pub struct VisibleMessageCategoriesUpdateCallbackId(__sdk::CallbackId);
-
-impl<'ctx> __sdk::TableWithPrimaryKey for VisibleMessageCategoriesTableHandle<'ctx> {
-    type UpdateCallbackId = VisibleMessageCategoriesUpdateCallbackId;
-
-    fn on_update(
-        &self,
-        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
-    ) -> VisibleMessageCategoriesUpdateCallbackId {
-        VisibleMessageCategoriesUpdateCallbackId(self.imp.on_update(Box::new(callback)))
-    }
-
-    fn remove_on_update(&self, callback: VisibleMessageCategoriesUpdateCallbackId) {
-        self.imp.remove_on_update(callback.0)
-    }
-}
-
-impl<'ctx> __sdk::WithUpdate for VisibleMessageCategoriesTableHandle<'ctx> {
-    type UpdateCallbackId = VisibleMessageCategoriesUpdateCallbackId;
-
-    fn on_update(
-        &self,
-        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
-    ) -> VisibleMessageCategoriesUpdateCallbackId {
-        VisibleMessageCategoriesUpdateCallbackId(self.imp.on_update(Box::new(callback)))
-    }
-
-    fn remove_on_update(&self, callback: VisibleMessageCategoriesUpdateCallbackId) {
-        self.imp.remove_on_update(callback.0)
-    }
-}
-
-/// Access to the `id` unique index on the table `visible_message_categories`,
-/// which allows point queries on the field of the same name
-/// via the [`VisibleMessageCategoriesIdUnique::find`] method.
-///
-/// Users are encouraged not to explicitly reference this type,
-/// but to directly chain method calls,
-/// like `ctx.db.visible_message_categories().id().find(...)`.
-pub struct VisibleMessageCategoriesIdUnique<'ctx> {
-    imp: __sdk::UniqueConstraintHandle<MessageCategory, u64>,
-    phantom: std::marker::PhantomData<&'ctx super::RemoteTables>,
-}
-
-impl<'ctx> VisibleMessageCategoriesTableHandle<'ctx> {
-    /// Get a handle on the `id` unique index on the table `visible_message_categories`.
-    pub fn id(&self) -> VisibleMessageCategoriesIdUnique<'ctx> {
-        VisibleMessageCategoriesIdUnique {
-            imp: self.imp.get_unique_constraint::<u64>("id"),
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<'ctx> VisibleMessageCategoriesIdUnique<'ctx> {
-    /// Find the subscribed row whose `id` column value is equal to `col_val`,
-    /// if such a row is present in the client cache.
-    pub fn find(&self, col_val: &u64) -> Option<MessageCategory> {
-        self.imp.find(col_val)
-    }
-}
-
 #[doc(hidden)]
 pub(super) fn register_table(client_cache: &mut __sdk::ClientCache<super::RemoteModule>) {
     let _table = client_cache.get_or_make_table::<MessageCategory>("visible_message_categories");
-    _table.add_unique_constraint::<u64>("id", |row| &row.id);
 }
 
 #[doc(hidden)]
