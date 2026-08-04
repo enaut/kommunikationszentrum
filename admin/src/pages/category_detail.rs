@@ -8,7 +8,7 @@ use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
     use_reducer_admin_add_subscription, use_reducer_remove_subscription,
-    use_reducer_update_message_category, use_table_visible_accounts,
+    use_reducer_update_message_category, use_subscription, use_table_visible_accounts,
     use_table_visible_message_categories, use_table_visible_subscriptions,
 };
 use crate::module_bindings::{Account, SubscriptionStatus};
@@ -88,6 +88,11 @@ pub struct EditSubscriptionTarget {
 /// Admin-only detail/edit view for a single message category (mailing list topic).
 #[component]
 pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Element {
+    use_subscription(&[
+        "SELECT * FROM visible_accounts",
+        "SELECT * FROM visible_message_categories",
+        "SELECT * FROM visible_subscriptions",
+    ]);
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     let accounts = use_table_visible_accounts();

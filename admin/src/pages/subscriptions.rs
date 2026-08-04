@@ -5,15 +5,20 @@ use ::dioxus::{
 use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
-    use_reducer_add_subscription, use_reducer_remove_subscription,
+    use_reducer_add_subscription, use_reducer_remove_subscription, use_subscription,
     use_table_visible_message_categories, use_table_visible_subscriptions,
 };
+use crate::module_bindings::SubscriptionStatus;
 use crate::oauth::UserInfo;
 
 /// Default view for all users: lists all active message categories and lets the
 /// user subscribe or unsubscribe with a single button click.
 #[component]
 pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
+    use_subscription(&[
+        "SELECT * FROM visible_message_categories",
+        "SELECT * FROM visible_subscriptions",
+    ]);
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     let add_subscription = use_reducer_add_subscription();
@@ -53,14 +58,17 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                         Row {
                             for cat in active_cats {
                                 {
-                                    let sub_id = subscriptions()
+                                    let subscription = subscriptions()
                                         .into_iter()
                                         .find(|s| {
                                             s.category_id == cat.id
                                                 && s.subscriber_account_id == account_id
                                                 && crate::pages::is_active_subscription(&s.status)
-                                        })
-                                        .map(|s| s.id);
+                                        });
+                                    let sub_id = subscription.as_ref().map(|s| s.id);
+                                    let is_required = subscription
+                                        .as_ref()
+                                        .is_some_and(|s| matches!(s.status, SubscriptionStatus::RequiredSubscribed));
                                     let cat_id = cat.id;
                                     let email_for_sub = email.clone();
                                     let add = add_subscription.clone();
@@ -84,7 +92,12 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                             "{cat.email_address}"
                                                         }
                                                     }
-                                                    if let Some(id) = sub_id {
+                                                    if is_required {
+                                                        Alert { color: Color::Info, class: "mt-auto mb-0 small",
+                                                            Icon { name: "info-circle", class: "me-2" }
+                                                            "Dieses Thema ist unbedingt notwendig für das Teilnehmen an der SoLaWiS-Gemeinschaft"
+                                                        }
+                                                    } else if let Some(id) = sub_id {
                                                         Button {
                                                             color: Color::Danger,
                                                             size: Size::Sm,

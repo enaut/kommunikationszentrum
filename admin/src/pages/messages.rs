@@ -4,7 +4,7 @@ use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
-    use_table_visible_message_categories, use_table_visible_messages,
+    use_subscription, use_table_visible_message_categories, use_table_visible_messages,
     use_table_visible_subscriptions,
 };
 use crate::oauth::UserInfo;
@@ -71,6 +71,11 @@ fn cat_badge_color(category_id: u64) -> Color {
 
 #[component]
 pub fn MessagesPage(user_info: UserInfo) -> Element {
+    use_subscription(&[
+        "SELECT * FROM visible_messages",
+        "SELECT * FROM visible_message_categories",
+        "SELECT * FROM visible_subscriptions",
+    ]);
     let messages = use_table_visible_messages();
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();

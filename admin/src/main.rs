@@ -9,7 +9,7 @@ use ::dioxus::{logger::tracing::info, prelude::*};
 use config::AdminConfig;
 use dioxus_bootstrap_css::prelude::*;
 use module_bindings::dioxus::{
-    use_connection_state, use_spacetimedb_context_provider, use_subscription, ConnectionState,
+    use_connection_state, use_spacetimedb_context_provider, ConnectionState,
 };
 use oauth::{use_oauth, AuthState, UserInfo};
 use router::ActiveView;
@@ -174,15 +174,6 @@ fn AuthenticatedApp(
     info!("Authenticated as: {}", user_info.mitgliedsnr);
 
     let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.id_token.clone());
-
-    use_subscription(&[
-        "SELECT * FROM visible_accounts",
-        "SELECT * FROM visible_admin_identities",
-        "SELECT * FROM message_categories",
-        "SELECT * FROM visible_subscriptions",
-        "SELECT * FROM visible_messages",
-        "SELECT * FROM visible_webhook_tokens",
-    ]);
 
     let state = use_connection_state();
     let active_view = use_signal(|| ActiveView::MySubscriptions);

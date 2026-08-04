@@ -7,7 +7,7 @@ use dioxus_bootstrap_css::prelude::*;
 use crate::module_bindings::dioxus::{
     use_connection_error, use_connection_state, use_reducer_create_webhook_token,
     use_reducer_dump_mta_logs_to_server_logs, use_reducer_register_admin_identity,
-    use_reducer_revoke_webhook_token, use_reducer_unregister_admin_identity,
+    use_reducer_revoke_webhook_token, use_reducer_unregister_admin_identity, use_subscription,
     use_table_visible_admin_identities, use_table_visible_webhook_tokens, ConnectionState,
 };
 use crate::oauth::UserInfo;
@@ -16,6 +16,10 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 /// Admin-only view: SpacetimeDB connection details, identity info, and admin identity management.
 #[component]
 pub fn DebugPage(user_info: UserInfo) -> Element {
+    use_subscription(&[
+        "SELECT * FROM visible_admin_identities",
+        "SELECT * FROM visible_webhook_tokens",
+    ]);
     let state = use_connection_state();
     let conn_error = use_connection_error();
     let admin_identities = use_table_visible_admin_identities();

@@ -6,8 +6,9 @@ use dioxus_bootstrap_css::prelude::*;
 
 use crate::{
     module_bindings::dioxus::{
-        use_reducer_add_subscription, use_reducer_remove_subscription, use_table_visible_accounts,
-        use_table_visible_message_categories, use_table_visible_subscriptions,
+        use_reducer_add_subscription, use_reducer_remove_subscription, use_subscription,
+        use_table_visible_accounts, use_table_visible_message_categories,
+        use_table_visible_subscriptions,
     },
     pages::category_detail::status_color,
 };
@@ -16,6 +17,11 @@ use crate::{
 /// Admins can add or remove subscriptions on behalf of any member.
 #[component]
 pub fn MembersPage() -> Element {
+    use_subscription(&[
+        "SELECT * FROM visible_accounts",
+        "SELECT * FROM visible_message_categories",
+        "SELECT * FROM visible_subscriptions",
+    ]);
     let accounts = use_table_visible_accounts();
     let subscriptions = use_table_visible_subscriptions();
     let categories = use_table_visible_message_categories();

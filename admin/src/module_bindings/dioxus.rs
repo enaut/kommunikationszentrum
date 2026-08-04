@@ -237,12 +237,6 @@ pub fn use_spacetimedb_context_provider(
                     .with_database_name(&module_name)
                     .with_token(token_for_build)
                     .on_connect(move |conn, identity, token| {
-                        // The dioxus codegen only registers row-cache callbacks below; it never
-                        // issues a live query, so without this call no rows (table or view) are
-                        // ever pushed to the client. Subscribe to everything the caller's
-                        // identity is authorized to see (tables and views alike).
-                        conn.subscription_builder().subscribe_to_all_tables();
-
                         // Populate initial rows for active_subscriptions
                         let current: Vec<Subscription> =
                             conn.db.active_subscriptions().iter().collect();
