@@ -6,14 +6,14 @@ use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
     use_procedure_provision_message_category, use_reducer_remove_message_category,
-    use_table_message_categories, use_table_visible_subscriptions,
+    use_table_visible_message_categories, use_table_visible_subscriptions,
 };
 use crate::pages::category_detail::CategoryDetailPage;
 
 /// Admin-only view: lists all message categories with inline add and delete controls.
 #[component]
 pub fn CategoriesPage() -> Element {
-    let categories = use_table_message_categories();
+    let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     // New generated hook returns (invoke, result_signal).
     let (add_invoke, add_result) = use_procedure_provision_message_category();

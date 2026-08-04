@@ -4,9 +4,12 @@ use ::dioxus::{
 };
 use dioxus_bootstrap_css::prelude::*;
 
-use crate::module_bindings::dioxus::{
-    use_reducer_add_subscription, use_reducer_remove_subscription, use_table_message_categories,
-    use_table_visible_accounts, use_table_visible_subscriptions,
+use crate::{
+    module_bindings::dioxus::{
+        use_reducer_add_subscription, use_reducer_remove_subscription, use_table_visible_accounts,
+        use_table_visible_message_categories, use_table_visible_subscriptions,
+    },
+    pages::category_detail::status_color,
 };
 
 /// Admin-only view: all members with their current subscriptions.
@@ -15,7 +18,7 @@ use crate::module_bindings::dioxus::{
 pub fn MembersPage() -> Element {
     let accounts = use_table_visible_accounts();
     let subscriptions = use_table_visible_subscriptions();
-    let categories = use_table_message_categories();
+    let categories = use_table_visible_message_categories();
     let add_subscription = use_reducer_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
 
@@ -91,15 +94,17 @@ pub fn MembersPage() -> Element {
                                                         for sub in &member_subs {
                                                             {
                                                                 let sub_id = sub.id;
-                                                                let cat_name = categories()
+                                                                let cat_color =  status_color(&sub.status);
+                                                                let cat = categories()
                                                                     .into_iter()
-                                                                    .find(|c| c.id == sub.category_id)
+                                                                    .find(|c| c.id == sub.category_id);
+                                                                let cat_name = cat
                                                                     .map(|c| c.name)
                                                                     .unwrap_or_else(|| { format!("#{}", sub.category_id) });
                                                                 let remove = remove_subscription.clone();
                                                                 rsx! {
                                                                     Badge {
-                                                                        color: Color::Primary,
+                                                                        color: cat_color,
                                                                         class: "me-1 mb-1 d-inline-flex align-items-center gap-1",
                                                                         "{cat_name}"
                                                                         button {

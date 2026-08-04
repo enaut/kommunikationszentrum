@@ -1,5 +1,7 @@
 use spacetimedb::{Identity, Query, ReducerContext, Table, TimeDuration, Timestamp, ViewContext};
 
+use crate::account::is_admin_user;
+
 pub const MAIL_INGRESS_PENDING: &str = "pending";
 pub const MAIL_INGRESS_PROCESSING: &str = "processing";
 pub const MAIL_INGRESS_RETRY_SCHEDULED: &str = "retry_scheduled";
@@ -41,8 +43,10 @@ fn ingress_retry_backoff(attempt_count: u32) -> TimeDuration {
     }
 }
 
+// Private: clients never subscribe to this table directly. `sender_mail_ingress`
+// below is the only way clients can read ingress rows.
 #[derive(Clone)]
-#[spacetimedb::table(accessor = mail_ingress, public)]
+#[spacetimedb::table(accessor = mail_ingress)]
 pub struct MailIngress {
     #[primary_key]
     pub id: String,
@@ -79,8 +83,10 @@ pub struct MailIngress {
     pub updated_at: Timestamp,
 }
 
+// Private: clients never subscribe to this table directly. `sender_mail_deliveries`
+// below is the only way clients can read delivery rows.
 #[derive(Clone)]
-#[spacetimedb::table(accessor = mail_deliveries, public)]
+#[spacetimedb::table(accessor = mail_deliveries)]
 pub struct MailDelivery {
     #[primary_key]
     pub id: String,
@@ -117,8 +123,9 @@ pub struct MailDelivery {
     pub updated_at: Timestamp,
 }
 
+// Private: internal delivery audit log. Not exposed to any client view.
 #[derive(Clone)]
-#[spacetimedb::table(accessor = mail_delivery_events, public)]
+#[spacetimedb::table(accessor = mail_delivery_events)]
 pub struct MailDeliveryEvent {
     #[primary_key]
     #[auto_inc]
@@ -136,14 +143,20 @@ pub struct MailDeliveryEvent {
     pub worker_identity: Option<Identity>,
 }
 
+/// Full mail-ingress fan-out queue. Restricted to admins (the `sender`
+/// service connects with an admin identity); everyone else gets an empty list.
 #[spacetimedb::view(accessor = sender_mail_ingress, public)]
 pub fn sender_mail_ingress(ctx: &ViewContext) -> impl Query<MailIngress> {
-    ctx.from.mail_ingress().r#filter(|_| true)
+    let is_admin = is_admin_user(ctx);
+    ctx.from.mail_ingress().r#filter(move |_| is_admin)
 }
 
+/// Full mail-delivery queue. Restricted to admins (the `sender` service
+/// connects with an admin identity); everyone else gets an empty list.
 #[spacetimedb::view(accessor = sender_mail_deliveries, public)]
 pub fn sender_mail_deliveries(ctx: &ViewContext) -> impl Query<MailDelivery> {
-    ctx.from.mail_deliveries().r#filter(|_| true)
+    let is_admin = is_admin_user(ctx);
+    ctx.from.mail_deliveries().r#filter(move |_| is_admin)
 }
 
 fn make_ingress_id(ctx: &ReducerContext, queue_id: &str, category_id: u64) -> String {

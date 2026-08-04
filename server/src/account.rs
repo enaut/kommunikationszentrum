@@ -1,7 +1,7 @@
+use log::info;
 use serde::{Deserialize, Serialize};
 use spacetimedb::{
-    CtxDbRead, CtxWithSender, Filter, Identity, Query, ReducerContext, Table, Timestamp,
-    ViewContext,
+    CtxDbRead, CtxWithSender, Identity, Query, ReducerContext, Table, Timestamp, ViewContext,
 };
 
 // Configuration constants that can be set at compile time via environment variables
@@ -12,8 +12,10 @@ const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
 
 const DJANGO_OAUTH_ISSUER_PATH: &str = "/o";
 
+// Private: clients never subscribe to this table directly. `visible_accounts`
+// below is the only way clients can read account rows.
 #[derive(Debug)]
-#[spacetimedb::table(accessor = account, public)]
+#[spacetimedb::table(accessor = account)]
 pub struct Account {
     #[primary_key]
     pub id: u64, // mitgliedsnr from Django
@@ -26,11 +28,6 @@ pub struct Account {
     #[index(btree)]
     pub last_synced: Timestamp,
 }
-
-// Direct queries to `account` are restricted to the caller's own row.
-#[spacetimedb::client_visibility_filter]
-pub const ACCOUNT_VISIBILITY: Filter =
-    Filter::Sql("SELECT * FROM account WHERE identity = :sender");
 
 /// Returns only the caller's own account for regular users.
 /// Returns all accounts for admins (identity present in admin_identities).
@@ -63,9 +60,15 @@ pub struct AdminIdentity {
 
 /// A view that restricts admin_identities to only show the admin identities to admins.
 /// This allows the admin UI to check if the current user is an admin without exposing the full list of admin identities.
+///
+/// Note: there's no need to also special-case "is this row the caller's own
+/// identity" here — if the caller's identity were in `admin_identities`,
+/// `is_admin_user` would already be `true` and every row would be visible.
 #[spacetimedb::view(accessor = visible_admin_identities, public)]
 pub fn visible_admin_identities(ctx: &ViewContext) -> impl Query<AdminIdentity> {
+    info!("Checking if user is admin for visible_admin_identities view");
     let is_admin = is_admin_user(ctx);
+    info!("Is an admin user: {}", is_admin);
     ctx.from.admin_identities().r#filter(move |_| is_admin)
 }
 
@@ -116,7 +119,9 @@ pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
 /// Works with any context that exposes a sender and read-only DB access
 /// (`ReducerContext`, `ViewContext`, `TxContext`, …).
 pub(crate) fn is_admin_user(ctx: &(impl CtxDbRead + CtxWithSender)) -> bool {
-    is_admin_identity(ctx, ctx.sender())
+    let res = is_admin_identity(ctx, ctx.sender());
+    info!("is_admin_identity result: {}", res);
+    res
 }
 
 /// True if the provided identity is the module identity or listed in admin_identities.
@@ -127,13 +132,17 @@ pub(crate) fn is_admin_identity(ctx: &impl CtxDbRead, who: Identity) -> bool {
     // Same host call as `ReducerContext::database_identity()` — available outside reducers.
     let module_identity = Identity::from_byte_array(spacetimedb::sys::identity());
     if who == module_identity {
+        info!("is_admin_identity: caller is module identity");
         return true;
     }
-    ctx.db_read_only()
+    let res = ctx
+        .db_read_only()
         .admin_identities()
         .identity()
         .find(&who)
-        .is_some()
+        .is_some();
+    info!("is_admin_identity: caller is admin identity: {}", res);
+    res
 }
 
 /// Add an identity to admin_identities. Only existing admins may call this.
@@ -310,6 +319,7 @@ pub(crate) fn do_sync_user(
                         category.name,
                         category.email_address,
                         category.description,
+                        category.required,
                     ) {
                         log::error!(
                             "Failed to add/subscribe category '{}' for account {}: {}",

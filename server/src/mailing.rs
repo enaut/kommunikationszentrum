@@ -4,7 +4,9 @@ use spacetimedb::{Query, ReducerContext, SpacetimeType, Table, Timestamp, ViewCo
 
 use crate::account::{account, account__view, is_admin_identity, is_admin_user, Account};
 
-#[spacetimedb::table(accessor = message_categories, public)]
+// Private: clients never subscribe to this table directly. `visible_message_categories`
+// below is the only way clients can read category rows.
+#[spacetimedb::table(accessor = message_categories)]
 pub struct MessageCategory {
     #[primary_key]
     #[auto_inc]
@@ -24,16 +26,14 @@ pub struct CategorySyncData {
     pub name: String,
     pub email_address: String,
     pub description: String,
+    #[serde(default)]
+    pub required: bool,
 }
 
-/// Lifecycle status of a [`Subscription`]. `AutomaticallySubscribed` and
-/// `AutomaticallyUnsubscribed` are the only variants the sync path (driven by the Django
-/// user-sync webhook, e.g. Verteilpunkt mailing-list assignment changes) is ever allowed to
-/// write. `ManuallySubscribed` / `ManuallyUnsubscribed` are set by an explicit admin or member
-/// action (e.g. via the admin UI). `LinkUnsubscribed` is set when a member unsubscribes via the
-/// one-click `List-Unsubscribe` link in an email. Once a subscription is in a manual or
-/// link-unsubscribed state, the sync path must never overwrite it (see
-/// [`SubscriptionStatus::is_automatic`]).
+/// Lifecycle status of a [`Subscription`]. The Django sync path controls automatic and required
+/// subscriptions. `ManuallySubscribed` / `ManuallyUnsubscribed` are set by an explicit admin or
+/// member action, while `LinkUnsubscribed` is set by a one-click `List-Unsubscribe` request.
+/// Required subscriptions are managed by Django and cannot be removed by the member.
 #[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubscriptionStatus {
     AutomaticallySubscribed,
@@ -62,10 +62,17 @@ impl SubscriptionStatus {
             Self::AutomaticallySubscribed | Self::AutomaticallyUnsubscribed
         )
     }
+
+    /// Whether this state is controlled by the Django synchronization path.
+    fn is_sync_managed(&self) -> bool {
+        self.is_automatic() || matches!(self, Self::RequiredSubscribed)
+    }
 }
 
+// Private: clients never subscribe to this table directly. `visible_subscriptions`
+// below is the only way clients can read subscription rows.
 #[derive(Clone)]
-#[spacetimedb::table(accessor = subscriptions, public)]
+#[spacetimedb::table(accessor = subscriptions)]
 pub struct Subscription {
     #[primary_key]
     #[auto_inc]
@@ -81,8 +88,10 @@ pub struct Subscription {
     pub status: SubscriptionStatus,
 }
 
+// Private: clients never subscribe to this table directly. `active_unsubscribe_tokens`
+// below is the only way clients can read unsubscribe-token rows.
 #[derive(Clone)]
-#[spacetimedb::table(accessor = subscription_unsubscribe_tokens, public)]
+#[spacetimedb::table(accessor = subscription_unsubscribe_tokens)]
 pub struct SubscriptionUnsubscribeToken {
     #[primary_key]
     pub token: String,
@@ -119,8 +128,15 @@ pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
     }
 }
 
+/// Full active-subscription fan-out list, used by the `sender` service to route
+/// outgoing mail. Restricted to admins (the `sender` service connects with an
+/// admin identity); regular users get an empty list and should use
+/// `visible_subscriptions` instead.
 #[spacetimedb::view(accessor = active_subscriptions, public)]
 pub fn active_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
+    if !is_admin_user(ctx) {
+        return vec![];
+    }
     // Uses the `status` B-tree index instead of scanning the whole table.
     ctx.db
         .subscriptions()
@@ -141,11 +157,33 @@ pub fn active_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
         .collect()
 }
 
+/// Active unsubscribe tokens. Restricted to admins (the `sender` service needs
+/// every subscriber's token to build one-click unsubscribe links); regular
+/// users get an empty list.
 #[spacetimedb::view(accessor = active_unsubscribe_tokens, public)]
-pub fn active_unsubscribe_tokens(ctx: &ViewContext) -> impl Query<SubscriptionUnsubscribeToken> {
-    ctx.from
+pub fn active_unsubscribe_tokens(ctx: &ViewContext) -> Vec<SubscriptionUnsubscribeToken> {
+    if !is_admin_user(ctx) {
+        return vec![];
+    }
+    // Uses the `created_at` B-tree index as a full-range scan, then filters in Rust.
+    ctx.db
         .subscription_unsubscribe_tokens()
-        .r#filter(|token| token.active)
+        .created_at()
+        .filter(Timestamp::UNIX_EPOCH..)
+        .filter(|token| token.active)
+        .collect()
+}
+
+/// Returns all message categories once the caller has an associated account
+/// (i.e. is a known SoLaWi member) or is an admin. Identities without an
+/// account (not yet synced, or never a member) see an empty list. Clients
+/// subscribe to this view instead of the raw `message_categories` table.
+#[spacetimedb::view(accessor = visible_message_categories, public)]
+pub fn visible_message_categories(ctx: &ViewContext) -> impl Query<MessageCategory> {
+    let sender = ctx.sender();
+    let has_account = ctx.db.account().identity().find(&sender).is_some();
+    let visible = has_account || is_admin_user(ctx);
+    ctx.from.message_categories().r#filter(move |_| visible)
 }
 
 #[spacetimedb::reducer]
@@ -240,9 +278,9 @@ pub fn update_message_category(
 /// at a higher level.
 ///
 /// `status` is the status to apply. When `force` is `false` and the requested status is
-/// automatic (i.e. this is being called from the sync path), an existing subscription that is
-/// currently in a manual or link-unsubscribed status is left completely untouched (returned
-/// as-is) so that the sync path never overrides an explicit member/admin decision.
+/// automatic, an existing subscription that is currently in a manual or link-unsubscribed
+/// status is left completely untouched (returned as-is). A required subscription is always
+/// applied by the sync path, including over an existing manual state.
 /// When `force` is `true` (explicit admin/member action), the status is always applied
 /// unconditionally, overwriting any existing status.
 pub(crate) fn do_add_subscription(
@@ -371,6 +409,7 @@ pub(crate) fn do_add_and_subscribe_category(
     name: String,
     email_address: String,
     description: String,
+    required: bool,
 ) -> Result<(), String> {
     let category = match ctx
         .db
@@ -400,7 +439,11 @@ pub(crate) fn do_add_and_subscribe_category(
         subscriber_account_id,
         subscriber_email,
         category.id,
-        SubscriptionStatus::AutomaticallySubscribed,
+        if required {
+            SubscriptionStatus::RequiredSubscribed
+        } else {
+            SubscriptionStatus::AutomaticallySubscribed
+        },
         false, // force=false: sync path must not overwrite manual/link-unsubscribed status
     )?;
     Ok(())
@@ -427,19 +470,20 @@ pub fn add_and_subscribe_category(
         name,
         email_address,
         description,
+        false,
     )
 }
 
 /// Core deactivation logic shared by manual removal, sync-driven automatic unsubscription, and
-/// mail-link unsubscription. When `status` is an automatic status, a subscription that is
-/// currently in a manual or link-unsubscribed status is left untouched, so the sync path never
-/// overrides an explicit member/admin decision. Returns whether the update was actually applied.
+/// mail-link unsubscription. Sync-driven removal applies to automatic and required
+/// subscriptions, but never overrides a manual or link-unsubscribed state. Returns whether the
+/// update was actually applied.
 fn do_deactivate_subscription(
     ctx: &ReducerContext,
     subscription: Subscription,
     status: SubscriptionStatus,
 ) -> bool {
-    if status.is_automatic() && !subscription.status.is_automatic() {
+    if status.is_automatic() && !subscription.status.is_sync_managed() {
         return false;
     }
     let sub_id = subscription.id;
@@ -454,8 +498,8 @@ fn do_deactivate_subscription(
 /// category identified by `category_email_address`, if both exist and the
 /// subscription is currently active. No-op if the category or subscription is
 /// missing, already inactive, or currently in a manually-managed / link-unsubscribed status
-/// (those are never touched by the automatic sync path). Used to keep a single user's
-/// Verteilpunkt subscription consistent when their Verteilpunkt assignment changes.
+/// (those are never touched by the sync path). Required subscriptions are removed when Django
+/// removes the corresponding Verteilpunkt assignment.
 pub(crate) fn do_remove_subscription_for_category_email(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
@@ -521,6 +565,13 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
     if !is_admin && !is_self {
         return Err(
             "Unauthorized: can only remove your own subscriptions or requires admin".to_string(),
+        );
+    }
+
+    if !is_admin && sub.status == SubscriptionStatus::RequiredSubscribed {
+        return Err(
+            "Required subscriptions can only be removed by an administrator or Django sync"
+                .to_string(),
         );
     }
 
@@ -620,6 +671,12 @@ pub(crate) fn unsubscribe_subscription_by_token(
 
     if !subscription.status.is_active() {
         return Ok(());
+    }
+
+    if subscription.status == SubscriptionStatus::RequiredSubscribed {
+        return Err(
+            "Required subscriptions cannot be removed using an unsubscribe link".to_string(),
+        );
     }
 
     do_deactivate_subscription(ctx, subscription, SubscriptionStatus::LinkUnsubscribed);

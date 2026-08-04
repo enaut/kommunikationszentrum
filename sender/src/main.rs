@@ -18,8 +18,8 @@ use tokio::sync::Notify;
 
 use crate::module_bindings::{
     ActiveSubscriptionsTableAccess as _, ActiveUnsubscribeTokensTableAccess as _,
-    MessageCategoriesTableAccess as _, SenderMailDeliveriesTableAccess as _,
-    SenderMailIngressTableAccess as _,
+    SenderMailDeliveriesTableAccess as _, SenderMailIngressTableAccess as _,
+    VisibleMessageCategoriesTableAccess as _,
 };
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider as _;
@@ -245,7 +245,7 @@ fn subscribe(connection: &DbConnection) {
         "SELECT * FROM sender_mail_ingress",
         "SELECT * FROM sender_mail_deliveries",
         "SELECT * FROM active_subscriptions",
-        "SELECT * FROM message_categories",
+        "SELECT * FROM visible_message_categories",
         "SELECT * FROM active_unsubscribe_tokens",
     ]);
 }
@@ -413,7 +413,7 @@ fn process_ingress_job(
 ) -> Result<(), Box<dyn Error>> {
     let category = match connection
         .db
-        .message_categories()
+        .visible_message_categories()
         .id()
         .find(&ingress.category_id)
     {

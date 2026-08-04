@@ -8,8 +8,8 @@ use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
     use_reducer_admin_add_subscription, use_reducer_remove_subscription,
-    use_reducer_update_message_category, use_table_message_categories, use_table_visible_accounts,
-    use_table_visible_subscriptions,
+    use_reducer_update_message_category, use_table_visible_accounts,
+    use_table_visible_message_categories, use_table_visible_subscriptions,
 };
 use crate::module_bindings::{Account, SubscriptionStatus};
 
@@ -21,13 +21,15 @@ fn status_label(status: &SubscriptionStatus) -> &'static str {
         SubscriptionStatus::ManuallyUnsubscribed => "Manuell abgemeldet",
         SubscriptionStatus::AutomaticallyUnsubscribed => "Automatisch abgemeldet",
         SubscriptionStatus::LinkUnsubscribed => "Per Link abgemeldet",
+        SubscriptionStatus::RequiredSubscribed => "Diese Mitgliedschaft ist erforderlich",
     }
 }
 
 /// Bootstrap color for each subscription status badge.
-fn status_color(status: &SubscriptionStatus) -> Color {
+pub fn status_color(status: &SubscriptionStatus) -> Color {
     match status {
         SubscriptionStatus::ManuallySubscribed => Color::Success,
+        SubscriptionStatus::RequiredSubscribed => Color::Primary,
         SubscriptionStatus::AutomaticallySubscribed => Color::Info,
         SubscriptionStatus::ManuallyUnsubscribed => Color::Warning,
         SubscriptionStatus::AutomaticallyUnsubscribed => Color::Secondary,
@@ -43,6 +45,7 @@ fn parse_status(s: &str) -> Option<SubscriptionStatus> {
         "ManuallyUnsubscribed" => Some(SubscriptionStatus::ManuallyUnsubscribed),
         "AutomaticallyUnsubscribed" => Some(SubscriptionStatus::AutomaticallyUnsubscribed),
         "LinkUnsubscribed" => Some(SubscriptionStatus::LinkUnsubscribed),
+        "RequiredSubscribed" => Some(SubscriptionStatus::RequiredSubscribed),
         _ => None,
     }
 }
@@ -55,6 +58,7 @@ fn status_key(status: &SubscriptionStatus) -> &'static str {
         SubscriptionStatus::ManuallyUnsubscribed => "ManuallyUnsubscribed",
         SubscriptionStatus::AutomaticallyUnsubscribed => "AutomaticallyUnsubscribed",
         SubscriptionStatus::LinkUnsubscribed => "LinkUnsubscribed",
+        SubscriptionStatus::RequiredSubscribed => "RequiredSubscribed",
     }
 }
 
@@ -65,6 +69,7 @@ const ALL_STATUSES: &[SubscriptionStatus] = &[
     SubscriptionStatus::ManuallyUnsubscribed,
     SubscriptionStatus::AutomaticallyUnsubscribed,
     SubscriptionStatus::LinkUnsubscribed,
+    SubscriptionStatus::RequiredSubscribed,
 ];
 
 /// Auto-select threshold: if the filtered list has fewer than this many entries,
@@ -83,7 +88,7 @@ pub struct EditSubscriptionTarget {
 /// Admin-only detail/edit view for a single message category (mailing list topic).
 #[component]
 pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Element {
-    let categories = use_table_message_categories();
+    let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     let accounts = use_table_visible_accounts();
 
@@ -146,6 +151,11 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
             (sub.clone(), account)
         })
         .collect();
+
+    let active_subscriber_count = category_subscriptions
+        .iter()
+        .filter(|sub| crate::pages::is_active_subscription(&sub.status))
+        .count();
 
     let subscribed_account_ids: HashSet<u64> = category_subscriptions
         .iter()
@@ -266,7 +276,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                                 h5 { class: "card-title mb-0",
                                     Icon { name: "people-fill", class: "me-2" }
                                     "Abonnenten"
-                                    span { class: "badge bg-white text-primary ms-2", "{subscriber_rows.len()}" }
+                                    span { class: "badge bg-white text-primary ms-2", "{active_subscriber_count}" }
                                 }
                                 Button {
                                     color: Color::Light,

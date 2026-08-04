@@ -12,6 +12,8 @@ pub mod subscriptions;
 pub fn is_active_subscription(status: &SubscriptionStatus) -> bool {
     matches!(
         status,
-        SubscriptionStatus::AutomaticallySubscribed | SubscriptionStatus::ManuallySubscribed
+        SubscriptionStatus::AutomaticallySubscribed
+            | SubscriptionStatus::ManuallySubscribed
+            | SubscriptionStatus::RequiredSubscribed
     )
 }

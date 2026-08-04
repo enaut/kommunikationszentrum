@@ -134,73 +134,10 @@ impl<'ctx> __sdk::WithDelete for ActiveUnsubscribeTokensTableHandle<'ctx> {
     }
 }
 
-pub struct ActiveUnsubscribeTokensUpdateCallbackId(__sdk::CallbackId);
-
-impl<'ctx> __sdk::TableWithPrimaryKey for ActiveUnsubscribeTokensTableHandle<'ctx> {
-    type UpdateCallbackId = ActiveUnsubscribeTokensUpdateCallbackId;
-
-    fn on_update(
-        &self,
-        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
-    ) -> ActiveUnsubscribeTokensUpdateCallbackId {
-        ActiveUnsubscribeTokensUpdateCallbackId(self.imp.on_update(Box::new(callback)))
-    }
-
-    fn remove_on_update(&self, callback: ActiveUnsubscribeTokensUpdateCallbackId) {
-        self.imp.remove_on_update(callback.0)
-    }
-}
-
-impl<'ctx> __sdk::WithUpdate for ActiveUnsubscribeTokensTableHandle<'ctx> {
-    type UpdateCallbackId = ActiveUnsubscribeTokensUpdateCallbackId;
-
-    fn on_update(
-        &self,
-        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
-    ) -> ActiveUnsubscribeTokensUpdateCallbackId {
-        ActiveUnsubscribeTokensUpdateCallbackId(self.imp.on_update(Box::new(callback)))
-    }
-
-    fn remove_on_update(&self, callback: ActiveUnsubscribeTokensUpdateCallbackId) {
-        self.imp.remove_on_update(callback.0)
-    }
-}
-
-/// Access to the `token` unique index on the table `active_unsubscribe_tokens`,
-/// which allows point queries on the field of the same name
-/// via the [`ActiveUnsubscribeTokensTokenUnique::find`] method.
-///
-/// Users are encouraged not to explicitly reference this type,
-/// but to directly chain method calls,
-/// like `ctx.db.active_unsubscribe_tokens().token().find(...)`.
-pub struct ActiveUnsubscribeTokensTokenUnique<'ctx> {
-    imp: __sdk::UniqueConstraintHandle<SubscriptionUnsubscribeToken, String>,
-    phantom: std::marker::PhantomData<&'ctx super::RemoteTables>,
-}
-
-impl<'ctx> ActiveUnsubscribeTokensTableHandle<'ctx> {
-    /// Get a handle on the `token` unique index on the table `active_unsubscribe_tokens`.
-    pub fn token(&self) -> ActiveUnsubscribeTokensTokenUnique<'ctx> {
-        ActiveUnsubscribeTokensTokenUnique {
-            imp: self.imp.get_unique_constraint::<String>("token"),
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<'ctx> ActiveUnsubscribeTokensTokenUnique<'ctx> {
-    /// Find the subscribed row whose `token` column value is equal to `col_val`,
-    /// if such a row is present in the client cache.
-    pub fn find(&self, col_val: &String) -> Option<SubscriptionUnsubscribeToken> {
-        self.imp.find(col_val)
-    }
-}
-
 #[doc(hidden)]
 pub(super) fn register_table(client_cache: &mut __sdk::ClientCache<super::RemoteModule>) {
     let _table =
         client_cache.get_or_make_table::<SubscriptionUnsubscribeToken>("active_unsubscribe_tokens");
-    _table.add_unique_constraint::<String>("token", |row| &row.token);
 }
 
 #[doc(hidden)]

@@ -1,3 +1,5 @@
+use tracing::info;
+
 use crate::module_bindings::dioxus::{
     use_connection_state, use_table_visible_admin_identities, ConnectionState,
 };
@@ -17,7 +19,8 @@ pub fn use_is_admin() -> bool {
     let admin_identities = use_table_visible_admin_identities();
     let state = use_connection_state();
     if let ConnectionState::Connected(identity, _) = state() {
-        admin_identities().iter().any(|a| a.identity == identity)
+        let res = admin_identities().iter().any(|a| a.identity == identity);
+        res
     } else {
         false
     }

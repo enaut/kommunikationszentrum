@@ -17,6 +17,8 @@ pub enum SubscriptionStatus {
     ManuallyUnsubscribed,
 
     LinkUnsubscribed,
+
+    RequiredSubscribed,
 }
 
 impl __sdk::InModule for SubscriptionStatus {

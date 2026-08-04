@@ -5,8 +5,8 @@ use ::dioxus::{
 use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
-    use_reducer_add_subscription, use_reducer_remove_subscription, use_table_message_categories,
-    use_table_visible_subscriptions,
+    use_reducer_add_subscription, use_reducer_remove_subscription,
+    use_table_visible_message_categories, use_table_visible_subscriptions,
 };
 use crate::oauth::UserInfo;
 
@@ -14,7 +14,7 @@ use crate::oauth::UserInfo;
 /// user subscribe or unsubscribe with a single button click.
 #[component]
 pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
-    let categories = use_table_message_categories();
+    let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     let add_subscription = use_reducer_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
