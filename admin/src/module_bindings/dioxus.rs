@@ -667,14 +667,17 @@ pub fn use_table_visible_webhook_tokens() -> SyncSignal<Vec<WebhookToken>> {
 /// Get a callback to invoke the `add_and_subscribe_category` reducer.
 #[must_use]
 pub fn use_reducer_add_and_subscribe_category(
-) -> impl Fn(u64, String, String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+) -> impl Fn(u64, String, String, String, String, CategoryVisibility) -> spacetimedb_sdk::Result<()>
+       + Clone
+       + 'static {
     let conn_signal = use_connection();
 
     move |subscriber_account_id: u64,
           subscriber_email: String,
           name: String,
           email_address: String,
-          description: String| {
+          description: String,
+          visibility: CategoryVisibility| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.add_and_subscribe_category(
                 subscriber_account_id,
@@ -682,6 +685,7 @@ pub fn use_reducer_add_and_subscribe_category(
                 name,
                 email_address,
                 description,
+                visibility,
             )
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
@@ -692,13 +696,17 @@ pub fn use_reducer_add_and_subscribe_category(
 /// Get a callback to invoke the `add_message_category` reducer.
 #[must_use]
 pub fn use_reducer_add_message_category(
-) -> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+) -> impl Fn(String, String, String, CategoryVisibility) -> spacetimedb_sdk::Result<()> + Clone + 'static
+{
     let conn_signal = use_connection();
 
-    move |name: String, email_address: String, description: String| {
+    move |name: String,
+          email_address: String,
+          description: String,
+          visibility: CategoryVisibility| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers
-                .add_message_category(name, email_address, description)
+                .add_message_category(name, email_address, description, visibility)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
@@ -1113,13 +1121,18 @@ pub fn use_reducer_unregister_admin_identity(
 /// Get a callback to invoke the `update_message_category` reducer.
 #[must_use]
 pub fn use_reducer_update_message_category(
-) -> impl Fn(u64, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+) -> impl Fn(u64, String, String, Option<CategoryVisibility>) -> spacetimedb_sdk::Result<()>
+       + Clone
+       + 'static {
     let conn_signal = use_connection();
 
-    move |category_id: u64, name: String, description: String| {
+    move |category_id: u64,
+          name: String,
+          description: String,
+          visibility: Option<CategoryVisibility>| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers
-                .update_message_category(category_id, name, description)
+                .update_message_category(category_id, name, description, visibility)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
@@ -1135,19 +1148,23 @@ pub fn use_reducer_update_message_category(
 /// on failure once the server responds.
 #[must_use]
 pub fn use_procedure_provision_message_category() -> (
-    impl Fn(String, String, String) + Clone + 'static,
+    impl Fn(String, String, String, CategoryVisibility) + Clone + 'static,
     SyncSignal<Option<Result<Result<(), String>, String>>>,
 ) {
     let conn_signal = use_connection();
     let result: SyncSignal<Option<Result<Result<(), String>, String>>> = use_signal_sync(|| None);
 
-    let invoke = move |name: String, email_address: String, description: String| {
+    let invoke = move |name: String,
+                       email_address: String,
+                       description: String,
+                       visibility: CategoryVisibility| {
         if let Some(conn) = conn_signal().as_ref() {
             let mut result = result;
             conn.procedures.provision_message_category_then(
                 name,
                 email_address,
                 description,
+                visibility,
                 move |_ctx, res| {
                     result.set(Some(res.map_err(|e| e.to_string())));
                 },

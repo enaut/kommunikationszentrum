@@ -8,6 +8,7 @@ use crate::module_bindings::dioxus::{
     use_procedure_provision_message_category, use_reducer_remove_message_category,
     use_subscription, use_table_visible_message_categories, use_table_visible_subscriptions,
 };
+use crate::module_bindings::CategoryVisibility;
 use crate::pages::category_detail::CategoryDetailPage;
 
 /// Admin-only view: lists all message categories with inline add and delete controls.
@@ -29,6 +30,7 @@ pub fn CategoriesPage() -> Element {
     let mut name = use_signal(String::new);
     let mut email_address = use_signal(String::new);
     let mut description = use_signal(String::new);
+    let mut visibility = use_signal(|| CategoryVisibility::Public);
     let add_error: Signal<Option<(String, Color)>> = use_signal(|| None);
     let is_sending = use_signal(|| false);
 
@@ -51,6 +53,7 @@ pub fn CategoriesPage() -> Element {
                             name.set(String::new());
                             email_address.set(String::new());
                             description.set(String::new());
+                            visibility.set(CategoryVisibility::Public);
                             add_error.set(Some((
                                 "Neues Thema erfolgreich erstellt!".to_string(),
                                 Color::Success,
@@ -130,7 +133,7 @@ pub fn CategoriesPage() -> Element {
                                         oninput: move |e| email_address.set(e.value()),
                                     }
                                 }
-                                Col { md: ColumnSize::Span(4),
+                                Col { md: ColumnSize::Span(3),
                                     label { class: "form-label", "Beschreibung" }
                                     input {
                                         class: "form-control",
@@ -138,6 +141,29 @@ pub fn CategoriesPage() -> Element {
                                         placeholder: "Kurze Beschreibung",
                                         value: "{description}",
                                         oninput: move |e| description.set(e.value()),
+                                    }
+                                }
+                                Col { md: ColumnSize::Span(2),
+                                    label { class: "form-label", "Sichtbarkeit" }
+                                    select {
+                                        class: "form-select",
+                                        onchange: move |e| {
+                                            match e.value().as_str() {
+                                                "Public" => visibility.set(CategoryVisibility::Public),
+                                                "Private" => visibility.set(CategoryVisibility::Private),
+                                                _ => {}
+                                            }
+                                        },
+                                        option {
+                                            value: "Public",
+                                            selected: *visibility.read() == CategoryVisibility::Public,
+                                            "Öffentlich"
+                                        }
+                                        option {
+                                            value: "Private",
+                                            selected: *visibility.read() == CategoryVisibility::Private,
+                                            "Privat"
+                                        }
                                     }
                                 }
                                 Col { md: ColumnSize::Span(1),
@@ -148,12 +174,14 @@ pub fn CategoriesPage() -> Element {
                                         onclick: {
                                             let add = add_invoke.clone();
                                             let mut is_sending = is_sending.clone();
+                                            let mut visibility_signal = visibility.clone();
                                             move |_| {
                                                 let n = name.read().clone();
                                                 let e = email_address.read().clone();
                                                 let d = description.read().clone();
+                                                let v = visibility_signal.read().clone();
                                                 is_sending.set(true);
-                                                add(n, e, d);
+                                                add(n, e, d, v);
                                             }
                                         },
                                         Icon { name: "plus-lg" }
@@ -195,6 +223,7 @@ pub fn CategoriesPage() -> Element {
                                                 th { "E-Mail-Adresse" }
                                                 th { "Beschreibung" }
                                                 th { "Status" }
+                                                th { "Sichtbarkeit" }
                                                 th { class: "text-end", "Abonnenten" }
                                                 th { class: "text-end", "Aktionen" }
                                             }
@@ -224,6 +253,13 @@ pub fn CategoriesPage() -> Element {
                                                                     Badge { color: Color::Success, "Aktiv" }
                                                                 } else {
                                                                     Badge { color: Color::Secondary, "Inaktiv" }
+                                                                }
+                                                            }
+                                                            td {
+                                                                if cat.visibility == CategoryVisibility::Public {
+                                                                    Badge { color: Color::Info, "Öffentlich" }
+                                                                } else {
+                                                                    Badge { color: Color::Warning, "Privat" }
                                                                 }
                                                             }
                                                             td { class: "text-end",

@@ -11,7 +11,7 @@ use crate::module_bindings::dioxus::{
     use_reducer_update_message_category, use_subscription, use_table_visible_accounts,
     use_table_visible_message_categories, use_table_visible_subscriptions,
 };
-use crate::module_bindings::{Account, SubscriptionStatus};
+use crate::module_bindings::{Account, CategoryVisibility, SubscriptionStatus};
 
 /// German display label for each subscription status.
 fn status_label(status: &SubscriptionStatus) -> &'static str {
@@ -105,6 +105,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
     // Local edit state, seeded once from the loaded category.
     let mut name = use_signal(String::new);
     let mut description = use_signal(String::new);
+    let mut visibility = use_signal(|| CategoryVisibility::Public);
     let mut initialized = use_signal(|| false);
     let mut save_message: Signal<Option<(String, Color)>> = use_signal(|| None);
 
@@ -113,6 +114,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
             if !initialized() {
                 name.set(cat.name.clone());
                 description.set(cat.description.clone());
+                visibility.set(cat.visibility);
                 initialized.set(true);
             }
         }
@@ -192,6 +194,11 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                         } else {
                             Badge { color: Color::Secondary, class: "ms-2 align-middle", "Inaktiv" }
                         }
+                        if cat.visibility == CategoryVisibility::Public {
+                            Badge { color: Color::Info, class: "ms-2 align-middle", "Öffentlich" }
+                        } else {
+                            Badge { color: Color::Warning, class: "ms-2 align-middle", "Privat" }
+                        }
                     }
                 }
             }
@@ -230,6 +237,32 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                                 }
                             }
                             div { class: "mb-3",
+                                label { class: "form-label", "Sichtbarkeit" }
+                                select {
+                                    class: "form-select",
+                                    onchange: move |e| {
+                                        match e.value().as_str() {
+                                            "Public" => visibility.set(CategoryVisibility::Public),
+                                            "Private" => visibility.set(CategoryVisibility::Private),
+                                            _ => {}
+                                        }
+                                    },
+                                    option {
+                                        value: "Public",
+                                        selected: *visibility.read() == CategoryVisibility::Public,
+                                        "Öffentlich"
+                                    }
+                                    option {
+                                        value: "Private",
+                                        selected: *visibility.read() == CategoryVisibility::Private,
+                                        "Privat"
+                                    }
+                                }
+                                div { class: "form-text",
+                                    "Öffentliche Themen sind für alle Mitglieder sichtbar. Private Themen sind nur für Administratoren und abonnierte Mitglieder sichtbar."
+                                }
+                            }
+                            div { class: "mb-3",
                                 label { class: "form-label", "E-Mail-Adresse" }
                                 input {
                                     class: "form-control",
@@ -248,7 +281,8 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                                 onclick: move |_| {
                                     let n = name.read().clone();
                                     let d = description.read().clone();
-                                    match update_category(category_id, n, d) {
+                                    let v = visibility.read().clone();
+                                    match update_category(category_id, n, d, Some(v)) {
                                         Ok(()) => {
                                             save_message
                                                 .set(

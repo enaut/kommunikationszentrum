@@ -4,12 +4,15 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::category_visibility_type::CategoryVisibility;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub(super) struct UpdateMessageCategoryArgs {
     pub category_id: u64,
     pub name: String,
     pub description: String,
+    pub visibility: Option<CategoryVisibility>,
 }
 
 impl From<UpdateMessageCategoryArgs> for super::Reducer {
@@ -18,6 +21,7 @@ impl From<UpdateMessageCategoryArgs> for super::Reducer {
             category_id: args.category_id,
             name: args.name,
             description: args.description,
+            visibility: args.visibility,
         }
     }
 }
@@ -42,8 +46,9 @@ pub trait update_message_category {
         category_id: u64,
         name: String,
         description: String,
+        visibility: Option<CategoryVisibility>,
     ) -> __sdk::Result<()> {
-        self.update_message_category_then(category_id, name, description, |_, _| {})
+        self.update_message_category_then(category_id, name, description, visibility, |_, _| {})
     }
 
     /// Request that the remote module invoke the reducer `update_message_category` to run as soon as possible,
@@ -57,6 +62,7 @@ pub trait update_message_category {
         category_id: u64,
         name: String,
         description: String,
+        visibility: Option<CategoryVisibility>,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -70,6 +76,7 @@ impl update_message_category for super::RemoteReducers {
         category_id: u64,
         name: String,
         description: String,
+        visibility: Option<CategoryVisibility>,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -80,6 +87,7 @@ impl update_message_category for super::RemoteReducers {
                 category_id,
                 name,
                 description,
+                visibility,
             },
             callback,
         )

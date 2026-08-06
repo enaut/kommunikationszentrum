@@ -4,12 +4,15 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::category_visibility_type::CategoryVisibility;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 struct ProvisionMessageCategoryArgs {
     pub name: String,
     pub email_address: String,
     pub description: String,
+    pub visibility: CategoryVisibility,
 }
 
 impl __sdk::InModule for ProvisionMessageCategoryArgs {
@@ -21,8 +24,20 @@ impl __sdk::InModule for ProvisionMessageCategoryArgs {
 ///
 /// Implemented for [`super::RemoteProcedures`].
 pub trait provision_message_category {
-    fn provision_message_category(&self, name: String, email_address: String, description: String) {
-        self.provision_message_category_then(name, email_address, description, |_, _| {});
+    fn provision_message_category(
+        &self,
+        name: String,
+        email_address: String,
+        description: String,
+        visibility: CategoryVisibility,
+    ) {
+        self.provision_message_category_then(
+            name,
+            email_address,
+            description,
+            visibility,
+            |_, _| {},
+        );
     }
 
     fn provision_message_category_then(
@@ -30,6 +45,7 @@ pub trait provision_message_category {
         name: String,
         email_address: String,
         description: String,
+        visibility: CategoryVisibility,
 
         __callback: impl FnOnce(&super::ProcedureEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -43,6 +59,7 @@ impl provision_message_category for super::RemoteProcedures {
         name: String,
         email_address: String,
         description: String,
+        visibility: CategoryVisibility,
 
         __callback: impl FnOnce(&super::ProcedureEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -55,6 +72,7 @@ impl provision_message_category for super::RemoteProcedures {
                     name,
                     email_address,
                     description,
+                    visibility,
                 },
                 __callback,
             );

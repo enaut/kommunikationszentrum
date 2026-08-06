@@ -4,11 +4,14 @@ use ::dioxus::{
 };
 use dioxus_bootstrap_css::prelude::*;
 
-use crate::module_bindings::dioxus::{
-    use_reducer_add_subscription, use_reducer_remove_subscription, use_subscription,
-    use_table_visible_message_categories, use_table_visible_subscriptions,
-};
 use crate::module_bindings::SubscriptionStatus;
+use crate::module_bindings::{
+    dioxus::{
+        use_reducer_add_subscription, use_reducer_remove_subscription, use_subscription,
+        use_table_visible_message_categories, use_table_visible_subscriptions,
+    },
+    CategoryVisibility,
+};
 use crate::oauth::UserInfo;
 
 /// Default view for all users: lists all active message categories and lets the
@@ -82,6 +85,12 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                     h5 { class: "card-title mb-0", "{cat.name}" }
                                                     if sub_id.is_some() {
                                                         Badge { color: Color::Success, class: "ms-2", "Abonniert" }
+                                                    }
+
+                                                    if cat.visibility == CategoryVisibility::Public {
+                                                        Badge { color: Color::Info, class: "ms-2 align-middle", "Öffentlich" }
+                                                    } else {
+                                                        Badge { color: Color::Warning, class: "ms-2 align-middle", "Privat" }
                                                     }
                                                 },
                                                 body: rsx! {

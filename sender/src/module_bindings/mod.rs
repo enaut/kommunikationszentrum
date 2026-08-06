@@ -128,11 +128,13 @@ pub enum Reducer {
         name: String,
         email_address: String,
         description: String,
+        visibility: CategoryVisibility,
     },
     AddMessageCategory {
         name: String,
         email_address: String,
         description: String,
+        visibility: CategoryVisibility,
     },
     AddSubscription {
         subscriber_account_id: u64,
@@ -233,6 +235,7 @@ pub enum Reducer {
         category_id: u64,
         name: String,
         description: String,
+        visibility: Option<CategoryVisibility>,
     },
 }
 
@@ -282,21 +285,25 @@ impl __sdk::Reducer for Reducer {
                 name,
                 email_address,
                 description,
+                visibility,
 }             => __sats::bsatn::to_vec(&add_and_subscribe_category_reducer::AddAndSubscribeCategoryArgs {
                 subscriber_account_id: subscriber_account_id.clone(),
                 subscriber_email: subscriber_email.clone(),
                 name: name.clone(),
                 email_address: email_address.clone(),
                 description: description.clone(),
+                visibility: visibility.clone(),
 }),
             Reducer::AddMessageCategory{
                 name,
                 email_address,
                 description,
+                visibility,
 }             => __sats::bsatn::to_vec(&add_message_category_reducer::AddMessageCategoryArgs {
                 name: name.clone(),
                 email_address: email_address.clone(),
                 description: description.clone(),
+                visibility: visibility.clone(),
 }),
             Reducer::AddSubscription{
                 subscriber_account_id,
@@ -473,10 +480,12 @@ Reducer::EnqueueMailDelivery{
                 category_id,
                 name,
                 description,
+                visibility,
 }             => __sats::bsatn::to_vec(&update_message_category_reducer::UpdateMessageCategoryArgs {
                 category_id: category_id.clone(),
                 name: name.clone(),
                 description: description.clone(),
+                visibility: visibility.clone(),
 }),
             _ => unreachable!(),
 }

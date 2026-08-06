@@ -232,26 +232,60 @@ pub fn active_unsubscribe_tokens(ctx: &ViewContext) -> Vec<SubscriptionUnsubscri
 }
 
 /// Returns all message categories once the caller has an associated account
-/// (i.e. is a known SoLaWi member) see public categories; admins see both
-/// public and private categories. Identities without an account (not yet
-/// synced, or never a member) see an empty list. Clients subscribe to this
-/// view instead of the raw `message_categories` table.
+/// (i.e. is a known SoLaWi member). Public categories are always visible.
+/// Private categories are only visible to admins or to regular users who are
+/// subscribed to them. Identities without an account (not yet synced, or
+/// never a member) see an empty list. Clients subscribe to this view instead
+/// of the raw `message_categories` table.
 #[spacetimedb::view(accessor = visible_message_categories, public)]
 pub fn visible_message_categories(ctx: &ViewContext) -> Vec<MessageCategory> {
     let sender = ctx.sender();
     let has_account = ctx.db.account().identity().find(&sender).is_some();
     let is_admin = is_admin_user(ctx);
-    let categories = ctx.db.message_categories().visibility();
-    if is_admin {
-        categories
-            .filter(CategoryVisibility::Public)
-            .chain(categories.filter(CategoryVisibility::Private))
-            .collect()
-    } else if has_account {
-        categories.filter(CategoryVisibility::Public).collect()
-    } else {
-        vec![]
+
+    if !has_account {
+        return vec![];
     }
+
+    let all_categories = ctx.db.message_categories().visibility();
+
+    let public_categories = all_categories
+        .filter(CategoryVisibility::Public)
+        .collect::<Vec<_>>();
+
+    if is_admin {
+        // Admins see all categories
+        let private_categories = all_categories
+            .filter(CategoryVisibility::Private)
+            .collect::<Vec<_>>();
+        let mut result = public_categories;
+        result.extend(private_categories);
+        return result;
+    }
+
+    // For regular users: show public categories + private categories they're subscribed to
+    let account = ctx
+        .db
+        .account()
+        .identity()
+        .find(&sender)
+        .expect("Account must exist");
+    let subscribed_category_ids: Vec<u64> = ctx
+        .db
+        .subscriptions()
+        .subscriber_account_id()
+        .filter(&account.id)
+        .map(|sub| sub.category_id)
+        .collect();
+
+    let mut result = public_categories;
+    let private_categories: Vec<MessageCategory> = all_categories
+        .filter(CategoryVisibility::Private)
+        .filter(|cat| subscribed_category_ids.contains(&cat.id))
+        .collect();
+    result.extend(private_categories);
+
+    result
 }
 
 #[spacetimedb::reducer]
@@ -260,6 +294,7 @@ pub fn add_message_category(
     name: String,
     email_address: String,
     description: String,
+    visibility: CategoryVisibility,
 ) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
@@ -271,7 +306,7 @@ pub fn add_message_category(
         email_address,
         description,
         active: true,
-        visibility: CategoryVisibility::Public,
+        visibility,
     });
     log::info!(
         "Added new message category (by identity: {:?})",
@@ -303,7 +338,7 @@ pub fn remove_message_category(ctx: &ReducerContext, category_id: u64) -> Result
     Ok(())
 }
 
-/// Updates the editable fields (name, description) of an existing message
+/// Updates the editable fields (name, description, visibility) of an existing message
 /// category. The `email_address` is immutable via this reducer since it is
 /// used to route incoming mail and to match categories during user sync.
 #[spacetimedb::reducer]
@@ -312,6 +347,7 @@ pub fn update_message_category(
     category_id: u64,
     name: String,
     description: String,
+    visibility: Option<CategoryVisibility>,
 ) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
@@ -330,6 +366,7 @@ pub fn update_message_category(
     let updated = MessageCategory {
         name,
         description,
+        visibility: visibility.unwrap_or(existing.visibility),
         ..existing
     };
     ctx.db.message_categories().id().update(updated);
@@ -609,10 +646,15 @@ pub fn add_and_subscribe_category(
     name: String,
     email_address: String,
     description: String,
+    visibility: CategoryVisibility,
 ) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
     }
+    let visibility_str = match visibility {
+        CategoryVisibility::Public => "public".to_string(),
+        CategoryVisibility::Private => "private".to_string(),
+    };
     do_add_and_subscribe_category(
         ctx,
         subscriber_account_id,
@@ -620,7 +662,7 @@ pub fn add_and_subscribe_category(
         name,
         email_address,
         description,
-        default_category_visibility(),
+        visibility_str,
         None,
         false,
     )
@@ -842,6 +884,7 @@ pub fn provision_message_category(
     name: String,
     email_address: String,
     description: String,
+    visibility: CategoryVisibility,
 ) -> Result<(), String> {
     info!(
         "Provisioning a new Category: {}, {}, {}",
@@ -989,7 +1032,7 @@ pub fn provision_message_category(
                                 email_address: email_address.clone(),
                                 description: description.clone(),
                                 active: true,
-                                visibility: CategoryVisibility::Public,
+                                visibility,
                             });
                         });
 

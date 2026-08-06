@@ -4,6 +4,8 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::category_visibility_type::CategoryVisibility;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub(super) struct AddAndSubscribeCategoryArgs {
@@ -12,6 +14,7 @@ pub(super) struct AddAndSubscribeCategoryArgs {
     pub name: String,
     pub email_address: String,
     pub description: String,
+    pub visibility: CategoryVisibility,
 }
 
 impl From<AddAndSubscribeCategoryArgs> for super::Reducer {
@@ -22,6 +25,7 @@ impl From<AddAndSubscribeCategoryArgs> for super::Reducer {
             name: args.name,
             email_address: args.email_address,
             description: args.description,
+            visibility: args.visibility,
         }
     }
 }
@@ -48,6 +52,7 @@ pub trait add_and_subscribe_category {
         name: String,
         email_address: String,
         description: String,
+        visibility: CategoryVisibility,
     ) -> __sdk::Result<()> {
         self.add_and_subscribe_category_then(
             subscriber_account_id,
@@ -55,6 +60,7 @@ pub trait add_and_subscribe_category {
             name,
             email_address,
             description,
+            visibility,
             |_, _| {},
         )
     }
@@ -72,6 +78,7 @@ pub trait add_and_subscribe_category {
         name: String,
         email_address: String,
         description: String,
+        visibility: CategoryVisibility,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -87,6 +94,7 @@ impl add_and_subscribe_category for super::RemoteReducers {
         name: String,
         email_address: String,
         description: String,
+        visibility: CategoryVisibility,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -99,6 +107,7 @@ impl add_and_subscribe_category for super::RemoteReducers {
                 name,
                 email_address,
                 description,
+                visibility,
             },
             callback,
         )
