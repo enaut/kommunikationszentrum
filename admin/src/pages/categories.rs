@@ -174,7 +174,7 @@ pub fn CategoriesPage() -> Element {
                                         onclick: {
                                             let add = add_invoke.clone();
                                             let mut is_sending = is_sending.clone();
-                                            let mut visibility_signal = visibility.clone();
+                                            let visibility_signal = visibility.clone();
                                             move |_| {
                                                 let n = name.read().clone();
                                                 let e = email_address.read().clone();
