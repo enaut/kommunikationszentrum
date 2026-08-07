@@ -1,6 +1,6 @@
 use log::{error, info};
 use serde::{Deserialize, Serialize};
-use spacetimedb::{ReducerContext, SpacetimeType, Table, Timestamp, ViewContext};
+use spacetimedb::{Query, ReducerContext, SpacetimeType, Table, Timestamp, ViewContext};
 
 use crate::account::{account, account__view, is_admin_identity, is_admin_user, Account};
 
@@ -286,6 +286,23 @@ pub fn visible_message_categories(ctx: &ViewContext) -> Vec<MessageCategory> {
     result.extend(private_categories);
 
     result
+}
+
+/// Returns all topics. This view is public and available to all users.
+/// Topics are simple tags like "verteilpunkt" or "arbeitsgruppe" that can be
+/// assigned to message categories. Clients subscribe to this view instead
+/// of the raw `topics` table.
+#[spacetimedb::view(accessor = visible_topics, public)]
+pub fn visible_topics(ctx: &ViewContext) -> impl Query<Topic> {
+    ctx.from.topics()
+}
+
+/// Returns all message category to topic assignments. This view is public and
+/// available to all users. Clients subscribe to this view instead of the raw
+/// `message_category_topics` table.
+#[spacetimedb::view(accessor = visible_message_category_topics, public)]
+pub fn visible_message_category_topics(ctx: &ViewContext) -> impl Query<MessageCategoryTopic> {
+    ctx.from.message_category_topics()
 }
 
 #[spacetimedb::reducer]
