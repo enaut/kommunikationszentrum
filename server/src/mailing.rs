@@ -395,6 +395,77 @@ pub fn update_message_category(
     Ok(())
 }
 
+/// Replaces the topic assignments of a message category. Missing topic names are
+/// created automatically. An empty `topic_names` list clears all assignments.
+/// Admin-only; used by the category detail tag editor.
+#[spacetimedb::reducer]
+pub fn set_category_topics(
+    ctx: &ReducerContext,
+    category_id: u64,
+    topic_names: Vec<String>,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+    if ctx
+        .db
+        .message_categories()
+        .id()
+        .find(&category_id)
+        .is_none()
+    {
+        return Err(format!("Message category {} not found", category_id));
+    }
+    sync_category_topics(ctx, category_id, topic_names)?;
+    log::info!(
+        "Updated topics for message category {} (by identity: {:?})",
+        category_id,
+        ctx.sender()
+    );
+    Ok(())
+}
+
+/// Renames an existing topic. Admin-only; used by the category detail tag editor.
+#[spacetimedb::reducer]
+pub fn rename_topic(
+    ctx: &ReducerContext,
+    topic_id: u64,
+    new_name: String,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+    let new_name = new_name.trim().to_string();
+    if new_name.is_empty() {
+        return Err("Topic name must not be empty".to_string());
+    }
+    let existing = ctx
+        .db
+        .topics()
+        .id()
+        .find(&topic_id)
+        .ok_or_else(|| format!("Topic {} not found", topic_id))?;
+    if existing.name == new_name {
+        return Ok(());
+    }
+    if let Some(other) = ctx.db.topics().name().find(&new_name) {
+        if other.id != topic_id {
+            return Err(format!("Topic '{new_name}' already exists"));
+        }
+    }
+    ctx.db.topics().id().update(Topic {
+        name: new_name.clone(),
+        ..existing
+    });
+    log::info!(
+        "Renamed topic {} to '{}' (by identity: {:?})",
+        topic_id,
+        new_name,
+        ctx.sender()
+    );
+    Ok(())
+}
+
 /// Core insert-or-update logic for a subscription, without any authorization
 /// checks. Callable both from the admin-guarded `add_subscription` reducer and
 /// from privileged internal flows (e.g. user sync) that already gate access

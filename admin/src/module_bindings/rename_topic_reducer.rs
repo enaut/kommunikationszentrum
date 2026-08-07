@@ -8,62 +8,66 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
-pub(super) struct UnregisterAdminIdentityArgs {
-    pub identity_hex: String,
+pub(super) struct RenameTopicArgs {
+    pub topic_id: u64,
+    pub new_name: String,
 }
 
-impl From<UnregisterAdminIdentityArgs> for super::Reducer {
-    fn from(args: UnregisterAdminIdentityArgs) -> Self {
-        Self::UnregisterAdminIdentity {
-            identity_hex: args.identity_hex,
+impl From<RenameTopicArgs> for super::Reducer {
+    fn from(args: RenameTopicArgs) -> Self {
+        Self::RenameTopic {
+            topic_id: args.topic_id,
+            new_name: args.new_name,
         }
     }
 }
 
-impl __sdk::InModule for UnregisterAdminIdentityArgs {
+impl __sdk::InModule for RenameTopicArgs {
     type Module = super::RemoteModule;
 }
 
 #[allow(non_camel_case_types)]
-/// Extension trait for access to the reducer `unregister_admin_identity`.
+/// Extension trait for access to the reducer `rename_topic`.
 ///
 /// Implemented for [`super::RemoteReducers`].
-pub trait unregister_admin_identity {
-    /// Request that the remote module invoke the reducer `unregister_admin_identity` to run as soon as possible.
+pub trait rename_topic {
+    /// Request that the remote module invoke the reducer `rename_topic` to run as soon as possible.
     ///
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and this method provides no way to listen for its completion status.
     ///
-    /// Use [`unregister_admin_identity::unregister_admin_identity_then`] to run a callback after the reducer completes.
-    fn unregister_admin_identity(&self, identity_hex: String) -> __sdk::Result<()> {
-        self.unregister_admin_identity_then(identity_hex, |_, _| {})
+    /// Use [`rename_topic::rename_topic_then`] to run a callback after the reducer completes.
+    fn rename_topic(&self, topic_id: u64, new_name: String) -> __sdk::Result<()> {
+        self.rename_topic_then(topic_id, new_name, |_, _| {})
     }
 
-    /// Request that the remote module invoke the reducer `unregister_admin_identity` to run as soon as possible,
+    /// Request that the remote module invoke the reducer `rename_topic` to run as soon as possible,
     /// registering `callback` to run when we are notified that the reducer completed.
     ///
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and its status can be observed with the `callback`.
-    fn unregister_admin_identity_then(
+    fn rename_topic_then(
         &self,
-        identity_hex: String,
+        topic_id: u64,
+        new_name: String,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
     ) -> __sdk::Result<()>;
 }
 
-impl unregister_admin_identity for super::RemoteReducers {
-    fn unregister_admin_identity_then(
+impl rename_topic for super::RemoteReducers {
+    fn rename_topic_then(
         &self,
-        identity_hex: String,
+        topic_id: u64,
+        new_name: String,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
     ) -> __sdk::Result<()> {
         self.imp
-            .invoke_reducer_with_callback(UnregisterAdminIdentityArgs { identity_hex }, callback)
+            .invoke_reducer_with_callback(RenameTopicArgs { topic_id, new_name }, callback)
     }
 }
