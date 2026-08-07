@@ -57,8 +57,10 @@ pub mod update_message_category_reducer;
 pub mod visible_accounts_table;
 pub mod visible_admin_identities_table;
 pub mod visible_message_categories_table;
+pub mod visible_message_category_topics_table;
 pub mod visible_messages_table;
 pub mod visible_subscriptions_table;
+pub mod visible_topics_table;
 pub mod visible_webhook_tokens_table;
 pub mod webhook_token_type;
 
@@ -111,8 +113,10 @@ pub use update_message_category_reducer::update_message_category;
 pub use visible_accounts_table::*;
 pub use visible_admin_identities_table::*;
 pub use visible_message_categories_table::*;
+pub use visible_message_category_topics_table::*;
 pub use visible_messages_table::*;
 pub use visible_subscriptions_table::*;
+pub use visible_topics_table::*;
 pub use visible_webhook_tokens_table::*;
 pub use webhook_token_type::WebhookToken;
 
@@ -505,8 +509,10 @@ pub struct DbUpdate {
     visible_accounts: __sdk::TableUpdate<Account>,
     visible_admin_identities: __sdk::TableUpdate<AdminIdentity>,
     visible_message_categories: __sdk::TableUpdate<MessageCategory>,
+    visible_message_category_topics: __sdk::TableUpdate<MessageCategoryTopic>,
     visible_messages: __sdk::TableUpdate<ReceivedMessage>,
     visible_subscriptions: __sdk::TableUpdate<Subscription>,
+    visible_topics: __sdk::TableUpdate<Topic>,
     visible_webhook_tokens: __sdk::TableUpdate<WebhookToken>,
 }
 
@@ -537,12 +543,20 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "visible_message_categories" => db_update.visible_message_categories.append(
                     visible_message_categories_table::parse_table_update(table_update)?,
                 ),
+                "visible_message_category_topics" => {
+                    db_update.visible_message_category_topics.append(
+                        visible_message_category_topics_table::parse_table_update(table_update)?,
+                    )
+                }
                 "visible_messages" => db_update
                     .visible_messages
                     .append(visible_messages_table::parse_table_update(table_update)?),
                 "visible_subscriptions" => db_update.visible_subscriptions.append(
                     visible_subscriptions_table::parse_table_update(table_update)?,
                 ),
+                "visible_topics" => db_update
+                    .visible_topics
+                    .append(visible_topics_table::parse_table_update(table_update)?),
                 "visible_webhook_tokens" => db_update.visible_webhook_tokens.append(
                     visible_webhook_tokens_table::parse_table_update(table_update)?,
                 ),
@@ -601,12 +615,21 @@ impl __sdk::DbUpdate for DbUpdate {
             "visible_message_categories",
             &self.visible_message_categories,
         );
+        diff.visible_message_category_topics = cache
+            .apply_diff_to_table::<MessageCategoryTopic>(
+                "visible_message_category_topics",
+                &self.visible_message_category_topics,
+            )
+            .with_updates_by_pk(|row| &row.id);
         diff.visible_messages = cache
             .apply_diff_to_table::<ReceivedMessage>("visible_messages", &self.visible_messages);
         diff.visible_subscriptions = cache.apply_diff_to_table::<Subscription>(
             "visible_subscriptions",
             &self.visible_subscriptions,
         );
+        diff.visible_topics = cache
+            .apply_diff_to_table::<Topic>("visible_topics", &self.visible_topics)
+            .with_updates_by_pk(|row| &row.id);
         diff.visible_webhook_tokens = cache
             .apply_diff_to_table::<WebhookToken>(
                 "visible_webhook_tokens",
@@ -641,11 +664,17 @@ impl __sdk::DbUpdate for DbUpdate {
                 "visible_message_categories" => db_update
                     .visible_message_categories
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_message_category_topics" => db_update
+                    .visible_message_category_topics
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_messages" => db_update
                     .visible_messages
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_subscriptions" => db_update
                     .visible_subscriptions
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_topics" => db_update
+                    .visible_topics
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_webhook_tokens" => db_update
                     .visible_webhook_tokens
@@ -684,11 +713,17 @@ impl __sdk::DbUpdate for DbUpdate {
                 "visible_message_categories" => db_update
                     .visible_message_categories
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_message_category_topics" => db_update
+                    .visible_message_category_topics
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_messages" => db_update
                     .visible_messages
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_subscriptions" => db_update
                     .visible_subscriptions
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_topics" => db_update
+                    .visible_topics
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_webhook_tokens" => db_update
                     .visible_webhook_tokens
@@ -715,8 +750,10 @@ pub struct AppliedDiff<'r> {
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
     visible_admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
     visible_message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
+    visible_message_category_topics: __sdk::TableAppliedDiff<'r, MessageCategoryTopic>,
     visible_messages: __sdk::TableAppliedDiff<'r, ReceivedMessage>,
     visible_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
+    visible_topics: __sdk::TableAppliedDiff<'r, Topic>,
     visible_webhook_tokens: __sdk::TableAppliedDiff<'r, WebhookToken>,
     __unused: std::marker::PhantomData<&'r ()>,
 }
@@ -766,6 +803,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.visible_message_categories,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<MessageCategoryTopic>(
+            "visible_message_category_topics",
+            &self.visible_message_category_topics,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<ReceivedMessage>(
             "visible_messages",
             &self.visible_messages,
@@ -774,6 +816,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<Subscription>(
             "visible_subscriptions",
             &self.visible_subscriptions,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<Topic>(
+            "visible_topics",
+            &self.visible_topics,
             event,
         );
         callbacks.invoke_table_row_callbacks::<WebhookToken>(
@@ -1448,8 +1495,10 @@ impl __sdk::SpacetimeModule for RemoteModule {
         visible_accounts_table::register_table(client_cache);
         visible_admin_identities_table::register_table(client_cache);
         visible_message_categories_table::register_table(client_cache);
+        visible_message_category_topics_table::register_table(client_cache);
         visible_messages_table::register_table(client_cache);
         visible_subscriptions_table::register_table(client_cache);
+        visible_topics_table::register_table(client_cache);
         visible_webhook_tokens_table::register_table(client_cache);
     }
     const ALL_TABLE_NAMES: &'static [&'static str] = &[
@@ -1460,8 +1509,10 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "visible_accounts",
         "visible_admin_identities",
         "visible_message_categories",
+        "visible_message_category_topics",
         "visible_messages",
         "visible_subscriptions",
+        "visible_topics",
         "visible_webhook_tokens",
     ];
 }

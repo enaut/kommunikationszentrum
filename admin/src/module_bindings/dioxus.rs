@@ -26,8 +26,10 @@ pub struct TableSignals {
     pub visible_accounts: SyncSignal<Vec<Account>>,
     pub visible_admin_identities: SyncSignal<Vec<AdminIdentity>>,
     pub visible_message_categories: SyncSignal<Vec<MessageCategory>>,
+    pub visible_message_category_topics: SyncSignal<Vec<MessageCategoryTopic>>,
     pub visible_messages: SyncSignal<Vec<ReceivedMessage>>,
     pub visible_subscriptions: SyncSignal<Vec<Subscription>>,
+    pub visible_topics: SyncSignal<Vec<Topic>>,
     pub visible_webhook_tokens: SyncSignal<Vec<WebhookToken>>,
 }
 
@@ -182,8 +184,10 @@ pub fn use_spacetimedb_context_provider(
         visible_accounts: use_signal_sync(Vec::new),
         visible_admin_identities: use_signal_sync(Vec::new),
         visible_message_categories: use_signal_sync(Vec::new),
+        visible_message_category_topics: use_signal_sync(Vec::new),
         visible_messages: use_signal_sync(Vec::new),
         visible_subscriptions: use_signal_sync(Vec::new),
+        visible_topics: use_signal_sync(Vec::new),
         visible_webhook_tokens: use_signal_sync(Vec::new),
     };
 
@@ -380,6 +384,32 @@ pub fn use_spacetimedb_context_provider(
                                     .visible_message_categories
                                     .set(updated);
                             });
+                        // Populate initial rows for visible_message_category_topics
+                        let current: Vec<MessageCategoryTopic> =
+                            conn.db.visible_message_category_topics().iter().collect();
+                        table_signals_on_connect
+                            .visible_message_category_topics
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .visible_message_category_topics()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<MessageCategoryTopic> =
+                                    ctx.db.visible_message_category_topics().iter().collect();
+                                table_signals_on_connect
+                                    .visible_message_category_topics
+                                    .set(updated);
+                            });
+                        conn.db
+                            .visible_message_category_topics()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<MessageCategoryTopic> =
+                                    ctx.db.visible_message_category_topics().iter().collect();
+                                table_signals_on_connect
+                                    .visible_message_category_topics
+                                    .set(updated);
+                            });
                         // Populate initial rows for visible_messages
                         let current: Vec<ReceivedMessage> =
                             conn.db.visible_messages().iter().collect();
@@ -411,6 +441,19 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<Subscription> =
                                 ctx.db.visible_subscriptions().iter().collect();
                             table_signals_on_connect.visible_subscriptions.set(updated);
+                        });
+                        // Populate initial rows for visible_topics
+                        let current: Vec<Topic> = conn.db.visible_topics().iter().collect();
+                        table_signals_on_connect.visible_topics.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.visible_topics().on_insert(move |ctx, _row| {
+                            let updated: Vec<Topic> = ctx.db.visible_topics().iter().collect();
+                            table_signals_on_connect.visible_topics.set(updated);
+                        });
+                        conn.db.visible_topics().on_delete(move |ctx, _row| {
+                            let updated: Vec<Topic> = ctx.db.visible_topics().iter().collect();
+                            table_signals_on_connect.visible_topics.set(updated);
                         });
                         // Populate initial rows for visible_webhook_tokens
                         let current: Vec<WebhookToken> =
@@ -641,6 +684,13 @@ pub fn use_table_visible_message_categories() -> SyncSignal<Vec<MessageCategory>
     ctx.tables.visible_message_categories
 }
 
+/// Get a reactive signal containing all rows of the `visible_message_category_topics` table.
+#[must_use]
+pub fn use_table_visible_message_category_topics() -> SyncSignal<Vec<MessageCategoryTopic>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_message_category_topics
+}
+
 /// Get a reactive signal containing all rows of the `visible_messages` table.
 #[must_use]
 pub fn use_table_visible_messages() -> SyncSignal<Vec<ReceivedMessage>> {
@@ -653,6 +703,13 @@ pub fn use_table_visible_messages() -> SyncSignal<Vec<ReceivedMessage>> {
 pub fn use_table_visible_subscriptions() -> SyncSignal<Vec<Subscription>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.visible_subscriptions
+}
+
+/// Get a reactive signal containing all rows of the `visible_topics` table.
+#[must_use]
+pub fn use_table_visible_topics() -> SyncSignal<Vec<Topic>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_topics
 }
 
 /// Get a reactive signal containing all rows of the `visible_webhook_tokens` table.
