@@ -1,32 +1,37 @@
 direction: down
+# Constraints legend: primary_key -> PK, foreign_key -> FK, unique -> UNQ, BTree -> index, INC -> auto-increment
+# Multiple constraints are specified as a semicolon-separated list inside brackets.
+# Example: category_id: "u64" {constraint: [foreign_key; BTree]}
+# Use INC for auto-increment columns: id: "u64" {constraint: [primary_key; INC]}
+
 "User Management & Auth": {
   style.fill: "#eef2f7"
 
   account: {
     shape: sql_table
     label: "account [Private]"
-    id: "u64 (PK)"
-    identity: "Identity (UQ)"
-    email: "String (BTree)"
+    id: "u64" {constraint: primary_key}
+    identity: "Identity" {constraint: unique}
+    email: "String" {constraint: BTree}
     name: "String"
     is_active: "bool"
-    last_synced: "Timestamp (BTree)"
+    last_synced: "Timestamp" {constraint: BTree}
   }
 
   admin_identities: {
     shape: sql_table
     label: "admin_identities [Private]"
-    identity: "Identity (PK)"
+    identity: "Identity" {constraint: [primary_key; foreign_key; BTree]}
   }
 
   webhook_tokens: {
     shape: sql_table
     label: "webhook_tokens [Private]"
-    id: "u64 (PK, auto_inc)"
-    token_hash: "String (UQ)"
+    id: "u64" {constraint: [primary_key; INC]}
+    token_hash: "String" {constraint: unique}
     "label": "String"
     permissions: "Vec<String>"
-    created_at: "Timestamp (BTree)"
+    created_at: "Timestamp" {constraint: BTree}
     active: "bool"
   }
 }
@@ -37,46 +42,46 @@ direction: down
   message_categories: {
     shape: sql_table
     label: "message_categories [Private]"
-    id: "u64 (PK, auto_inc)"
-    email_address: "String (UQ)"
+    id: "u64" {constraint: [primary_key; INC]}
+    email_address: "String" {constraint: unique}
     name: "String"
     description: "String"
     active: "bool"
-    visibility: "CategoryVisibility (BTree)"
+    visibility: "CategoryVisibility" {constraint: BTree}
   }
 
   topics: {
     shape: sql_table
     label: "topics [Private]"
-    id: "u64 (PK, auto_inc)"
-    name: "String (UQ)"
+    id: "u64" {constraint: [primary_key; INC]}
+    name: "String" {constraint: unique}
   }
 
   message_category_topics: {
     shape: sql_table
     label: "message_category_topics [Private]"
-    id: "u64 (PK, auto_inc)"
-    category_id: "u64 (BTree)"
-    topic_id: "u64 (BTree)"
+    id: "u64" {constraint: [primary_key; INC]}
+    category_id: "u64" {constraint: [foreign_key; BTree]}
+    topic_id: "u64" {constraint: [foreign_key; BTree]}
   }
 
   subscriptions: {
     shape: sql_table
     label: "subscriptions [Private]"
-    id: "u64 (PK, auto_inc)"
-    subscriber_account_id: "u64 (BTree)"
-    subscriber_email: "String (BTree)"
-    category_id: "u64 (BTree)"
+    id: "u64" {constraint: [primary_key; INC]}
+    subscriber_account_id: "u64" {constraint: [foreign_key; BTree]}
+    subscriber_email: "String" {constraint: BTree}
+    category_id: "u64" {constraint: [foreign_key; BTree]}
     subscribed_at: "Timestamp"
-    status: "SubscriptionStatus (BTree)"
+    status: "SubscriptionStatus" {constraint: BTree}
   }
 
   subscription_unsubscribe_tokens: {
     shape: sql_table
     label: "subscription_unsubscribe_tokens [Private]"
-    token: "String (PK)"
-    subscription_id: "u64 (UQ)"
-    created_at: "Timestamp (BTree)"
+    token: "String" {constraint: primary_key}
+    subscription_id: "u64" {constraint: [unique; foreign_key; BTree]}
+    created_at: "Timestamp" {constraint: BTree}
     active: "bool"
     revoked_at: "Timestamp"
   }
@@ -88,7 +93,7 @@ direction: down
   mta_connection_log: {
     shape: sql_table
     label: "mta_connection_log [Private]"
-    id: "u64 (PK, auto_inc)"
+    id: "u64" {constraint: [primary_key; INC]}
     client_ip: "String"
     stage: "String"
     action: "String"
@@ -99,7 +104,7 @@ direction: down
   mta_message_log: {
     shape: sql_table
     label: "mta_message_log [Private]"
-    id: "u64 (PK, auto_inc)"
+    id: "u64" {constraint: [primary_key; INC]}
     from_address: "String"
     to_addresses: "String (JSON)"
     subject: "String"
@@ -113,12 +118,12 @@ direction: down
   received_message: {
     shape: sql_table
     label: "received_message [Private]"
-    id: "u64 (PK, auto_inc)"
+    id: "u64" {constraint: [primary_key; INC]}
     queue_id: "Option<String>"
-    received_at: "Timestamp (BTree)"
-    sender_account_id: "Option<u64>"
+    received_at: "Timestamp" {constraint: BTree}
+    sender_account_id: "Option<u64>" {constraint: [foreign_key; BTree]}
     sender_email: "String"
-    category_id: "u64 (BTree)"
+    category_id: "u64" {constraint: [foreign_key; BTree]}
     category_email: "String"
     subject: "String"
     from_header: "String"
@@ -147,13 +152,13 @@ direction: down
   mail_ingress: {
     shape: sql_table
     label: "mail_ingress [Private]"
-    id: "String (PK)"
-    queue_id: "String (BTree)"
-    category_id: "u64 (BTree)"
-    state: "String (BTree)"
-    next_attempt_at: "Timestamp (BTree)"
-    received_at: "Timestamp (BTree)"
-    sender_account_id: "Option<u64>"
+    id: "String" {constraint: primary_key}
+    queue_id: "String" {constraint: BTree}
+    category_id: "u64" {constraint: [foreign_key; BTree]}
+    state: "String" {constraint: BTree}
+    next_attempt_at: "Timestamp" {constraint: BTree}
+    received_at: "Timestamp" {constraint: BTree}
+    sender_account_id: "Option<u64>" {constraint: [foreign_key; BTree]}
     sender_email: "String"
     category_email: "String"
     subject: "String"
@@ -179,13 +184,13 @@ direction: down
   mail_deliveries: {
     shape: sql_table
     label: "mail_deliveries [Private]"
-    id: "String (PK)"
-    ingress_id: "String (BTree)"
-    category_id: "u64 (BTree)"
-    subscription_id: "u64 (BTree)"
-    recipient_email: "String (BTree)"
-    state: "String (BTree)"
-    next_attempt_at: "Timestamp (BTree)"
+    id: "String" {constraint: primary_key}
+    ingress_id: "String" {constraint: [foreign_key; BTree]}
+    category_id: "u64" {constraint: [foreign_key; BTree]}
+    subscription_id: "u64" {constraint: [foreign_key; BTree]}
+    recipient_email: "String" {constraint: BTree}
+    state: "String" {constraint: BTree}
+    next_attempt_at: "Timestamp" {constraint: BTree}
     recipient_account_id: "Option<u64>"
     list_email: "String"
     list_name: "String"
@@ -210,9 +215,9 @@ direction: down
   mail_delivery_events: {
     shape: sql_table
     label: "mail_delivery_events [Private]"
-    id: "u64 (PK, auto_inc)"
-    delivery_id: "String (BTree)"
-    occurred_at: "Timestamp (BTree)"
+    id: "u64" {constraint: [primary_key; INC]}
+    delivery_id: "String" {constraint: [foreign_key; BTree]}
+    occurred_at: "Timestamp" {constraint: BTree}
     event_type: "String"
     attempt_no: "u32"
     smtp_status_code: "Option<u16>"
