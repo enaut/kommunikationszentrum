@@ -1,0 +1,95 @@
+direction: right
+
+"External Callers": {
+  Stalwart: {
+    shape: cloud
+    label: "Stalwart MTA\n(SMTP Stages)"
+  }
+  Django: {
+    shape: cloud
+    label: "Django Backend\n(User Sync)"
+  }
+}
+
+"SpacetimeDB Module": {
+  style.fill: "#eef2f7"
+
+  Router: {
+    shape: hexagon
+    label: "HTTP Router\n#[spacetimedb::http::router]"
+  }
+
+  "HTTP Handlers": {
+    style.fill: "#dce8f5"
+
+    MtaHandler: {
+      shape: rectangle
+      label: "mta-hook handler\nPOST …/route/mta-hook\nperm: \"mta-hook\""
+    }
+
+    UserSyncHandler: {
+      shape: rectangle
+      label: "user-sync handler\nPOST …/route/user-sync\nperm: \"sync-user\""
+    }
+  }
+
+  TokenAuth: {
+    shape: diamond
+    label: "Bearer Token\nValidation\n(BLAKE3 hash check\nvs webhook_tokens)"
+  }
+
+  "Transactional Context": {
+    style.fill: "#e8f5e9"
+
+    MtaLogic: {
+      shape: rectangle
+      label: "mta.rs\nStage Dispatch\n(connect/ehlo/mail\nrcpt/data/auth)"
+    }
+
+    SyncLogic: {
+      shape: rectangle
+      label: "Upsert / Delete\nAccount & Subscriptions"
+    }
+  }
+}
+
+"Database Tables": {
+  style.fill: "#fff8e1"
+
+  webhook_tokens: {
+    shape: cylinder
+    label: "webhook_tokens\n(token_hash, permissions)"
+  }
+  mta_logs: {
+    shape: cylinder
+    label: "mta_connection_log\nmta_message_log"
+  }
+  mail_ingress: {
+    shape: cylinder
+    label: "mail_ingress\nreceived_message"
+  }
+  accounts: {
+    shape: cylinder
+    label: "account\nsubscriptions\nmessage_categories"
+  }
+}
+
+# Ingress routing
+"External Callers".Stalwart -> "SpacetimeDB Module".Router: "POST /route/mta-hook\nAuthorization: Bearer <token>"
+"External Callers".Django -> "SpacetimeDB Module".Router: "POST /route/user-sync\nAuthorization: Bearer <token>"
+
+"SpacetimeDB Module".Router -> "SpacetimeDB Module".TokenAuth: "Dispatch by path"
+
+# Auth gate
+"SpacetimeDB Module".TokenAuth -> "SpacetimeDB Module"."HTTP Handlers".MtaHandler: "perm ok"
+"SpacetimeDB Module".TokenAuth -> "SpacetimeDB Module"."HTTP Handlers".UserSyncHandler: "perm ok"
+"SpacetimeDB Module".TokenAuth -> "Database Tables".webhook_tokens: "Lookup & verify hash"
+
+# Handler → logic
+"SpacetimeDB Module"."HTTP Handlers".MtaHandler -> "SpacetimeDB Module"."Transactional Context".MtaLogic: "ctx.with_tx(...)"
+"SpacetimeDB Module"."HTTP Handlers".UserSyncHandler -> "SpacetimeDB Module"."Transactional Context".SyncLogic: "ctx.with_tx(...)"
+
+# Logic → DB writes
+"SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mta_logs: "Audit log"
+"SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mail_ingress: "Persist message"
+"SpacetimeDB Module"."Transactional Context".SyncLogic -> "Database Tables".accounts: "Upsert / delete"

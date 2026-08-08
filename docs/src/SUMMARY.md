@@ -23,17 +23,10 @@
     - [Reducers Reference](./core/spacetimedb/reducers-reference.md)
     - [Module Publishing](./core/spacetimedb/module-publishing.md)
 
-  - [Webhooks (Module HTTP Handlers)](./core/spacetime-http-handlers/overview.md)
-    - [MTA Hook Processing](./core/spacetime-http-handlers/mta-hook-processing.md)
-    - [User Synchronization](./core/spacetime-http-handlers/user-sync.md)
-    - [API Endpoints](./core/spacetime-http-handlers/api-endpoints.md)
-
-  - [Server Module](./core/server/overview.md)
-    - [Tables Reference](./core/server/tables-reference.md)
-    - [Reducers & Procedures](./core/server/reducers-reference.md)
-    - [HTTP Handlers](./core/server/http-handlers.md)
-    - [Event & Trigger Flow](./core/server/event-flow.md)
-    - [Usage Guide](./core/server/usage.md)
+    - [SpacetimeDB HTTP Handlers (API)](./core/spacetimedb/http-handlers/overview.md)
+      - [MTA Hook Processing](./core/spacetimedb/http-handlers/mta-hook-processing.md)
+      - [User Synchronization](./core/spacetimedb/http-handlers/user-sync.md)
+      - [API Endpoints](./core/spacetimedb/http-handlers/api-endpoints.md)
 
   - [Sender Daemon](./core/sender/overview.md)
     - [Configuration](./core/sender/configuration.md)

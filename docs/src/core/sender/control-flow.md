@@ -6,10 +6,6 @@ handling.
 
 ---
 
-```d2
-{{#include control-flow-overview.d2}}
-```
-
 ## 1. Startup Sequence
 
 Startup is a linear sequence of steps that initializes the daemon and connects to SpacetimeDB.
