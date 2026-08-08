@@ -1,0 +1,13 @@
+direction: down
+
+env: "Read SenderConfig\nfrom environment" { style.fill: lightyellow }
+otel: "Initialize OpenTelemetry\n(OTLP traces + logs → Alloy)" { style.fill: lightyellow }
+conn: "Open SpacetimeDB\nWebSocket connection\n(with optional auth token)" { style.fill: lightblue }
+sub: "Subscribe to views:\n• sender_mail_ingress\n• sender_mail_deliveries\n• active_subscriptions\n• message_categories\n• active_unsubscribe_tokens" { style.fill: lightblue }
+pump: "Start DB async pump\n(connection.run_async())\nas pinned Tokio future" { style.fill: lightblue }
+cb: "Register on_insert / on_update\ncallbacks → notify doorbell" { style.fill: lightgreen }
+smtp: "Build SmtpTransport\n(TLS/plaintext, credentials)" { style.fill: lightyellow }
+boot: "Trigger doorbell once\n(bootstrap any pending work)" { style.fill: lightgreen }
+loop_: "Enter tokio::select! loop" { style.fill: lightcoral }
+
+env -> otel -> conn -> sub -> pump -> cb -> smtp -> boot -> loop_

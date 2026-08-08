@@ -33,53 +33,7 @@ pub struct MessageCategory {
 ### Visual Representation
 
 ```d2
-direction: down
-
-categories: {
-  label: "MessageCategories\n• id: u64\n• name: String\n• email_address: String\n• active: bool"
-}
-
-news_email: "To: news@solawi.org" { shape: oval }
-events_email: "To: events@solawi.org" { shape: oval }
-invalid_email: "To: invalid@solawi.org" {
-  shape: oval
-  style.stroke: red
-}
-
-accepted: "ACCEPT\n(Valid Category)" {
-  shape: oval
-  style.stroke: green
-}
-rejected: "REJECT\n(Unknown Category)" {
-  shape: oval
-  style.stroke: red
-}
-disabled: "REJECT\n(Inactive Category)" {
-  shape: oval
-  style.stroke: orange
-}
-
-news_email -> categories: "lookup"
-events_email -> categories: "lookup"
-invalid_email -> categories: "lookup"
-
-categories -> accepted: "active=true" { style.stroke: green }
-categories -> disabled: "active=false" { style.stroke: orange }
-categories -> rejected: "not found" { style.stroke: red }
-
-incoming: "Incoming Emails" {
-  style.fill: "#e0f7fa"
-  news_email
-  events_email
-  invalid_email
-}
-
-results: "Processing Results" {
-  style.fill: "#e8f5e9"
-  accepted
-  rejected
-  disabled
-}
+{{#include categories-visibility.d2}}
 ```
 
 ## Category Management
@@ -176,31 +130,7 @@ volunteers@solawi.org    # Volunteer coordination
 ### Validation Flow
 
 ```d2
-direction: down
-
-incoming_email: "Incoming Email\nTo: recipient@domain.org"
-extract_address: "Extract Recipient\nAddress"
-lookup_category: "Lookup in\nmessage_categories" { shape: cylinder }
-check_active: "Check if\nCategory Active" { shape: diamond }
-
-accept_email: "ACCEPT\nContinue Processing" {
-  style.stroke: green
-}
-reject_inactive: "REJECT 550\nCategory Inactive" {
-  style.stroke: orange
-}
-reject_unknown: "REJECT 550\nUnknown Recipient" {
-  style.stroke: red
-}
-
-incoming_email -> extract_address
-extract_address -> lookup_category
-
-lookup_category -> check_active: "Found"
-lookup_category -> reject_unknown: "Not Found"
-
-check_active -> accept_email: "active=true"
-check_active -> reject_inactive: "active=false"
+{{#include categories-validation-flow.d2}}
 ```
 
 ### Implementation Details
@@ -244,29 +174,7 @@ Categories work closely with the subscription system:
 ### Subscription Relationship
 
 ```d2
-direction: right
-
-categories: "MessageCategory\nid: 1\nname: \"SoLaWi News\"\nemail_address: \"news@solawi.org\"\nactive: true"
-subscriptions: "Subscription\nid: 101\ncategory_id: 1\nsubscriber_email: \"member@example.com\"\nactive: true"
-
-subscriptions -> categories: "category_id → id" {
-  style.stroke: blue
-}
-
-user1: "member@example.com" { shape: oval }
-user2: "volunteer@example.com" { shape: oval }
-user3: "admin@example.com" { shape: oval }
-
-user1 -> subscriptions: "subscribes to"
-user2 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
-user3 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
-
-subscribers: "Subscribers" {
-  style.fill: "#e8f5e9"
-  user1
-  user2
-  user3
-}
+{{#include categories-subscription-relationship.d2}}
 ```
 
 ### Subscription Validation

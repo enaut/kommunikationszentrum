@@ -1,0 +1,194 @@
+direction: right
+
+"User Management & Auth": {
+  style.fill: "#eef2f7"
+  account
+  admin_identities
+  webhook_tokens
+}
+
+"Mailing & Subscriptions": {
+  style.fill: "#e8f5e9"
+  message_categories
+  topics
+  message_category_topics
+  subscriptions
+  subscription_unsubscribe_tokens
+}
+
+"MTA Audit & Processing": {
+  style.fill: "#e6ffe0"
+  received_message
+}
+
+"Delivery Pipeline": {
+  style.fill: "#e5f5e9"
+  mail_ingress
+  mail_deliveries
+}
+
+"Client Views": "Client Views\nexpose visible data\nrestrict access" {
+  shape: rectangle
+  style.fill: "#9abca5"
+  direction: left
+
+  visible_accounts: |md
+    ### visible_accounts
+    * **Sources:** `account`, `admin_identities`
+    * **Access:** User: own row / Admin: all rows
+    * *Primary identity surface for user/admin UI.*
+  | {
+    shape: rectangle
+    style.fill: "#e3f2fd"
+  }
+
+  visible_admin_identities: |md
+    ### visible_admin_identities
+    * **Sources:** `admin_identities`
+    * **Access:** User: empty / Admin: all rows
+    * *Lets admin UI verify admin role safely.*
+  | {
+    shape: rectangle
+    style.fill: "#e3f2fd"
+  }
+
+  visible_webhook_tokens: |md
+    ### visible_webhook_tokens
+    * **Sources:** `webhook_tokens`, `admin_identities`
+    * **Access:** User: empty / Admin: all rows
+    * *Hashed webhook token management.*
+  | {
+    shape: rectangle
+    style.fill: "#e3f2fd"
+  }
+
+  visible_message_categories: |md
+    ### visible_message_categories
+    * **Sources:** `message_categories`, `account`, `subscriptions`
+    * **Access:** Unknown: empty / Member: public + subscribed private / Admin: all
+    * *Mailing list discovery surface.*
+  | {
+    shape: rectangle
+    style.fill: "#e8f5e9"
+  }
+
+  visible_topics: |md
+    ### visible_topics
+    * **Sources:** `topics`
+    * **Access:** All authenticated callers
+    * *Public topic tags pass-through.*
+  | {
+    shape: rectangle
+    style.fill: "#e8f5e9"
+  }
+
+  visible_message_category_topics: |md
+    ### visible_message_category_topics
+    * **Sources:** `message_category_topics`
+    * **Access:** All authenticated callers
+    * *Public category-topic assignments pass-through.*
+  | {
+    shape: rectangle
+    style.fill: "#e8f5e9"
+  }
+
+  visible_subscriptions: |md
+    ### visible_subscriptions
+    * **Sources:** `subscriptions`, `account`
+    * **Access:** User: own subscriptions / Admin: all
+    * *User subscription management & support view.*
+  | {
+    shape: rectangle
+    style.fill: "#e8f5e9"
+  }
+
+  active_subscriptions: |md
+    ### active_subscriptions
+    * **Sources:** `subscriptions`
+    * **Access:** Admin only
+    * *Active subscriber fan-out list for sender daemon.*
+  | {
+    shape: rectangle
+    style.fill: "#e8f5e9"
+  }
+
+  active_unsubscribe_tokens: |md
+    ### active_unsubscribe_tokens
+    * **Sources:** `subscription_unsubscribe_tokens`
+    * **Access:** Admin only
+    * *Active tokens for one-click unsubscribe links.*
+  | {
+    shape: rectangle
+    style.fill: "#e8f5e9"
+  }
+
+  visible_messages: |md
+    ### visible_messages
+    * **Sources:** `received_message`, `account`, `subscriptions`
+    * **Access:** User: subscribed categories only / Admin: all
+    * *Message history restricted to user subscriptions.*
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
+
+  sender_mail_ingress: |md
+    ### sender_mail_ingress
+    * **Sources:** `mail_ingress`
+    * **Access:** Admin only
+    * *Ingress queue pass-through for sender daemon.*
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+
+  sender_mail_deliveries: |md
+    ### sender_mail_deliveries
+    * **Sources:** `mail_deliveries`
+    * **Access:** Admin only
+    * *Delivery queue pass-through for sender daemon.*
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+}
+
+# visible_accounts: reads account (primary), admin_identities (admin check)
+"User Management & Auth".account -> "Client Views".visible_accounts
+"User Management & Auth".admin_identities -> "Client Views".visible_accounts: {style.stroke-dash: 4; label: "admin check"}
+
+# visible_admin_identities
+"User Management & Auth".admin_identities -> "Client Views".visible_admin_identities
+"User Management & Auth".admin_identities -> "Client Views".visible_admin_identities: {style.stroke-dash: 4; label: "admin check"}
+
+# visible_webhook_tokens
+"User Management & Auth".webhook_tokens -> "Client Views".visible_webhook_tokens
+"User Management & Auth".admin_identities -> "Client Views".visible_webhook_tokens: {style.stroke-dash: 4; label: "admin check"}
+
+# visible_message_categories: reads message_categories, account + subscriptions for user filtering
+"Mailing & Subscriptions".message_categories -> "Client Views".visible_message_categories
+"User Management & Auth".account -> "Client Views".visible_message_categories: {style.stroke-dash: 4; label: "identity lookup"}
+"Mailing & Subscriptions".subscriptions -> "Client Views".visible_message_categories: {style.stroke-dash: 4; label: "subscribed private filter"}
+
+# visible_topics / visible_message_category_topics: fully public pass-through
+"Mailing & Subscriptions".topics -> "Client Views".visible_topics
+"Mailing & Subscriptions".message_category_topics -> "Client Views".visible_message_category_topics
+
+# visible_subscriptions: reads subscriptions + account (to resolve identity→id)
+"Mailing & Subscriptions".subscriptions -> "Client Views".visible_subscriptions
+"User Management & Auth".account -> "Client Views".visible_subscriptions: {style.stroke-dash: 4; label: "identity→id lookup"}
+
+# active_subscriptions: subscriptions only (admin-gated full fan-out list)
+"Mailing & Subscriptions".subscriptions -> "Client Views".active_subscriptions
+
+# active_unsubscribe_tokens: subscription_unsubscribe_tokens only (admin-gated)
+"Mailing & Subscriptions".subscription_unsubscribe_tokens -> "Client Views".active_unsubscribe_tokens
+
+# visible_messages: reads received_message + account + subscriptions for per-user category filtering
+"MTA Audit & Processing".received_message -> "Client Views".visible_messages
+"User Management & Auth".account -> "Client Views".visible_messages: {style.stroke-dash: 4; label: "identity→id lookup"}
+"Mailing & Subscriptions".subscriptions -> "Client Views".visible_messages: {style.stroke-dash: 4; label: "category filter"}
+
+# sender_mail_ingress / sender_mail_deliveries: pass-through (admin-gated)
+"Delivery Pipeline".mail_ingress -> "Client Views".sender_mail_ingress
+"Delivery Pipeline".mail_deliveries -> "Client Views".sender_mail_deliveries

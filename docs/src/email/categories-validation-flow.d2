@@ -1,0 +1,25 @@
+direction: down
+
+incoming_email: "Incoming Email\nTo: recipient@domain.org"
+extract_address: "Extract Recipient\nAddress"
+lookup_category: "Lookup in\nmessage_categories" { shape: cylinder }
+check_active: "Check if\nCategory Active" { shape: diamond }
+
+accept_email: "ACCEPT\nContinue Processing" {
+  style.stroke: green
+}
+reject_inactive: "REJECT 550\nCategory Inactive" {
+  style.stroke: orange
+}
+reject_unknown: "REJECT 550\nUnknown Recipient" {
+  style.stroke: red
+}
+
+incoming_email -> extract_address
+extract_address -> lookup_category
+
+lookup_category -> check_active: "Found"
+lookup_category -> reject_unknown: "Not Found"
+
+check_active -> accept_email: "active=true"
+check_active -> reject_inactive: "active=false"

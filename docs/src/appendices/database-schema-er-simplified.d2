@@ -1,0 +1,40 @@
+direction: down
+
+account: "Account\n(User Management)" {
+  style.fill: lightblue
+}
+mta_connection_log: "MtaConnectionLog\n(MTA Processing)" {
+  style.fill: lightcoral
+}
+mta_message_log: "MtaMessageLog\n(MTA Processing)" {
+  style.fill: lightcoral
+}
+blocked_ips: "BlockedIp\n(MTA Security)" {
+  style.fill: lightcoral
+}
+message_categories: "MessageCategory\n(Category System)" {
+  style.fill: lightgreen
+}
+subscriptions: "Subscription\n(Category System)" {
+  style.fill: lightgreen
+}
+
+subscriptions -> message_categories: "belongs to" {
+  style.stroke: blue
+}
+subscriptions -> account: "subscriber" {
+  style.stroke: blue
+}
+
+mta_connection_log -> blocked_ips: "checks" {
+  style.stroke: red
+  style.stroke-dash: 5
+}
+mta_message_log -> message_categories: "validates" {
+  style.stroke: green
+  style.stroke-dash: 5
+}
+mta_message_log -> subscriptions: "verifies" {
+  style.stroke: green
+  style.stroke-dash: 5
+}

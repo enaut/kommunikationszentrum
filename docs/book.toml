@@ -8,6 +8,9 @@ title = "Kommunikationszentrum setup and maintenance"
 additional-css = ["theme/custom.css"]
 additional-js = ["theme/svg-replace.js"]
 
+[preprocessor.links]
+before = ["d2"]
+
 [preprocessor.d2]
 path = "./d2-sketch.sh"
 layout = "tala"

@@ -1,0 +1,35 @@
+direction: right
+
+MTA: {
+  shape: cloud
+  label: "Stalwart MTA / Webhook"
+}
+
+Ingress: {
+  shape: class
+  label: "mail_ingress [Private]\n(1 per category email)"
+  state: "pending | processing | retry_scheduled | completed | failed"
+  lease: "claim_owner & claim_expires_at (10 min)"
+}
+
+FanOut: {
+  shape: diamond
+  label: "Fan-Out Engine\n(Sender Daemon)"
+}
+
+Deliveries: {
+  shape: class
+  label: "mail_deliveries [Private]\n(1 per active subscriber)"
+  state: "queued | sending | retry_scheduled | sent | failed | bounced"
+  lease: "claim_owner & claim_expires_at (5 min)"
+}
+
+Audit: {
+  shape: page
+  label: "mail_delivery_events [Private]\n(Immutable audit trail)"
+}
+
+MTA -> Ingress: "POST /mta-hook (DATA stage)"
+Ingress -> FanOut: "Claim ingress lease"
+FanOut -> Deliveries: "Generate subscriber deliveries"
+Deliveries -> Audit: "Log attempt & SMTP response"

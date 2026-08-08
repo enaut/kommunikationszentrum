@@ -1,0 +1,17 @@
+direction: right
+
+IngressLifecycle: {
+  pending -> processing: "claim_pending_ingress()"
+  processing -> processing: "heartbeat_ingress_claim()"
+  processing -> completed: "complete_ingress()"
+}
+
+DeliveryLifecycle: {
+  queued -> sending: "claim_pending_deliveries()"
+  sending -> sending: "heartbeat_delivery_claim()"
+  sending -> sent: "record_delivery_success()"
+  sending -> retry_scheduled: "record_delivery_failure() [transient]"
+  sending -> failed: "record_delivery_failure() [max retries]"
+  sending -> bounced: "record_delivery_failure() [permanent]"
+  retry_scheduled -> queued: "next_attempt_at reached"
+}

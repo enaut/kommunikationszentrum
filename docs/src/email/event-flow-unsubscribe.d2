@@ -1,0 +1,19 @@
+direction: right
+
+client: "Email Client\n(RFC 8058 One-Click)" {
+  shape: oval
+  style.fill: lightcoral
+}
+handler: "HTTP Handler\n(/mailing-list/unsubscribe)" { style.fill: lightblue }
+lookup: "Lookup token in\nsubscription_unsubscribe_tokens" { shape: diamond }
+deact: "Set subscription.active = false\nSet token.active = false" { style.fill: lightblue }
+resp: "200 {\"status\":\"unsubscribed\"}" {
+  shape: oval
+  style.fill: lightgreen
+}
+
+client -> handler: "POST ?token=<token>\nList-Unsubscribe=One-Click"
+handler -> lookup
+lookup -> handler: "404 not found" { style.stroke: red; style.stroke-dash: 5 }
+lookup -> deact: "found"
+deact -> resp

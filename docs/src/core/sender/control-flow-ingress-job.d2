@@ -1,0 +1,18 @@
+direction: down
+
+start: "process_ingress_job(ingress)" { style.fill: lightyellow }
+cat: "Lookup message_categories\nby ingress.category_id" { shape: diamond }
+fail: "fail_mail_ingress()\n'missing message category'" { style.fill: lightcoral }
+subs: "Filter active_subscriptions\nfor this category_id\n+ dedup by email" { style.fill: lightblue }
+empty: "No subscribers?\ncomplete_mail_ingress(0, 0)\nreturn Ok" { style.fill: lightgreen }
+loop_: "For each subscription:\nprocess_subscription_job()" { style.fill: lightblue }
+token: "Any 'AwaitingToken' results?\nreturn Err → retry_mail_ingress()" { style.fill: lightyellow }
+done: "complete_mail_ingress(\ningress_id,\ndeliveries_created, 0)" { style.fill: lightgreen }
+
+start -> cat
+cat -> fail: "not found"
+cat -> subs: "found"
+subs -> empty: "empty"
+subs -> loop_
+loop_ -> token
+token -> done: "all queued"

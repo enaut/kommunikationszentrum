@@ -34,44 +34,7 @@ pub struct Subscription {
 ### Relationship Diagram
 
 ```d2
-direction: down
-
-account: "Account\nid: u64\nemail: String\nname: String\nis_active: bool"
-subscriptions: "Subscription\nid: u64 (PK)\nsubscriber_account_id: u64 (FK)\nsubscriber_email: String\ncategory_id: u64 (FK)\nsubscribed_at: i64\nactive: bool"
-categories: "MessageCategory\nid: u64 (PK)\nname: String\nemail_address: String\ndescription: String\nactive: bool"
-
-subscriptions -> account: "subscriber_account_id → id" {
-  style.stroke: blue
-}
-subscriptions -> categories: "category_id → id" {
-  style.stroke: red
-}
-
-account_example: "Account (Example)\nid: 1\nemail: \"user@example.com\"\nname: \"John Doe\"\nis_active: true" {
-  style.fill: lightblue
-}
-subscription_example: "Subscription (Example)\nid: 101\nsubscriber_account_id: 1\nsubscriber_email: \"user@example.com\"\ncategory_id: 1\nsubscribed_at: 1672531200\nactive: true" {
-  style.fill: lightgreen
-}
-category_example: "MessageCategory (Example)\nid: 1\nname: \"SoLaWi News\"\nemail_address: \"news@solawi.org\"\ndescription: \"Newsletter\"\nactive: true" {
-  style.fill: lightyellow
-}
-
-subscription_example -> account_example: "references" {
-  style.stroke: blue
-  style.stroke-dash: 5
-}
-subscription_example -> category_example: "references" {
-  style.stroke: red
-  style.stroke-dash: 5
-}
-
-example_data: "Example Data" {
-  style.fill: "#e0f7fa"
-  account_example
-  subscription_example
-  category_example
-}
+{{#include subscriptions-relationships.d2}}
 ```
 
 ## Subscription Management
@@ -152,40 +115,7 @@ async fn validate_subscription(
 During the DATA stage of MTA processing, the system validates that senders are subscribed to target categories:
 
 ```d2
-direction: down
-
-incoming_message: "Incoming Message\nFrom: sender@example.com\nTo: news@solawi.org"
-extract_metadata: "Extract\nSender & Recipients"
-lookup_categories: "Lookup Target\nCategories" { shape: cylinder }
-check_subscriptions: "Check Sender\nSubscriptions" { shape: diamond }
-all_subscribed: "All Categories\nSubscribed?" { shape: diamond }
-
-accept_message: "ACCEPT\nAdd Headers & Deliver" {
-  style.stroke: green
-}
-quarantine_message: "QUARANTINE\nNot Subscribed" {
-  style.stroke: orange
-}
-reject_message: "REJECT\nInvalid Category" {
-  style.stroke: red
-}
-
-log_decision: "Log Decision\nto mta_message_log" { shape: cylinder }
-
-incoming_message -> extract_metadata
-extract_metadata -> lookup_categories
-
-lookup_categories -> check_subscriptions: "Categories Found"
-lookup_categories -> reject_message: "Category Not Found"
-
-check_subscriptions -> all_subscribed
-
-all_subscribed -> accept_message: "Yes"
-all_subscribed -> quarantine_message: "No"
-
-accept_message -> log_decision
-quarantine_message -> log_decision
-reject_message -> log_decision
+{{#include subscriptions-checking-flow.d2}}
 ```
 
 ### Implementation Details

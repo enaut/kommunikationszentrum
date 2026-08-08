@@ -1,0 +1,23 @@
+direction: right
+
+categories: "MessageCategory\nid: 1\nname: \"SoLaWi News\"\nemail_address: \"news@solawi.org\"\nactive: true"
+subscriptions: "Subscription\nid: 101\ncategory_id: 1\nsubscriber_email: \"member@example.com\"\nactive: true"
+
+subscriptions -> categories: "category_id → id" {
+  style.stroke: blue
+}
+
+user1: "member@example.com" { shape: oval }
+user2: "volunteer@example.com" { shape: oval }
+user3: "admin@example.com" { shape: oval }
+
+user1 -> subscriptions: "subscribes to"
+user2 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
+user3 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
+
+subscribers: "Subscribers" {
+  style.fill: "#e8f5e9"
+  user1
+  user2
+  user3
+}

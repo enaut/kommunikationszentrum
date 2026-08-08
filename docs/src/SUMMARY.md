@@ -53,6 +53,7 @@
   - [Email Categories](./email/categories.md)
   - [Subscription System](./email/subscriptions.md)
   - [Processing Flow](./email/processing-flow.md)
+  - [Trigger Flow](./email/flow-email-triggers.md)
 
 - [Authentication & Security](./auth/overview.md)
   - [OAuth in Django](./auth/configure-django.md)

@@ -1,0 +1,42 @@
+direction: down
+
+"Sync Path (Django Webhook)": {
+  AutomaticallySubscribed: {
+    shape: oval
+    style.fill: "#c8e6c9"
+  }
+
+  AutomaticallyUnsubscribed: {
+    shape: oval
+    style.fill: "#ffcdd2"
+  }
+
+  RequiredSubscribed: {
+    shape: oval
+    style.fill: "#b3e5fc"
+  }
+}
+
+"Explicit User / Admin Actions": {
+  ManuallySubscribed: {
+    shape: oval
+    style.fill: "#a5d6a7"
+  }
+
+  ManuallyUnsubscribed: {
+    shape: oval
+    style.fill: "#ef9a9a"
+  }
+
+  LinkUnsubscribed: {
+    shape: oval
+    style.fill: "#ffcc80"
+  }
+}
+
+"Sync Path (Django Webhook)".AutomaticallySubscribed -> "Sync Path (Django Webhook)".AutomaticallyUnsubscribed: "Optional assignment removed (if unchanged manually)"
+"Sync Path (Django Webhook)".AutomaticallySubscribed -> "Sync Path (Django Webhook)".RequiredSubscribed: "Django marks assignment required"
+"Sync Path (Django Webhook)".RequiredSubscribed -> "Sync Path (Django Webhook)".AutomaticallyUnsubscribed: "Django removes required assignment"
+"Sync Path (Django Webhook)".AutomaticallySubscribed -> "Explicit User / Admin Actions".LinkUnsubscribed: "List-Unsubscribe HTTP POST"
+"Sync Path (Django Webhook)".AutomaticallySubscribed -> "Explicit User / Admin Actions".ManuallyUnsubscribed: "User/Admin UI toggle"
+"Explicit User / Admin Actions".ManuallyUnsubscribed -> "Explicit User / Admin Actions".ManuallySubscribed: "Manual resubscription"

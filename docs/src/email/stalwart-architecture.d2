@@ -1,0 +1,44 @@
+direction: right
+
+internet: "Internet\n(Email Senders)" {
+  shape: oval
+  style.fill: lightcyan
+}
+
+stalwart: "Stalwart MTA Processing" {
+  style.fill: "#e3f2fd"
+  smtp_server: "SMTP Server"
+  connect_stage: "CONNECT Stage"
+  ehlo_stage: "EHLO Stage"
+  mail_stage: "MAIL FROM Stage"
+  rcpt_stage: "RCPT TO Stage"
+  data_stage: "DATA Stage"
+  auth_stage: "AUTH Stage"
+
+  smtp_server -> connect_stage -> ehlo_stage -> mail_stage -> rcpt_stage -> data_stage -> auth_stage
+}
+
+spacetimedb: "SpacetimeDB\nPort 3000\nModule HTTP Routes" {
+  style.fill: lightgreen
+}
+
+local_delivery: "Local Delivery\n(Accepted Emails)" {
+  shape: oval
+  style.fill: lightgreen
+}
+rejection: "Rejection\n(Blocked Emails)" {
+  shape: oval
+  style.fill: lightcoral
+}
+
+internet -> smtp_server
+
+connect_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+ehlo_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+mail_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+rcpt_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+data_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+auth_stage -> spacetimedb: "HTTP Hook" { style.stroke: red; style.stroke-dash: 5 }
+
+auth_stage -> local_delivery: "ACCEPT"
+auth_stage -> rejection: "REJECT"

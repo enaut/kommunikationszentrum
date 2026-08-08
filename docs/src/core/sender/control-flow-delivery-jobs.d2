@@ -1,0 +1,25 @@
+direction: down
+
+entry: "process_delivery_jobs()" { style.fill: lightyellow }
+owned: "self_owned_delivery_jobs()\nstate=sending,\nclaim_owner=self,\nnot in in_flight" {
+  shape: diamond
+  style.fill: white
+}
+claim: "claim_next_mail_delivery()\n(reducer atomically claims one)" { style.fill: lightblue }
+wait50: "sleep 50 ms" { style.fill: lightyellow }
+reck: "Re-check owned\ndeliveries" {
+  shape: diamond
+  style.fill: white
+}
+none2: "No work\nbreak" { style.fill: lightcoral }
+mark2: "Add delivery.id\nto in_flight set" { style.fill: lightgreen }
+send: "send_delivery()" { style.fill: lightblue }
+cont2: "continue loop" { style.fill: lightgreen }
+
+entry -> owned
+owned -> claim: "none owned"
+owned -> mark2: "owned found"
+claim -> wait50 -> reck
+reck -> none2: "still none"
+reck -> mark2: "appeared"
+mark2 -> send -> cont2 -> owned

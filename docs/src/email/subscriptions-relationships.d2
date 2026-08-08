@@ -1,0 +1,38 @@
+direction: down
+
+account: "Account\nid: u64\nemail: String\nname: String\nis_active: bool"
+subscriptions: "Subscription\nid: u64 (PK)\nsubscriber_account_id: u64 (FK)\nsubscriber_email: String\ncategory_id: u64 (FK)\nsubscribed_at: i64\nactive: bool"
+categories: "MessageCategory\nid: u64 (PK)\nname: String\nemail_address: String\ndescription: String\nactive: bool"
+
+subscriptions -> account: "subscriber_account_id → id" {
+  style.stroke: blue
+}
+subscriptions -> categories: "category_id → id" {
+  style.stroke: red
+}
+
+account_example: "Account (Example)\nid: 1\nemail: \"user@example.com\"\nname: \"John Doe\"\nis_active: true" {
+  style.fill: lightblue
+}
+subscription_example: "Subscription (Example)\nid: 101\nsubscriber_account_id: 1\nsubscriber_email: \"user@example.com\"\ncategory_id: 1\nsubscribed_at: 1672531200\nactive: true" {
+  style.fill: lightgreen
+}
+category_example: "MessageCategory (Example)\nid: 1\nname: \"SoLaWi News\"\nemail_address: \"news@solawi.org\"\ndescription: \"Newsletter\"\nactive: true" {
+  style.fill: lightyellow
+}
+
+subscription_example -> account_example: "references" {
+  style.stroke: blue
+  style.stroke-dash: 5
+}
+subscription_example -> category_example: "references" {
+  style.stroke: red
+  style.stroke-dash: 5
+}
+
+example_data: "Example Data" {
+  style.fill: "#e0f7fa"
+  account_example
+  subscription_example
+  category_example
+}

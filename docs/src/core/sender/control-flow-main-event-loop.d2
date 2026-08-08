@@ -1,0 +1,25 @@
+direction: down
+
+wait: "tokio::select!\n(waiting for any branch)" {
+  shape: diamond
+  style.fill: lightyellow
+}
+db_err: "DB pump terminated\nlog error + break" { style.fill: lightcoral }
+ctrl_c: "SIGINT / Ctrl+C\nlog + break" { style.fill: lightcoral }
+work: "notify.notified()\nWork loop fires" { style.fill: lightgreen }
+
+fanout: "process_fanout_jobs()\n(ingress → deliveries)" { style.fill: lightblue }
+delivery: "process_delivery_jobs()\n(deliveries → SMTP)" { style.fill: lightblue }
+more: "Did any work?\nthen notify_one()\n(chain reaction)" {
+  shape: diamond
+  style.fill: lightgreen
+}
+
+wait -> db_err: "db pump done"
+wait -> ctrl_c: "signal"
+wait -> work: "doorbell rings"
+work -> fanout
+fanout -> delivery
+delivery -> more
+more -> wait: "no work left"
+more -> work: "yes, loop again"

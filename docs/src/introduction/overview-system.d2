@@ -1,0 +1,83 @@
+# Globale Konfiguration
+direction: right
+
+# Externe und globale Komponenten
+Internet {
+  Externe Sender: "Externe Sender\n(web.de, posteo.de...)" {
+  }
+  MX: "DNS-Server\nMX,DKIM,DMARC,SPF" {
+  }
+  Externe Empfänger: "Externe Empfänger\n(web.de, posteo.de...)" {
+  }
+  smtp2go: "smtp2go\n(o.ä.)\n(Mails senden)" {
+  }
+}
+
+Mail-Infrastruktur {
+Stalwart: "Stalwart\n(Mails senden)" {
+}
+
+RocksDB
+
+S3: "S3\n(Mailspeicher)" {
+}
+Stalwart <-> RocksDB: "Metadaten"
+S3 <-> Stalwart: "Anhänge und Emails" {
+  style.stroke-dash: 2
+}
+}
+
+# Mailinglisten
+Kommunikationszentrum: "Kommunikationszentrum" {
+
+  Server: "Server\n(läuft in Spacetimedb)"{}
+
+  Sender
+
+  Admin
+  
+  Admin <-> Server: Nutzer konfigurieren
+  Sender -> Server: verschickt zu sendende mails
+}
+
+# Lokale Mailclients Gruppe
+Mailclients: "Mailclients" {
+  
+  Thunderbird: "z.B. Thunderbird\n(Lokaler Mailclient)" {
+  }
+  Balwark: "Balwark\n(Webmailclient)" {
+  }
+}
+
+# Contabo Server Gruppe
+Contabo: "Contabo (Server)" {
+  Django: "Django\n(Webportal wir.solawis.de)" {
+  sync_users_to_spacetime: "sync_users_to_spacetime\n(mitgliederverwaltung.management.commands)"
+  mailing
+  django-oauth
+  }
+}
+
+# Verbindungen und Beziehungen
+Internet.Externe Sender -> Mail-Infrastruktur.Stalwart:" Senden an Mailinglisten"
+
+Internet.MX -> Mail-Infrastruktur.Stalwart: "Verweist und Signiert"{
+  style.stroke-dash: 5
+}
+
+
+Mailclients.Thunderbird <-> Mail-Infrastruktur.Stalwart: "IMAP/SMTP"
+Mailclients.Balwark <-> Mail-Infrastruktur.Stalwart: "JMAP"
+
+Mail-Infrastruktur.Stalwart -> Internet.smtp2go: "sendet via relay\n(Spamvermeidung)"
+Mail-Infrastruktur.Stalwart -> Internet.Externe Empfänger: "Sendet direkt"
+Internet.smtp2go -> Internet.Externe Empfänger:"liefert aus"
+
+Mail-Infrastruktur.Stalwart -> Kommunikationszentrum.Server: "Mailinglistenmail\nper webhook/HTTP"
+Kommunikationszentrum.Sender -> Mail-Infrastruktur.Stalwart: "Sendet via SMTP\n(direkt)"
+Kommunikationszentrum.Sender -> Internet.smtp2go: "Sendet via SMTP\n(relay)"
+
+Contabo.Django.mailing -> Mail-Infrastruktur.Stalwart: "Mailversand"
+Contabo.Django.signale -> Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
+Contabo.Django.sync_users_to_spacetime -> Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
+Contabo.Django.django-oauth <-> Kommunikationszentrum.Admin: "OAuth2.0\nAuthentifizierung"

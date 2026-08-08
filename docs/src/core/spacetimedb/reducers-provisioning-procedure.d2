@@ -1,0 +1,16 @@
+direction: right
+
+Client -> SpacetimeDB: "Call provision_message_category()"
+
+SpacetimeDB: {
+  DB_Check: "Verify Admin Identity & Unique Email"
+  Stalwart_HTTP: {
+    shape: cloud
+    label: "Stalwart JMAP API\nPOST /jmap/session"
+  }
+  DB_Insert: "Insert message_categories row"
+  DB_Check -> Stalwart_HTTP: "Create Mailbox"
+  Stalwart_HTTP -> DB_Insert: "Mailbox Created (200 OK)"
+}
+
+SpacetimeDB -> Client: "Result: Ok(category_id)"

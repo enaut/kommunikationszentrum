@@ -1,0 +1,31 @@
+direction: down
+
+entry: "process_fanout_jobs()" { style.fill: lightyellow }
+owned: "self_owned_ingress_jobs()\nFilter local cache:\nstate=processing,\nclaim_owner=self,\nnot in in_flight set" {
+  shape: diamond
+  style.fill: white
+}
+claim: "call claim_next_mail_ingress()\n(reducer → server atomically\nclaims one pending ingress)" { style.fill: lightblue }
+wait50: "sleep 50 ms\n(wait for subscription push\nto update local cache)" { style.fill: lightyellow }
+recheck: "Re-check owned jobs\n(subscription push arrived?)" {
+  shape: diamond
+  style.fill: white
+}
+none: "No new work\nbreak inner loop" { style.fill: lightcoral }
+mark: "Add ingress.id to in_flight set\n(prevent double-processing)" { style.fill: lightgreen }
+proc: "process_ingress_job()" { style.fill: lightblue }
+err: "retry_mail_ingress()\n(error → back-off)" { style.fill: lightyellow }
+cont: "continue inner loop\n(look for more work)" { style.fill: lightgreen }
+
+entry -> owned
+owned -> claim: "no owned jobs"
+owned -> mark: "owned jobs found"
+claim -> wait50
+wait50 -> recheck
+recheck -> none: "still none"
+recheck -> mark: "new job appeared"
+mark -> proc
+proc -> err: "Err(e)"
+proc -> cont: "Ok(())"
+err -> cont
+cont -> owned

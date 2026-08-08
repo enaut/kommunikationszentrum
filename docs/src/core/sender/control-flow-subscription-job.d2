@@ -1,0 +1,17 @@
+direction: down
+
+start: "process_subscription_job()" { style.fill: lightyellow }
+dup: "Check if MailDelivery already\nexists for this (ingress, subscription)\nID in local cache" { shape: diamond }
+skip: "Return DeliveryQueued\n(idempotent skip)" { style.fill: lightgreen }
+tok: "Look up active unsubscribe\ntoken from local cache" { shape: diamond }
+req: "ensure_subscription_unsubscribe_token()\n→ return AwaitingToken" { style.fill: lightyellow }
+comp: "compose_delivery()\nBuild RFC 5322 message\n+ mailing list headers" { style.fill: lightblue }
+enq: "enqueue_mail_delivery() reducer\n→ creates MailDelivery row\n(state: queued)" { style.fill: lightblue }
+ret: "Return DeliveryQueued" { style.fill: lightgreen }
+
+start -> dup
+dup -> skip: "exists"
+dup -> tok: "not exists"
+tok -> req: "no token"
+tok -> comp: "token found"
+comp -> enq -> ret

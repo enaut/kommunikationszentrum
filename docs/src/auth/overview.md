@@ -25,19 +25,5 @@ The authentication architecture integrates three core components:
 ## Authentication Flow
 
 ```d2
-direction: right
-User: "User" { style.fill: lightyellow }
-AdminUI: "Admin Web Interface" { style.fill: lightgreen }
-Django: "Django OAuth2 Provider" { style.fill: lightpink }
-SpacetimeDB: "SpacetimeDB Server" { style.fill: lightcyan }
-
-User -> AdminUI: "Initiate Login" { style.stroke: blue }
-AdminUI -> Django: "OAuth2 Authorization Request" { style.stroke: blue }
-Django -> User: "User Authenticates" { style.stroke: blue }
-Django -> AdminUI: "Return Authorization Code" { style.stroke: blue }
-AdminUI -> Django: "Token Exchange" { style.stroke: blue }
-Django -> AdminUI: "Access Token & JWT ID Token" { style.stroke: blue }
-AdminUI -> SpacetimeDB: "Send JWT ID Token" { style.stroke: blue }
-SpacetimeDB -> Django: "Validate JWT" { style.stroke: blue }
-SpacetimeDB -> AdminUI: "Authenticated Connection" { style.stroke: blue }
+{{#include auth-flow.d2}}
 ```

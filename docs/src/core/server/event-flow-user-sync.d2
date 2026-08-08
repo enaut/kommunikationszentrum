@@ -1,0 +1,21 @@
+direction: right
+
+django: "Django\nsolawispielplatz" { style.fill: lightyellow }
+handler: "HTTP Handler\n(/user-sync)" { style.fill: lightblue }
+auth: "Token auth check\n(sync-user permission)" {
+  shape: diamond
+  style.fill: white
+}
+do_sync: "do_sync_user()\nin transaction" { style.fill: lightblue }
+account: "account table" { style.fill: lightyellow }
+admin: "admin_identities\ntable" { style.fill: lightyellow }
+
+django -> handler: "POST /user-sync\nBearer token + JSON"
+handler -> auth
+auth -> handler: "forbidden 403" { style.stroke: red; style.stroke-dash: 5 }
+auth -> do_sync: "authorized"
+
+do_sync -> account: "upsert or delete row"
+do_sync -> admin: "grant/revoke admin\nbased on is_admin flag"
+do_sync -> handler: "Ok(())"
+handler -> django: "200 success"

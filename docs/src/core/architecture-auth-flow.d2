@@ -1,0 +1,9 @@
+direction: right
+user: "User" { style.fill: lightblue }
+django: "OAuth Login\n(Django)" { style.fill: lightyellow }
+jwt: "JWT Token" { style.fill: lightgreen }
+spacetimedb: "SpacetimeDB\nConnection" { style.fill: lightcoral }
+
+user -> django: "OAuth Login" { style.stroke: orange }
+django -> jwt: "Issue JWT" { style.stroke: green }
+jwt -> spacetimedb: "Authenticate\nConnection" { style.stroke: blue }

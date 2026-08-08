@@ -1,0 +1,64 @@
+direction: down
+
+account: {
+  label: "Account\nid: u64 (PK)\nidentity: Option<Identity>\nname: String\nemail: String\nis_active: bool\nlast_synced: i64"
+}
+
+mta_connection_log: {
+  label: "MtaConnectionLog\nid: u64 (PK, auto_inc)\nclient_ip: String\nstage: String\naction: String\ntimestamp: i64\ndetails: String"
+}
+
+mta_message_log: {
+  label: "MtaMessageLog\nid: u64 (PK, auto_inc)\nfrom_address: String\nto_addresses: String (JSON)\nsubject: String\nmessage_size: u64\nstage: String\naction: String\ntimestamp: i64\nqueue_id: Option<String>"
+}
+
+blocked_ips: {
+  label: "BlockedIp\nip: String (PK)\nreason: String\nblocked_at: i64\nactive: bool"
+}
+
+message_categories: {
+  label: "MessageCategory\nid: u64 (PK, auto_inc)\nname: String\nemail_address: String\ndescription: String\nactive: bool"
+}
+
+subscriptions: {
+  label: "Subscription\nid: u64 (PK, auto_inc)\nsubscriber_account_id: u64\nsubscriber_email: String\ncategory_id: u64 (FK)\nsubscribed_at: i64\nactive: bool"
+}
+
+subscriptions -> message_categories: "category_id → id" {
+  style.stroke: blue
+}
+subscriptions -> account: "subscriber_account_id → id" {
+  style.stroke: blue
+  style.stroke-dash: 5
+}
+
+mta_connection_log -> blocked_ips: "checks IP blocking" {
+  style.stroke: red
+  style.stroke-dash: 2
+}
+mta_message_log -> message_categories: "validates recipients" {
+  style.stroke: green
+  style.stroke-dash: 2
+}
+mta_message_log -> subscriptions: "checks subscriptions" {
+  style.stroke: green
+  style.stroke-dash: 2
+}
+
+mta_processing: "MTA Processing" {
+  style.fill: "#e3f2fd"
+  mta_connection_log
+  mta_message_log
+  blocked_ips
+}
+
+category_mgmt: "Category Management" {
+  style.fill: "#e8f5e9"
+  message_categories
+  subscriptions
+}
+
+user_mgmt: "User Management" {
+  style.fill: "#fffde7"
+  account
+}

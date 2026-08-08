@@ -1,0 +1,25 @@
+direction: down
+
+start: "DATA hook received" {
+  shape: oval
+  style.fill: lightcoral
+}
+resolve: "Resolve recipients\nto message_categories\n(envelope To -> header To fallback)"
+sender: "Look up sender\naccount by email"
+filter: "Filter categories:\nsender must be admin\nOR have active subscription"
+no_cat: "quarantine\n(no authorized categories)" {
+  shape: diamond
+  style.fill: lightyellow
+}
+persist: "For each authorized category:\n• INSERT received_message\n• INSERT mail_ingress (pending)"
+resp: "Return accept response\nto Stalwart" {
+  shape: oval
+  style.fill: lightgreen
+}
+
+start -> resolve
+resolve -> sender
+sender -> filter
+filter -> no_cat: "none left"
+filter -> persist: "≥1 category"
+persist -> resp

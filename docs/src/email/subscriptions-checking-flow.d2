@@ -1,0 +1,34 @@
+direction: down
+
+incoming_message: "Incoming Message\nFrom: sender@example.com\nTo: news@solawi.org"
+extract_metadata: "Extract\nSender & Recipients"
+lookup_categories: "Lookup Target\nCategories" { shape: cylinder }
+check_subscriptions: "Check Sender\nSubscriptions" { shape: diamond }
+all_subscribed: "All Categories\nSubscribed?" { shape: diamond }
+
+accept_message: "ACCEPT\nAdd Headers & Deliver" {
+  style.stroke: green
+}
+quarantine_message: "QUARANTINE\nNot Subscribed" {
+  style.stroke: orange
+}
+reject_message: "REJECT\nInvalid Category" {
+  style.stroke: red
+}
+
+log_decision: "Log Decision\nto mta_message_log" { shape: cylinder }
+
+incoming_message -> extract_metadata
+extract_metadata -> lookup_categories
+
+lookup_categories -> check_subscriptions: "Categories Found"
+lookup_categories -> reject_message: "Category Not Found"
+
+check_subscriptions -> all_subscribed
+
+all_subscribed -> accept_message: "Yes"
+all_subscribed -> quarantine_message: "No"
+
+accept_message -> log_decision
+quarantine_message -> log_decision
+reject_message -> log_decision

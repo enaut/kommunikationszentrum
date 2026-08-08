@@ -1,0 +1,16 @@
+direction: right
+
+start: "send_delivery(delivery)" { style.fill: lightyellow }
+env: "Build SMTP Envelope\n(from=sender_email,\nto=recipient_email)" { shape: diamond }
+pre_err: "fail_mail_delivery()\nerror_kind='pre-smtp'" { style.fill: lightcoral }
+smtp: "transport.send_raw(envelope,\nraw_message.as_bytes())" { style.fill: lightblue }
+ok: "mark_mail_delivery_sent()\nstatus=200+, smtp_response" { style.fill: lightgreen }
+perm: "fail_mail_delivery()\nerror_kind='smtp-permanent'" { style.fill: lightcoral }
+trans: "schedule_mail_delivery_retry()\nerror_kind='smtp-transient'\nor 'smtp-unknown'" { style.fill: lightyellow }
+
+start -> env
+env -> pre_err: "parse error"
+env -> smtp: "ok"
+smtp -> ok: "2xx"
+smtp -> perm: "5xx (permanent)"
+smtp -> trans: "4xx / timeout /\nunknown"

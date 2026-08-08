@@ -1,0 +1,37 @@
+direction: right
+
+internet: "Incoming\nEmail" {
+  shape: oval
+  style.fill: lightcoral
+}
+stalwart: "Stalwart MTA" {
+  style.fill: lightgray
+}
+handler: "HTTP Handler\n(/mta-hook)" {
+  style.fill: lightblue
+}
+db: "SpacetimeDB\nTables" {
+  style.fill: lightyellow
+}
+
+internet -> stalwart: "SMTP session"
+
+stalwart -> handler: "1. CONNECT\n(client IP)"
+handler -> db: "check blocked_ips"
+db -> handler: "blocked?"
+handler -> stalwart: "accept / reject 550"
+
+stalwart -> handler: "2. EHLO\n(HELO string)"
+handler -> stalwart: "accept / reject 501"
+
+stalwart -> handler: "3. MAIL FROM\n(sender address)"
+handler -> stalwart: "accept / reject 550"
+
+stalwart -> handler: "4. RCPT TO\n(recipient)"
+handler -> db: "lookup message_categories"
+db -> handler: "active category?"
+handler -> stalwart: "accept / reject 550"
+
+stalwart -> handler: "5. DATA\n(full message)"
+handler -> db: "persist: received_message\n+ mail_ingress (pending)"
+handler -> stalwart: "accept + X-Processed-By header"

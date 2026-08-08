@@ -1,0 +1,42 @@
+direction: down
+admin_ui: "Admin Web UI\n(Dioxus)\nPort 8080" {
+  style.fill: lightblue
+}
+spacetimedb: "SpacetimeDB\n(Database + HTTP Routes)\nPort 3000" {
+  style.fill: lightcoral
+}
+django: "OAuth Provider\nsolawispielplatz\nDjango Port 8000" {
+  style.fill: lightyellow
+}
+django_user: "User database\nsolawispielplatz\nDjango Port 8000" {
+  style.fill: lightyellow
+}
+stalwart: "Stalwart MTA\n(External)" {
+  style.fill: lightgray
+}
+
+admin_ui -> spacetimedb: "WebSocket\nSubscriptions" {
+  style.stroke: blue
+}
+admin_ui -> django: "OAuth\nLogin" {
+  style.stroke: orange
+}
+django_user -> admin_ui: "User Synchronization" {
+  style.stroke: orange
+}
+stalwart -> spacetimedb: "MTA\nHooks (HTTP)" {
+  style.stroke: red
+}
+django -> spacetimedb: "User Sync (HTTP)" {
+  style.stroke: green
+}
+
+core: "Core Kommunikationszentrum" {
+  admin_ui
+  spacetimedb
+}
+external: "External Systems" {
+  django
+  django_user
+  stalwart
+}
