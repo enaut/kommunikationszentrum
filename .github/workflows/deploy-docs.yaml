@@ -33,14 +33,18 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # ------------------------------------------------------------
-      # mdBook
-      # ------------------------------------------------------------
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
       - name: Install mdBook
         run: |
-          cargo install mdbook --locked
+          cargo binstall mdbook --no-confirm
           mdbook --version
 
+      - name: Install mdbook-d2
+        run: |
+          cargo binstall mdbook-d2 --no-confirm
+          mdbook-d2 --version
       # ------------------------------------------------------------
       # D2 + TALA
       # ------------------------------------------------------------
@@ -53,14 +57,6 @@ jobs:
 
           d2 version
           d2 layout tala
-
-      # ------------------------------------------------------------
-      # mdbook-d2
-      # ------------------------------------------------------------
-      - name: Install mdbook-d2
-        run: |
-          cargo install mdbook-d2 --locked
-          mdbook-d2 --version
 
       # ------------------------------------------------------------
       # Build mdBook
