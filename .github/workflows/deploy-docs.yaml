@@ -2,7 +2,8 @@ name: Deploy mdBook with D2 & TALA to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -11,7 +12,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -19,44 +20,66 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install mdBook Binary
-        run: |
-          MDBOOK_VERSION=$(curl -s https://github.com | jq -r '.tag_name')
-          curl -sSL "https://github.com/rust-lang/mdBook/releases/download/${MDBOOK_VERSION}/mdbook-${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz
-          sudo mv mdbook /usr/local/bin/
+      # ------------------------------------------------------------
+      # Rust
+      # ------------------------------------------------------------
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install D2 CLI & TALA Engine
+      # ------------------------------------------------------------
+      # mdBook
+      # ------------------------------------------------------------
+      - name: Install mdBook
         run: |
-          # Nutzt das offizielle Skript, um D2 zusammen mit dem TALA-Plugin im System zu installieren
-          curl -fsSL https://d2lang.com | sh -s -- --tala
-          
-          # Verifizieren, dass TALA registriert ist
+          cargo install mdbook --locked
+          mdbook --version
+
+      # ------------------------------------------------------------
+      # D2 + TALA
+      # ------------------------------------------------------------
+      - name: Install D2 and TALA
+        run: |
+          curl -fsSL https://d2lang.com/install.sh | sh -s -- --tala
+
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+
+          d2 version
           d2 layout tala
 
-      - name: Install mdbook-d2 preprocessor
+      # ------------------------------------------------------------
+      # mdbook-d2
+      # ------------------------------------------------------------
+      - name: Install mdbook-d2
         run: |
-          # Lädt die neueste Linux-Version des mdbook-d2 Preprocessors direkt von GitHub herunter
-          D2_PLUGIN_VERSION=$(curl -s https://github.com | jq -r '.tag_name')
-          curl -sSL "https://github.com{D2_PLUGIN_VERSION}/mdbook-d2-${D2_PLUGIN_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz
-          sudo mv mdbook-d2 /usr/local/bin/
+          cargo install mdbook-d2 --locked
+          mdbook-d2 --version
 
+      # ------------------------------------------------------------
+      # Build mdBook
+      # ------------------------------------------------------------
       - name: Build mdBook
+        working-directory: docs
         run: |
-          cd docs
           mdbook build
 
-      - name: Setup Pages
+      # ------------------------------------------------------------
+      # GitHub Pages
+      # ------------------------------------------------------------
+      - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload Artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'docs/book'
+          path: docs/book
 
       - name: Deploy to GitHub Pages
         id: deployment
