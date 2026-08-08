@@ -44,7 +44,7 @@ jobs:
       - name: Install mdbook-d2
         run: |
           cargo binstall mdbook-d2 --no-confirm
-          mdbook-d2 --version
+
       # ------------------------------------------------------------
       # D2 + TALA
       # ------------------------------------------------------------
