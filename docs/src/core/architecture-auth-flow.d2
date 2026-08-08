@@ -1,9 +1,13 @@
 direction: right
-user: "User" { style.fill: lightblue }
+user: "User" {
+shape: person
+style.fill: lightblue
+}
+admin_ui: "Admin Web UI\n(Dioxus)" { style.fill: lightblue }
 django: "OAuth Login\n(Django)" { style.fill: lightyellow }
-jwt: "JWT Token" { style.fill: lightgreen }
+jwt: "JWT Token\n🔑" { style.fill: lightgreen }
 spacetimedb: "SpacetimeDB\nConnection" { style.fill: lightcoral }
 
-user -> django: "OAuth Login" { style.stroke: orange }
-django -> jwt: "Issue JWT" { style.stroke: green }
-jwt -> spacetimedb: "Authenticate\nConnection" { style.stroke: blue }
+user -> admin_ui -> django: "1. OAuth Login" { style.stroke: orange }
+django -> jwt -> admin_ui -> spacetimedb: "2. Authenticate\nConnection" { style.stroke: blue }
+spacetimedb -> admin_ui: "3. WebSocket\nUpdates" { style.stroke: green; style.stroke-dash: 2 }

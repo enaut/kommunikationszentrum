@@ -10,6 +10,7 @@ django: "Django" { style.fill: lightyellow }
 
 incoming_email -> stalwart_mta -> spacetimedb: "1" { style.stroke: red }
 user_changes -> django -> spacetimedb: "2" { style.stroke: blue }
-admin_actions -> admin_ui -> spacetimedb: "3" { style.stroke: green }
+user_changes -> admin_ui -> spacetimedb: "3" { style.stroke: blue}
+admin_actions -> admin_ui -> spacetimedb: "4" { style.stroke: green }
 admin_ui -> django: "OAuth" { style.stroke: orange; style.stroke-dash: 5 }
 spacetimedb -> admin_ui: "WebSocket\nUpdates" { style.stroke: purple; style.stroke-dash: 2 }

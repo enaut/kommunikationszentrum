@@ -1,14 +1,13 @@
 # Overview
 
-The **Kommunikationszentrum** is a email management system designed for the SoLaWi (Solidarische Landwirtschaft / Community Supported Agriculture) project. It provides intelligent email routing, subscription management.
+The **Kommunikationszentrum** is a email management system designed for the SoLaWi (Solidarische Landwirtschaft / Community Supported Agriculture) project. It provides intelligent email routing and subscription management.
 
 ## What is the Kommunikationszentrum?
 
 The Kommunikationszentrum acts as an intelligent email gateway that:
 
-- **Filters and routes emails** based on categories and user subscriptions
-- **Manages user subscriptions** to different mailing lists/categories
-- **Provides spam protection** through IP blocking and validation
+- **Filters and routes emails** based on mailing lists and user subscriptions
+- **Manages user subscriptions** to different mailing lists
 - **Integrates with existing systems** like Stalwart MTA and Django user management
 - **Offers a web interface** for subscription and administrative management
 
@@ -26,13 +25,12 @@ The Kommunikationszentrum acts as an intelligent email gateway that:
 
 ### 📧 **Email Processing**
 - Real-time MTA hook processing from Stalwart email server
-- Category-based email routing (e.g., `news@solawi.org`, `events@solawi.org`)
-- Comprehensive logging of all email transactions
+- Category-based email routing (e.g., `verteilpunkte@solawis.de`, `events@solawis.de`)
 
 ### 🛡️ **Spam Protection**
-- IP-based blocking system with configurable rules
 - Email format validation at multiple stages
 - Sender verification and subscription checks
+- IP-based blocking system with configurable rules
 
 ### 👥 **User Management**
 - Self-service subscription management interface
@@ -40,18 +38,12 @@ The Kommunikationszentrum acts as an intelligent email gateway that:
 - Automatic user synchronization from Django
 - Real-time updates via WebSocket connections
 
-### 📊 **Monitoring & Logging**
-- Detailed audit logs for all MTA operations
-- Connection-level and message-level logging
-
 ## Use Cases
 
 The Kommunikationszentrum is designed for organizations that need:
 
 1. **Mailing List Management**: Organizations with multiple email categories (news, events, announcements) where users can selectively subscribe
-2. **Spam Protection**: Advanced filtering beyond basic MTA capabilities
 3. **User Integration**: Seamless integration with existing user management systems
-4. **Audit Compliance**: Detailed logging and monitoring of email operations
 5. **Self-Service**: Allow users to manage their own subscriptions without admin intervention
 
 ## Technology Stack
@@ -62,7 +54,7 @@ The Kommunikationszentrum is designed for organizations that need:
 ### **Frontend Components**
 - **Dioxus**: Rust-based WebAssembly frontend framework
 - **WebAssembly**: Near-native performance in the browser
-- **Bootstrap**: Responsive UI components
+- **Bootstrap**: Responsive UI components with dioxus-bootstrap
 
 ### **Integration Technologies**
 - **OAuth 2.0 / OpenID Connect**: Secure authentication
@@ -78,6 +70,7 @@ The Kommunikationszentrum follows these key principles:
 Each component has a single responsibility:
 - **SpacetimeDB Server**: Data storage and business logic
 - **Admin Interface**: User interaction
+- **Sender**: Email fan-out and sending
 - **Django Integration**: User management and authentication
 
 ## Target Audience

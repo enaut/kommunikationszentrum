@@ -1,42 +1,45 @@
 direction: down
-admin_ui: "Admin Web UI\n(Dioxus)\nPort 8080" {
+
+
+external: "External Systems" {
+direction: down
+django: "Django\nOAuth Provider\nPort 8000" {
+  style.fill: lightyellow
+}
+
+stalwart: "Stalwart MTA\nPorts Submission: 465, 587\nPort Jmap: 443/8093" {
+  style.fill: lightgray
+}
+}
+
+core: "Core Kommunikationszentrum" {
+  admin_ui: "Admin Web UI\n(Dioxus)\nPort 8080" {
   style.fill: lightblue
 }
 spacetimedb: "SpacetimeDB\n(Database + HTTP Routes)\nPort 3000" {
   style.fill: lightcoral
 }
-django: "OAuth Provider\nsolawispielplatz\nDjango Port 8000" {
-  style.fill: lightyellow
-}
-django_user: "User database\nsolawispielplatz\nDjango Port 8000" {
-  style.fill: lightyellow
-}
-stalwart: "Stalwart MTA\n(External)" {
-  style.fill: lightgray
+sender: "Sender Service\n(Email Sending)" {
+  style.fill: lightgreen
+  }
 }
 
-admin_ui -> spacetimedb: "WebSocket\nSubscriptions" {
+
+
+
+core.admin_ui -> core.spacetimedb: "WebSocket\nSubscriptions" {
   style.stroke: blue
 }
-admin_ui -> django: "OAuth\nLogin" {
+core.admin_ui -> external.django: "OAuth\nLogin" {
   style.stroke: orange
 }
-django_user -> admin_ui: "User Synchronization" {
-  style.stroke: orange
-}
-stalwart -> spacetimedb: "MTA\nHooks (HTTP)" {
+external.stalwart -> core.spacetimedb: "MTA\nHooks (HTTP)\nInbound Email" {
   style.stroke: red
 }
-django -> spacetimedb: "User Sync (HTTP)" {
+external.django -> core.spacetimedb: "User Sync (HTTP)\nvia admin command\nand via django signals" {
   style.stroke: green
 }
-
-core: "Core Kommunikationszentrum" {
-  admin_ui
-  spacetimedb
-}
-external: "External Systems" {
-  django
-  django_user
-  stalwart
-}
+core.sender -> external.stalwart: "Send Email"
+core.sender -> core.spacetimedb: "Store Email Status"
+core.sender -> core.spacetimedb: "Process Email (Fanout)"
+core.spacetimedb -> core.sender: "Load memberships"
