@@ -8,6 +8,8 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub(super) struct MarkMailDeliveryBouncedArgs {
     pub delivery_id: String,
+    pub instance_id: String,
+    pub smtp_status_code: Option<u16>,
     pub smtp_response: String,
     pub error_kind: String,
 }
@@ -16,6 +18,8 @@ impl From<MarkMailDeliveryBouncedArgs> for super::Reducer {
     fn from(args: MarkMailDeliveryBouncedArgs) -> Self {
         Self::MarkMailDeliveryBounced {
             delivery_id: args.delivery_id,
+            instance_id: args.instance_id,
+            smtp_status_code: args.smtp_status_code,
             smtp_response: args.smtp_response,
             error_kind: args.error_kind,
         }
@@ -40,10 +44,19 @@ pub trait mark_mail_delivery_bounced {
     fn mark_mail_delivery_bounced(
         &self,
         delivery_id: String,
+        instance_id: String,
+        smtp_status_code: Option<u16>,
         smtp_response: String,
         error_kind: String,
     ) -> __sdk::Result<()> {
-        self.mark_mail_delivery_bounced_then(delivery_id, smtp_response, error_kind, |_, _| {})
+        self.mark_mail_delivery_bounced_then(
+            delivery_id,
+            instance_id,
+            smtp_status_code,
+            smtp_response,
+            error_kind,
+            |_, _| {},
+        )
     }
 
     /// Request that the remote module invoke the reducer `mark_mail_delivery_bounced` to run as soon as possible,
@@ -55,6 +68,8 @@ pub trait mark_mail_delivery_bounced {
     fn mark_mail_delivery_bounced_then(
         &self,
         delivery_id: String,
+        instance_id: String,
+        smtp_status_code: Option<u16>,
         smtp_response: String,
         error_kind: String,
 
@@ -68,6 +83,8 @@ impl mark_mail_delivery_bounced for super::RemoteReducers {
     fn mark_mail_delivery_bounced_then(
         &self,
         delivery_id: String,
+        instance_id: String,
+        smtp_status_code: Option<u16>,
         smtp_response: String,
         error_kind: String,
 
@@ -78,6 +95,8 @@ impl mark_mail_delivery_bounced for super::RemoteReducers {
         self.imp.invoke_reducer_with_callback(
             MarkMailDeliveryBouncedArgs {
                 delivery_id,
+                instance_id,
+                smtp_status_code,
                 smtp_response,
                 error_kind,
             },

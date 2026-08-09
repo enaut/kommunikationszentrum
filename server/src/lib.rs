@@ -5,6 +5,7 @@ use account::{admin_identities, AdminIdentity};
 mod account;
 mod delivery;
 mod http_handlers;
+mod mail_message;
 mod mailing;
 mod mta;
 

@@ -1,126 +1,198 @@
-use spacetimedb::{Identity, Query, ReducerContext, Table, TimeDuration, Timestamp, ViewContext};
+use spacetimedb::{Identity, Query, ReducerContext, SpacetimeType, Table, TimeDuration, Timestamp, ViewContext};
 
-use crate::account::is_admin_user;
+use crate::account::{is_admin_identity, is_admin_user};
+use crate::mail_message::mail_message;
 
-pub const MAIL_INGRESS_PENDING: &str = "pending";
-pub const MAIL_INGRESS_PROCESSING: &str = "processing";
-pub const MAIL_INGRESS_RETRY_SCHEDULED: &str = "retry_scheduled";
-pub const MAIL_INGRESS_COMPLETED: &str = "completed";
-pub const MAIL_INGRESS_FAILED: &str = "failed";
+pub const MAX_INGRESS_ATTEMPTS: u32 = 3;
+pub const MAX_DELIVERY_ATTEMPTS: u32 = 5;
 
-pub const MAIL_DELIVERY_QUEUED: &str = "queued";
-pub const MAIL_DELIVERY_SENDING: &str = "sending";
-pub const MAIL_DELIVERY_RETRY_SCHEDULED: &str = "retry_scheduled";
-pub const MAIL_DELIVERY_SENT: &str = "sent";
-pub const MAIL_DELIVERY_FAILED: &str = "failed";
-pub const MAIL_DELIVERY_BOUNCED: &str = "bounced";
+const MICROS_PER_SEC: i64 = 1_000_000;
+const MICROS_PER_MIN: i64 = 60 * MICROS_PER_SEC;
+const MICROS_PER_HOUR: i64 = 60 * MICROS_PER_MIN;
 
 fn ingress_lease_duration() -> TimeDuration {
-    TimeDuration::from_micros(10 * 60 * 1_000_000)
+    TimeDuration::from_micros(10 * MICROS_PER_MIN)
 }
 
 fn delivery_lease_duration() -> TimeDuration {
-    TimeDuration::from_micros(5 * 60 * 1_000_000)
+    TimeDuration::from_micros(5 * MICROS_PER_MIN)
 }
 
 fn delivery_retry_backoff(attempt_count: u32) -> TimeDuration {
     match attempt_count {
-        1 => TimeDuration::from_micros(30 * 1_000_000),
-        2 => TimeDuration::from_micros(2 * 60 * 1_000_000),
-        3 => TimeDuration::from_micros(10 * 60 * 1_000_000),
-        4 => TimeDuration::from_micros(30 * 60 * 1_000_000),
-        5 => TimeDuration::from_micros(60 * 60 * 1_000_000),
-        _ => TimeDuration::from_micros(12 * 60 * 60 * 1_000_000),
+        1 => TimeDuration::from_micros(30 * MICROS_PER_SEC),
+        2 => TimeDuration::from_micros(2 * MICROS_PER_MIN),
+        3 => TimeDuration::from_micros(10 * MICROS_PER_MIN),
+        4 => TimeDuration::from_micros(30 * MICROS_PER_MIN),
+        5 => TimeDuration::from_micros(60 * MICROS_PER_MIN),
+        _ => TimeDuration::from_micros(12 * MICROS_PER_HOUR),
     }
 }
 
 fn ingress_retry_backoff(attempt_count: u32) -> TimeDuration {
     match attempt_count {
-        1 => TimeDuration::from_micros(30 * 1_000_000),
-        2 => TimeDuration::from_micros(2 * 60 * 1_000_000),
-        3 => TimeDuration::from_micros(10 * 60 * 1_000_000),
-        _ => TimeDuration::from_micros(30 * 60 * 1_000_000),
+        1 => TimeDuration::from_micros(30 * MICROS_PER_SEC),
+        2 => TimeDuration::from_micros(2 * MICROS_PER_MIN),
+        3 => TimeDuration::from_micros(10 * MICROS_PER_MIN),
+        _ => TimeDuration::from_micros(30 * MICROS_PER_MIN),
     }
 }
 
-// Private: clients never subscribe to this table directly. `sender_mail_ingress`
-// below is the only way clients can read ingress rows.
+/// State values shared between the ingress and delivery pipelines.
+#[derive(Clone, PartialEq, Eq, SpacetimeType)]
+pub enum DeliveryStatus {
+    // Ingress states
+    Pending,
+    Processing,
+    RetryScheduled,
+    Completed,
+    Failed,
+    // Delivery states
+    Queued,
+    Sending,
+    Sent,
+    Bounced,
+}
+
+impl DeliveryStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Processing => "processing",
+            Self::RetryScheduled => "retry_scheduled",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Queued => "queued",
+            Self::Sending => "sending",
+            Self::Sent => "sent",
+            Self::Bounced => "bounced",
+        }
+    }
+}
+
+impl std::fmt::Display for DeliveryStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+/// Claim/lease state embedded in queue rows.
+#[derive(Clone, SpacetimeType)]
+pub struct ClaimState {
+    pub status: DeliveryStatus,
+    pub next_attempt_at: Timestamp,
+    pub claim_owner: Option<Identity>,
+    pub instance_id: Option<String>,
+    pub claim_expires_at: Timestamp,
+    pub attempt_count: u32,
+    pub last_error: Option<String>,
+    pub updated_at: Timestamp,
+}
+
+impl ClaimState {
+    pub fn new_pending(now: Timestamp) -> Self {
+        Self {
+            status: DeliveryStatus::Pending,
+            next_attempt_at: now,
+            claim_owner: None,
+            instance_id: None,
+            claim_expires_at: Timestamp::UNIX_EPOCH,
+            attempt_count: 0,
+            last_error: None,
+            updated_at: now,
+        }
+    }
+}
+
+/// One row per inbound message fan-out job.
+/// Private: clients never subscribe to this table directly. `sender_mail_ingress`
+/// below is the only way clients can read ingress rows.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = mail_ingress)]
 pub struct MailIngress {
     #[primary_key]
     pub id: String,
+    /// FK → MailMessage.id
     #[index(btree)]
-    pub queue_id: String,
+    pub mail_message_id: u64,
     #[index(btree)]
     pub category_id: u64,
-    #[index(btree)]
-    pub state: String,
-    #[index(btree)]
-    pub next_attempt_at: Timestamp,
-    #[index(btree)]
-    pub received_at: Timestamp,
-    pub sender_account_id: Option<u64>,
-    pub sender_email: String,
     pub category_email: String,
-    pub subject: String,
-    pub from_header: String,
-    pub reply_to: Option<String>,
-    pub date_header: Option<String>,
-    pub message_id: Option<String>,
-    pub cc_header: Option<String>,
-    pub headers_raw: String,
-    pub body_raw: String,
-    pub message_size: u64,
-    pub claim_owner: Option<Identity>,
-    pub claim_expires_at: Timestamp,
-    pub attempt_count: u32,
+    pub claim: ClaimState,
     pub recipient_count: u32,
     pub delivery_count: u32,
     pub failed_delivery_count: u32,
-    pub last_error: Option<String>,
     pub completed_at: Timestamp,
+}
+
+/// Shared row type for all three delivery-phase tables.
+#[derive(Clone, SpacetimeType)]
+pub struct MailDeliveryRow {
+    pub id: String,
+    /// FK → MailIngress.id
+    pub ingress_id: String,
+    /// FK → MailMessage.id
+    pub mail_message_id: u64,
+    pub category_id: u64,
+    pub subscription_id: u64,
+    pub recipient_email: String,
+    pub recipient_account_id: Option<u64>,
+    pub list_email: String,
+    pub list_name: String,
+    pub original_sender_email: String,
+    /// Rewritten From header for outbound delivery
+    pub from_header: String,
+    pub reply_to: String,
+    /// Final assembled SMTP envelope (complete RFC 5322 message bytes)
+    pub raw_message: String,
+    pub unsubscribe_token: String,
+    pub attempt_count: u32,
+    pub next_attempt_at: Timestamp,
+    pub last_error: Option<String>,
+    pub smtp_status_code: Option<u16>,
+    pub smtp_response: Option<String>,
+    /// Set when the delivery reaches a terminal state (sent, failed, or bounced).
+    pub finalized_at: Timestamp,
     pub updated_at: Timestamp,
 }
 
-// Private: clients never subscribe to this table directly. `sender_mail_deliveries`
-// below is the only way clients can read delivery rows.
+/// Work items available for the sender worker to claim.
 #[derive(Clone)]
-#[spacetimedb::table(accessor = mail_deliveries)]
-pub struct MailDelivery {
+#[spacetimedb::table(accessor = mail_delivery_pending)]
+pub struct MailDeliveryPending {
     #[primary_key]
     pub id: String,
     #[index(btree)]
     pub ingress_id: String,
     #[index(btree)]
-    pub category_id: u64,
-    #[index(btree)]
-    pub subscription_id: u64,
-    #[index(btree)]
-    pub recipient_email: String,
-    #[index(btree)]
-    pub state: String,
-    #[index(btree)]
     pub next_attempt_at: Timestamp,
-    pub recipient_account_id: Option<u64>,
-    pub list_email: String,
-    pub list_name: String,
-    pub original_sender_email: String,
-    pub from_header: String,
-    pub reply_to: String,
-    pub subject: String,
-    pub body_raw: String,
-    pub headers_raw: String,
-    pub raw_message: String,
-    pub unsubscribe_token: String,
-    pub claim_owner: Option<Identity>,
-    pub claim_expires_at: Timestamp,
-    pub attempt_count: u32,
-    pub sent_at: Timestamp,
-    pub last_error: Option<String>,
-    pub smtp_status_code: Option<u16>,
-    pub smtp_response: Option<String>,
-    pub updated_at: Timestamp,
+    pub row: MailDeliveryRow,
+}
+
+/// Work items currently held by a worker (lease active).
+#[derive(Clone)]
+#[spacetimedb::table(accessor = mail_delivery_claimed)]
+pub struct MailDeliveryClaimed {
+    #[primary_key]
+    pub id: String,
+    pub worker: Identity,
+    pub instance_id: String,
+    #[index(btree)]
+    pub lease_expires_at: Timestamp,
+    pub row: MailDeliveryRow,
+}
+
+/// Terminal rows — sent, failed, or bounced. Immutable after insert.
+#[derive(Clone)]
+#[spacetimedb::table(accessor = mail_delivery_done)]
+pub struct MailDeliveryDone {
+    #[primary_key]
+    pub id: String,
+    #[index(btree)]
+    pub ingress_id: String,
+    /// "sent" | "failed" | "bounced"
+    pub final_state: String,
+    pub row: MailDeliveryRow,
 }
 
 // Private: internal delivery audit log. Not exposed to any client view.
@@ -151,12 +223,25 @@ pub fn sender_mail_ingress(ctx: &ViewContext) -> impl Query<MailIngress> {
     ctx.from.mail_ingress().r#filter(move |_| is_admin)
 }
 
-/// Full mail-delivery queue. Restricted to admins (the `sender` service
-/// connects with an admin identity); everyone else gets an empty list.
-#[spacetimedb::view(accessor = sender_mail_deliveries, public)]
-pub fn sender_mail_deliveries(ctx: &ViewContext) -> impl Query<MailDelivery> {
+/// Active delivery queue — for the sender worker (admin only).
+#[spacetimedb::view(accessor = sender_mail_delivery_pending, public)]
+pub fn sender_mail_delivery_pending(ctx: &ViewContext) -> impl Query<MailDeliveryPending> {
     let is_admin = is_admin_user(ctx);
-    ctx.from.mail_deliveries().r#filter(move |_| is_admin)
+    ctx.from.mail_delivery_pending().r#filter(move |_| is_admin)
+}
+
+/// Claimed deliveries held by active workers (admin only).
+#[spacetimedb::view(accessor = sender_mail_delivery_claimed, public)]
+pub fn sender_mail_delivery_claimed(ctx: &ViewContext) -> impl Query<MailDeliveryClaimed> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.mail_delivery_claimed().r#filter(move |_| is_admin)
+}
+
+/// Terminal delivery records — for admin audit (admin only).
+#[spacetimedb::view(accessor = sender_mail_delivery_done, public)]
+pub fn sender_mail_delivery_done(ctx: &ViewContext) -> impl Query<MailDeliveryDone> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.mail_delivery_done().r#filter(move |_| is_admin)
 }
 
 fn make_ingress_id(ctx: &ReducerContext, queue_id: &str, category_id: u64) -> String {
@@ -174,109 +259,55 @@ pub(crate) fn make_delivery_id(
 
 pub(crate) fn upsert_mail_ingress(
     ctx: &ReducerContext,
-    queue_id: Option<String>,
+    mail_message_id: u64,
     category_id: u64,
     category_email: String,
-    sender_account_id: Option<u64>,
-    sender_email: String,
-    subject: String,
-    from_header: String,
-    reply_to: Option<String>,
-    date_header: Option<String>,
-    message_id: Option<String>,
-    cc_header: Option<String>,
-    headers_raw: String,
-    body_raw: String,
-    message_size: u64,
 ) -> String {
-    let queue_id_value = queue_id.unwrap_or_default();
-    let ingress_id = make_ingress_id(ctx, &queue_id_value, category_id);
+    let msg = ctx
+        .db
+        .mail_message()
+        .id()
+        .find(&mail_message_id)
+        .expect("MailMessage must exist before MailIngress");
+    let queue_id = msg.queue_id.as_deref().unwrap_or("");
+    let ingress_id = make_ingress_id(ctx, queue_id, category_id);
 
+    // TODO: this guard is always true because make_ingress_id includes entropy;
+    // consider removing entropy from the ID if true idempotency is needed.
     if ctx.db.mail_ingress().id().find(&ingress_id).is_none() {
         ctx.db.mail_ingress().insert(MailIngress {
             id: ingress_id.clone(),
-            queue_id: queue_id_value,
+            mail_message_id,
             category_id,
-            state: MAIL_INGRESS_PENDING.to_string(),
-            next_attempt_at: ctx.timestamp,
-            received_at: ctx.timestamp,
-            sender_account_id,
-            sender_email,
             category_email,
-            subject,
-            from_header,
-            reply_to,
-            date_header,
-            message_id,
-            cc_header,
-            headers_raw,
-            body_raw,
-            message_size,
-            claim_owner: None,
-            claim_expires_at: Timestamp::UNIX_EPOCH,
-            attempt_count: 0,
+            claim: ClaimState::new_pending(ctx.timestamp),
             recipient_count: 0,
             delivery_count: 0,
             failed_delivery_count: 0,
-            last_error: None,
             completed_at: Timestamp::UNIX_EPOCH,
-            updated_at: ctx.timestamp,
         });
     }
 
     ingress_id
 }
 
-fn set_ingress_claim(
-    mut row: MailIngress,
-    ctx: &ReducerContext,
-    state: &str,
-    lease: TimeDuration,
-) -> MailIngress {
-    row.state = state.to_string();
-    row.claim_owner = Some(ctx.sender());
-    row.claim_expires_at = ctx.timestamp + lease;
-    row.attempt_count = row.attempt_count.saturating_add(1);
-    row.next_attempt_at = ctx.timestamp;
-    row.last_error = None;
-    row.updated_at = ctx.timestamp;
-    row
-}
-
-fn set_delivery_claim(
-    mut row: MailDelivery,
-    ctx: &ReducerContext,
-    state: &str,
-    lease: TimeDuration,
-) -> MailDelivery {
-    row.state = state.to_string();
-    row.claim_owner = Some(ctx.sender());
-    row.claim_expires_at = ctx.timestamp + lease;
-    row.attempt_count = row.attempt_count.saturating_add(1);
-    row.next_attempt_at = ctx.timestamp;
-    row.last_error = None;
-    row.updated_at = ctx.timestamp;
-    row
-}
-
 fn claimable_ingress(row: &MailIngress, now: Timestamp) -> bool {
     matches!(
-        row.state.as_str(),
-        MAIL_INGRESS_PENDING | MAIL_INGRESS_RETRY_SCHEDULED
-    ) && row.next_attempt_at <= now
-        && (row.claim_owner.is_none() || row.claim_expires_at <= now)
-}
-
-fn claimable_delivery(row: &MailDelivery, now: Timestamp) -> bool {
-    matches!(
-        row.state.as_str(),
-        MAIL_DELIVERY_QUEUED | MAIL_DELIVERY_RETRY_SCHEDULED
-    ) && row.next_attempt_at <= now
-        && (row.claim_owner.is_none() || row.claim_expires_at <= now)
+        row.claim.status,
+        DeliveryStatus::Pending | DeliveryStatus::RetryScheduled
+    ) && row.claim.next_attempt_at <= now
+        && (row.claim.claim_owner.is_none() || row.claim.claim_expires_at <= now)
 }
 
 #[spacetimedb::reducer]
-pub fn claim_next_mail_ingress(ctx: &ReducerContext) -> Result<(), String> {
+pub fn claim_next_mail_ingress(
+    ctx: &ReducerContext,
+    instance_id: String,
+) -> Result<(), String> {
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
+    }
+
     let mut candidates: Vec<MailIngress> = ctx
         .db
         .mail_ingress()
@@ -285,47 +316,77 @@ pub fn claim_next_mail_ingress(ctx: &ReducerContext) -> Result<(), String> {
         .collect();
 
     candidates.sort_by(|left, right| {
-        left.next_attempt_at
-            .cmp(&right.next_attempt_at)
-            .then(left.received_at.cmp(&right.received_at))
+        left.claim
+            .next_attempt_at
+            .cmp(&right.claim.next_attempt_at)
             .then(left.id.cmp(&right.id))
     });
 
-    let Some(row) = candidates.into_iter().next() else {
+    let Some(mut row) = candidates.into_iter().next() else {
         return Ok(());
     };
 
-    let claimed = set_ingress_claim(row, ctx, MAIL_INGRESS_PROCESSING, ingress_lease_duration());
-    ctx.db.mail_ingress().id().update(claimed);
+    row.claim.status = DeliveryStatus::Processing;
+    row.claim.claim_owner = Some(ctx.sender());
+    row.claim.instance_id = Some(instance_id);
+    row.claim.claim_expires_at = ctx.timestamp + ingress_lease_duration();
+    row.claim.attempt_count = row.claim.attempt_count.saturating_add(1);
+    row.claim.next_attempt_at = ctx.timestamp;
+    row.claim.last_error = None;
+    row.claim.updated_at = ctx.timestamp;
+
+    ctx.db.mail_ingress().id().update(row);
     Ok(())
+}
+
+fn require_ingress_claimed_by_me(
+    ctx: &ReducerContext,
+    ingress_id: &str,
+    instance_id: &str,
+) -> Result<MailIngress, String> {
+    let row = ctx
+        .db
+        .mail_ingress()
+        .id()
+        .find(&ingress_id.to_string())
+        .ok_or_else(|| format!("Mail ingress '{ingress_id}' not found"))?;
+
+    if row.claim.claim_owner != Some(ctx.sender()) {
+        return Err(format!(
+            "Mail ingress '{ingress_id}' is not owned by {:?}",
+            ctx.sender()
+        ));
+    }
+    if row.claim.instance_id.as_deref() != Some(instance_id) {
+        return Err(format!(
+            "Mail ingress '{ingress_id}' is claimed by a different worker instance"
+        ));
+    }
+    Ok(row)
 }
 
 #[spacetimedb::reducer]
 pub fn complete_mail_ingress(
     ctx: &ReducerContext,
     ingress_id: String,
+    instance_id: String,
     delivery_count: u32,
     failed_delivery_count: u32,
 ) -> Result<(), String> {
-    let Some(mut row) = ctx.db.mail_ingress().id().find(&ingress_id) else {
-        return Err(format!("Mail ingress '{ingress_id}' not found"));
-    };
-
-    if row.claim_owner != Some(ctx.sender()) {
-        return Err(format!(
-            "Mail ingress '{ingress_id}' is not owned by {:?}",
-            ctx.sender()
-        ));
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
+    let mut row = require_ingress_claimed_by_me(ctx, &ingress_id, &instance_id)?;
 
-    row.state = MAIL_INGRESS_COMPLETED.to_string();
+    row.claim.status = DeliveryStatus::Completed;
     row.delivery_count = delivery_count;
     row.failed_delivery_count = failed_delivery_count;
-    row.last_error = None;
-    row.claim_owner = None;
-    row.claim_expires_at = Timestamp::UNIX_EPOCH;
+    row.claim.last_error = None;
+    row.claim.claim_owner = None;
+    row.claim.instance_id = None;
+    row.claim.claim_expires_at = Timestamp::UNIX_EPOCH;
     row.completed_at = ctx.timestamp;
-    row.updated_at = ctx.timestamp;
+    row.claim.updated_at = ctx.timestamp;
     ctx.db.mail_ingress().id().update(row);
     Ok(())
 }
@@ -334,30 +395,26 @@ pub fn complete_mail_ingress(
 pub fn retry_mail_ingress(
     ctx: &ReducerContext,
     ingress_id: String,
+    instance_id: String,
     error: String,
 ) -> Result<(), String> {
-    let Some(mut row) = ctx.db.mail_ingress().id().find(&ingress_id) else {
-        return Err(format!("Mail ingress '{ingress_id}' not found"));
-    };
-
-    if row.claim_owner != Some(ctx.sender()) {
-        return Err(format!(
-            "Mail ingress '{ingress_id}' is not owned by {:?}",
-            ctx.sender()
-        ));
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
+    let mut row = require_ingress_claimed_by_me(ctx, &ingress_id, &instance_id)?;
 
-    row.last_error = Some(error.clone());
-    row.claim_owner = None;
-    row.claim_expires_at = Timestamp::UNIX_EPOCH;
-    row.updated_at = ctx.timestamp;
+    row.claim.last_error = Some(error);
+    row.claim.claim_owner = None;
+    row.claim.instance_id = None;
+    row.claim.claim_expires_at = Timestamp::UNIX_EPOCH;
+    row.claim.updated_at = ctx.timestamp;
 
-    if row.attempt_count >= 5 {
-        row.state = MAIL_INGRESS_FAILED.to_string();
+    if row.claim.attempt_count >= MAX_INGRESS_ATTEMPTS {
+        row.claim.status = DeliveryStatus::Failed;
         row.completed_at = ctx.timestamp;
     } else {
-        row.state = MAIL_INGRESS_RETRY_SCHEDULED.to_string();
-        row.next_attempt_at = ctx.timestamp + ingress_retry_backoff(row.attempt_count);
+        row.claim.status = DeliveryStatus::RetryScheduled;
+        row.claim.next_attempt_at = ctx.timestamp + ingress_retry_backoff(row.claim.attempt_count);
     }
 
     ctx.db.mail_ingress().id().update(row);
@@ -368,25 +425,21 @@ pub fn retry_mail_ingress(
 pub fn fail_mail_ingress(
     ctx: &ReducerContext,
     ingress_id: String,
+    instance_id: String,
     error: String,
 ) -> Result<(), String> {
-    let Some(mut row) = ctx.db.mail_ingress().id().find(&ingress_id) else {
-        return Err(format!("Mail ingress '{ingress_id}' not found"));
-    };
-
-    if row.claim_owner != Some(ctx.sender()) {
-        return Err(format!(
-            "Mail ingress '{ingress_id}' is not owned by {:?}",
-            ctx.sender()
-        ));
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
+    let mut row = require_ingress_claimed_by_me(ctx, &ingress_id, &instance_id)?;
 
-    row.state = MAIL_INGRESS_FAILED.to_string();
-    row.last_error = Some(error);
-    row.claim_owner = None;
-    row.claim_expires_at = Timestamp::UNIX_EPOCH;
+    row.claim.status = DeliveryStatus::Failed;
+    row.claim.last_error = Some(error);
+    row.claim.claim_owner = None;
+    row.claim.instance_id = None;
+    row.claim.claim_expires_at = Timestamp::UNIX_EPOCH;
     row.completed_at = ctx.timestamp;
-    row.updated_at = ctx.timestamp;
+    row.claim.updated_at = ctx.timestamp;
     ctx.db.mail_ingress().id().update(row);
     Ok(())
 }
@@ -402,91 +455,79 @@ pub(crate) fn upsert_mail_delivery(
     original_sender_email: String,
     from_header: String,
     reply_to: String,
-    subject: String,
-    body_raw: String,
-    headers_raw: String,
     raw_message: String,
     unsubscribe_token: String,
 ) -> String {
     let delivery_id = make_delivery_id(&ingress.id, subscription_id, &recipient_email);
 
-    match ctx.db.mail_deliveries().id().find(&delivery_id) {
-        Some(existing)
-            if matches!(
-                existing.state.as_str(),
-                MAIL_DELIVERY_SENT | MAIL_DELIVERY_FAILED | MAIL_DELIVERY_BOUNCED
-            ) =>
-        {
-            // Keep terminal deliveries immutable.
-            delivery_id
-        }
-        Some(mut existing) => {
-            existing.ingress_id = ingress.id.clone();
-            existing.category_id = ingress.category_id;
-            existing.subscription_id = subscription_id;
-            existing.recipient_email = recipient_email;
-            existing.recipient_account_id = recipient_account_id;
-            existing.list_email = list_email;
-            existing.list_name = list_name;
-            existing.original_sender_email = original_sender_email;
-            existing.from_header = from_header;
-            existing.reply_to = reply_to;
-            existing.subject = subject;
-            existing.body_raw = body_raw;
-            existing.headers_raw = headers_raw;
-            existing.raw_message = raw_message;
-            existing.unsubscribe_token = unsubscribe_token;
-            existing.updated_at = ctx.timestamp;
-            if existing.state == MAIL_DELIVERY_RETRY_SCHEDULED {
-                existing.next_attempt_at = ctx.timestamp;
-            }
-            ctx.db.mail_deliveries().id().update(existing);
-            delivery_id
-        }
-        None => {
-            ctx.db.mail_deliveries().insert(MailDelivery {
-                id: delivery_id.clone(),
-                ingress_id: ingress.id.clone(),
-                category_id: ingress.category_id,
-                subscription_id,
-                recipient_email,
-                state: MAIL_DELIVERY_QUEUED.to_string(),
-                next_attempt_at: ctx.timestamp,
-                recipient_account_id,
-                list_email,
-                list_name,
-                original_sender_email,
-                from_header,
-                reply_to,
-                subject,
-                body_raw,
-                headers_raw,
-                raw_message,
-                unsubscribe_token,
-                claim_owner: None,
-                claim_expires_at: Timestamp::UNIX_EPOCH,
-                attempt_count: 0,
-                sent_at: Timestamp::UNIX_EPOCH,
-                last_error: None,
-                smtp_status_code: None,
-                smtp_response: None,
-                updated_at: ctx.timestamp,
-            });
-            ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
-                id: 0,
-                delivery_id: delivery_id.clone(),
-                occurred_at: ctx.timestamp,
-                event_type: MAIL_DELIVERY_QUEUED.to_string(),
-                attempt_no: 0,
-                smtp_status_code: None,
-                smtp_response: None,
-                error_kind: None,
-                details: "Delivery queued for SMTP submission".to_string(),
-                worker_identity: Some(ctx.sender()),
-            });
-            delivery_id
-        }
+    if ctx.db.mail_delivery_done().id().find(&delivery_id).is_some() {
+        return delivery_id;
     }
+
+    if let Some(mut existing) = ctx.db.mail_delivery_pending().id().find(&delivery_id) {
+        debug_assert_eq!(existing.row.ingress_id, ingress.id);
+        debug_assert_eq!(existing.row.subscription_id, subscription_id);
+        debug_assert_eq!(existing.row.recipient_email, recipient_email);
+
+        existing.row.recipient_account_id = recipient_account_id;
+        existing.row.list_email = list_email;
+        existing.row.list_name = list_name;
+        existing.row.original_sender_email = original_sender_email;
+        existing.row.from_header = from_header;
+        existing.row.reply_to = reply_to;
+        existing.row.raw_message = raw_message;
+        existing.row.unsubscribe_token = unsubscribe_token;
+        existing.row.updated_at = ctx.timestamp;
+        existing.row.next_attempt_at = ctx.timestamp;
+        ctx.db.mail_delivery_pending().id().update(existing);
+        return delivery_id;
+    }
+
+    let row = MailDeliveryRow {
+        id: delivery_id.clone(),
+        ingress_id: ingress.id.clone(),
+        mail_message_id: ingress.mail_message_id,
+        category_id: ingress.category_id,
+        subscription_id,
+        recipient_email,
+        recipient_account_id,
+        list_email,
+        list_name,
+        original_sender_email,
+        from_header,
+        reply_to,
+        raw_message,
+        unsubscribe_token,
+        attempt_count: 0,
+        next_attempt_at: ctx.timestamp,
+        last_error: None,
+        smtp_status_code: None,
+        smtp_response: None,
+        finalized_at: Timestamp::UNIX_EPOCH,
+        updated_at: ctx.timestamp,
+    };
+
+    ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
+        id: delivery_id.clone(),
+        ingress_id: ingress.id.clone(),
+        next_attempt_at: ctx.timestamp,
+        row,
+    });
+
+    ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
+        id: 0,
+        delivery_id: delivery_id.clone(),
+        occurred_at: ctx.timestamp,
+        event_type: DeliveryStatus::Queued.to_string(),
+        attempt_no: 0,
+        smtp_status_code: None,
+        smtp_response: None,
+        error_kind: None,
+        details: "Delivery queued for SMTP submission".to_string(),
+        worker_identity: Some(ctx.sender()),
+    });
+
+    delivery_id
 }
 
 #[spacetimedb::reducer]
@@ -501,12 +542,12 @@ pub fn enqueue_mail_delivery(
     original_sender_email: String,
     from_header: String,
     reply_to: String,
-    subject: String,
-    body_raw: String,
-    headers_raw: String,
     raw_message: String,
     unsubscribe_token: String,
 ) -> Result<(), String> {
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
+    }
     let Some(ingress) = ctx.db.mail_ingress().id().find(&ingress_id) else {
         return Err(format!("Mail ingress '{ingress_id}' not found"));
     };
@@ -521,36 +562,77 @@ pub fn enqueue_mail_delivery(
         original_sender_email,
         from_header,
         reply_to,
-        subject,
-        body_raw,
-        headers_raw,
         raw_message,
         unsubscribe_token,
     );
     Ok(())
 }
 
-#[spacetimedb::reducer]
-pub fn claim_next_mail_delivery(ctx: &ReducerContext) -> Result<(), String> {
-    let mut candidates: Vec<MailDelivery> = ctx
+fn require_claimed_by_me(
+    ctx: &ReducerContext,
+    delivery_id: &str,
+    instance_id: &str,
+) -> Result<MailDeliveryClaimed, String> {
+    let row = ctx
         .db
-        .mail_deliveries()
-        .iter()
-        .filter(|row| claimable_delivery(row, ctx.timestamp))
+        .mail_delivery_claimed()
+        .id()
+        .find(&delivery_id.to_string())
+        .ok_or_else(|| format!("Mail delivery '{delivery_id}' not found or not claimed"))?;
+
+    if row.worker != ctx.sender() {
+        return Err(format!(
+            "Mail delivery '{delivery_id}' is claimed by a different worker identity"
+        ));
+    }
+    if row.instance_id != instance_id {
+        return Err(format!(
+            "Mail delivery '{delivery_id}' is claimed by a different worker instance"
+        ));
+    }
+    Ok(row)
+}
+
+#[spacetimedb::reducer]
+pub fn claim_next_mail_delivery(
+    ctx: &ReducerContext,
+    instance_id: String,
+) -> Result<(), String> {
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
+    }
+
+    let now = ctx.timestamp;
+    let mut candidates: Vec<MailDeliveryPending> = ctx
+        .db
+        .mail_delivery_pending()
+        .next_attempt_at()
+        .filter(..=now)
         .collect();
 
-    candidates.sort_by(|left, right| {
-        left.next_attempt_at
-            .cmp(&right.next_attempt_at)
-            .then(left.id.cmp(&right.id))
+    candidates.sort_by(|a, b| {
+        a.row
+            .next_attempt_at
+            .cmp(&b.row.next_attempt_at)
+            .then(a.row.id.cmp(&b.row.id))
     });
 
-    let Some(row) = candidates.into_iter().next() else {
+    let Some(pending) = candidates.into_iter().next() else {
         return Ok(());
     };
 
-    let claimed = set_delivery_claim(row, ctx, MAIL_DELIVERY_SENDING, delivery_lease_duration());
-    ctx.db.mail_deliveries().id().update(claimed);
+    ctx.db.mail_delivery_pending().id().delete(&pending.row.id);
+    ctx.db.mail_delivery_claimed().insert(MailDeliveryClaimed {
+        id: pending.row.id.clone(),
+        worker: ctx.sender(),
+        instance_id,
+        lease_expires_at: ctx.timestamp + delivery_lease_duration(),
+        row: MailDeliveryRow {
+            attempt_count: pending.row.attempt_count.saturating_add(1),
+            updated_at: ctx.timestamp,
+            ..pending.row
+        },
+    });
     Ok(())
 }
 
@@ -558,40 +640,41 @@ pub fn claim_next_mail_delivery(ctx: &ReducerContext) -> Result<(), String> {
 pub fn mark_mail_delivery_sent(
     ctx: &ReducerContext,
     delivery_id: String,
+    instance_id: String,
     smtp_status_code: Option<u16>,
     smtp_response: String,
 ) -> Result<(), String> {
-    let Some(mut row) = ctx.db.mail_deliveries().id().find(&delivery_id) else {
-        return Err(format!("Mail delivery '{delivery_id}' not found"));
-    };
-
-    if row.claim_owner != Some(ctx.sender()) {
-        return Err(format!(
-            "Mail delivery '{delivery_id}' is not owned by {:?}",
-            ctx.sender()
-        ));
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
+    let claimed = require_claimed_by_me(ctx, &delivery_id, &instance_id)?;
 
-    row.state = MAIL_DELIVERY_SENT.to_string();
-    row.sent_at = ctx.timestamp;
-    row.last_error = None;
-    row.claim_owner = None;
-    row.claim_expires_at = Timestamp::UNIX_EPOCH;
-    row.smtp_status_code = smtp_status_code;
-    row.smtp_response = Some(smtp_response.clone());
-    row.updated_at = ctx.timestamp;
-    ctx.db.mail_deliveries().id().update(row.clone());
     ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
         id: 0,
-        delivery_id,
+        delivery_id: delivery_id.clone(),
         occurred_at: ctx.timestamp,
-        event_type: MAIL_DELIVERY_SENT.to_string(),
-        attempt_no: row.attempt_count,
+        event_type: DeliveryStatus::Sent.to_string(),
+        attempt_no: claimed.row.attempt_count,
         smtp_status_code,
-        smtp_response: Some(smtp_response),
+        smtp_response: Some(smtp_response.clone()),
         error_kind: None,
         details: "Delivery accepted by SMTP server".to_string(),
         worker_identity: Some(ctx.sender()),
+    });
+
+    ctx.db.mail_delivery_claimed().id().delete(&delivery_id);
+    ctx.db.mail_delivery_done().insert(MailDeliveryDone {
+        id: delivery_id.clone(),
+        ingress_id: claimed.row.ingress_id.clone(),
+        final_state: DeliveryStatus::Sent.to_string(),
+        row: MailDeliveryRow {
+            smtp_status_code,
+            smtp_response: Some(smtp_response),
+            last_error: None,
+            finalized_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+            ..claimed.row
+        },
     });
     Ok(())
 }
@@ -600,49 +683,76 @@ pub fn mark_mail_delivery_sent(
 pub fn schedule_mail_delivery_retry(
     ctx: &ReducerContext,
     delivery_id: String,
+    instance_id: String,
     smtp_status_code: Option<u16>,
     smtp_response: String,
     error_kind: String,
 ) -> Result<(), String> {
-    let Some(mut row) = ctx.db.mail_deliveries().id().find(&delivery_id) else {
-        return Err(format!("Mail delivery '{delivery_id}' not found"));
-    };
-
-    if row.claim_owner != Some(ctx.sender()) {
-        return Err(format!(
-            "Mail delivery '{delivery_id}' is not owned by {:?}",
-            ctx.sender()
-        ));
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
+    let claimed = require_claimed_by_me(ctx, &delivery_id, &instance_id)?;
 
-    row.last_error = Some(smtp_response.clone());
-    row.smtp_status_code = smtp_status_code;
-    row.smtp_response = Some(smtp_response.clone());
-    row.claim_owner = None;
-    row.claim_expires_at = Timestamp::UNIX_EPOCH;
-    row.updated_at = ctx.timestamp;
+    ctx.db.mail_delivery_claimed().id().delete(&delivery_id);
 
-    if row.attempt_count >= 5 {
-        row.state = MAIL_DELIVERY_FAILED.to_string();
-        row.sent_at = ctx.timestamp;
+    if claimed.row.attempt_count >= MAX_DELIVERY_ATTEMPTS {
+        ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
+            id: 0,
+            delivery_id: delivery_id.clone(),
+            occurred_at: ctx.timestamp,
+            event_type: DeliveryStatus::Failed.to_string(),
+            attempt_no: claimed.row.attempt_count,
+            smtp_status_code,
+            smtp_response: Some(smtp_response.clone()),
+            error_kind: Some(error_kind),
+            details: format!("SMTP delivery failed (max attempts reached): {smtp_response}"),
+            worker_identity: Some(ctx.sender()),
+        });
+
+        ctx.db.mail_delivery_done().insert(MailDeliveryDone {
+            id: delivery_id.clone(),
+            ingress_id: claimed.row.ingress_id.clone(),
+            final_state: DeliveryStatus::Failed.to_string(),
+            row: MailDeliveryRow {
+                smtp_status_code,
+                smtp_response: Some(smtp_response.clone()),
+                last_error: Some(smtp_response),
+                finalized_at: ctx.timestamp,
+                updated_at: ctx.timestamp,
+                ..claimed.row
+            },
+        });
     } else {
-        row.state = MAIL_DELIVERY_RETRY_SCHEDULED.to_string();
-        row.next_attempt_at = ctx.timestamp + delivery_retry_backoff(row.attempt_count);
+        let backoff = delivery_retry_backoff(claimed.row.attempt_count);
+
+        ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
+            id: 0,
+            delivery_id: delivery_id.clone(),
+            occurred_at: ctx.timestamp,
+            event_type: DeliveryStatus::RetryScheduled.to_string(),
+            attempt_no: claimed.row.attempt_count,
+            smtp_status_code,
+            smtp_response: Some(smtp_response.clone()),
+            error_kind: Some(error_kind),
+            details: format!("SMTP retry scheduled: {smtp_response}"),
+            worker_identity: Some(ctx.sender()),
+        });
+
+        ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
+            id: delivery_id.clone(),
+            ingress_id: claimed.row.ingress_id.clone(),
+            next_attempt_at: ctx.timestamp + backoff,
+            row: MailDeliveryRow {
+                smtp_status_code,
+                smtp_response: Some(smtp_response.clone()),
+                last_error: Some(smtp_response),
+                next_attempt_at: ctx.timestamp + backoff,
+                updated_at: ctx.timestamp,
+                ..claimed.row
+            },
+        });
     }
 
-    ctx.db.mail_deliveries().id().update(row.clone());
-    ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
-        id: 0,
-        delivery_id,
-        occurred_at: ctx.timestamp,
-        event_type: row.state.clone(),
-        attempt_no: row.attempt_count,
-        smtp_status_code,
-        smtp_response: Some(smtp_response.clone()),
-        error_kind: Some(error_kind),
-        details: format!("SMTP retry scheduled: {smtp_response}"),
-        worker_identity: Some(ctx.sender()),
-    });
     Ok(())
 }
 
@@ -650,41 +760,42 @@ pub fn schedule_mail_delivery_retry(
 pub fn fail_mail_delivery(
     ctx: &ReducerContext,
     delivery_id: String,
+    instance_id: String,
     smtp_status_code: Option<u16>,
     smtp_response: String,
     error_kind: String,
 ) -> Result<(), String> {
-    let Some(mut row) = ctx.db.mail_deliveries().id().find(&delivery_id) else {
-        return Err(format!("Mail delivery '{delivery_id}' not found"));
-    };
-
-    if row.claim_owner != Some(ctx.sender()) {
-        return Err(format!(
-            "Mail delivery '{delivery_id}' is not owned by {:?}",
-            ctx.sender()
-        ));
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
+    let claimed = require_claimed_by_me(ctx, &delivery_id, &instance_id)?;
 
-    row.state = MAIL_DELIVERY_FAILED.to_string();
-    row.last_error = Some(smtp_response.clone());
-    row.smtp_status_code = smtp_status_code;
-    row.smtp_response = Some(smtp_response.clone());
-    row.claim_owner = None;
-    row.claim_expires_at = Timestamp::UNIX_EPOCH;
-    row.sent_at = ctx.timestamp;
-    row.updated_at = ctx.timestamp;
-    ctx.db.mail_deliveries().id().update(row.clone());
     ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
         id: 0,
-        delivery_id,
+        delivery_id: delivery_id.clone(),
         occurred_at: ctx.timestamp,
-        event_type: MAIL_DELIVERY_FAILED.to_string(),
-        attempt_no: row.attempt_count,
+        event_type: DeliveryStatus::Failed.to_string(),
+        attempt_no: claimed.row.attempt_count,
         smtp_status_code,
         smtp_response: Some(smtp_response.clone()),
         error_kind: Some(error_kind),
         details: format!("SMTP delivery failed: {smtp_response}"),
         worker_identity: Some(ctx.sender()),
+    });
+
+    ctx.db.mail_delivery_claimed().id().delete(&delivery_id);
+    ctx.db.mail_delivery_done().insert(MailDeliveryDone {
+        id: delivery_id.clone(),
+        ingress_id: claimed.row.ingress_id.clone(),
+        final_state: DeliveryStatus::Failed.to_string(),
+        row: MailDeliveryRow {
+            smtp_status_code,
+            smtp_response: Some(smtp_response.clone()),
+            last_error: Some(smtp_response),
+            finalized_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+            ..claimed.row
+        },
     });
     Ok(())
 }
@@ -693,39 +804,85 @@ pub fn fail_mail_delivery(
 pub fn mark_mail_delivery_bounced(
     ctx: &ReducerContext,
     delivery_id: String,
+    instance_id: String,
+    smtp_status_code: Option<u16>,
     smtp_response: String,
     error_kind: String,
 ) -> Result<(), String> {
-    let Some(mut row) = ctx.db.mail_deliveries().id().find(&delivery_id) else {
-        return Err(format!("Mail delivery '{delivery_id}' not found"));
-    };
-
-    if row.claim_owner != Some(ctx.sender()) {
-        return Err(format!(
-            "Mail delivery '{delivery_id}' is not owned by {:?}",
-            ctx.sender()
-        ));
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
+    let claimed = require_claimed_by_me(ctx, &delivery_id, &instance_id)?;
+    let status_code = smtp_status_code.or(Some(550));
 
-    row.state = MAIL_DELIVERY_BOUNCED.to_string();
-    row.last_error = Some(smtp_response.clone());
-    row.smtp_response = Some(smtp_response.clone());
-    row.claim_owner = None;
-    row.claim_expires_at = Timestamp::UNIX_EPOCH;
-    row.sent_at = ctx.timestamp;
-    row.updated_at = ctx.timestamp;
-    ctx.db.mail_deliveries().id().update(row.clone());
     ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
         id: 0,
-        delivery_id,
+        delivery_id: delivery_id.clone(),
         occurred_at: ctx.timestamp,
-        event_type: MAIL_DELIVERY_BOUNCED.to_string(),
-        attempt_no: row.attempt_count,
-        smtp_status_code: Some(550),
+        event_type: DeliveryStatus::Bounced.to_string(),
+        attempt_no: claimed.row.attempt_count,
+        smtp_status_code: status_code,
         smtp_response: Some(smtp_response.clone()),
         error_kind: Some(error_kind),
         details: format!("Delivery bounced: {smtp_response}"),
         worker_identity: Some(ctx.sender()),
     });
+
+    ctx.db.mail_delivery_claimed().id().delete(&delivery_id);
+    ctx.db.mail_delivery_done().insert(MailDeliveryDone {
+        id: delivery_id.clone(),
+        ingress_id: claimed.row.ingress_id.clone(),
+        final_state: DeliveryStatus::Bounced.to_string(),
+        row: MailDeliveryRow {
+            smtp_status_code: status_code,
+            smtp_response: Some(smtp_response.clone()),
+            last_error: Some(smtp_response),
+            finalized_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+            ..claimed.row
+        },
+    });
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn expire_stale_delivery_claims(ctx: &ReducerContext) -> Result<(), String> {
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
+    }
+    let now = ctx.timestamp;
+    let stale: Vec<MailDeliveryClaimed> = ctx
+        .db
+        .mail_delivery_claimed()
+        .lease_expires_at()
+        .filter(..=now)
+        .collect();
+
+    for claimed in stale {
+        ctx.db.mail_delivery_claimed().id().delete(&claimed.id);
+        ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
+            id: claimed.id.clone(),
+            ingress_id: claimed.row.ingress_id.clone(),
+            next_attempt_at: now,
+            row: MailDeliveryRow {
+                last_error: Some("Lease expired — requeued".to_string()),
+                next_attempt_at: now,
+                updated_at: now,
+                ..claimed.row
+            },
+        });
+        ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
+            id: 0,
+            delivery_id: claimed.id,
+            occurred_at: now,
+            event_type: "lease_expired".to_string(),
+            attempt_no: claimed.row.attempt_count,
+            smtp_status_code: None,
+            smtp_response: None,
+            error_kind: Some("lease_timeout".to_string()),
+            details: "Delivery lease expired; requeued for retry".to_string(),
+            worker_identity: Some(claimed.worker),
+        });
+    }
     Ok(())
 }

@@ -10,6 +10,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub(super) struct MarkMailDeliverySentArgs {
     pub delivery_id: String,
+    pub instance_id: String,
     pub smtp_status_code: Option<u16>,
     pub smtp_response: String,
 }
@@ -18,6 +19,7 @@ impl From<MarkMailDeliverySentArgs> for super::Reducer {
     fn from(args: MarkMailDeliverySentArgs) -> Self {
         Self::MarkMailDeliverySent {
             delivery_id: args.delivery_id,
+            instance_id: args.instance_id,
             smtp_status_code: args.smtp_status_code,
             smtp_response: args.smtp_response,
         }
@@ -43,10 +45,17 @@ pub trait mark_mail_delivery_sent {
     fn mark_mail_delivery_sent(
         &self,
         delivery_id: String,
+        instance_id: String,
         smtp_status_code: Option<u16>,
         smtp_response: String,
     ) -> __sdk::Result<()> {
-        self.mark_mail_delivery_sent_then(delivery_id, smtp_status_code, smtp_response, |_, _| {})
+        self.mark_mail_delivery_sent_then(
+            delivery_id,
+            instance_id,
+            smtp_status_code,
+            smtp_response,
+            |_, _| {},
+        )
     }
 
     /// Request that the remote module invoke the reducer `mark_mail_delivery_sent` to run as soon as possible,
@@ -58,6 +67,7 @@ pub trait mark_mail_delivery_sent {
     fn mark_mail_delivery_sent_then(
         &self,
         delivery_id: String,
+        instance_id: String,
         smtp_status_code: Option<u16>,
         smtp_response: String,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -70,6 +80,7 @@ impl mark_mail_delivery_sent for super::RemoteReducers {
     fn mark_mail_delivery_sent_then(
         &self,
         delivery_id: String,
+        instance_id: String,
         smtp_status_code: Option<u16>,
         smtp_response: String,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -79,6 +90,7 @@ impl mark_mail_delivery_sent for super::RemoteReducers {
         self.imp.invoke_reducer_with_callback(
             MarkMailDeliverySentArgs {
                 delivery_id,
+                instance_id,
                 smtp_status_code,
                 smtp_response,
             },

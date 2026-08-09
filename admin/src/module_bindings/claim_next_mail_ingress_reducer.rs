@@ -8,11 +8,15 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
-pub(super) struct ClaimNextMailIngressArgs {}
+pub(super) struct ClaimNextMailIngressArgs {
+    pub instance_id: String,
+}
 
 impl From<ClaimNextMailIngressArgs> for super::Reducer {
     fn from(args: ClaimNextMailIngressArgs) -> Self {
-        Self::ClaimNextMailIngress
+        Self::ClaimNextMailIngress {
+            instance_id: args.instance_id,
+        }
     }
 }
 
@@ -32,8 +36,8 @@ pub trait claim_next_mail_ingress {
     ///  and this method provides no way to listen for its completion status.
     ///
     /// Use [`claim_next_mail_ingress::claim_next_mail_ingress_then`] to run a callback after the reducer completes.
-    fn claim_next_mail_ingress(&self) -> __sdk::Result<()> {
-        self.claim_next_mail_ingress_then(|_, _| {})
+    fn claim_next_mail_ingress(&self, instance_id: String) -> __sdk::Result<()> {
+        self.claim_next_mail_ingress_then(instance_id, |_, _| {})
     }
 
     /// Request that the remote module invoke the reducer `claim_next_mail_ingress` to run as soon as possible,
@@ -44,6 +48,7 @@ pub trait claim_next_mail_ingress {
     ///  and its status can be observed with the `callback`.
     fn claim_next_mail_ingress_then(
         &self,
+        instance_id: String,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
@@ -53,11 +58,12 @@ pub trait claim_next_mail_ingress {
 impl claim_next_mail_ingress for super::RemoteReducers {
     fn claim_next_mail_ingress_then(
         &self,
+        instance_id: String,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
     ) -> __sdk::Result<()> {
         self.imp
-            .invoke_reducer_with_callback(ClaimNextMailIngressArgs {}, callback)
+            .invoke_reducer_with_callback(ClaimNextMailIngressArgs { instance_id }, callback)
     }
 }

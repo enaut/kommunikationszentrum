@@ -6,11 +6,15 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
-pub(super) struct ClaimNextMailDeliveryArgs {}
+pub(super) struct ClaimNextMailDeliveryArgs {
+    pub instance_id: String,
+}
 
 impl From<ClaimNextMailDeliveryArgs> for super::Reducer {
     fn from(args: ClaimNextMailDeliveryArgs) -> Self {
-        Self::ClaimNextMailDelivery
+        Self::ClaimNextMailDelivery {
+            instance_id: args.instance_id,
+        }
     }
 }
 
@@ -29,8 +33,8 @@ pub trait claim_next_mail_delivery {
     /// The reducer will run asynchronously in the future,
     ///  and this method provides no way to listen for its completion status.
     /// /// Use [`claim_next_mail_delivery:claim_next_mail_delivery_then`] to run a callback after the reducer completes.
-    fn claim_next_mail_delivery(&self) -> __sdk::Result<()> {
-        self.claim_next_mail_delivery_then(|_, _| {})
+    fn claim_next_mail_delivery(&self, instance_id: String) -> __sdk::Result<()> {
+        self.claim_next_mail_delivery_then(instance_id, |_, _| {})
     }
 
     /// Request that the remote module invoke the reducer `claim_next_mail_delivery` to run as soon as possible,
@@ -41,6 +45,7 @@ pub trait claim_next_mail_delivery {
     ///  and its status can be observed with the `callback`.
     fn claim_next_mail_delivery_then(
         &self,
+        instance_id: String,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -51,12 +56,13 @@ pub trait claim_next_mail_delivery {
 impl claim_next_mail_delivery for super::RemoteReducers {
     fn claim_next_mail_delivery_then(
         &self,
+        instance_id: String,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
     ) -> __sdk::Result<()> {
         self.imp
-            .invoke_reducer_with_callback(ClaimNextMailDeliveryArgs {}, callback)
+            .invoke_reducer_with_callback(ClaimNextMailDeliveryArgs { instance_id }, callback)
     }
 }

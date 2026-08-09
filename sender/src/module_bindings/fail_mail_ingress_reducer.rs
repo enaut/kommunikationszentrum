@@ -8,6 +8,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub(super) struct FailMailIngressArgs {
     pub ingress_id: String,
+    pub instance_id: String,
     pub error: String,
 }
 
@@ -15,6 +16,7 @@ impl From<FailMailIngressArgs> for super::Reducer {
     fn from(args: FailMailIngressArgs) -> Self {
         Self::FailMailIngress {
             ingress_id: args.ingress_id,
+            instance_id: args.instance_id,
             error: args.error,
         }
     }
@@ -35,8 +37,13 @@ pub trait fail_mail_ingress {
     /// The reducer will run asynchronously in the future,
     ///  and this method provides no way to listen for its completion status.
     /// /// Use [`fail_mail_ingress:fail_mail_ingress_then`] to run a callback after the reducer completes.
-    fn fail_mail_ingress(&self, ingress_id: String, error: String) -> __sdk::Result<()> {
-        self.fail_mail_ingress_then(ingress_id, error, |_, _| {})
+    fn fail_mail_ingress(
+        &self,
+        ingress_id: String,
+        instance_id: String,
+        error: String,
+    ) -> __sdk::Result<()> {
+        self.fail_mail_ingress_then(ingress_id, instance_id, error, |_, _| {})
     }
 
     /// Request that the remote module invoke the reducer `fail_mail_ingress` to run as soon as possible,
@@ -48,6 +55,7 @@ pub trait fail_mail_ingress {
     fn fail_mail_ingress_then(
         &self,
         ingress_id: String,
+        instance_id: String,
         error: String,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -60,13 +68,20 @@ impl fail_mail_ingress for super::RemoteReducers {
     fn fail_mail_ingress_then(
         &self,
         ingress_id: String,
+        instance_id: String,
         error: String,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
     ) -> __sdk::Result<()> {
-        self.imp
-            .invoke_reducer_with_callback(FailMailIngressArgs { ingress_id, error }, callback)
+        self.imp.invoke_reducer_with_callback(
+            FailMailIngressArgs {
+                ingress_id,
+                instance_id,
+                error,
+            },
+            callback,
+        )
     }
 }
