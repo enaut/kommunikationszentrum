@@ -1,4 +1,7 @@
-use spacetimedb::{Identity, Query, ReducerContext, SpacetimeType, Table, TimeDuration, Timestamp, ViewContext};
+use spacetimedb::{
+    Identity, Query, ReducerContext, ScheduleAt, SpacetimeType, Table, TimeDuration, Timestamp,
+    ViewContext,
+};
 
 use crate::account::{is_admin_identity, is_admin_user};
 use crate::mail_message::mail_message;
@@ -195,6 +198,20 @@ pub struct MailDeliveryDone {
     pub row: MailDeliveryRow,
 }
 
+/// Schedule table for the `expire_stale_delivery_claims` reducer.
+#[derive(Clone)]
+#[spacetimedb::table(
+    accessor = expire_stale_delivery_claims_schedule,
+    public,
+    scheduled(expire_stale_delivery_claims)
+)]
+pub struct ExpireStaleDeliveryClaimsSchedule {
+    #[primary_key]
+    #[auto_inc]
+    pub scheduled_id: u64,
+    pub scheduled_at: ScheduleAt,
+}
+
 // Private: internal delivery audit log. Not exposed to any client view.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = mail_delivery_events)]
@@ -300,10 +317,7 @@ fn claimable_ingress(row: &MailIngress, now: Timestamp) -> bool {
 }
 
 #[spacetimedb::reducer]
-pub fn claim_next_mail_ingress(
-    ctx: &ReducerContext,
-    instance_id: String,
-) -> Result<(), String> {
+pub fn claim_next_mail_ingress(ctx: &ReducerContext, instance_id: String) -> Result<(), String> {
     if !is_admin_identity(ctx, ctx.sender()) {
         return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
@@ -460,7 +474,13 @@ pub(crate) fn upsert_mail_delivery(
 ) -> String {
     let delivery_id = make_delivery_id(&ingress.id, subscription_id, &recipient_email);
 
-    if ctx.db.mail_delivery_done().id().find(&delivery_id).is_some() {
+    if ctx
+        .db
+        .mail_delivery_done()
+        .id()
+        .find(&delivery_id)
+        .is_some()
+    {
         return delivery_id;
     }
 
@@ -469,6 +489,7 @@ pub(crate) fn upsert_mail_delivery(
         debug_assert_eq!(existing.row.subscription_id, subscription_id);
         debug_assert_eq!(existing.row.recipient_email, recipient_email);
 
+        let next_attempt_at = ctx.timestamp;
         existing.row.recipient_account_id = recipient_account_id;
         existing.row.list_email = list_email;
         existing.row.list_name = list_name;
@@ -477,12 +498,14 @@ pub(crate) fn upsert_mail_delivery(
         existing.row.reply_to = reply_to;
         existing.row.raw_message = raw_message;
         existing.row.unsubscribe_token = unsubscribe_token;
-        existing.row.updated_at = ctx.timestamp;
-        existing.row.next_attempt_at = ctx.timestamp;
+        existing.row.updated_at = next_attempt_at;
+        existing.row.next_attempt_at = next_attempt_at;
+        existing.next_attempt_at = next_attempt_at;
         ctx.db.mail_delivery_pending().id().update(existing);
         return delivery_id;
     }
 
+    let next_attempt_at = ctx.timestamp;
     let row = MailDeliveryRow {
         id: delivery_id.clone(),
         ingress_id: ingress.id.clone(),
@@ -499,7 +522,7 @@ pub(crate) fn upsert_mail_delivery(
         raw_message,
         unsubscribe_token,
         attempt_count: 0,
-        next_attempt_at: ctx.timestamp,
+        next_attempt_at,
         last_error: None,
         smtp_status_code: None,
         smtp_response: None,
@@ -510,7 +533,7 @@ pub(crate) fn upsert_mail_delivery(
     ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
         id: delivery_id.clone(),
         ingress_id: ingress.id.clone(),
-        next_attempt_at: ctx.timestamp,
+        next_attempt_at,
         row,
     });
 
@@ -594,10 +617,7 @@ fn require_claimed_by_me(
 }
 
 #[spacetimedb::reducer]
-pub fn claim_next_mail_delivery(
-    ctx: &ReducerContext,
-    instance_id: String,
-) -> Result<(), String> {
+pub fn claim_next_mail_delivery(ctx: &ReducerContext, instance_id: String) -> Result<(), String> {
     if !is_admin_identity(ctx, ctx.sender()) {
         return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
@@ -724,6 +744,7 @@ pub fn schedule_mail_delivery_retry(
         });
     } else {
         let backoff = delivery_retry_backoff(claimed.row.attempt_count);
+        let next_attempt_at = ctx.timestamp + backoff;
 
         ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
             id: 0,
@@ -741,12 +762,12 @@ pub fn schedule_mail_delivery_retry(
         ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
             id: delivery_id.clone(),
             ingress_id: claimed.row.ingress_id.clone(),
-            next_attempt_at: ctx.timestamp + backoff,
+            next_attempt_at,
             row: MailDeliveryRow {
                 smtp_status_code,
                 smtp_response: Some(smtp_response.clone()),
                 last_error: Some(smtp_response),
-                next_attempt_at: ctx.timestamp + backoff,
+                next_attempt_at,
                 updated_at: ctx.timestamp,
                 ..claimed.row
             },
@@ -846,7 +867,10 @@ pub fn mark_mail_delivery_bounced(
 }
 
 #[spacetimedb::reducer]
-pub fn expire_stale_delivery_claims(ctx: &ReducerContext) -> Result<(), String> {
+pub fn expire_stale_delivery_claims(
+    ctx: &ReducerContext,
+    _scheduled: ExpireStaleDeliveryClaimsSchedule,
+) -> Result<(), String> {
     if !is_admin_identity(ctx, ctx.sender()) {
         return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
@@ -860,14 +884,15 @@ pub fn expire_stale_delivery_claims(ctx: &ReducerContext) -> Result<(), String> 
 
     for claimed in stale {
         ctx.db.mail_delivery_claimed().id().delete(&claimed.id);
+        let next_attempt_at = now;
         ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
             id: claimed.id.clone(),
             ingress_id: claimed.row.ingress_id.clone(),
-            next_attempt_at: now,
+            next_attempt_at,
             row: MailDeliveryRow {
                 last_error: Some("Lease expired — requeued".to_string()),
-                next_attempt_at: now,
-                updated_at: now,
+                next_attempt_at,
+                updated_at: next_attempt_at,
                 ..claimed.row
             },
         });
