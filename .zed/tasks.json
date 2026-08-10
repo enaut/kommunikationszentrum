@@ -30,6 +30,7 @@
     "env": {
       "SMTP_USERNAME": "dietrich-solawis",
       "SMTP_PASSWORD": "kUakCVoHeLjKUO63",
+      "SPACETIMEDB_TOKEN": "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJoZXhfaWRlbnRpdHkiOiJjMjAwY2ExMjBlZGFjZTc1ZjllZDY5NTkwZjFhMWQ0NDQ2OGJmMjA0YTk3ZTIxMzY1MTIyYTU2ZGJjOTIxZDk1Iiwic3ViIjoiYmFjYmFmYTYtMzc4NS00YTQzLTkzMjUtYjE3M2RlYjZiZGE5IiwiaXNzIjoibG9jYWxob3N0IiwiYXVkIjpbInNwYWNldGltZWRiIl0sImlhdCI6MTc4MDEzNDcwMywiZXhwIjpudWxsfQ.IMzk7CN8jhiD27uZ9BR7r-KV5jyYJrdBu6fIUuRYDaqz9t8MEjzYTFU9WAlc3i6WwGJVS4SsEFQdDZv6THCZPw",
     },
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
