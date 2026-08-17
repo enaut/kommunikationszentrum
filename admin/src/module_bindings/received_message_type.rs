@@ -8,21 +8,10 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub struct ReceivedMessage {
     pub id: u64,
-    pub queue_id: Option<String>,
-    pub received_at: __sdk::Timestamp,
-    pub sender_account_id: Option<u64>,
-    pub sender_email: String,
+    pub mail_message_id: u64,
     pub category_id: u64,
     pub category_email: String,
-    pub subject: String,
-    pub from_header: String,
-    pub date_header: Option<String>,
-    pub message_id: Option<String>,
-    pub reply_to: Option<String>,
-    pub cc_header: Option<String>,
-    pub headers_raw: String,
-    pub body_raw: String,
-    pub message_size: u64,
+    pub received_at: __sdk::Timestamp,
 }
 
 impl __sdk::InModule for ReceivedMessage {
@@ -34,21 +23,10 @@ impl __sdk::InModule for ReceivedMessage {
 /// Provides typed access to columns for query building.
 pub struct ReceivedMessageCols {
     pub id: __sdk::__query_builder::Col<ReceivedMessage, u64>,
-    pub queue_id: __sdk::__query_builder::Col<ReceivedMessage, Option<String>>,
-    pub received_at: __sdk::__query_builder::Col<ReceivedMessage, __sdk::Timestamp>,
-    pub sender_account_id: __sdk::__query_builder::Col<ReceivedMessage, Option<u64>>,
-    pub sender_email: __sdk::__query_builder::Col<ReceivedMessage, String>,
+    pub mail_message_id: __sdk::__query_builder::Col<ReceivedMessage, u64>,
     pub category_id: __sdk::__query_builder::Col<ReceivedMessage, u64>,
     pub category_email: __sdk::__query_builder::Col<ReceivedMessage, String>,
-    pub subject: __sdk::__query_builder::Col<ReceivedMessage, String>,
-    pub from_header: __sdk::__query_builder::Col<ReceivedMessage, String>,
-    pub date_header: __sdk::__query_builder::Col<ReceivedMessage, Option<String>>,
-    pub message_id: __sdk::__query_builder::Col<ReceivedMessage, Option<String>>,
-    pub reply_to: __sdk::__query_builder::Col<ReceivedMessage, Option<String>>,
-    pub cc_header: __sdk::__query_builder::Col<ReceivedMessage, Option<String>>,
-    pub headers_raw: __sdk::__query_builder::Col<ReceivedMessage, String>,
-    pub body_raw: __sdk::__query_builder::Col<ReceivedMessage, String>,
-    pub message_size: __sdk::__query_builder::Col<ReceivedMessage, u64>,
+    pub received_at: __sdk::__query_builder::Col<ReceivedMessage, __sdk::Timestamp>,
 }
 
 impl __sdk::__query_builder::HasCols for ReceivedMessage {
@@ -56,21 +34,10 @@ impl __sdk::__query_builder::HasCols for ReceivedMessage {
     fn cols(table_name: &'static str) -> Self::Cols {
         ReceivedMessageCols {
             id: __sdk::__query_builder::Col::new(table_name, "id"),
-            queue_id: __sdk::__query_builder::Col::new(table_name, "queue_id"),
-            received_at: __sdk::__query_builder::Col::new(table_name, "received_at"),
-            sender_account_id: __sdk::__query_builder::Col::new(table_name, "sender_account_id"),
-            sender_email: __sdk::__query_builder::Col::new(table_name, "sender_email"),
+            mail_message_id: __sdk::__query_builder::Col::new(table_name, "mail_message_id"),
             category_id: __sdk::__query_builder::Col::new(table_name, "category_id"),
             category_email: __sdk::__query_builder::Col::new(table_name, "category_email"),
-            subject: __sdk::__query_builder::Col::new(table_name, "subject"),
-            from_header: __sdk::__query_builder::Col::new(table_name, "from_header"),
-            date_header: __sdk::__query_builder::Col::new(table_name, "date_header"),
-            message_id: __sdk::__query_builder::Col::new(table_name, "message_id"),
-            reply_to: __sdk::__query_builder::Col::new(table_name, "reply_to"),
-            cc_header: __sdk::__query_builder::Col::new(table_name, "cc_header"),
-            headers_raw: __sdk::__query_builder::Col::new(table_name, "headers_raw"),
-            body_raw: __sdk::__query_builder::Col::new(table_name, "body_raw"),
-            message_size: __sdk::__query_builder::Col::new(table_name, "message_size"),
+            received_at: __sdk::__query_builder::Col::new(table_name, "received_at"),
         }
     }
 }
@@ -81,6 +48,7 @@ impl __sdk::__query_builder::HasCols for ReceivedMessage {
 pub struct ReceivedMessageIxCols {
     pub category_id: __sdk::__query_builder::IxCol<ReceivedMessage, u64>,
     pub id: __sdk::__query_builder::IxCol<ReceivedMessage, u64>,
+    pub mail_message_id: __sdk::__query_builder::IxCol<ReceivedMessage, u64>,
     pub received_at: __sdk::__query_builder::IxCol<ReceivedMessage, __sdk::Timestamp>,
 }
 
@@ -90,6 +58,7 @@ impl __sdk::__query_builder::HasIxCols for ReceivedMessage {
         ReceivedMessageIxCols {
             category_id: __sdk::__query_builder::IxCol::new(table_name, "category_id"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
+            mail_message_id: __sdk::__query_builder::IxCol::new(table_name, "mail_message_id"),
             received_at: __sdk::__query_builder::IxCol::new(table_name, "received_at"),
         }
     }

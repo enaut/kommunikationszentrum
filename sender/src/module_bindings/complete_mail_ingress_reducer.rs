@@ -8,6 +8,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub(super) struct CompleteMailIngressArgs {
     pub ingress_id: String,
+    pub instance_id: String,
     pub delivery_count: u32,
     pub failed_delivery_count: u32,
 }
@@ -16,6 +17,7 @@ impl From<CompleteMailIngressArgs> for super::Reducer {
     fn from(args: CompleteMailIngressArgs) -> Self {
         Self::CompleteMailIngress {
             ingress_id: args.ingress_id,
+            instance_id: args.instance_id,
             delivery_count: args.delivery_count,
             failed_delivery_count: args.failed_delivery_count,
         }
@@ -40,11 +42,13 @@ pub trait complete_mail_ingress {
     fn complete_mail_ingress(
         &self,
         ingress_id: String,
+        instance_id: String,
         delivery_count: u32,
         failed_delivery_count: u32,
     ) -> __sdk::Result<()> {
         self.complete_mail_ingress_then(
             ingress_id,
+            instance_id,
             delivery_count,
             failed_delivery_count,
             |_, _| {},
@@ -60,6 +64,7 @@ pub trait complete_mail_ingress {
     fn complete_mail_ingress_then(
         &self,
         ingress_id: String,
+        instance_id: String,
         delivery_count: u32,
         failed_delivery_count: u32,
 
@@ -73,6 +78,7 @@ impl complete_mail_ingress for super::RemoteReducers {
     fn complete_mail_ingress_then(
         &self,
         ingress_id: String,
+        instance_id: String,
         delivery_count: u32,
         failed_delivery_count: u32,
 
@@ -83,6 +89,7 @@ impl complete_mail_ingress for super::RemoteReducers {
         self.imp.invoke_reducer_with_callback(
             CompleteMailIngressArgs {
                 ingress_id,
+                instance_id,
                 delivery_count,
                 failed_delivery_count,
             },

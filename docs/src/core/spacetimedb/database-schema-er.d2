@@ -90,50 +90,44 @@ direction: down
 "MTA Audit & Processing": {
   style.fill: "#fff3e0"
 
-  mta_connection_log: {
+  mail_message: {
     shape: sql_table
-    label: "mta_connection_log [Private]"
+    label: "mail_message [Private]"
     id: "u64" {constraint: [primary_key; INC]}
-    client_ip: "String"
-    stage: "String"
-    action: "String"
-    timestamp: "Timestamp"
-    details: "String"
+    queue_id: "Option<String>"
+    received_at: "Timestamp"
+    sender_account_id: "Option<u64>" {constraint: [foreign_key]}
+    sender_email: "String"
+    subject: "String"
+    from_header: "String"
+    reply_to: "Option<String>"
+    date_header: "Option<String>"
+    message_id: "Option<String>"
+    cc_header: "Option<String>"
+    headers_raw: "String (JSON)"
+    body_raw: "String"
+    message_size: "u64"
   }
 
   mta_message_log: {
     shape: sql_table
     label: "mta_message_log [Private]"
     id: "u64" {constraint: [primary_key; INC]}
-    from_address: "String"
-    to_addresses: "String (JSON)"
-    subject: "String"
-    message_size: "u64"
     stage: "String"
     action: "String"
     timestamp: "Timestamp"
     queue_id: "Option<String>"
+    category_count: "u32"
   }
 
   received_message: {
     shape: sql_table
     label: "received_message [Private]"
     id: "u64" {constraint: [primary_key; INC]}
-    queue_id: "Option<String>"
-    received_at: "Timestamp" {constraint: BTree}
-    sender_account_id: "Option<u64>" {constraint: [foreign_key; BTree]}
-    sender_email: "String"
+    mail_message_id: "u64" {constraint: [foreign_key; BTree]}
     category_id: "u64" {constraint: [foreign_key; BTree]}
     category_email: "String"
-    subject: "String"
-    from_header: "String"
-    date_header: "Option<String>"
-    message_id: "Option<String>"
-    reply_to: "Option<String>"
-    cc_header: "Option<String>"
-    headers_raw: "String (JSON)"
-    body_raw: "String"
-    message_size: "u64"
+    received_at: "Timestamp" {constraint: BTree}
   }
 
   blocked_ips: {
@@ -153,63 +147,42 @@ direction: down
     shape: sql_table
     label: "mail_ingress [Private]"
     id: "String" {constraint: primary_key}
-    queue_id: "String" {constraint: BTree}
+    mail_message_id: "u64" {constraint: [foreign_key; BTree]}
     category_id: "u64" {constraint: [foreign_key; BTree]}
-    state: "String" {constraint: BTree}
-    next_attempt_at: "Timestamp" {constraint: BTree}
-    received_at: "Timestamp" {constraint: BTree}
-    sender_account_id: "Option<u64>" {constraint: [foreign_key; BTree]}
-    sender_email: "String"
     category_email: "String"
-    subject: "String"
-    from_header: "String"
-    reply_to: "Option<String>"
-    date_header: "Option<String>"
-    message_id: "Option<String>"
-    cc_header: "Option<String>"
-    headers_raw: "String (JSON)"
-    body_raw: "String"
-    message_size: "u64"
-    claim_owner: "Option<Identity>"
-    claim_expires_at: "Timestamp"
-    attempt_count: "u32"
+    claim: "ClaimState"
     recipient_count: "u32"
     delivery_count: "u32"
     failed_delivery_count: "u32"
-    last_error: "Option<String>"
     completed_at: "Timestamp"
-    updated_at: "Timestamp"
   }
 
-  mail_deliveries: {
+  mail_delivery_pending: {
     shape: sql_table
-    label: "mail_deliveries [Private]"
+    label: "mail_delivery_pending [Private]"
     id: "String" {constraint: primary_key}
     ingress_id: "String" {constraint: [foreign_key; BTree]}
-    category_id: "u64" {constraint: [foreign_key; BTree]}
-    subscription_id: "u64" {constraint: [foreign_key; BTree]}
-    recipient_email: "String" {constraint: BTree}
-    state: "String" {constraint: BTree}
     next_attempt_at: "Timestamp" {constraint: BTree}
-    recipient_account_id: "Option<u64>"
-    list_email: "String"
-    list_name: "String"
-    original_sender_email: "String"
-    from_header: "String"
-    reply_to: "String"
-    subject: "String"
-    body_raw: "String"
-    headers_raw: "String (JSON)"
-    raw_message: "String"
-    unsubscribe_token: "String"
-    claim_owner: "Option<Identity>"
-    claim_expires_at: "Timestamp"
-    attempt_count: "u32"
-    sent_at: "Timestamp"
-    last_error: "Option<String>"
-    smtp_status_code: "Option<u16>"
-    smtp_response: "Option<String>"
-    updated_at: "Timestamp"
+    row: "MailDeliveryRow"
+  }
+
+  mail_delivery_claimed: {
+    shape: sql_table
+    label: "mail_delivery_claimed [Private]"
+    id: "String" {constraint: primary_key}
+    worker: "Identity"
+    instance_id: "String"
+    lease_expires_at: "Timestamp" {constraint: BTree}
+    row: "MailDeliveryRow"
+  }
+
+  mail_delivery_done: {
+    shape: sql_table
+    label: "mail_delivery_done [Private]"
+    id: "String" {constraint: primary_key}
+    ingress_id: "String" {constraint: [foreign_key; BTree]}
+    final_state: "String"
+    row: "MailDeliveryRow"
   }
 
   mail_delivery_events: {
@@ -237,11 +210,13 @@ direction: down
 "Mailing & Subscriptions".message_category_topics.category_id -> "Mailing & Subscriptions".message_categories.id
 "Mailing & Subscriptions".message_category_topics.topic_id -> "Mailing & Subscriptions".topics.id
 
-"Delivery Pipeline".mail_ingress.category_id -> "Mailing & Subscriptions".message_categories.id
-"Delivery Pipeline".mail_ingress.sender_account_id -> "User Management & Auth".account.id
-"Delivery Pipeline".mail_deliveries.ingress_id -> "Delivery Pipeline".mail_ingress.id
-"Delivery Pipeline".mail_deliveries.category_id -> "Mailing & Subscriptions".message_categories.id
-"Delivery Pipeline".mail_deliveries.subscription_id -> "Mailing & Subscriptions".subscriptions.id
-"Delivery Pipeline".mail_delivery_events.delivery_id -> "Delivery Pipeline".mail_deliveries.id
-"MTA Audit & Processing".received_message.sender_account_id -> "User Management & Auth".account.id
+"MTA Audit & Processing".mail_message.sender_account_id -> "User Management & Auth".account.id
+"MTA Audit & Processing".received_message.mail_message_id -> "MTA Audit & Processing".mail_message.id
 "MTA Audit & Processing".received_message.category_id -> "Mailing & Subscriptions".message_categories.id
+
+"Delivery Pipeline".mail_ingress.mail_message_id -> "MTA Audit & Processing".mail_message.id
+"Delivery Pipeline".mail_ingress.category_id -> "Mailing & Subscriptions".message_categories.id
+"Delivery Pipeline".mail_delivery_pending.ingress_id -> "Delivery Pipeline".mail_ingress.id
+"Delivery Pipeline".mail_delivery_claimed.id -> "Delivery Pipeline".mail_delivery_pending.id
+"Delivery Pipeline".mail_delivery_done.ingress_id -> "Delivery Pipeline".mail_ingress.id
+"Delivery Pipeline".mail_delivery_events.delivery_id -> "Delivery Pipeline".mail_delivery_pending.id

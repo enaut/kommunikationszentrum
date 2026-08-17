@@ -8,14 +8,11 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub struct MtaMessageLog {
     pub id: u64,
-    pub from_address: String,
-    pub to_addresses: String,
-    pub subject: String,
-    pub message_size: u64,
     pub stage: String,
     pub action: String,
     pub timestamp: __sdk::Timestamp,
     pub queue_id: Option<String>,
+    pub category_count: u32,
 }
 
 impl __sdk::InModule for MtaMessageLog {
@@ -27,14 +24,11 @@ impl __sdk::InModule for MtaMessageLog {
 /// Provides typed access to columns for query building.
 pub struct MtaMessageLogCols {
     pub id: __sdk::__query_builder::Col<MtaMessageLog, u64>,
-    pub from_address: __sdk::__query_builder::Col<MtaMessageLog, String>,
-    pub to_addresses: __sdk::__query_builder::Col<MtaMessageLog, String>,
-    pub subject: __sdk::__query_builder::Col<MtaMessageLog, String>,
-    pub message_size: __sdk::__query_builder::Col<MtaMessageLog, u64>,
     pub stage: __sdk::__query_builder::Col<MtaMessageLog, String>,
     pub action: __sdk::__query_builder::Col<MtaMessageLog, String>,
     pub timestamp: __sdk::__query_builder::Col<MtaMessageLog, __sdk::Timestamp>,
     pub queue_id: __sdk::__query_builder::Col<MtaMessageLog, Option<String>>,
+    pub category_count: __sdk::__query_builder::Col<MtaMessageLog, u32>,
 }
 
 impl __sdk::__query_builder::HasCols for MtaMessageLog {
@@ -42,14 +36,11 @@ impl __sdk::__query_builder::HasCols for MtaMessageLog {
     fn cols(table_name: &'static str) -> Self::Cols {
         MtaMessageLogCols {
             id: __sdk::__query_builder::Col::new(table_name, "id"),
-            from_address: __sdk::__query_builder::Col::new(table_name, "from_address"),
-            to_addresses: __sdk::__query_builder::Col::new(table_name, "to_addresses"),
-            subject: __sdk::__query_builder::Col::new(table_name, "subject"),
-            message_size: __sdk::__query_builder::Col::new(table_name, "message_size"),
             stage: __sdk::__query_builder::Col::new(table_name, "stage"),
             action: __sdk::__query_builder::Col::new(table_name, "action"),
             timestamp: __sdk::__query_builder::Col::new(table_name, "timestamp"),
             queue_id: __sdk::__query_builder::Col::new(table_name, "queue_id"),
+            category_count: __sdk::__query_builder::Col::new(table_name, "category_count"),
         }
     }
 }

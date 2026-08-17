@@ -25,12 +25,8 @@
   },
   {
     "label": "Start Sender",
-    "command": "cargo run --package sender",
+    "command": "sh -lc 'if [ -f .env/.env.webhook-proxy ]; then set -a; . .env/.env.webhook-proxy; set +a; elif [ -f .env ]; then set -a; . .env; set +a; fi; cargo run --package sender'",
     "cwd": "$ZED_WORKTREE_ROOT",
-    "env": {
-      "SMTP_USERNAME": "dietrich-solawis",
-      "SMTP_PASSWORD": "kUakCVoHeLjKUO63",
-    },
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",

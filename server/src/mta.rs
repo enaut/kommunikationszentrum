@@ -3,6 +3,7 @@ use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
 
 use crate::account::{account, account__view, admin_identities, is_admin_identity, is_admin_user};
 use crate::delivery;
+use crate::mail_message;
 use crate::mailing::{message_categories, subscriptions, subscriptions__view};
 
 #[spacetimedb::table(accessor = mta_connection_log)]
@@ -22,14 +23,11 @@ pub struct MtaMessageLog {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
-    pub from_address: String,
-    pub to_addresses: String, // JSON array as string
-    pub subject: String,
-    pub message_size: u64,
     pub stage: String,
     pub action: String,
     pub timestamp: Timestamp,
     pub queue_id: Option<String>,
+    pub category_count: u32,
 }
 
 #[spacetimedb::table(accessor = blocked_ips)]
@@ -41,40 +39,29 @@ pub struct BlockedIp {
     pub active: bool,
 }
 
-/// One row per accepted email delivery, linked to its sender and the target mailing list category.
+/// One row per accepted email delivery, linked to its canonical `MailMessage`
+/// and the target mailing-list category.
 /// Not directly public — exposed to clients through the `visible_messages` view.
+/// Display fields (subject, sender, body …) are fetched from `MailMessage` by the
+/// client after it receives the `ReceivedMessage` row, using `mail_message_id`.
+#[derive(Clone)]
 #[spacetimedb::table(accessor = received_message)]
 pub struct ReceivedMessage {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
-    /// Stalwart queue ID from `context.queue.id`
-    pub queue_id: Option<String>,
-    /// When this row was inserted (used for range scan in admin view)
+    /// FK → MailMessage.id
     #[index(btree)]
-    pub received_at: Timestamp,
-    /// FK → Account.id; None when the sender is not a known SoLaWi member
-    pub sender_account_id: Option<u64>,
-    /// Raw envelope sender address
-    pub sender_email: String,
+    pub mail_message_id: u64,
     /// FK → MessageCategory.id (used for per-category lookup in user view)
     #[index(btree)]
     pub category_id: u64,
     /// The mailing-list address this message was delivered to
     pub category_email: String,
-    /// Parsed Subject header (capped at 500 chars)
-    pub subject: String,
-    /// Raw From header value
-    pub from_header: String,
-    pub date_header: Option<String>,
-    pub message_id: Option<String>,
-    pub reply_to: Option<String>,
-    pub cc_header: Option<String>,
-    /// JSON array of [name, value] pairs covering all headers (original + server-added)
-    pub headers_raw: String,
-    /// Full message body; empty string when the message exceeds 2 MB
-    pub body_raw: String,
-    pub message_size: u64,
+    /// Copy of MailMessage.received_at for efficient range scans in the admin view
+    /// without requiring a join.
+    #[index(btree)]
+    pub received_at: Timestamp,
 }
 
 #[spacetimedb::reducer]
@@ -261,7 +248,6 @@ pub(crate) fn handle_data_stage(
         subject
     );
 
-    let mut to_addresses = Vec::new();
     let mut valid_categories: Vec<(u64, String)> = Vec::new();
 
     log::trace!(
@@ -273,7 +259,6 @@ pub(crate) fn handle_data_stage(
     if let Some(envelope) = &request.envelope {
         for recipient in &envelope.to {
             let to_address = recipient.address.as_str();
-            to_addresses.push(to_address.to_string());
 
             if let Some(category) = ctx
                 .db
@@ -293,8 +278,6 @@ pub(crate) fn handle_data_stage(
             if let Some(to_header) = extract_header(&message.headers, "to") {
                 let header_addrs = parse_email_addresses(&to_header);
                 if !header_addrs.is_empty() {
-                    to_addresses = header_addrs.clone();
-
                     for to_address in header_addrs {
                         if let Some(category) = ctx
                             .db
@@ -324,14 +307,11 @@ pub(crate) fn handle_data_stage(
 
     ctx.db.mta_message_log().insert(MtaMessageLog {
         id: 0,
-        from_address: from_address.to_string(),
-        to_addresses: serde_json::to_string(&to_addresses).unwrap_or_default(),
-        subject: subject.chars().take(100).collect(),
-        message_size,
         stage: "data".to_string(),
         action: action.to_string(),
         timestamp,
         queue_id: request.context.queue.as_ref().map(|q| q.id.clone()),
+        category_count: valid_categories.len() as u32,
     });
 
     // Persist the full message for each accepted category delivery
@@ -425,42 +405,39 @@ pub(crate) fn handle_data_stage(
 
             let queue_id = request.context.queue.as_ref().map(|q| q.id.clone());
 
+            // Write the canonical message record exactly once for this inbound email,
+            // before the per-category fan-out loop. Both ReceivedMessage and MailIngress
+            // rows reference this single row via mail_message_id.
+            let mail_message_id = mail_message::insert_mail_message(
+                ctx,
+                queue_id.clone(),
+                sender_account_id,
+                from_address.to_string(),
+                subject.clone(), // subject is capped to 500 chars inside insert_mail_message
+                from_header.clone(),
+                reply_to.clone(),
+                date_header.clone(),
+                message_id.clone(),
+                cc_header.clone(),
+                headers_raw.clone(),
+                body_raw.clone(),
+                message_size,
+            );
+
             for (category_id, category_email) in &valid_categories {
                 ctx.db.received_message().insert(ReceivedMessage {
                     id: 0,
-                    queue_id: queue_id.clone(),
-                    received_at: timestamp,
-                    sender_account_id,
-                    sender_email: from_address.to_string(),
+                    mail_message_id,
                     category_id: *category_id,
                     category_email: category_email.clone(),
-                    subject: subject.chars().take(500).collect(),
-                    from_header: from_header.clone(),
-                    date_header: date_header.clone(),
-                    message_id: message_id.clone(),
-                    reply_to: reply_to.clone(),
-                    cc_header: cc_header.clone(),
-                    headers_raw: headers_raw.clone(),
-                    body_raw: body_raw.clone(),
-                    message_size,
+                    received_at: timestamp,
                 });
 
                 let ingress_id = delivery::upsert_mail_ingress(
                     ctx,
-                    queue_id.clone(),
+                    mail_message_id,
                     *category_id,
                     category_email.clone(),
-                    sender_account_id,
-                    from_address.to_string(),
-                    subject.chars().take(500).collect(),
-                    from_header.clone(),
-                    reply_to.clone(),
-                    date_header.clone(),
-                    message_id.clone(),
-                    cc_header.clone(),
-                    headers_raw.clone(),
-                    body_raw.clone(),
-                    message_size,
                 );
                 log::info!(
                     "Queued ingress {} for category {} ({})",
@@ -606,11 +583,11 @@ pub fn dump_mta_logs_to_server_logs(ctx: &ReducerContext) {
     log::info!("=== MTA Message Logs ===");
     for log in ctx.db.mta_message_log().iter() {
         log::info!(
-            "Message Log {}: {} - {} - Size: {}",
+            "Message Log {}: {} - {} - Categories: {}",
             log.id,
             log.stage,
             log.action,
-            log.message_size
+            log.category_count
         );
     }
 }

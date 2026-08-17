@@ -7,7 +7,7 @@ use std::error::Error;
 
 use crate::config::SenderConfig;
 use crate::module_bindings::{
-    MailIngress, MessageCategory, Subscription, SubscriptionUnsubscribeToken,
+    MailMessage, MessageCategory, Subscription, SubscriptionUnsubscribeToken,
 };
 
 pub fn build_transport(config: &SenderConfig) -> Result<SmtpTransport, Box<dyn Error>> {
@@ -27,9 +27,6 @@ pub fn build_transport(config: &SenderConfig) -> Result<SmtpTransport, Box<dyn E
 }
 
 pub fn is_transient_error(error: &SmtpError) -> bool {
-    // is_response() is intentionally excluded: it matches any non-success SMTP response,
-    // including 5xx codes that are already caught by is_permanent_error. Including it here
-    // would risk scheduling retries for permanent failures.
     error.is_transient() || error.is_timeout()
 }
 
@@ -39,7 +36,8 @@ pub fn is_permanent_error(error: &SmtpError) -> bool {
 
 pub fn compose_delivery(
     config: &SenderConfig,
-    ingress: &MailIngress,
+    ingress_id: &str,
+    message: &MailMessage,
     subscription: &Subscription,
     category: &MessageCategory,
     token: &SubscriptionUnsubscribeToken,
@@ -56,11 +54,11 @@ pub fn compose_delivery(
         category.name.clone()
     };
     let recipient_email = subscription.subscriber_email.clone();
-    let subject = rewrite_subject(&list_name, &ingress.subject);
-    let reply_to = ingress.sender_email.clone();
+    let subject = rewrite_subject(&list_name, &message.subject);
+    let reply_to = message.sender_email.clone();
     let message_id = format!(
         "<{}@{}>",
-        message_id_seed(&ingress.id, &recipient_email),
+        message_id_seed(ingress_id, &recipient_email),
         config.message_id_domain
     );
     let date = Utc::now().to_rfc2822();
@@ -69,8 +67,8 @@ pub fn compose_delivery(
     let headers = vec![
         ("From".to_string(), list_email.clone()),
         ("To".to_string(), recipient_email.clone()),
-        ("Reply-To".to_string(), reply_to.clone()),
-        ("Subject".to_string(), subject.clone()),
+        ("Reply-To".to_string(), reply_to),
+        ("Subject".to_string(), subject),
         ("Message-ID".to_string(), message_id),
         ("Date".to_string(), date),
         (
@@ -92,11 +90,11 @@ pub fn compose_delivery(
         ("Precedence".to_string(), "list".to_string()),
         ("Sender".to_string(), list_email.clone()),
         ("X-Mailing-List".to_string(), list_name.clone()),
-        ("X-BeenThere".to_string(), list_email.clone()),
+        ("X-BeenThere".to_string(), list_email),
     ];
 
     let headers_raw = to_string(&headers)?;
-    let raw_message = render_raw_message(&headers, &ingress.body_raw);
+    let raw_message = render_raw_message(&headers, &message.body_raw);
     Ok((headers_raw, raw_message))
 }
 

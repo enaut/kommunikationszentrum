@@ -8,6 +8,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub(super) struct FailMailDeliveryArgs {
     pub delivery_id: String,
+    pub instance_id: String,
     pub smtp_status_code: Option<u16>,
     pub smtp_response: String,
     pub error_kind: String,
@@ -17,6 +18,7 @@ impl From<FailMailDeliveryArgs> for super::Reducer {
     fn from(args: FailMailDeliveryArgs) -> Self {
         Self::FailMailDelivery {
             delivery_id: args.delivery_id,
+            instance_id: args.instance_id,
             smtp_status_code: args.smtp_status_code,
             smtp_response: args.smtp_response,
             error_kind: args.error_kind,
@@ -42,12 +44,14 @@ pub trait fail_mail_delivery {
     fn fail_mail_delivery(
         &self,
         delivery_id: String,
+        instance_id: String,
         smtp_status_code: Option<u16>,
         smtp_response: String,
         error_kind: String,
     ) -> __sdk::Result<()> {
         self.fail_mail_delivery_then(
             delivery_id,
+            instance_id,
             smtp_status_code,
             smtp_response,
             error_kind,
@@ -64,6 +68,7 @@ pub trait fail_mail_delivery {
     fn fail_mail_delivery_then(
         &self,
         delivery_id: String,
+        instance_id: String,
         smtp_status_code: Option<u16>,
         smtp_response: String,
         error_kind: String,
@@ -78,6 +83,7 @@ impl fail_mail_delivery for super::RemoteReducers {
     fn fail_mail_delivery_then(
         &self,
         delivery_id: String,
+        instance_id: String,
         smtp_status_code: Option<u16>,
         smtp_response: String,
         error_kind: String,
@@ -89,6 +95,7 @@ impl fail_mail_delivery for super::RemoteReducers {
         self.imp.invoke_reducer_with_callback(
             FailMailDeliveryArgs {
                 delivery_id,
+                instance_id,
                 smtp_status_code,
                 smtp_response,
                 error_kind,

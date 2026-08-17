@@ -26,3 +26,4 @@ opentelemetry_sdk = { version = "0.32", features = [
 opentelemetry-otlp = { version = "0.32", features = ["grpc-tonic", "logs"] }
 opentelemetry-appender-tracing = "0.32"
 tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
