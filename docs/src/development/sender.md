@@ -75,24 +75,19 @@ The daemon is entirely event-driven. SpacetimeDB pushes updates over WebSocket w
 subscribed rows change. The `Notify` doorbell wakes the work loop only when there is data to
 process, keeping CPU usage near zero when idle.
 
-### The 50 ms Sleep
+### Background Connection Pump
 
-After calling `claim_next_mail_ingress()` or `claim_next_mail_delivery()`, the daemon sleeps
-50 ms before checking the local cache. This accounts for the round-trip time between the
-reducer call and the subscription push arriving. The sleep is a pragmatic compromise — a
-cleaner approach would be to use the `on_update` callback as the sole trigger, but the current
-pattern keeps the code straightforward.
+The SpacetimeDB connection I/O is driven continuously in a separate Tokio task
+(`tokio::spawn(async move { conn.run_async().await })`). This ensures that inbound WebSocket
+messages, subscription updates, and callback events are processed without latency, even when
+the work loop is busy executing fan-out or SMTP requests.
 
-### In-Flight Sets vs. Subscription Cache
+### Atomic Leases and Claim Protocol
 
-The `in_flight_ingresses` / `in_flight_deliveries` `HashSet`s exist to bridge the gap between
-*calling a reducer* and *receiving the resulting state change*. Without them, the claim loop
-might attempt to re-process the same job before SpacetimeDB's push arrives.
-
-The sets are maintained as follows:
-- **Insert** — immediately before calling `process_ingress_job` / `send_delivery`.
-- **Remove** — in the `on_update` callback, when the row transitions out of `processing` /
-  `sending` state.
+Work coordination across instances relies on atomic server-side reducers with lease timeouts:
+- `claim_next_mail_ingress` attaches a 10-minute lease (`claim_owner = Identity`, `instance_id = UUID`).
+- `claim_next_mail_delivery` moves one row from `mail_delivery_pending` to `mail_delivery_claimed` with a 5-minute lease.
+- If a worker crashes, the 60-second scheduled recycler (`expire_stale_delivery_claims`) automatically returns orphaned items back to pending queues.
 
 ### Message Composition
 

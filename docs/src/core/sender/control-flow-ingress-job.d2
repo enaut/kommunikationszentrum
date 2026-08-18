@@ -1,18 +1,27 @@
 direction: down
 
-start: "process_ingress_job(ingress)" { style.fill: lightyellow }
-cat: "Lookup message_categories\nby ingress.category_id" { shape: diamond }
-fail: "fail_mail_ingress()\n'missing message category'" { style.fill: lightcoral }
-subs: "Filter active_subscriptions\nfor this category_id\n+ dedup by email" { style.fill: lightblue }
-empty: "No subscribers?\ncomplete_mail_ingress(0, 0)\nreturn Ok" { style.fill: lightgreen }
-loop_: "For each subscription:\nprocess_subscription_job()" { style.fill: lightblue }
-token: "Any 'AwaitingToken' results?\nreturn Err → retry_mail_ingress()" { style.fill: lightyellow }
-done: "complete_mail_ingress(\ningress_id,\ndeliveries_created, 0)" { style.fill: lightgreen }
+start: "process_ingress_job(ingress)" { style.fill: "#fff9c4" }
+msg: "Lookup sender_mail_messages\nby ingress.mail_message_id" { shape: diamond }
+msg_err: "Return Err (not in cache yet)" { style.fill: "#ffe0b2" }
 
-start -> cat
-cat -> fail: "not found"
-cat -> subs: "found"
-subs -> empty: "empty"
-subs -> loop_
+cat: "Lookup visible_message_categories\nby ingress.category_id" { shape: diamond }
+fail: "fail_mail_ingress()\n'missing message category'" { style.fill: "#ffcdd2" }
+
+subs: "Filter active_subscriptions\nfor category_id & dedup by email" { style.fill: "#bbdefb" }
+empty: "No subscribers?\ncomplete_mail_ingress(0, 0)\nreturn Ok(())" { style.fill: "#c8e6c9" }
+
+loop_: "For each subscriber:\nprocess_subscription_job()" { style.fill: "#bbdefb" }
+token: "Any subscriber 'AwaitingToken'?" { shape: diamond }
+token_err: "Return Err → retry_mail_ingress()\n(Wait for token generation)" { style.fill: "#ffe0b2" }
+done: "complete_mail_ingress(\ningress_id,\ndeliveries_created, 0)" { style.fill: "#c8e6c9" }
+
+start -> msg
+msg -> msg_err: "Missing"
+msg -> cat: "Found"
+cat -> fail: "Missing"
+cat -> subs: "Found"
+subs -> empty: "0 subscribers"
+subs -> loop_: "1+ subscribers"
 loop_ -> token
-token -> done: "all queued"
+token -> token_err: "Yes"
+token -> done: "No (all enqueued)"

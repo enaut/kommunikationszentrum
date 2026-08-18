@@ -1,25 +1,23 @@
 direction: down
 
-wait: "tokio::select!\n(waiting for any branch)" {
+wait: "tokio::select!\n(Event Multiplexer)" {
   shape: diamond
-  style.fill: lightyellow
+  style.fill: "#fff9c4"
 }
-db_err: "DB pump terminated\nlog error + break" { style.fill: lightcoral }
-ctrl_c: "SIGINT / Ctrl+C\nlog + break" { style.fill: lightcoral }
-work: "notify.notified()\nWork loop fires" { style.fill: lightgreen }
+ctrl_c: "SIGINT / Ctrl+C\nGraceful Shutdown" { style.fill: "#ffcdd2" }
+work: "notify.notified()\nDoorbell Triggered" { style.fill: "#c8e6c9" }
 
-fanout: "process_fanout_jobs()\n(ingress → deliveries)" { style.fill: lightblue }
-delivery: "process_delivery_jobs()\n(deliveries → SMTP)" { style.fill: lightblue }
-more: "Did any work?\nthen notify_one()\n(chain reaction)" {
+fanout: "process_fanout_jobs()\n(Ingress → Pending Deliveries)" { style.fill: "#bbdefb" }
+delivery: "process_delivery_jobs()\n(Claimed Deliveries → SMTP)" { style.fill: "#bbdefb" }
+more: "Did any work?\nnotify.notify_one()\n(Self-draining chain reaction)" {
   shape: diamond
-  style.fill: lightgreen
+  style.fill: "#c8e6c9"
 }
 
-wait -> db_err: "db pump done"
-wait -> ctrl_c: "signal"
-wait -> work: "doorbell rings"
+wait -> ctrl_c: "Shutdown Signal"
+wait -> work: "Database Change / Bootstrap"
 work -> fanout
 fanout -> delivery
 delivery -> more
-more -> wait: "no work left"
-more -> work: "yes, loop again"
+more -> wait: "No more work (idle)"
+more -> work: "Work completed (drain next batch)"

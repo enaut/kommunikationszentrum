@@ -1,13 +1,21 @@
-direction: down
 
-env: "Read SenderConfig\nfrom environment" { style.fill: lightyellow }
-otel: "Initialize OpenTelemetry\n(OTLP traces + logs → Alloy)" { style.fill: lightyellow }
-conn: "Open SpacetimeDB\nWebSocket connection\n(with optional auth token)" { style.fill: lightblue }
-sub: "Subscribe to views:\n• sender_mail_ingress\n• sender_mail_deliveries\n• active_subscriptions\n• message_categories\n• active_unsubscribe_tokens" { style.fill: lightblue }
-pump: "Start DB async pump\n(connection.run_async())\nas pinned Tokio future" { style.fill: lightblue }
-cb: "Register on_insert / on_update\ncallbacks → notify doorbell" { style.fill: lightgreen }
-smtp: "Build SmtpTransport\n(TLS/plaintext, credentials)" { style.fill: lightyellow }
-boot: "Trigger doorbell once\n(bootstrap any pending work)" { style.fill: lightgreen }
-loop_: "Enter tokio::select! loop" { style.fill: lightcoral }
+classes: {
+  config: { style.fill: "#fff9c4"; style.stroke: "#fbc02d" }
+  otel: { style.fill: "#ffe0b2"; style.stroke: "#f57c00" }
+  db: { style.fill: "#bbdefb"; style.stroke: "#1976d2" }
+  cb: { style.fill: "#c8e6c9"; style.stroke: "#388e3c" }
+  smtp: { style.fill: "#e1bee7"; style.stroke: "#7b1fa2" }
+  loop: { style.fill: "#ffcdd2"; style.stroke: "#d32f2f" }
+}
+
+env: "1. Load SenderConfig\n(Environment Variables)" { class: config }
+otel: "2. Initialize OpenTelemetry\n(OTLP Traces + Logs → Alloy)" { class: otel }
+conn: "3. Connect to SpacetimeDB\n(Wrap DbConnection in Arc)" { class: db }
+sub: "4. Subscribe to Views:\n• sender_mail_ingress\n• sender_mail_delivery_pending\n• sender_mail_delivery_claimed\n• sender_mail_messages\n• active_subscriptions\n• visible_message_categories\n• active_unsubscribe_tokens" { class: db }
+pump: "5. Spawn Background DB Pump\n(tokio::spawn(connection.run_async()))" { class: db }
+cb: "6. Register Callbacks → Notify Doorbell:\n• sender_mail_ingress (on_insert, on_update)\n• sender_mail_delivery_pending (on_insert, on_update)\n• sender_mail_delivery_claimed (on_insert, on_delete)\n• active_unsubscribe_tokens (on_insert)" { class: cb }
+smtp: "7. Build SmtpTransport\n(lettre client with TLS & auth)" { class: smtp }
+boot: "8. Bootstrap Trigger\n(notify.notify_one() for backlogged work)" { class: cb }
+loop_: "9. Enter tokio::select! Event Loop\n(Awaiting notify or shutdown)" { class: loop }
 
 env -> otel -> conn -> sub -> pump -> cb -> smtp -> boot -> loop_

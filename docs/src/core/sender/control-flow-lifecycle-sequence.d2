@@ -1,0 +1,33 @@
+shape: sequence_diagram
+
+mta: "Stalwart MTA"
+server: "SpacetimeDB Server"
+sender: "Sender Daemon"
+smtp: "Outbound SMTP Relay"
+
+mta -> server: "POST /mta-hook (DATA stage email payload)"
+server -> server: "upsert_mail_ingress() [status: pending]"
+server -> sender: "WebSocket push: mail_ingress (on_insert)"
+
+sender -> sender: "notify.notify_one() wakes loop"
+sender -> server: "claim_next_mail_ingress(instance_id)"
+server -> server: "Set claim [status: processing, lease: 10m]"
+server -> sender: "WebSocket push: mail_ingress (on_update)"
+
+sender -> sender: "Fan-out: lookup category & active subscribers"
+sender -> server: "ensure_subscription_unsubscribe_token(sub_id)"
+sender -> server: "enqueue_mail_delivery() [MailDeliveryPending]"
+sender -> server: "complete_mail_ingress(deliveries_count)"
+server -> server: "Set ingress [status: completed]"
+
+sender -> server: "claim_next_mail_delivery(instance_id)"
+server -> server: "Move row: pending → claimed [lease: 5m]"
+server -> sender: "WebSocket push: mail_delivery_claimed (on_insert)"
+
+sender -> smtp: "transport.send_raw(envelope, rfc5322_bytes)"
+smtp -> sender: "250 2.0.0 OK: message queued"
+
+sender -> server: "mark_mail_delivery_sent(smtp_code, response)"
+server -> server: "Move row: claimed → done [final_state: sent]"
+server -> server: "Insert into mail_delivery_events [audit log]"
+server -> sender: "WebSocket push: mail_delivery_claimed (on_delete)"

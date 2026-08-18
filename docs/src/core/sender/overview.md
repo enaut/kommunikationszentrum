@@ -1,79 +1,58 @@
-# Sender Daemon
+# Sender Daemon Overview
 
 The `sender` crate is the **outbound mail delivery daemon** for the Kommunikationszentrum.
-It is a native Rust binary (Tokio async) that connects to SpacetimeDB, watches the delivery
-pipeline tables, and submits outgoing emails over SMTP.
+It is a native Rust binary running on the Tokio async runtime that connects to SpacetimeDB,
+monitors the delivery pipeline tables, and dispatches outgoing emails over SMTP.
 
-## Purpose
+## System Architecture
 
-After the SpacetimeDB server module accepts an email from the Stalwart MTA and creates
-`MailIngress` records, the sender daemon takes over:
+```d2
+{{#include sender-architecture.d2}}
+```
 
-1. **Fan-out** — expands one ingress into individual `MailDelivery` rows (one per subscriber)
-2. **SMTP submission** — sends each delivery to the configured SMTP relay
-3. **State reporting** — calls reducers to mark deliveries as sent, retry-scheduled, or failed
+## Purpose & Responsibilities
 
-The sender daemon is the only component in the system that performs **external network calls**
-(to the SMTP relay). Everything else is driven by SpacetimeDB's reactive subscription model.
+1. **Ingress Fan-Out** — Expands each inbound `MailIngress` record into individual `MailDelivery` rows (one per active subscriber) and enqueues them into `mail_delivery_pending`.
+2. **SMTP Submission** — Claims queued deliveries (`mail_delivery_claimed`) with atomic leases and transmits RFC 5322 formatted emails to the outbound SMTP relay.
+3. **State Management & Auditing** — Transitions completed deliveries to `mail_delivery_done` (sent/failed/bounced) and writes immutable audit logs to `mail_delivery_events`.
+4. **Lease Expiration & Recovery** — Automatically re-claims expired processing or delivery leases in case of worker failure.
 
-## Technology
+The sender daemon is the only component in the system that performs **external network calls** (to the SMTP relay). Everything else is driven by SpacetimeDB's reactive WebSocket subscription model.
 
-| Concern | Technology |
-|---|---|
-| Runtime | Tokio (async Rust) |
-| SpacetimeDB client | `spacetimedb-sdk 2.6` |
-| SMTP transport | `lettre 0.11` |
-| Observability | OpenTelemetry (OTLP) → traces + logs |
-| Log routing | `tracing` + `tracing-subscriber` + `tracing-opentelemetry` |
+## Technology Stack
+
+| Concern | Technology | Notes |
+|---|---|---|
+| Runtime | Tokio (async Rust) | Multi-threaded async event processing |
+| SpacetimeDB SDK | `spacetimedb-sdk 2.8` | Client bindings & table cache |
+| SMTP Transport | `lettre 0.11` | Connection pooling & TLS support |
+| Tracing & Logs | `opentelemetry` + OTLP | Bridge to Grafana Alloy / Loki / Tempo |
+| Log Filtering | `tracing-subscriber` | Configurable via `RUST_LOG` |
+
+## Key Design Principles
+
+### Purely Reactive — Zero Polling Overhead
+The daemon does not poll a database on a timer. SpacetimeDB pushes incremental table updates over a WebSocket connection. Subscription callbacks (`on_insert`, `on_update`, `on_delete`) ring a `tokio::sync::Notify` doorbell that wakes the work loop only when actionable work exists.
+
+### Autonomous Connection Pump
+The SpacetimeDB connection I/O is spawned into a dedicated background Tokio task (`tokio::spawn(async move { conn.run_async().await })`), ensuring that incoming messages, callbacks, and cache updates are processed immediately even while the main work loop is busy.
+
+### Atomic Claim & Lease Protocol
+Work is distributed safely across instances using atomic server-side reducers:
+- `claim_next_mail_ingress` grants a 10-minute lease on `MailIngress` (`claim_owner = Identity`, `instance_id = UUID`).
+- `claim_next_mail_delivery` grants a 5-minute lease moving a row from `mail_delivery_pending` to `mail_delivery_claimed`.
+- Expired leases are automatically recycled by the 60-second server scheduler (`expire_stale_delivery_claims`).
 
 ## Source File Map
 
 ```
 sender/src/
 ├── main.rs             Entry point, event loop, fan-out logic, delivery dispatch
-├── config.rs           SenderConfig — all runtime configuration from environment variables
+├── config.rs           SenderConfig — runtime configuration loaded from environment
 ├── mail.rs             SMTP transport setup, message composition, error classification
-└── module_bindings/    Auto-generated SpacetimeDB SDK bindings
+└── module_bindings/    Auto-generated SpacetimeDB SDK bindings (do not edit)
     ├── mod.rs          Re-exports all types, table accessors, and reducer stubs
     ├── *_type.rs       Row struct definitions (MailIngress, MailDelivery, etc.)
-    ├── *_table.rs      Table accessor traits
+    ├── *_table.rs      Table accessor traits (iter, find, on_insert, on_update, etc.)
     └── *_reducer.rs    Reducer call stubs
 ```
-
-## Module Sections
-
-| Section | Description |
-|---|---|
-| [Configuration](./configuration.md) | All environment variables and their defaults |
-| [Control Flow](./control-flow.md) | Startup, event loop, fan-out, delivery, error handling |
-| [Usage Guide](./usage.md) | How to run, connect, monitor, and troubleshoot |
-
-## Key Design Decisions
-
-### Purely Reactive — No Polling
-The daemon does **not** poll a database on a timer. Instead, SpacetimeDB pushes row-level
-updates over a WebSocket subscription. A `tokio::sync::Notify` doorbell is triggered by
-`on_insert` and `on_update` callbacks, causing the work loop to run only when there is
-something to do.
-
-### In-Flight Tracking
-Between calling a claim reducer (e.g. `claim_next_mail_ingress`) and receiving the
-server-confirmed state change via the subscription push, there is a small window where the
-local cache still shows the old state. An `Arc<Mutex<HashSet<String>>>` tracks IDs that are
-actively being processed so the loop does not double-claim work in that window.
-
-### Claim/Lease Protocol
-The daemon does not hold a global lock. Each `MailIngress` and `MailDelivery` is claimed
-atomically via a reducer call, with a server-side lease expiry (10 min / 5 min). If the
-daemon crashes mid-work, the lease expires and another instance can re-claim the job.
-
-### Module Bindings
-The `module_bindings/` directory is **auto-generated** by the SpacetimeDB CLI from the
-published server module schema:
-
-```bash
-spacetime generate --lang rust --out-dir sender/src/module_bindings \
-  --server http://localhost:3000 kommunikationszentrum
-```
-
-Never edit these files manually — regenerate them after any server schema change.

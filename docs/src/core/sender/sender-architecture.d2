@@ -1,0 +1,69 @@
+direction: right
+
+classes: {
+  db_node: {
+    shape: cylinder
+    style: {
+      fill: "#e3f2fd"
+      stroke: "#1565c0"
+    }
+  }
+  worker_node: {
+    shape: rectangle
+    style: {
+      fill: "#f3e5f5"
+      stroke: "#7b1fa2"
+    }
+  }
+  ext_node: {
+    shape: cloud
+    style: {
+      fill: "#fff3e0"
+      stroke: "#e65100"
+    }
+  }
+}
+
+server: "SpacetimeDB Server Module" {
+  ingress_tbl: "mail_ingress\n[Status: Pending, Processing, ...]" { class: db_node }
+  pending_tbl: "mail_delivery_pending\n[Queued Deliveries]" { class: db_node }
+  claimed_tbl: "mail_delivery_claimed\n[Active Leases (5 min)]" { class: db_node }
+  done_tbl: "mail_delivery_done\n[Sent / Failed / Bounced]" { class: db_node }
+  events_tbl: "mail_delivery_events\n[Audit Trail]" { class: db_node }
+}
+
+sender: "Sender Daemon (Async Tokio Runtime)" {
+  pump: "Background DB Pump Task\n(connection.run_async())" { class: worker_node }
+  callbacks: "Table Subscription Callbacks\n(on_insert / on_update / on_delete)" { class: worker_node }
+  doorbell: "Notify Doorbell\n(Arc<Notify>)" {
+    shape: diamond
+    style.fill: "#c8e6c9"
+  }
+  
+  work_loop: "Main Reactive Work Loop" {
+    fanout: "Fan-Out Engine\n(process_fanout_jobs)" { class: worker_node }
+    delivery: "Delivery Engine\n(process_delivery_jobs)" { class: worker_node }
+  }
+}
+
+ext: "External Services" {
+  smtp: "SMTP Relay\n(Letts / Postfix / MailHog)" { class: ext_node }
+  otel: "Grafana Alloy / OTLP\n(Traces + Logs)" { class: ext_node }
+}
+
+server.ingress_tbl -> sender.pump: "WebSocket Subscription Stream"
+server.pending_tbl -> sender.pump
+server.claimed_tbl -> sender.pump
+
+sender.pump -> sender.callbacks: "Local Cache Updates"
+sender.callbacks -> sender.doorbell: "notify_one()"
+sender.doorbell -> sender.work_loop.fanout: "Trigger Work"
+sender.work_loop.fanout -> sender.work_loop.delivery: "Chain Work"
+
+sender.work_loop.fanout -> server.pending_tbl: "enqueue_mail_delivery()"
+sender.work_loop.delivery -> server.claimed_tbl: "claim_next_mail_delivery()"
+sender.work_loop.delivery -> ext.smtp: "Send RFC 5322 Raw Message"
+sender.work_loop.delivery -> server.done_tbl: "mark_sent() / fail() / bounce()"
+sender.work_loop.delivery -> server.events_tbl: "Log Delivery Event"
+
+sender -> ext.otel: "OTLP Spans & Logs"
