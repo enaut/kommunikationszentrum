@@ -32,6 +32,8 @@ pub mod expire_stale_delivery_claims_schedule_type;
 pub mod fail_mail_delivery_reducer;
 pub mod fail_mail_ingress_reducer;
 pub mod handle_mta_hook_reducer;
+pub mod increment_mail_ingress_delivery_count_reducer;
+pub mod increment_mail_ingress_failed_delivery_count_reducer;
 pub mod mail_delivery_claimed_type;
 pub mod mail_delivery_done_type;
 pub mod mail_delivery_event_type;
@@ -101,6 +103,8 @@ pub use expire_stale_delivery_claims_schedule_type::ExpireStaleDeliveryClaimsSch
 pub use fail_mail_delivery_reducer::fail_mail_delivery;
 pub use fail_mail_ingress_reducer::fail_mail_ingress;
 pub use handle_mta_hook_reducer::handle_mta_hook;
+pub use increment_mail_ingress_delivery_count_reducer::increment_mail_ingress_delivery_count;
+pub use increment_mail_ingress_failed_delivery_count_reducer::increment_mail_ingress_failed_delivery_count;
 pub use mail_delivery_claimed_type::MailDeliveryClaimed;
 pub use mail_delivery_done_type::MailDeliveryDone;
 pub use mail_delivery_event_type::MailDeliveryEvent;
@@ -188,8 +192,6 @@ pub enum Reducer {
     CompleteMailIngress {
         ingress_id: String,
         instance_id: String,
-        delivery_count: u32,
-        failed_delivery_count: u32,
     },
     CreateWebhookToken {
         token_hash: String,
@@ -227,6 +229,14 @@ pub enum Reducer {
     },
     HandleMtaHook {
         hook_data: String,
+    },
+    IncrementMailIngressDeliveryCount {
+        ingress_id: String,
+        instance_id: String,
+    },
+    IncrementMailIngressFailedDeliveryCount {
+        ingress_id: String,
+        instance_id: String,
     },
     MarkMailDeliveryBounced {
         delivery_id: String,
@@ -311,6 +321,12 @@ impl __sdk::Reducer for Reducer {
             Reducer::FailMailDelivery { .. } => "fail_mail_delivery",
             Reducer::FailMailIngress { .. } => "fail_mail_ingress",
             Reducer::HandleMtaHook { .. } => "handle_mta_hook",
+            Reducer::IncrementMailIngressDeliveryCount { .. } => {
+                "increment_mail_ingress_delivery_count"
+            }
+            Reducer::IncrementMailIngressFailedDeliveryCount { .. } => {
+                "increment_mail_ingress_failed_delivery_count"
+            }
             Reducer::MarkMailDeliveryBounced { .. } => "mark_mail_delivery_bounced",
             Reducer::MarkMailDeliverySent { .. } => "mark_mail_delivery_sent",
             Reducer::RegisterAdminIdentity { .. } => "register_admin_identity",
@@ -389,13 +405,9 @@ impl __sdk::Reducer for Reducer {
             Reducer::CompleteMailIngress{
                 ingress_id,
                 instance_id,
-                delivery_count,
-                failed_delivery_count,
 }             => __sats::bsatn::to_vec(&complete_mail_ingress_reducer::CompleteMailIngressArgs {
                 ingress_id: ingress_id.clone(),
                 instance_id: instance_id.clone(),
-                delivery_count: delivery_count.clone(),
-                failed_delivery_count: failed_delivery_count.clone(),
 }),
             Reducer::CreateWebhookToken{
                 token_hash,
@@ -464,6 +476,20 @@ Reducer::EnqueueMailDelivery{
                 hook_data,
 }             => __sats::bsatn::to_vec(&handle_mta_hook_reducer::HandleMtaHookArgs {
                 hook_data: hook_data.clone(),
+}),
+            Reducer::IncrementMailIngressDeliveryCount{
+                ingress_id,
+                instance_id,
+}             => __sats::bsatn::to_vec(&increment_mail_ingress_delivery_count_reducer::IncrementMailIngressDeliveryCountArgs {
+                ingress_id: ingress_id.clone(),
+                instance_id: instance_id.clone(),
+}),
+            Reducer::IncrementMailIngressFailedDeliveryCount{
+                ingress_id,
+                instance_id,
+}             => __sats::bsatn::to_vec(&increment_mail_ingress_failed_delivery_count_reducer::IncrementMailIngressFailedDeliveryCountArgs {
+                ingress_id: ingress_id.clone(),
+                instance_id: instance_id.clone(),
 }),
             Reducer::MarkMailDeliveryBounced{
                 delivery_id,
@@ -691,10 +717,12 @@ impl __sdk::DbUpdate for DbUpdate {
             "active_subscriptions",
             &self.active_subscriptions,
         );
-        diff.active_unsubscribe_tokens = cache.apply_diff_to_table::<SubscriptionUnsubscribeToken>(
-            "active_unsubscribe_tokens",
-            &self.active_unsubscribe_tokens,
-        );
+        diff.active_unsubscribe_tokens = cache
+            .apply_diff_to_table::<SubscriptionUnsubscribeToken>(
+                "active_unsubscribe_tokens",
+                &self.active_unsubscribe_tokens,
+            )
+            .with_updates_by_pk(|row| &row.token);
         diff.sender_mail_delivery_claimed = cache
             .apply_diff_to_table::<MailDeliveryClaimed>(
                 "sender_mail_delivery_claimed",

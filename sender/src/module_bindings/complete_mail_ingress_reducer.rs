@@ -9,8 +9,6 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 pub(super) struct CompleteMailIngressArgs {
     pub ingress_id: String,
     pub instance_id: String,
-    pub delivery_count: u32,
-    pub failed_delivery_count: u32,
 }
 
 impl From<CompleteMailIngressArgs> for super::Reducer {
@@ -18,8 +16,6 @@ impl From<CompleteMailIngressArgs> for super::Reducer {
         Self::CompleteMailIngress {
             ingress_id: args.ingress_id,
             instance_id: args.instance_id,
-            delivery_count: args.delivery_count,
-            failed_delivery_count: args.failed_delivery_count,
         }
     }
 }
@@ -39,20 +35,8 @@ pub trait complete_mail_ingress {
     /// The reducer will run asynchronously in the future,
     ///  and this method provides no way to listen for its completion status.
     /// /// Use [`complete_mail_ingress:complete_mail_ingress_then`] to run a callback after the reducer completes.
-    fn complete_mail_ingress(
-        &self,
-        ingress_id: String,
-        instance_id: String,
-        delivery_count: u32,
-        failed_delivery_count: u32,
-    ) -> __sdk::Result<()> {
-        self.complete_mail_ingress_then(
-            ingress_id,
-            instance_id,
-            delivery_count,
-            failed_delivery_count,
-            |_, _| {},
-        )
+    fn complete_mail_ingress(&self, ingress_id: String, instance_id: String) -> __sdk::Result<()> {
+        self.complete_mail_ingress_then(ingress_id, instance_id, |_, _| {})
     }
 
     /// Request that the remote module invoke the reducer `complete_mail_ingress` to run as soon as possible,
@@ -65,8 +49,6 @@ pub trait complete_mail_ingress {
         &self,
         ingress_id: String,
         instance_id: String,
-        delivery_count: u32,
-        failed_delivery_count: u32,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -79,8 +61,6 @@ impl complete_mail_ingress for super::RemoteReducers {
         &self,
         ingress_id: String,
         instance_id: String,
-        delivery_count: u32,
-        failed_delivery_count: u32,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -90,8 +70,6 @@ impl complete_mail_ingress for super::RemoteReducers {
             CompleteMailIngressArgs {
                 ingress_id,
                 instance_id,
-                delivery_count,
-                failed_delivery_count,
             },
             callback,
         )

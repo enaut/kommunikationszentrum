@@ -284,6 +284,15 @@ pub fn use_spacetimedb_context_provider(
                             });
                         conn.db
                             .active_unsubscribe_tokens()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<SubscriptionUnsubscribeToken> =
+                                    ctx.db.active_unsubscribe_tokens().iter().collect();
+                                table_signals_on_connect
+                                    .active_unsubscribe_tokens
+                                    .set(updated);
+                            });
+                        conn.db
+                            .active_unsubscribe_tokens()
                             .on_delete(move |ctx, _row| {
                                 let updated: Vec<SubscriptionUnsubscribeToken> =
                                     ctx.db.active_unsubscribe_tokens().iter().collect();
@@ -1071,20 +1080,12 @@ pub fn use_reducer_claim_next_mail_ingress(
 /// Get a callback to invoke the `complete_mail_ingress` reducer.
 #[must_use]
 pub fn use_reducer_complete_mail_ingress(
-) -> impl Fn(String, String, u32, u32) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
-    move |ingress_id: String,
-          instance_id: String,
-          delivery_count: u32,
-          failed_delivery_count: u32| {
+    move |ingress_id: String, instance_id: String| {
         if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.complete_mail_ingress(
-                ingress_id,
-                instance_id,
-                delivery_count,
-                failed_delivery_count,
-            )
+            conn.reducers.complete_mail_ingress(ingress_id, instance_id)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
@@ -1239,6 +1240,38 @@ pub fn use_reducer_handle_mta_hook(
     move |hook_data: String| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.handle_mta_hook(hook_data)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `increment_mail_ingress_delivery_count` reducer.
+#[must_use]
+pub fn use_reducer_increment_mail_ingress_delivery_count(
+) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |ingress_id: String, instance_id: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .increment_mail_ingress_delivery_count(ingress_id, instance_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Get a callback to invoke the `increment_mail_ingress_failed_delivery_count` reducer.
+#[must_use]
+pub fn use_reducer_increment_mail_ingress_failed_delivery_count(
+) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |ingress_id: String, instance_id: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .increment_mail_ingress_failed_delivery_count(ingress_id, instance_id)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }

@@ -8,47 +8,51 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
-pub(super) struct CompleteMailIngressArgs {
+pub(super) struct IncrementMailIngressFailedDeliveryCountArgs {
     pub ingress_id: String,
     pub instance_id: String,
 }
 
-impl From<CompleteMailIngressArgs> for super::Reducer {
-    fn from(args: CompleteMailIngressArgs) -> Self {
-        Self::CompleteMailIngress {
+impl From<IncrementMailIngressFailedDeliveryCountArgs> for super::Reducer {
+    fn from(args: IncrementMailIngressFailedDeliveryCountArgs) -> Self {
+        Self::IncrementMailIngressFailedDeliveryCount {
             ingress_id: args.ingress_id,
             instance_id: args.instance_id,
         }
     }
 }
 
-impl __sdk::InModule for CompleteMailIngressArgs {
+impl __sdk::InModule for IncrementMailIngressFailedDeliveryCountArgs {
     type Module = super::RemoteModule;
 }
 
 #[allow(non_camel_case_types)]
-/// Extension trait for access to the reducer `complete_mail_ingress`.
+/// Extension trait for access to the reducer `increment_mail_ingress_failed_delivery_count`.
 ///
 /// Implemented for [`super::RemoteReducers`].
-pub trait complete_mail_ingress {
-    /// Request that the remote module invoke the reducer `complete_mail_ingress` to run as soon as possible.
+pub trait increment_mail_ingress_failed_delivery_count {
+    /// Request that the remote module invoke the reducer `increment_mail_ingress_failed_delivery_count` to run as soon as possible.
     ///
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and this method provides no way to listen for its completion status.
     ///
-    /// Use [`complete_mail_ingress::complete_mail_ingress_then`] to run a callback after the reducer completes.
-    fn complete_mail_ingress(&self, ingress_id: String, instance_id: String) -> __sdk::Result<()> {
-        self.complete_mail_ingress_then(ingress_id, instance_id, |_, _| {})
+    /// Use [`increment_mail_ingress_failed_delivery_count::increment_mail_ingress_failed_delivery_count_then`] to run a callback after the reducer completes.
+    fn increment_mail_ingress_failed_delivery_count(
+        &self,
+        ingress_id: String,
+        instance_id: String,
+    ) -> __sdk::Result<()> {
+        self.increment_mail_ingress_failed_delivery_count_then(ingress_id, instance_id, |_, _| {})
     }
 
-    /// Request that the remote module invoke the reducer `complete_mail_ingress` to run as soon as possible,
+    /// Request that the remote module invoke the reducer `increment_mail_ingress_failed_delivery_count` to run as soon as possible,
     /// registering `callback` to run when we are notified that the reducer completed.
     ///
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and its status can be observed with the `callback`.
-    fn complete_mail_ingress_then(
+    fn increment_mail_ingress_failed_delivery_count_then(
         &self,
         ingress_id: String,
         instance_id: String,
@@ -58,8 +62,8 @@ pub trait complete_mail_ingress {
     ) -> __sdk::Result<()>;
 }
 
-impl complete_mail_ingress for super::RemoteReducers {
-    fn complete_mail_ingress_then(
+impl increment_mail_ingress_failed_delivery_count for super::RemoteReducers {
+    fn increment_mail_ingress_failed_delivery_count_then(
         &self,
         ingress_id: String,
         instance_id: String,
@@ -68,7 +72,7 @@ impl complete_mail_ingress for super::RemoteReducers {
             + 'static,
     ) -> __sdk::Result<()> {
         self.imp.invoke_reducer_with_callback(
-            CompleteMailIngressArgs {
+            IncrementMailIngressFailedDeliveryCountArgs {
                 ingress_id,
                 instance_id,
             },
