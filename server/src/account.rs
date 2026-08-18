@@ -120,7 +120,6 @@ pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
 /// (`ReducerContext`, `ViewContext`, `TxContext`, …).
 pub(crate) fn is_admin_user(ctx: &(impl CtxDbRead + CtxWithSender)) -> bool {
     let res = is_admin_identity(ctx, ctx.sender());
-    info!("is_admin_identity result: {}", res);
     res
 }
 

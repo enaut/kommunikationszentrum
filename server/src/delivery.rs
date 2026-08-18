@@ -309,11 +309,14 @@ pub(crate) fn upsert_mail_ingress(
 }
 
 fn claimable_ingress(row: &MailIngress, now: Timestamp) -> bool {
-    matches!(
-        row.claim.status,
-        DeliveryStatus::Pending | DeliveryStatus::RetryScheduled
-    ) && row.claim.next_attempt_at <= now
-        && (row.claim.claim_owner.is_none() || row.claim.claim_expires_at <= now)
+    let status_claimable = match row.claim.status {
+        DeliveryStatus::Pending | DeliveryStatus::RetryScheduled => {
+            row.claim.claim_owner.is_none() || row.claim.claim_expires_at <= now
+        }
+        DeliveryStatus::Processing => row.claim.claim_expires_at <= now,
+        _ => false,
+    };
+    status_claimable && row.claim.next_attempt_at <= now
 }
 
 #[spacetimedb::reducer]
@@ -875,6 +878,25 @@ pub fn expire_stale_delivery_claims(
         return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
     let now = ctx.timestamp;
+
+    // Reset stale ingress claims whose lease expired while in Processing state
+    let stale_ingress: Vec<MailIngress> = ctx
+        .db
+        .mail_ingress()
+        .iter()
+        .filter(|row| row.claim.status == DeliveryStatus::Processing && row.claim.claim_expires_at <= now)
+        .collect();
+
+    for mut ingress in stale_ingress {
+        ingress.claim.status = DeliveryStatus::Pending;
+        ingress.claim.claim_owner = None;
+        ingress.claim.instance_id = None;
+        ingress.claim.claim_expires_at = Timestamp::UNIX_EPOCH;
+        ingress.claim.last_error = Some("Lease expired — requeued".to_string());
+        ingress.claim.updated_at = now;
+        ctx.db.mail_ingress().id().update(ingress);
+    }
+
     let stale: Vec<MailDeliveryClaimed> = ctx
         .db
         .mail_delivery_claimed()

@@ -116,21 +116,46 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "Starting sender service"
     );
 
-    let connection = connect_to_spacetimedb(&config)?;
+    let connection = Arc::new(connect_to_spacetimedb(&config)?);
     subscribe_to_spacetime_tables(&connection);
-
-    // Drive SpacetimeDB natively as a pinned Tokio future.
-    let database_pump = connection.run_async();
-    tokio::pin!(database_pump);
 
     let notify = Arc::new(Notify::new());
 
-    // Wake the loop on ingress row updates
+    // Wake the loop on ingress row inserts and updates
     {
         let notify = notify.clone();
         connection
             .db
             .sender_mail_ingress()
+            .on_insert(move |_ctx, _row| {
+                notify.notify_one();
+            });
+    }
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_ingress()
+            .on_update(move |_ctx, _old, _new| {
+                notify.notify_one();
+            });
+    }
+
+    // Wake the loop on pending deliveries
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_delivery_pending()
+            .on_insert(move |_ctx, _row| {
+                notify.notify_one();
+            });
+    }
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .sender_mail_delivery_pending()
             .on_update(move |_ctx, _old, _new| {
                 notify.notify_one();
             });
@@ -158,6 +183,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
             });
     }
 
+    // Wake the loop on unsubscribe token creation
+    {
+        let notify = notify.clone();
+        connection
+            .db
+            .active_unsubscribe_tokens()
+            .on_insert(move |_ctx, _row| {
+                notify.notify_one();
+            });
+    }
+
+    // Drive SpacetimeDB connection asynchronously in a background task
+    let db_conn = connection.clone();
+    let pump_handle = tokio::spawn(async move {
+        if let Err(err) = db_conn.run_async().await {
+            error!("SpacetimeDB async pump terminated unexpectedly: {:?}", err);
+        }
+    });
+
     let transport = build_transport(&config)?;
     info!("sender connected as {:?}", connection.try_identity());
 
@@ -172,11 +216,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Main reactive processing loop: wait for either database updates or shutdown signal
     loop {
         tokio::select! {
-            db_res = &mut database_pump => {
-                error!("SpacetimeDB async pump terminated unexpectedly: {:?}", db_res);
-                break;
-            }
-
             _ = &mut shutdown_signal => {
                 info!("Shutdown signal received … exiting processing loop …");
                 break;
@@ -185,8 +224,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
             _ = notify.notified() => {
                 trace!("Database subscription updated. Processing jobs...");
 
-                let fanout_res = process_fanout_jobs(&connection, &config, &instance_id).await?;
-                let delivery_res = process_delivery_jobs(&connection, &transport, &instance_id).await?;
+                let fanout_res = process_fanout_jobs(&connection, &config, &instance_id).await.unwrap_or_else(|error| {
+                    error!("Error processing fanout jobs: {:?}", error);
+                    notify.notify_one();
+                    false
+                });
+                let delivery_res = process_delivery_jobs(&connection, &transport, &instance_id).await.unwrap_or_else(|error| {
+                    error!("Error processing delivery jobs: {:?}", error);
+                    notify.notify_one();
+                    false
+                });
 
                 if fanout_res || delivery_res {
                     notify.notify_one();
@@ -195,6 +242,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
+    pump_handle.abort();
     info!("Shutting down tracing and logging...");
     otel_providers.tracer_provider.shutdown()?;
     otel_providers.logger_provider.shutdown()?;
@@ -239,7 +287,7 @@ async fn process_fanout_jobs(
         }
         None => {
             error!("Identity check failed");
-            return Ok(false);
+            return Err("Identity check failed".into());
         }
     };
 
@@ -251,7 +299,10 @@ async fn process_fanout_jobs(
         let owned_jobs = self_owned_ingress_jobs(connection, owner, instance_id);
 
         if owned_jobs.is_empty() {
-            if let Err(error) = connection.reducers().claim_next_mail_ingress(instance_id.to_string()) {
+            if let Err(error) = connection
+                .reducers()
+                .claim_next_mail_ingress(instance_id.to_string())
+            {
                 warn!("claim_next_mail_ingress failed: {:?}", error);
                 break;
             }
@@ -263,10 +314,14 @@ async fn process_fanout_jobs(
             }
             for job in owned_after {
                 info!("Processing ingress job: {}", job.id);
-                if let Err(error) = process_ingress_job(connection, config, job.clone(), instance_id) {
-                    let _ = connection
-                        .reducers()
-                        .retry_mail_ingress(job.id.clone(), instance_id.to_string(), error.to_string());
+                if let Err(error) =
+                    process_ingress_job(connection, config, job.clone(), instance_id)
+                {
+                    let _ = connection.reducers().retry_mail_ingress(
+                        job.id.clone(),
+                        instance_id.to_string(),
+                        error.to_string(),
+                    );
                 }
                 did_work = true;
             }
@@ -276,9 +331,11 @@ async fn process_fanout_jobs(
         for job in owned_jobs {
             info!("Processing ingress job: {}", job.id);
             if let Err(error) = process_ingress_job(connection, config, job.clone(), instance_id) {
-                let _ = connection
-                    .reducers()
-                    .retry_mail_ingress(job.id.clone(), instance_id.to_string(), error.to_string());
+                let _ = connection.reducers().retry_mail_ingress(
+                    job.id.clone(),
+                    instance_id.to_string(),
+                    error.to_string(),
+                );
             }
             did_work = true;
         }
@@ -362,8 +419,14 @@ fn process_subscription_job(
         }
     };
 
-    let (_headers_raw, raw_message) =
-        compose_delivery(config, &ingress.id, message, &subscription, category, &token_row)?;
+    let (_headers_raw, raw_message) = compose_delivery(
+        config,
+        &ingress.id,
+        message,
+        &subscription,
+        category,
+        &token_row,
+    )?;
 
     connection.reducers().enqueue_mail_delivery(
         ingress.id.clone(),
@@ -424,9 +487,12 @@ fn process_ingress_job(
     subscriptions.dedup_by(|left, right| left.subscriber_email == right.subscriber_email);
 
     if subscriptions.is_empty() {
-        connection
-            .reducers()
-            .complete_mail_ingress(ingress.id.clone(), instance_id.to_string(), 0, 0)?;
+        connection.reducers().complete_mail_ingress(
+            ingress.id.clone(),
+            instance_id.to_string(),
+            0,
+            0,
+        )?;
         return Ok(());
     }
 
@@ -434,7 +500,14 @@ fn process_ingress_job(
     let mut waiting_for_tokens = false;
 
     for subscription in subscriptions {
-        match process_subscription_job(connection, config, &ingress, &message, &category, subscription)? {
+        match process_subscription_job(
+            connection,
+            config,
+            &ingress,
+            &message,
+            &category,
+            subscription,
+        )? {
             SubscriptionJobOutcome::DeliveryQueued => {
                 deliveries_created = deliveries_created.saturating_add(1);
             }
@@ -448,9 +521,12 @@ fn process_ingress_job(
         return Err("Waiting for unsubscribe token to be generated".into());
     }
 
-    connection
-        .reducers()
-        .complete_mail_ingress(ingress.id.clone(), instance_id.to_string(), deliveries_created, 0)?;
+    connection.reducers().complete_mail_ingress(
+        ingress.id.clone(),
+        instance_id.to_string(),
+        deliveries_created,
+        0,
+    )?;
     Ok(())
 }
 
@@ -467,7 +543,7 @@ async fn process_delivery_jobs(
         }
         None => {
             error!("No identity set!");
-            return Ok(false);
+            return Err("No identity set".into());
         }
     };
     let mut did_work = false;
@@ -476,7 +552,10 @@ async fn process_delivery_jobs(
         let owned_jobs = self_owned_delivery_jobs(connection, owner, instance_id);
 
         if owned_jobs.is_empty() {
-            if let Err(error) = connection.reducers().claim_next_mail_delivery(instance_id.to_string()) {
+            if let Err(error) = connection
+                .reducers()
+                .claim_next_mail_delivery(instance_id.to_string())
+            {
                 warn!("claim_next_mail_delivery failed: {:?}", error);
                 break;
             }

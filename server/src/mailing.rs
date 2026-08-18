@@ -240,12 +240,7 @@ pub fn active_unsubscribe_tokens(ctx: &ViewContext) -> Vec<SubscriptionUnsubscri
 #[spacetimedb::view(accessor = visible_message_categories, public)]
 pub fn visible_message_categories(ctx: &ViewContext) -> Vec<MessageCategory> {
     let sender = ctx.sender();
-    let has_account = ctx.db.account().identity().find(&sender).is_some();
     let is_admin = is_admin_user(ctx);
-
-    if !has_account {
-        return vec![];
-    }
 
     let all_categories = ctx.db.message_categories().visibility();
 
@@ -261,6 +256,11 @@ pub fn visible_message_categories(ctx: &ViewContext) -> Vec<MessageCategory> {
         let mut result = public_categories;
         result.extend(private_categories);
         return result;
+    }
+
+    let has_account = ctx.db.account().identity().find(&sender).is_some();
+    if !has_account {
+        return vec![];
     }
 
     // For regular users: show public categories + private categories they're subscribed to
