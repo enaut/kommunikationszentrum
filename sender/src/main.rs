@@ -196,16 +196,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Drive SpacetimeDB connection asynchronously in a background task
     let db_conn = connection.clone();
-    let pump_handle = tokio::spawn(async move {
-        if let Err(err) = db_conn.run_async().await {
-            error!("SpacetimeDB async pump terminated unexpectedly: {:?}", err);
-        }
-    });
+    let mut pump_handle = tokio::spawn(async move { db_conn.run_async().await });
 
     let transport = build_transport(&config)?;
     info!("sender connected as {:?}", connection.try_identity());
 
-    info!("Entering purely reactive processing loop. Press Ctrl+C to stop.");
+    info!("Entering mail processing loop. Press Ctrl+C to stop.");
 
     let shutdown_signal = tokio::signal::ctrl_c();
     tokio::pin!(shutdown_signal);
@@ -213,7 +209,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Bootstrap: trigger the doorbell once immediately so it checks for work upon startup
     notify.notify_one();
 
-    // Main reactive processing loop: wait for either database updates or shutdown signal
+    // Main reactive processing loop: wait for database updates, shutdown signal, or pump termination
     loop {
         tokio::select! {
             _ = &mut shutdown_signal => {
@@ -221,17 +217,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 break;
             }
 
+            pump_res = &mut pump_handle => {
+                match pump_res {
+                    Ok(Err(err)) => {
+                        error!("SpacetimeDB async pump terminated unexpectedly: {:?}", err);
+                        return Err(format!("SpacetimeDB async pump terminated unexpectedly: {:?}", err).into());
+                    }
+                    Ok(Ok(())) => {
+                        error!("SpacetimeDB async pump terminated unexpectedly");
+                        return Err("SpacetimeDB async pump terminated unexpectedly".into());
+                    }
+                    Err(join_err) => {
+                        error!("SpacetimeDB async pump task join error: {:?}", join_err);
+                        return Err(format!("SpacetimeDB async pump task join error: {:?}", join_err).into());
+                    }
+                }
+            }
+
             _ = notify.notified() => {
                 trace!("Database subscription updated. Processing jobs...");
 
                 let fanout_res = process_fanout_jobs(&connection, &config, &instance_id).await.unwrap_or_else(|error| {
                     error!("Error processing fanout jobs: {:?}", error);
-                    notify.notify_one();
                     false
                 });
                 let delivery_res = process_delivery_jobs(&connection, &transport, &instance_id).await.unwrap_or_else(|error| {
                     error!("Error processing delivery jobs: {:?}", error);
-                    notify.notify_one();
                     false
                 });
 
