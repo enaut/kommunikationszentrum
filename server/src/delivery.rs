@@ -487,6 +487,16 @@ pub(crate) fn upsert_mail_delivery(
         return delivery_id;
     }
 
+    if ctx
+        .db
+        .mail_delivery_claimed()
+        .id()
+        .find(&delivery_id)
+        .is_some()
+    {
+        return delivery_id;
+    }
+
     if let Some(mut existing) = ctx.db.mail_delivery_pending().id().find(&delivery_id) {
         debug_assert_eq!(existing.row.ingress_id, ingress.id);
         debug_assert_eq!(existing.row.subscription_id, subscription_id);
