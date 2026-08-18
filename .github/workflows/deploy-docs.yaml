@@ -65,10 +65,24 @@ jobs:
         working-directory: docs
         run: |
           mdbook build
-          printf '%s\n' \
-                'User-agent: *' \
-                'Disallow: /' \
-                > book/robots.txt
+
+      - name: Verify Pages artifact contents
+        working-directory: docs
+        run: |
+          echo "=== D2 directory ==="
+          ls -lah book/d2
+
+          echo
+          echo "=== SVG count ==="
+          find book/d2 -type f -name '*.svg' | wc -l
+
+          echo
+          echo "=== Example SVG ==="
+          ls -lh book/d2/4.1.1.1.svg
+
+          echo
+          echo "=== All SVG files ==="
+          find book -type f -name '*.svg' -print
 
       # ------------------------------------------------------------
       # GitHub Pages
