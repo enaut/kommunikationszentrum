@@ -1,4 +1,4 @@
-use std::{env, time::Duration};
+use std::env;
 
 #[derive(Debug, Clone)]
 pub struct SenderConfig {
@@ -10,7 +10,6 @@ pub struct SenderConfig {
     pub smtp_username: Option<String>,
     pub smtp_password: Option<String>,
     pub smtp_use_tls: bool,
-    pub poll_interval: Duration,
     pub message_id_domain: String,
     pub unsubscribe_base_url: String,
     pub otlp_endpoint: String,
@@ -35,11 +34,6 @@ impl SenderConfig {
             .ok()
             .and_then(|value| value.parse::<bool>().ok())
             .unwrap_or(true);
-        let poll_interval = env::var("SENDER_POLL_INTERVAL_MS")
-            .ok()
-            .and_then(|value| value.parse::<u64>().ok())
-            .map(Duration::from_millis)
-            .unwrap_or_else(|| Duration::from_millis(5000));
         let message_id_domain = env::var("MAIL_MESSAGE_ID_DOMAIN").unwrap_or_else(|_| {
             spacetimedb_uri
                 .split_once("//")
@@ -63,7 +57,6 @@ impl SenderConfig {
             smtp_username,
             smtp_password,
             smtp_use_tls,
-            poll_interval,
             message_id_domain,
             unsubscribe_base_url,
             otlp_endpoint,
