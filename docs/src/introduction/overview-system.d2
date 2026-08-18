@@ -3,15 +3,24 @@ direction: right
 
 # Externe und globale Komponenten
 Internet {
+  shape: cloud
   Externe Sender: "Externe Sender\n(web.de, posteo.de...)" {
+    shape: c4-person
   }
   MX: "DNS-Server\nMX,DKIM,DMARC,SPF" {
   }
   Externe Empfänger: "Externe Empfänger\n(web.de, posteo.de...)" {
+    shape: c4-person
   }
   smtp2go: "smtp2go\n(o.ä.)\n(Mails senden)" {
   }
+
+  S3: "S3\n(Mailspeicher)" {
 }
+}
+
+Hetzner: "Hetzner\n(Cloudserver)" {
+  style.fill: "#f0f0f3"
 
 Mail-Infrastruktur {
 Stalwart: "Stalwart\n(Mails senden)" {
@@ -19,12 +28,9 @@ Stalwart: "Stalwart\n(Mails senden)" {
 
 RocksDB
 
-S3: "S3\n(Mailspeicher)" {
-}
+
 Stalwart <-> RocksDB: "Metadaten"
-S3 <-> Stalwart: "Anhänge und Emails" {
-  style.stroke-dash: 2
-}
+
 }
 
 # Mailinglisten
@@ -35,14 +41,15 @@ Kommunikationszentrum: "Kommunikationszentrum" {
   Sender
 
   Admin
-  
+
   Admin <-> Server: Nutzer konfigurieren
   Sender -> Server: verschickt zu sendende mails
+}
 }
 
 # Lokale Mailclients Gruppe
 Mailclients: "Mailclients" {
-  
+
   Thunderbird: "z.B. Thunderbird\n(Lokaler Mailclient)" {
   }
   Balwark: "Balwark\n(Webmailclient)" {
@@ -59,25 +66,28 @@ Contabo: "Contabo (Server)" {
 }
 
 # Verbindungen und Beziehungen
-Internet.Externe Sender -> Mail-Infrastruktur.Stalwart:" Senden an Mailinglisten"
+Internet.Externe Sender -> Hetzner.Mail-Infrastruktur.Stalwart:" Senden an Mailinglisten"
 
-Internet.MX -> Mail-Infrastruktur.Stalwart: "Verweist und Signiert"{
+Internet.MX -> Hetzner.Mail-Infrastruktur.Stalwart: "Verweist und Signiert"{
   style.stroke-dash: 5
 }
 
+Internet.S3 <-> Hetzner.Mail-Infrastruktur.Stalwart: "Anhänge und Emails" {
+  style.stroke-dash: 2
+}
 
-Mailclients.Thunderbird <-> Mail-Infrastruktur.Stalwart: "IMAP/SMTP"
-Mailclients.Balwark <-> Mail-Infrastruktur.Stalwart: "JMAP"
+Mailclients.Thunderbird <-> Hetzner.Mail-Infrastruktur.Stalwart: "IMAP/SMTP"
+Mailclients.Balwark <-> Hetzner.Mail-Infrastruktur.Stalwart: "JMAP"
 
-Mail-Infrastruktur.Stalwart -> Internet.smtp2go: "sendet via relay\n(Spamvermeidung)"
-Mail-Infrastruktur.Stalwart -> Internet.Externe Empfänger: "Sendet direkt"
+Hetzner.Mail-Infrastruktur.Stalwart -> Internet.smtp2go: "sendet via relay\n(Spamvermeidung)"
+Hetzner.Mail-Infrastruktur.Stalwart -> Internet.Externe Empfänger: "Sendet direkt"
 Internet.smtp2go -> Internet.Externe Empfänger:"liefert aus"
 
-Mail-Infrastruktur.Stalwart -> Kommunikationszentrum.Server: "Mailinglistenmail\nper webhook/HTTP"
-Kommunikationszentrum.Sender -> Mail-Infrastruktur.Stalwart: "Sendet via SMTP\n(direkt)"
-Kommunikationszentrum.Sender -> Internet.smtp2go: "Sendet via SMTP\n(relay)"
+Hetzner.Mail-Infrastruktur.Stalwart -> Hetzner.Kommunikationszentrum.Server: "Mailinglistenmail\nper webhook/HTTP"
+Hetzner.Kommunikationszentrum.Sender -> Hetzner.Mail-Infrastruktur.Stalwart: "Sendet via SMTP\n(direkt)"
+Hetzner.Kommunikationszentrum.Sender -> Internet.smtp2go: "Sendet via SMTP\n(relay)"
 
-Contabo.Django.mailing -> Mail-Infrastruktur.Stalwart: "Mailversand"
-Contabo.Django.signale -> Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
-Contabo.Django.sync_users_to_spacetime -> Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
-Contabo.Django.django-oauth <-> Kommunikationszentrum.Admin: "OAuth2.0\nAuthentifizierung"
+Contabo.Django.mailing -> Hetzner.Mail-Infrastruktur.Stalwart: "Mailversand"
+Contabo.Django.signale -> Hetzner.Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
+Contabo.Django.sync_users_to_spacetime -> Hetzner.Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
+Contabo.Django.django-oauth <-> Hetzner.Kommunikationszentrum.Admin: "OAuth2.0\nAuthentifizierung"
