@@ -1,0 +1,40 @@
+direction: right
+
+env: "Environment Variables" {
+  spacetimedb: "SPACETIMEDB_URI\nSPACETIMEDB_DATABASE_NAME\nSPACETIMEDB_TOKEN" { style.fill: "#bbdefb" }
+  smtp: "SMTP_HOST\nSMTP_PORT\nSMTP_USERNAME\nSMTP_PASSWORD\nSMTP_USE_TLS" { style.fill: "#e1bee7" }
+  mail: "MAIL_MESSAGE_ID_DOMAIN\nMAIL_UNSUBSCRIBE_BASE_URL" { style.fill: "#fff9c4" }
+  observability: "OTLP_ENDPOINT\nRUST_LOG" { style.fill: "#ffe0b2" }
+}
+
+struct: "SenderConfig (config.rs)" {
+  shape: class
+  spacetimedb_uri: "String"
+  spacetimedb_database_name: "String"
+  spacetimedb_token: "Option<String>"
+  smtp_host: "String"
+  smtp_port: "u16"
+  smtp_username: "Option<String>"
+  smtp_password: "Option<String>"
+  smtp_use_tls: "bool"
+  message_id_domain: "String"
+  unsubscribe_base_url: "String"
+  otlp_endpoint: "String"
+}
+
+consumers: "Daemon Consumers" {
+  st_client: "SpacetimeDB Connection Builder" { style.fill: "#bbdefb" }
+  lettre_client: "lettre SmtpTransport" { style.fill: "#e1bee7" }
+  composer: "Message Composer (mail.rs)" { style.fill: "#fff9c4" }
+  tracer: "OpenTelemetry / Tracing Subscriber" { style.fill: "#ffe0b2" }
+}
+
+env.spacetimedb -> struct
+env.smtp -> struct
+env.mail -> struct
+env.observability -> struct
+
+struct -> consumers.st_client
+struct -> consumers.lettre_client
+struct -> consumers.composer
+struct -> consumers.tracer

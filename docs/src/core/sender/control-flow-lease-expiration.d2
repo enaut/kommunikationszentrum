@@ -1,0 +1,20 @@
+direction: down
+
+cron: "SpacetimeDB Scheduled Reducer (Every 60s)\nexpire_stale_delivery_claims" { style.fill: "#fff9c4" }
+
+check_ingress: "Check mail_ingress rows where:\nclaim.status == Processing &&\nclaim.claim_expires_at <= now" { shape: diamond }
+reset_ingress: "Requeue Ingress:\n• claim.status = Pending\n• claim_owner = None\n• claim_expires_at = UNIX_EPOCH\n• last_error = 'Lease expired — requeued'" { style.fill: "#bbdefb" }
+
+check_delivery: "Check mail_delivery_claimed rows where:\nlease_expires_at <= now" { shape: diamond }
+requeue_delivery: "Requeue Delivery:\n• Delete from mail_delivery_claimed\n• Insert into mail_delivery_pending\n• Log 'lease_expired' event in audit trail" { style.fill: "#bbdefb" }
+
+done: "Next sender worker instance\nclaims pending rows immediately" { style.fill: "#c8e6c9" }
+
+cron -> check_ingress
+check_ingress -> reset_ingress: "Stale ingress found"
+check_ingress -> check_delivery: "None stale"
+reset_ingress -> check_delivery
+
+check_delivery -> requeue_delivery: "Stale deliveries found"
+check_delivery -> done: "None stale"
+requeue_delivery -> done

@@ -1,30 +1,28 @@
 direction: down
 
-entry: "process_fanout_jobs()" { style.fill: lightyellow }
-owned: "self_owned_ingress_jobs()\nFilter local cache:\nstate=processing,\nclaim_owner=self,\nnot in in_flight set" {
+entry: "process_fanout_jobs()" { style.fill: "#fff9c4" }
+owned: "self_owned_ingress_jobs()\nFilter local cache for rows where:\nclaim.claim_owner == self &&\nclaim.instance_id == current_uuid" {
   shape: diamond
-  style.fill: white
+  style.fill: "#ffffff"
 }
-claim: "call claim_next_mail_ingress()\n(reducer → server atomically\nclaims one pending ingress)" { style.fill: lightblue }
-wait50: "sleep 50 ms\n(wait for subscription push\nto update local cache)" { style.fill: lightyellow }
-recheck: "Re-check owned jobs\n(subscription push arrived?)" {
+claim: "claim_next_mail_ingress(instance_id)\n(Server atomically leases 1 pending/expired ingress)" { style.fill: "#bbdefb" }
+wait50: "sleep 50 ms\n(Yield to allow background pump\nto receive updated row)" { style.fill: "#fff9c4" }
+recheck: "Re-check self_owned_ingress_jobs()" {
   shape: diamond
-  style.fill: white
+  style.fill: "#ffffff"
 }
-none: "No new work\nbreak inner loop" { style.fill: lightcoral }
-mark: "Add ingress.id to in_flight set\n(prevent double-processing)" { style.fill: lightgreen }
-proc: "process_ingress_job()" { style.fill: lightblue }
-err: "retry_mail_ingress()\n(error → back-off)" { style.fill: lightyellow }
-cont: "continue inner loop\n(look for more work)" { style.fill: lightgreen }
+none: "No ingress jobs available\nBreak fanout loop" { style.fill: "#ffcdd2" }
+proc: "process_ingress_job(job)" { style.fill: "#bbdefb" }
+err: "retry_mail_ingress(error)\n(Increments attempt count & schedules back-off)" { style.fill: "#ffe0b2" }
+cont: "Continue loop to process next job\n(did_work = true)" { style.fill: "#c8e6c9" }
 
 entry -> owned
-owned -> claim: "no owned jobs"
-owned -> mark: "owned jobs found"
+owned -> claim: "None owned yet"
+owned -> proc: "Owned job found"
 claim -> wait50
 wait50 -> recheck
-recheck -> none: "still none"
-recheck -> mark: "new job appeared"
-mark -> proc
+recheck -> none: "Still empty"
+recheck -> proc: "Leased job confirmed"
 proc -> err: "Err(e)"
 proc -> cont: "Ok(())"
 err -> cont

@@ -8,8 +8,8 @@ MTA: {
 Ingress: {
   shape: class
   label: "mail_ingress [Private]\n(1 per category email)"
-  state: "pending | processing | retry_scheduled | completed | failed"
-  lease: "claim_owner & claim_expires_at (10 min)"
+  claim: "pending | processing | retry_scheduled | completed | failed"
+  lease: "claim_owner, instance_id & claim_expires_at (10 min)"
 }
 
 FanOut: {
@@ -17,11 +17,22 @@ FanOut: {
   label: "Fan-Out Engine\n(Sender Daemon)"
 }
 
-Deliveries: {
+Pending: {
   shape: class
-  label: "mail_deliveries [Private]\n(1 per active subscriber)"
-  state: "queued | sending | retry_scheduled | sent | failed | bounced"
-  lease: "claim_owner & claim_expires_at (5 min)"
+  label: "mail_delivery_pending [Private]\n(Queued for SMTP delivery)"
+  keys: "id (ingress:sub:email), next_attempt_at"
+}
+
+Claimed: {
+  shape: class
+  label: "mail_delivery_claimed [Private]\n(Active Worker Lease)"
+  lease: "worker, instance_id & lease_expires_at (5 min)"
+}
+
+Done: {
+  shape: class
+  label: "mail_delivery_done [Private]\n(Terminal records)"
+  state: "sent | failed | bounced"
 }
 
 Audit: {
@@ -31,5 +42,8 @@ Audit: {
 
 MTA -> Ingress: "POST /mta-hook (DATA stage)"
 Ingress -> FanOut: "Claim ingress lease"
-FanOut -> Deliveries: "Generate subscriber deliveries"
-Deliveries -> Audit: "Log attempt & SMTP response"
+FanOut -> Pending: "enqueue_mail_delivery()"
+Pending -> Claimed: "claim_next_mail_delivery()"
+Claimed -> Done: "mark_sent() / fail() / bounce()"
+Claimed -> Audit: "Log attempt & SMTP response"
+Claimed -> Pending: "schedule_retry() / lease_expired" { style.stroke-dash: 5 }

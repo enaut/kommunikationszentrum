@@ -1,25 +1,26 @@
 direction: down
 
-entry: "process_delivery_jobs()" { style.fill: lightyellow }
-owned: "self_owned_delivery_jobs()\nstate=sending,\nclaim_owner=self,\nnot in in_flight" {
+entry: "process_delivery_jobs()" { style.fill: "#fff9c4" }
+owned: "self_owned_delivery_jobs()\nFilter sender_mail_delivery_claimed for:\nworker == self && instance_id == current_uuid" {
   shape: diamond
-  style.fill: white
+  style.fill: "#ffffff"
 }
-claim: "claim_next_mail_delivery()\n(reducer atomically claims one)" { style.fill: lightblue }
-wait50: "sleep 50 ms" { style.fill: lightyellow }
-reck: "Re-check owned\ndeliveries" {
+claim: "claim_next_mail_delivery(instance_id)\n(Server moves 1 row: pending → claimed)" { style.fill: "#bbdefb" }
+wait50: "sleep 50 ms\n(Yield to background pump)" { style.fill: "#fff9c4" }
+recheck: "Re-check self_owned_delivery_jobs()" {
   shape: diamond
-  style.fill: white
+  style.fill: "#ffffff"
 }
-none2: "No work\nbreak" { style.fill: lightcoral }
-mark2: "Add delivery.id\nto in_flight set" { style.fill: lightgreen }
-send: "send_delivery()" { style.fill: lightblue }
-cont2: "continue loop" { style.fill: lightgreen }
+none: "No delivery jobs available\nBreak delivery loop" { style.fill: "#ffcdd2" }
+send: "send_delivery(connection, transport, delivery)" { style.fill: "#bbdefb" }
+cont: "Continue loop to claim next\n(did_work = true)" { style.fill: "#c8e6c9" }
 
 entry -> owned
-owned -> claim: "none owned"
-owned -> mark2: "owned found"
-claim -> wait50 -> reck
-reck -> none2: "still none"
-reck -> mark2: "appeared"
-mark2 -> send -> cont2 -> owned
+owned -> claim: "None owned yet"
+owned -> send: "Owned delivery found"
+claim -> wait50
+wait50 -> recheck
+recheck -> none: "Still empty"
+recheck -> send: "Leased delivery confirmed"
+send -> cont
+cont -> owned

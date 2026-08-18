@@ -1,87 +1,56 @@
 # Control Flow
 
-This page describes the complete runtime control flow of the sender daemon, from startup to
-shutdown, including the reactive event loop, fan-out algorithm, SMTP dispatch, and error
-handling.
+This page details the runtime control flow of the `sender` daemon, including startup, the end-to-end delivery lifecycle, reactive event looping, fan-out processing, SMTP dispatch, and automated crash recovery.
 
 ---
 
-## 1. Startup Sequence
+## 1. End-to-End Delivery Lifecycle
 
-Startup is a linear sequence of steps that initializes the daemon and connects to SpacetimeDB.
+The entire sequence from MTA hook ingestion through SpacetimeDB table transitions to SMTP submission:
+
+```d2
+{{#include control-flow-lifecycle-sequence.d2}}
+```
+
+---
+
+## 2. Startup Sequence
+
+The daemon initializes tracing, connects to SpacetimeDB, subscribes to views, spawns the background connection pump, registers table callbacks, and triggers a bootstrap doorbell.
 
 ```d2
 {{#include control-flow-startup-sequence.d2}}
 ```
 
-### Key Startup Steps
-
-1. **Config** — `SenderConfig::from_env()` reads all `SMTP_*`, `SPACETIMEDB_*`, and
-   `OTLP_*` variables.
-2. **Tracing** — OpenTelemetry OTLP exporters (spans + logs) are initialized and bridged into
-   `tracing`. The `RUST_LOG` env filter controls log verbosity.
-3. **Connection** — `DbConnection::builder()` connects to SpacetimeDB. If `SPACETIMEDB_TOKEN`
-   is set, the connection authenticates with the sender's saved identity; otherwise an anonymous
-   one is created.
-4. **Subscriptions** — Five SQL queries are registered. SpacetimeDB populates the local cache
-   with the matching rows and pushes incremental updates as rows change.
-5. **DB pump** — `connection.run_async()` drives the SpacetimeDB client's internal I/O loop.
-   It runs as a pinned Tokio future alongside the main event loop.
-6. **Callbacks** — `on_insert` and `on_update` callbacks on both ingress and delivery tables
-   call `notify.notify_one()` to wake the work loop when data changes.
-7. **SMTP transport** — `build_transport()` creates a `lettre::SmtpTransport` (reused for all
-   deliveries; connection pooling is managed internally by lettre).
-8. **Bootstrap notify** — `notify.notify_one()` is called once immediately to process any
-   backlogged work that was waiting before the daemon restarted.
-
 ---
 
-## 2. Main Event Loop
+## 3. Main Reactive Work Loop
 
-The daemon runs a `tokio::select!` loop with three branches:
-
-```rust
-loop {
-    tokio::select! {
-        db_res = &mut database_pump => { /* DB pump terminated — fatal error, break */ }
-        _ = &mut shutdown_signal   => { /* Ctrl+C — graceful shutdown, break */ }
-        _ = notify.notified()      => { /* Work available — process */ }
-    }
-}
-```
-
-graphically:
+The event loop multiplexes shutdown signals and reactive database update notifications using `tokio::select!`.
 
 ```d2
 {{#include control-flow-main-event-loop.d2}}
 ```
 
-> **Chain reaction:** If `process_fanout_jobs` or `process_delivery_jobs` reports that it did
-> useful work, `notify_one()` is called again immediately. This drains any backlog without
-> sleeping — the loop keeps running until there is nothing left to claim.
+> **Chain Reaction:** When `process_fanout_jobs` or `process_delivery_jobs` completes a unit of work, `notify.notify_one()` is immediately triggered again to drain backlogs without sleeping.
 
 ---
 
-## 3. Fan-Out: `process_fanout_jobs`
+## 4. Ingress Fan-Out Flow (`process_fanout_jobs`)
 
-Fan-out converts a `MailIngress` (one received email per mailing list) into multiple
-`MailDelivery` records (one per subscriber).
+Fan-out reads inbound `MailIngress` jobs and generates individual `MailDeliveryPending` rows for all active subscribers:
 
 ```d2
 {{#include control-flow-fanout-jobs.d2}}
 ```
 
-### `process_ingress_job`
-
-For each claimed ingress:
+### Ingress Job Processing (`process_ingress_job`)
 
 ```d2
 {{#include control-flow-ingress-job.d2}}
 ```
 
-### `process_subscription_job`
-
-For each subscriber:
+### Subscriber Job Processing (`process_subscription_job`)
 
 ```d2
 {{#include control-flow-subscription-job.d2}}
@@ -89,79 +58,63 @@ For each subscriber:
 
 ---
 
-## 4. Delivery Dispatch: `process_delivery_jobs`
+## 5. Delivery Dispatch Pipeline (`process_delivery_jobs`)
 
-After fan-out creates `MailDelivery` rows in `queued` state, the delivery loop claims and
-submits them via SMTP.
+Queued deliveries are claimed atomically, converted to RFC 5321 envelopes, and dispatched via SMTP:
 
 ```d2
 {{#include control-flow-delivery-jobs.d2}}
 ```
 
-### `send_delivery`
+### SMTP Execution & Status Classification (`send_delivery`)
 
 ```d2
 {{#include control-flow-send-delivery.d2}}
 ```
 
-**Error classification** (`mail.rs`):
-- `is_permanent_error` — `SmtpError::is_permanent()` (5xx)
-- `is_transient_error` — `SmtpError::is_transient()` or `is_timeout()` (4xx / network)
-- Anything else — treated as transient (schedule retry)
+### Backoff & Retry Strategy
 
----
+When SMTP returns transient errors (4xx or network timeouts), deliveries are requeued with exponential backoff:
 
-## 5. Message Composition: `compose_delivery`
-
-`compose_delivery` in `mail.rs` builds the complete outbound RFC 5322 message for a single
-subscriber. It sets the following mailing list headers:
-
-| Header | Value |
+| Attempt | Backoff Delay |
 |---|---|
-| `From` | `category.email_address` (the list address) |
-| `To` | `subscription.subscriber_email` |
-| `Reply-To` | `ingress.sender_email` (original sender) |
-| `Subject` | `[ListName]: <original subject>` (prefix added if not already present) |
-| `Message-ID` | `<ingress_id-sub_email@message_id_domain>` |
-| `Date` | Current UTC time (RFC 2822) |
-| `List-Id` | `ListName <list@domain>` |
-| `List-Post` | `<mailto:list@domain>` |
-| `List-Unsubscribe` | `<mailto:list?subject=unsubscribe>, <https://…?token=…>` |
-| `List-Unsubscribe-Post` | `List-Unsubscribe=One-Click` |
-| `Precedence` | `list` |
-| `Sender` | `category.email_address` |
-| `X-Mailing-List` | `ListName` |
-| `X-BeenThere` | `category.email_address` |
-
-The raw SMTP message is `headers (CRLF) + CRLF + ingress.body_raw`. The body is taken
-verbatim from the original `MailIngress` — no MIME re-encoding is performed.
+| 1 | 30 seconds |
+| 2 | 2 minutes |
+| 3 | 10 minutes |
+| 4 | 30 minutes |
+| 5 | 60 minutes |
+| > 5 | 12 hours (marked `failed` after max attempts) |
 
 ---
 
-## 6. In-Flight Tracking & Race Prevention
+## 6. Lease Expiration & Crash Recovery
 
-A key subtlety: after calling `claim_next_mail_ingress()`, the SpacetimeDB subscription update
-arrives asynchronously. If the main notify fires again before that update arrives, the local
-cache might still show the row as `pending`, causing the claim loop to attempt a double-claim.
+If a daemon crashes while holding an active ingress or delivery lease, SpacetimeDB's scheduled cleanup recycler automatically recovers the work:
 
-The `in_flight_ingresses` and `in_flight_deliveries` `HashSet`s prevent this:
-
+```d2
+{{#include control-flow-lease-expiration.d2}}
 ```
-1. claim_next_mail_ingress() called
-2. ingress.id added to in_flight BEFORE looking at owned jobs
-3. Subscription push arrives → on_update callback fires
-4. If row left "processing" state → id removed from in_flight
-5. Next loop iteration: self_owned_ingress_jobs filters out in_flight IDs
-```
+
+- **Ingress Lease Duration:** 10 minutes (`claim_expires_at`).
+- **Delivery Lease Duration:** 5 minutes (`lease_expires_at`).
+- **Recycle Cron:** Every 60 seconds via `expire_stale_delivery_claims`.
 
 ---
 
-## 7. Shutdown
+## 7. Outbound Message Headers
 
-Shutdown is triggered by `SIGINT` (Ctrl+C) via `tokio::signal::ctrl_c()`. On receipt:
-1. The `select!` loop exits.
-2. The OpenTelemetry tracer and logger providers are flushed and shut down.
-3. The process exits with `Ok(())`.
+`compose_delivery` in `mail.rs` constructs RFC 5322 messages with standardized mailing list headers:
 
-In-flight work is not cancelled — any partially processed ingress will have its lease expire
-and be re-claimed on the next daemon startup.
+| Header | Value | Description |
+|---|---|---|
+| `From` | `category.name <category.email_address>` | List address |
+| `To` | `subscription.subscriber_email` | Individual recipient address |
+| `Reply-To` | `original_sender_email` | Direct replies to original author |
+| `Subject` | `[ListName] <original_subject>` | List prefix ensured |
+| `Message-ID` | `<seed@domain>` | Unique generated ID |
+| `List-Id` | `ListName <category.email_address>` | RFC 2919 List Identifier |
+| `List-Post` | `<mailto:category.email_address>` | Posting address |
+| `List-Unsubscribe` | `<mailto:...>, <https://.../unsubscribe?token=...>` | One-click & HTTPS unsubscribe |
+| `List-Unsubscribe-Post` | `List-Unsubscribe=One-Click` | RFC 8058 one-click support |
+| `Precedence` | `list` | Legacy mailing list marker |
+| `X-BeenThere` | `category.email_address` | Loop prevention header |

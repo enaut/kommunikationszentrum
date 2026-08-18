@@ -1,16 +1,17 @@
 direction: right
 
-start: "send_delivery(delivery)" { style.fill: lightyellow }
-env: "Build SMTP Envelope\n(from=sender_email,\nto=recipient_email)" { shape: diamond }
-pre_err: "fail_mail_delivery()\nerror_kind='pre-smtp'" { style.fill: lightcoral }
-smtp: "transport.send_raw(envelope,\nraw_message.as_bytes())" { style.fill: lightblue }
-ok: "mark_mail_delivery_sent()\nstatus=200+, smtp_response" { style.fill: lightgreen }
-perm: "fail_mail_delivery()\nerror_kind='smtp-permanent'" { style.fill: lightcoral }
-trans: "schedule_mail_delivery_retry()\nerror_kind='smtp-transient'\nor 'smtp-unknown'" { style.fill: lightyellow }
+start: "send_delivery(claimed)" { style.fill: "#fff9c4" }
+env: "Parse RFC 5321 Envelope\nFrom: original_sender_email\nTo: recipient_email" { shape: diamond }
+pre_err: "fail_mail_delivery()\nerror_kind='pre-smtp'" { style.fill: "#ffcdd2" }
+smtp: "transport.send_raw(\nenvelope,\nclaimed.raw_message.as_bytes())" { style.fill: "#bbdefb" }
+
+ok: "mark_mail_delivery_sent()\n• Move: claimed → done ('sent')\n• Log event ('sent')" { style.fill: "#c8e6c9" }
+perm: "fail_mail_delivery()\n• Move: claimed → done ('failed')\n• Log event ('failed')" { style.fill: "#ffcdd2" }
+trans: "schedule_mail_delivery_retry()\n• Move: claimed → pending (backoff)\n• If attempts >= 5 → done ('failed')" { style.fill: "#ffe0b2" }
 
 start -> env
-env -> pre_err: "parse error"
-env -> smtp: "ok"
-smtp -> ok: "2xx"
-smtp -> perm: "5xx (permanent)"
-smtp -> trans: "4xx / timeout /\nunknown"
+env -> pre_err: "Invalid address"
+env -> smtp: "Valid envelope"
+smtp -> ok: "2xx (Success)"
+smtp -> perm: "5xx (Permanent failure)"
+smtp -> trans: "4xx / Timeout / Transient"
