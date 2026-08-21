@@ -2,8 +2,10 @@ use chrono::Utc;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::Error as SmtpError;
 use lettre::SmtpTransport;
+use regex::Regex;
 use serde_json::to_string;
 use std::error::Error;
+use tracing::trace;
 
 use crate::config::SenderConfig;
 use crate::module_bindings::{
@@ -64,6 +66,8 @@ pub fn compose_delivery(
     let date = Utc::now().to_rfc2822();
     let unsubscribe_url = format!("{}?token={}", config.unsubscribe_base_url, token.token);
 
+    trace!("Writing list-mail for {list_email} to {recipient_email}");
+
     let headers = vec![
         ("From".to_string(), list_email.clone()),
         ("To".to_string(), recipient_email.clone()),
@@ -102,16 +106,81 @@ fn sanitize_header_value(value: &str) -> String {
     value.replace(['\r', '\n'], "")
 }
 
+/// Regex matching a single leading reply/forward tag, with optional
+/// bracketed/parenthesized counter like "RE[2]:" or "FW(3):", and optional
+/// space before the colon.
+fn tag_re() -> &'static Regex {
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r"(?ix)
+            ^\s*
+            (?P<tag>re|aw|sv|rif|res|tr|rv|wg|fwd|fw)
+            (?:\s*[\[\(]\s*\d+\s*[\]\)])?   # optional [2] or (2)
+            \s*:\s*
+            ",
+        )
+        .unwrap()
+    })
+}
+
+fn is_forward_tag(tag: &str) -> bool {
+    matches!(
+        tag.to_ascii_lowercase().as_str(),
+        "fwd" | "fw" | "wg" | "tr" | "rv"
+    )
+}
+
+/// Strips all leading Re/Fwd-style prefixes (any supported locale, any order,
+/// any count) and reports whether a reply and/or forward tag was seen.
+fn strip_reply_fwd_prefixes(subject: &str) -> (bool, bool, &str) {
+    let mut rest = subject;
+    let mut saw_reply = false;
+    let mut saw_fwd = false;
+
+    while let Some(caps) = tag_re().captures(rest) {
+        let tag = &caps["tag"];
+        if is_forward_tag(tag) {
+            saw_fwd = true;
+        } else {
+            saw_reply = true;
+        }
+        let m = caps.get(0).unwrap();
+        rest = &rest[m.end()..];
+    }
+
+    (saw_reply, saw_fwd, rest)
+}
+
 fn rewrite_subject(list_name: &str, subject: &str) -> String {
-    let prefix = format!("{list_name}: ");
-    let lower_subject = subject.to_ascii_lowercase();
+    let prefix = format!("[{list_name}]: ");
     let lower_prefix = prefix.to_ascii_lowercase();
 
-    if lower_subject.starts_with(&lower_prefix) {
-        subject.to_string()
-    } else {
-        format!("{prefix}{subject}")
+    let (saw_reply, saw_fwd, core) = strip_reply_fwd_prefixes(subject);
+
+    // Canonical, deduped reply/fwd marker (Re: before Fwd:, matching the
+    // usual convention of "reply to a forward").
+    let mut canonical_tags = String::new();
+    if saw_reply {
+        canonical_tags.push_str("Re: ");
     }
+    if saw_fwd {
+        canonical_tags.push_str("Fwd: ");
+    }
+
+    let new_subject;
+
+    let lower_core = core.to_ascii_lowercase();
+    if lower_core.starts_with(&lower_prefix) {
+        // Replace whatever casing/spacing variant was there with the
+        // canonical prefix, keeping everything after it untouched.
+        let rest_after_tag = &core[prefix.len()..];
+        new_subject = format!("{canonical_tags}{prefix}{rest_after_tag}");
+    } else {
+        new_subject = format!("{canonical_tags}{prefix}{core}")
+    }
+    trace!("New subject: {new_subject}");
+    new_subject
 }
 
 fn render_raw_message(headers: &[(String, String)], body: &str) -> String {
