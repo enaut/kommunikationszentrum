@@ -218,17 +218,11 @@ pub fn active_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
 /// every subscriber's token to build one-click unsubscribe links); regular
 /// users get an empty list.
 #[spacetimedb::view(accessor = active_unsubscribe_tokens, public)]
-pub fn active_unsubscribe_tokens(ctx: &ViewContext) -> Vec<SubscriptionUnsubscribeToken> {
-    if !is_admin_user(ctx) {
-        return vec![];
-    }
-    // Uses the `created_at` B-tree index as a full-range scan, then filters in Rust.
-    ctx.db
+pub fn active_unsubscribe_tokens(ctx: &ViewContext) -> impl Query<SubscriptionUnsubscribeToken> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from
         .subscription_unsubscribe_tokens()
-        .created_at()
-        .filter(Timestamp::UNIX_EPOCH..)
-        .filter(|token| token.active)
-        .collect()
+        .r#where(move |t| t.active.eq(true).and(t.active.eq(is_admin)))
 }
 
 /// Returns all message categories once the caller has an associated account
@@ -427,11 +421,7 @@ pub fn set_category_topics(
 
 /// Renames an existing topic. Admin-only; used by the category detail tag editor.
 #[spacetimedb::reducer]
-pub fn rename_topic(
-    ctx: &ReducerContext,
-    topic_id: u64,
-    new_name: String,
-) -> Result<(), String> {
+pub fn rename_topic(ctx: &ReducerContext, topic_id: u64, new_name: String) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
     }
@@ -525,7 +515,7 @@ pub(crate) fn do_add_subscription(
             .ok_or_else(|| "Subscription insert failed".to_string())?
     };
 
-    let token = upsert_subscription_unsubscribe_token(ctx, subscription.id)?;
+    let token = upsert_subscription_unsubscribe_token(ctx, subscription.id);
     log::info!(
         "Added subscription for account {} (token: {})",
         subscriber_account_id,
@@ -873,10 +863,7 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
     Ok(())
 }
 
-fn upsert_subscription_unsubscribe_token(
-    ctx: &ReducerContext,
-    subscription_id: u64,
-) -> Result<String, String> {
+fn upsert_subscription_unsubscribe_token(ctx: &ReducerContext, subscription_id: u64) -> String {
     if let Some(existing) = ctx
         .db
         .subscription_unsubscribe_tokens()
@@ -884,7 +871,7 @@ fn upsert_subscription_unsubscribe_token(
         .find(&subscription_id)
     {
         if existing.active {
-            return Ok(existing.token);
+            return existing.token;
         }
 
         let mut updated = existing.clone();
@@ -895,7 +882,7 @@ fn upsert_subscription_unsubscribe_token(
             .subscription_unsubscribe_tokens()
             .token()
             .update(updated.clone());
-        return Ok(updated.token);
+        return updated.token;
     }
 
     let token = format!("sub-{subscription_id}-{:032x}", ctx.random::<u128>());
@@ -908,7 +895,7 @@ fn upsert_subscription_unsubscribe_token(
             active: true,
             revoked_at: Timestamp::UNIX_EPOCH,
         });
-    Ok(token)
+    token
 }
 
 fn deactivate_subscription_unsubscribe_token(ctx: &ReducerContext, subscription_id: u64) {
@@ -929,11 +916,8 @@ fn deactivate_subscription_unsubscribe_token(ctx: &ReducerContext, subscription_
 }
 
 #[spacetimedb::reducer]
-pub fn ensure_subscription_unsubscribe_token(
-    ctx: &ReducerContext,
-    subscription_id: u64,
-) -> Result<(), String> {
-    upsert_subscription_unsubscribe_token(ctx, subscription_id).map(|_| ())
+pub fn ensure_subscription_unsubscribe_token(ctx: &ReducerContext, subscription_id: u64) -> () {
+    upsert_subscription_unsubscribe_token(ctx, subscription_id);
 }
 
 pub(crate) fn unsubscribe_subscription_by_token(

@@ -383,12 +383,60 @@ fn require_ingress_claimed_by_me(
 }
 
 #[spacetimedb::reducer]
+pub fn increment_mail_ingress_delivery_count(
+    ctx: &ReducerContext,
+    ingress_id: String,
+    instance_id: String,
+) -> Result<(), String> {
+    let mut ingress = ctx
+        .db
+        .mail_ingress()
+        .id()
+        .find(&ingress_id)
+        .ok_or_else(|| format!("MailIngress {} not found", ingress_id))?;
+
+    if ingress.claim.instance_id != Some(instance_id.to_string()) {
+        return Err(format!(
+            "MailIngress {} not claimed by {}",
+            ingress_id, instance_id
+        ));
+    }
+
+    ingress.delivery_count = ingress.delivery_count.saturating_add(1);
+    ctx.db.mail_ingress().id().update(ingress);
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn increment_mail_ingress_failed_delivery_count(
+    ctx: &ReducerContext,
+    ingress_id: String,
+    instance_id: String,
+) -> Result<(), String> {
+    let mut ingress = ctx
+        .db
+        .mail_ingress()
+        .id()
+        .find(&ingress_id)
+        .ok_or_else(|| format!("MailIngress {} not found", ingress_id))?;
+
+    if ingress.claim.instance_id != Some(instance_id.to_string()) {
+        return Err(format!(
+            "MailIngress {} not claimed by {}",
+            ingress_id, instance_id
+        ));
+    }
+
+    ingress.failed_delivery_count = ingress.failed_delivery_count.saturating_add(1);
+    ctx.db.mail_ingress().id().update(ingress);
+    Ok(())
+}
+
+#[spacetimedb::reducer]
 pub fn complete_mail_ingress(
     ctx: &ReducerContext,
     ingress_id: String,
     instance_id: String,
-    delivery_count: u32,
-    failed_delivery_count: u32,
 ) -> Result<(), String> {
     if !is_admin_identity(ctx, ctx.sender()) {
         return Err(format!("Unauthorized: {:?}", ctx.sender()));
@@ -396,8 +444,6 @@ pub fn complete_mail_ingress(
     let mut row = require_ingress_claimed_by_me(ctx, &ingress_id, &instance_id)?;
 
     row.claim.status = DeliveryStatus::Completed;
-    row.delivery_count = delivery_count;
-    row.failed_delivery_count = failed_delivery_count;
     row.claim.last_error = None;
     row.claim.claim_owner = None;
     row.claim.instance_id = None;
@@ -894,7 +940,9 @@ pub fn expire_stale_delivery_claims(
         .db
         .mail_ingress()
         .iter()
-        .filter(|row| row.claim.status == DeliveryStatus::Processing && row.claim.claim_expires_at <= now)
+        .filter(|row| {
+            row.claim.status == DeliveryStatus::Processing && row.claim.claim_expires_at <= now
+        })
         .collect();
 
     for mut ingress in stale_ingress {
