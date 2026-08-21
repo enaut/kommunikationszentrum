@@ -24,3 +24,36 @@ git clone git@github.com:enaut/kommunikationszentrum.git
 * change listener port to 8093
 * create users
 * setup mta-webhook
+
+# tasks
+
+ctrl+shift+p→open tasks
+
+```json
+[
+  {
+    "label": "Start SoLaWiS",
+    "command": "/path/to/python /path/to/solawispielplatz/src/manage.py runserver", # get env pythonpath with `which python`
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "hide": "never",
+    "show_summary": true,
+    "show_command": true,
+    "save": "all",
+  },
+  {
+    "label": "Start SpacetimeDB",
+    "command": "spacetime start",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "hide": "never",
+    "show_summary": true,
+    "show_command": true,
+    "save": "all",
+  },
+]
+```
