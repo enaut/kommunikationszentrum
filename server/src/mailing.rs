@@ -1007,7 +1007,7 @@ pub fn provision_message_category(
                 "@type": "User",
                 "name": email_address.split("@").next(),
                 "description": name,
-                "domainId": "c",
+                "domainId": "b",
                 "roles": {
                   "@type": "User"
                 },
