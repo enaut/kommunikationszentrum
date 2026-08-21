@@ -27,7 +27,7 @@ sender: "Sender Service\n(Email Sending)" {
 
 
 
-core.admin_ui -> core.spacetimedb: "WebSocket\nSubscriptions" {
+core.admin_ui <-> core.spacetimedb: "WebSocket\nSubscriptions" {
   style.stroke: blue
 }
 core.admin_ui -> external.django: "OAuth\nLogin" {
@@ -41,5 +41,5 @@ external.django -> core.spacetimedb: "User Sync (HTTP)\nvia admin command\nand v
 }
 core.sender -> external.stalwart: "Send Email"
 core.sender -> core.spacetimedb: "Store Email Status"
-core.sender -> core.spacetimedb: "Process Email (Fanout)"
+core.sender <-> core.spacetimedb: "Process Email (Fanout)"
 core.spacetimedb -> core.sender: "Load memberships"

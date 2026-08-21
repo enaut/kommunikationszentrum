@@ -44,7 +44,7 @@ All persistence is executed inside `ctx.with_tx(...)` transactions to keep opera
 
 - External callers must present `Authorization: Bearer <token>` headers with a token that has the `mta-hook` permission.
 
-- Tokens are created with the `create_webhook_token` reducer and stored only as a BLAKE3 hash in the `webhook_tokens` table.
+- Tokens are created via the web admin interface or via the `spacetime call` CLI.
 
 ## Error handling
 
@@ -57,15 +57,6 @@ Errors fall into the following categories:
 ## Testing
 
 - Use `docs/testscripts/test-mta-hooks.sh` to exercise the MTA stages. The script posts to the module route and includes the required bearer token via the `WEBHOOK_TOKEN` environment variable.
-
-- Example curl for the DATA stage:
-
-```bash
-curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d @test_data/data_stage_hook.json
-```
 
 ## Database integration
 

@@ -1,23 +1,31 @@
 direction: right
 
-categories: "MessageCategory\nid: 1\nname: \"SoLaWi News\"\nemail_address: \"news@solawi.org\"\nactive: true"
-subscriptions: "Subscription\nid: 101\ncategory_id: 1\nsubscriber_email: \"member@example.com\"\nactive: true"
+categories: "MessageCategory" {
+    shape: sql_table
+    id: 1
+    name: "SoLaWi News"
+    email_address: "news@solawis.de"
+    active: true
+}
+subscriptions: "Subscription"{
+    shape: sql_table
+    id: 101
+    category_id: 1
+    subscriber_email: "member@example.com"
+    active: true
+}
 
-subscriptions -> categories: "category_id → id" {
+subscriptions.category_id -> categories.id: "category_id → id" {
   style.stroke: blue
 }
-
-user1: "member@example.com" { shape: oval }
-user2: "volunteer@example.com" { shape: oval }
-user3: "admin@example.com" { shape: oval }
-
-user1 -> subscriptions: "subscribes to"
-user2 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
-user3 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
-
 subscribers: "Subscribers" {
+  shape: cloud
   style.fill: "#e8f5e9"
-  user1
-  user2
-  user3
+  user1: "member@example.com" { shape: oval }
+  user2: "volunteer@example.com" { shape: oval }
+  user3: "admin@example.com" { shape: oval }
 }
+
+subscribers.user1 -> subscriptions: "subscribes to"
+subscribers.user2 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
+subscribers.user3 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }

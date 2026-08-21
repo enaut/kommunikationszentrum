@@ -105,25 +105,33 @@ stalwart-mail --config /etc/stalwart-mail/config.toml --dry-run
 Verify that Stalwart can reach the module route (use the token the module expects):
 
 ```bash
-curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{
+curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook"   -H "Content-Type: application/json"   -H "Authorization: Bearer <token>"   -d '{
     "context": {
-      "stage": "connect",
+      "stage": "ehlo",
       "client": {
-        "ip": "127.0.0.1",
-        "helo": "test.example.com"
+        "ip": "192.168.1.100",
+        "port": 12345,
+        "ptr": "client.example.org",
+        "helo": "client.example.org",
+        "activeConnections": 1
+      },
+      "server": {
+        "name": "Test MTA",
+        "port": 25,
+        "ip": "192.168.1.1"
+      },
+      "protocol": {
+        "version": 1
       }
-    }
+    },
+    "envelope": null,
+    "message": null
   }'
 ```
 
 Expected response:
 ```json
-{
-  "action": "accept"
-}
+{"action":"accept","response":null,"modifications":[]}
 ```
 
 # Next Steps

@@ -14,11 +14,53 @@ stages: "MTA Hook Stages" {
 
 tables: "Database Tables" {
   style.fill: "#e3f2fd"
-  blocked_ips_tbl: "blocked_ips\n• ip (PK)\n• reason\n• blocked_at\n• active"
-  mta_conn_log_tbl: "mta_connection_log\n• id (PK)\n• client_ip\n• stage\n• action\n• timestamp"
-  mta_msg_log_tbl: "mta_message_log\n• id (PK)\n• from_address\n• to_addresses\n• subject\n• message_size"
-  categories_tbl: "message_categories\n• id (PK)\n• name\n• email_address\n• active"
-  subscriptions_tbl: "subscriptions\n• id (PK)\n• subscriber_email\n• category_id (FK)\n• active"
+
+  blocked_ips_tbl: "blocked_ips" {
+    shape: sql_table
+    style.fill: darkblue
+    ip: "ip (PK)"
+    reason: "reason"
+    blocked_at: "blocked_at"
+    active: "active"
+  }
+
+  mta_conn_log_tbl: "mta_connection_log" {
+    shape: sql_table
+    style.fill: cyan
+    id: "id (PK)"
+    client_ip: "client_ip"
+    stage: "stage"
+    action: "action"
+    timestamp: "timestamp"
+  }
+
+  mta_msg_log_tbl: "mta_message_log" {
+    shape: sql_table
+    style.fill: green
+    id: "id (PK)"
+    from_address: "from_address"
+    to_addresses: "to_addresses"
+    subject: "subject"
+    message_size: "message_size"
+  }
+
+  categories_tbl: "message_categories" {
+    shape: sql_table
+    style.fill: yellow
+    id: "id (PK)"
+    name: "name"
+    email_address: "email_address"
+    active: "active"
+  }
+
+  subscriptions_tbl: "subscriptions" {
+    shape: sql_table
+    style.fill: lavender
+    id: "id (PK)"
+    subscriber_email: "subscriber_email"
+    category_id: "category_id (FK)"
+    active: "active"
+  }
 }
 
 logic: "Processing Logic" {
@@ -45,34 +87,34 @@ actions: "Possible Actions" {
   }
 }
 
-connect -> ip_check
-ip_check -> blocked_ips_tbl: "lookup" { style.stroke: red }
-ip_check -> mta_conn_log_tbl: "log result" { style.stroke: blue }
+stages.connect -> logic.ip_check
+logic.ip_check -> tables.blocked_ips_tbl: "lookup" { style.stroke: red }
+logic.ip_check -> tables.mta_conn_log_tbl: "log result" { style.stroke: blue }
 
-ehlo -> email_validation
-email_validation -> mta_conn_log_tbl: "log result" { style.stroke: blue }
 
-mail -> email_validation
+logic.email_validation -> tables.mta_conn_log_tbl: "log result" { style.stroke: blue }
 
-rcpt -> category_check
-category_check -> categories_tbl: "lookup" { style.stroke: green }
-category_check -> mta_conn_log_tbl: "log result" { style.stroke: blue }
+stages.mail -> logic.email_validation
 
-data -> subscription_check
-subscription_check -> subscriptions_tbl: "lookup" { style.stroke: green }
-subscription_check -> categories_tbl: "lookup" { style.stroke: green }
-subscription_check -> final_decision
+stages.rcpt -> logic.category_check
+logic.category_check -> tables.categories_tbl: "lookup" { style.stroke: green }
+logic.category_check -> tables.mta_conn_log_tbl: "log result" { style.stroke: blue }
 
-final_decision -> mta_msg_log_tbl: "log message" { style.stroke: blue }
+stages.data -> logic.subscription_check
+logic.subscription_check -> tables.subscriptions_tbl: "lookup" { style.stroke: green }
+logic.subscription_check -> tables.categories_tbl: "lookup" { style.stroke: green }
+logic.subscription_check -> logic.final_decision
 
-auth -> mta_conn_log_tbl: "log auth" { style.stroke: blue }
+logic.final_decision -> tables.mta_msg_log_tbl: "log message" { style.stroke: blue }
 
-subscriptions_tbl -> categories_tbl: "category_id → id" {
+stages.auth -> tables.mta_conn_log_tbl: "log auth" { style.stroke: blue }
+
+tables.subscriptions_tbl -> tables.categories_tbl: "category_id → id" {
   style.stroke: purple
 }
 
-final_decision -> accept: "subscribed" { style.stroke: green }
-final_decision -> quarantine: "not subscribed" { style.stroke: orange }
-ip_check -> reject: "blocked IP" { style.stroke: red }
-email_validation -> reject: "invalid format" { style.stroke: red }
-category_check -> reject: "invalid category" { style.stroke: red }
+logic.final_decision -> actions.accept: "subscribed" { style.stroke: green }
+logic.final_decision -> actions.quarantine: "not subscribed" { style.stroke: orange }
+logic.ip_check -> actions.reject: "blocked IP" { style.stroke: red }
+logic.email_validation -> actions.reject: "invalid format" { style.stroke: red }
+logic.category_check -> actions.reject: "invalid category" { style.stroke: red }
