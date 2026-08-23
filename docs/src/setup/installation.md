@@ -1,6 +1,7 @@
 # Setup & Installation
 
 ```bash
+sudo dnf install b3sum
 curl -f https://zed.dev/install.sh | sh
 curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 curl -fsSL https://d2lang.com/install.sh | sh -s -- --tala
@@ -59,9 +60,9 @@ ctrl+shift+p→open tasks
 ```
 
 ```bash
-937  curl -sSf https://install.spacetimedb.com | sh # install spacetime
-938  spacetime login
-939  spacetime login show --token # show login token → put it in the django settings
-941  openssl genrsa -out oidc_private.pem 4096 # generate oidc private key
-942  cat oidc_private.pem # show oidc private key → put it in the django settings
+curl -sSf https://install.spacetimedb.com | sh # install spacetime
+spacetime logspacetime server set-default local
+spacetime login show --token # show login token → put it in the django settings
+openssl genrsa -out oidc_private.pem 4096 # generate oidc private key
+cat oidc_private.pem # show oidc private key → put it in the django settings
 ```

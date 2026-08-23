@@ -88,7 +88,7 @@ TOKEN_HASH=$(echo -n "$TOKEN" | b3sum --no-names)
 # Or, using the Admin UI token management page
 
 # 3. Register the hash with the module
-spacetime call kommunikationszentrum create_webhook_token \
+spacetime call kommunikation create_webhook_token \
   "$TOKEN_HASH" \
   "Stalwart MTA hook" \
   '["mta-hook"]'
@@ -104,7 +104,7 @@ TOKEN_HASH=$(echo -n "$TOKEN" | b3sum --no-names)
 # Or, using the Admin UI token management page
 
 # 3. Register the hash with the module
-spacetime call kommunikationszentrum create_webhook_token \
+spacetime call kommunikation create_webhook_token \
   "$TOKEN_HASH" \
   "Sync User Token" \
   '["sync-user"]'
@@ -113,7 +113,7 @@ spacetime call kommunikationszentrum create_webhook_token \
 ### Revoke a Token
 
 ```bash
-spacetime call kommunikationszentrum revoke_webhook_token "$TOKEN_HASH"
+spacetime call kommunikation revoke_webhook_token "$TOKEN_HASH"
 ```
 
 ### Available Permissions
