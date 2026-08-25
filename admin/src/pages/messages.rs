@@ -4,7 +4,7 @@ use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
-    use_subscription, use_table_sender_mail_messages, use_table_visible_message_categories, 
+    use_subscription, use_table_sender_mail_messages, use_table_visible_message_categories,
     use_table_visible_messages, use_table_visible_subscriptions,
 };
 use crate::module_bindings::{MailMessage, ReceivedMessage};
@@ -22,39 +22,39 @@ impl MessageWithContent {
     fn subject(&self) -> String {
         self.mail_message.subject.clone()
     }
-    
+
     fn from_header(&self) -> String {
         self.mail_message.from_header.clone()
     }
-    
+
     fn category_email(&self) -> String {
         self.received_message.category_email.clone()
     }
-    
+
     fn category_id(&self) -> u64 {
         self.received_message.category_id
     }
-    
+
     fn received_at(&self) -> Timestamp {
         self.received_message.received_at
     }
-    
+
     fn cc_header(&self) -> Option<String> {
         self.mail_message.cc_header.clone()
     }
-    
+
     fn date_header(&self) -> Option<String> {
         self.mail_message.date_header.clone()
     }
-    
+
     fn message_id(&self) -> Option<String> {
         self.mail_message.message_id.clone()
     }
-    
+
     fn reply_to(&self) -> Option<String> {
         self.mail_message.reply_to.clone()
     }
-    
+
     fn body_raw(&self) -> String {
         self.mail_message.body_raw.clone()
     }
@@ -137,7 +137,8 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let messages_with_content: Vec<MessageWithContent> = received_messages()
         .into_iter()
         .filter_map(|received_msg| {
-            mail_messages().iter()
+            mail_messages()
+                .iter()
                 .find(|mail_msg| mail_msg.id == received_msg.mail_message_id)
                 .map(|mail_msg| MessageWithContent {
                     received_message: received_msg,
@@ -176,7 +177,12 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         .filter(|m| filter_category().map_or(true, |cat| m.category_id() == cat))
         .collect();
 
-    let selected_msg = selected_id().and_then(|id| filtered.iter().find(|m| m.received_message.id == id).cloned());
+    let selected_msg = selected_id().and_then(|id| {
+        filtered
+            .iter()
+            .find(|m| m.received_message.id == id)
+            .cloned()
+    });
 
     rsx! {
         Container { fluid: true, class: "mt-4",

@@ -6,7 +6,8 @@ use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
     use_procedure_provision_message_category, use_reducer_remove_message_category,
-    use_subscription, use_table_visible_message_categories, use_table_visible_subscriptions,
+    use_subscription, use_table_visible_domains, use_table_visible_message_categories,
+    use_table_visible_subscriptions,
 };
 use crate::module_bindings::CategoryVisibility;
 use crate::pages::category_detail::CategoryDetailPage;
@@ -17,9 +18,11 @@ pub fn CategoriesPage() -> Element {
     use_subscription(&[
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
+        "SELECT * FROM visible_domains",
     ]);
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
+    let domains = use_table_visible_domains();
     // New generated hook returns (invoke, result_signal).
     let (add_invoke, add_result) = use_procedure_provision_message_category();
     let remove_category = use_reducer_remove_message_category();
@@ -28,7 +31,9 @@ pub fn CategoriesPage() -> Element {
     let mut selected_category: Signal<Option<u64>> = use_signal(|| None);
 
     let mut name = use_signal(String::new);
-    let mut email_address = use_signal(String::new);
+    let mut email_local = use_signal(String::new);
+    let mut selected_domain: Signal<Option<String>> = use_signal(|| None);
+    let mut domain_dropdown_open = use_signal(|| false);
     let mut description = use_signal(String::new);
     let mut visibility = use_signal(|| CategoryVisibility::Public);
     let add_error: Signal<Option<(String, Color)>> = use_signal(|| None);
@@ -38,7 +43,9 @@ pub fn CategoriesPage() -> Element {
     {
         let mut add_result = add_result.clone();
         let mut name = name.clone();
-        let mut email_address = email_address.clone();
+        let mut email_local = email_local.clone();
+        let mut selected_domain = selected_domain.clone();
+        let mut domain_dropdown_open = domain_dropdown_open.clone();
         let mut description = description.clone();
         let mut add_error = add_error.clone();
         let mut is_sending = is_sending.clone();
@@ -51,7 +58,9 @@ pub fn CategoriesPage() -> Element {
                     Ok(inner) => match inner {
                         Ok(()) => {
                             name.set(String::new());
-                            email_address.set(String::new());
+                            email_local.set(String::new());
+                            selected_domain.set(None);
+                            domain_dropdown_open.set(false);
                             description.set(String::new());
                             visibility.set(CategoryVisibility::Public);
                             add_error.set(Some((
@@ -125,12 +134,68 @@ pub fn CategoriesPage() -> Element {
                                 }
                                 Col { md: ColumnSize::Span(4),
                                     label { class: "form-label", "E-Mail-Adresse" }
-                                    input {
-                                        class: "form-control",
-                                        r#type: "email",
-                                        placeholder: "thema@example.com",
-                                        value: "{email_address}",
-                                        oninput: move |e| email_address.set(e.value()),
+                                    if domain_dropdown_open() {
+                                        div {
+                                            style: "position: fixed; inset: 0; z-index: 990;",
+                                            onclick: move |_| domain_dropdown_open.set(false),
+                                        }
+                                    }
+                                    div {
+                                        class: "input-group",
+                                        style: if domain_dropdown_open() { "position: relative; z-index: 991;" } else { "" },
+                                        input {
+                                            class: "form-control",
+                                            r#type: "text",
+                                            placeholder: "postfach",
+                                            value: "{email_local}",
+                                            oninput: move |e| email_local.set(e.value()),
+                                        }
+                                        span { class: "input-group-text", "@" }
+                                        button {
+                                            class: if domain_dropdown_open() { "btn btn-outline-secondary dropdown-toggle show" } else { "btn btn-outline-secondary dropdown-toggle" },
+                                            r#type: "button",
+                                            "aria-expanded": if domain_dropdown_open() { "true" } else { "false" },
+                                            onclick: move |evt: MouseEvent| {
+                                                evt.stop_propagation();
+                                                domain_dropdown_open.set(!domain_dropdown_open());
+                                            },
+                                            if let Some(ref d) = *selected_domain.read() {
+                                                "{d}"
+                                            } else {
+                                                "Domain…"
+                                            }
+                                        }
+                                        ul {
+                                            class: if domain_dropdown_open() { "dropdown-menu dropdown-menu-end show" } else { "dropdown-menu dropdown-menu-end" },
+                                            style: if domain_dropdown_open() { "position: absolute; right: 0; top: 100%; z-index: 992; display: block;" } else { "" },
+                                            onclick: move |_| domain_dropdown_open.set(false),
+                                            if domains().is_empty() {
+                                                li {
+                                                    span { class: "dropdown-item text-muted", "Keine Domains verfügbar" }
+                                                }
+                                            } else {
+                                                for domain in domains() {
+                                                    {
+                                                        let domain_name = domain.name.clone();
+                                                        let domain_name_click = domain_name.clone();
+                                                        rsx! {
+                                                            li {
+                                                                button {
+                                                                    class: "dropdown-item",
+                                                                    r#type: "button",
+                                                                    onclick: move |e: MouseEvent| {
+                                                                        e.stop_propagation();
+                                                                        selected_domain.set(Some(domain_name_click.clone()));
+                                                                        domain_dropdown_open.set(false);
+                                                                    },
+                                                                    "{domain_name}"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 Col { md: ColumnSize::Span(3),
@@ -170,14 +235,19 @@ pub fn CategoriesPage() -> Element {
                                     Button {
                                         color: Color::Primary,
                                         class: "w-100",
-                                        disabled: name.read().is_empty() || email_address.read().is_empty() || *is_sending.read(),
+                                        disabled: name.read().is_empty()
+                                            || email_local.read().is_empty()
+                                            || selected_domain.read().is_none()
+                                            || *is_sending.read(),
                                         onclick: {
                                             let add = add_invoke.clone();
                                             let mut is_sending = is_sending.clone();
                                             let visibility_signal = visibility.clone();
                                             move |_| {
                                                 let n = name.read().clone();
-                                                let e = email_address.read().clone();
+                                                let local = email_local.read().clone();
+                                                let domain = selected_domain.read().clone().unwrap_or_default();
+                                                let e = format!("{local}@{domain}");
                                                 let d = description.read().clone();
                                                 let v = visibility_signal.read().clone();
                                                 is_sending.set(true);

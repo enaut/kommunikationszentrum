@@ -8,7 +8,8 @@ use crate::module_bindings::dioxus::{
     use_connection_error, use_connection_state, use_reducer_create_webhook_token,
     use_reducer_dump_mta_logs_to_server_logs, use_reducer_register_admin_identity,
     use_reducer_revoke_webhook_token, use_reducer_unregister_admin_identity, use_subscription,
-    use_table_visible_admin_identities, use_table_visible_webhook_tokens, ConnectionState,
+    use_table_visible_admin_identities, use_table_visible_domains,
+    use_table_visible_webhook_tokens, use_procedure_sync_stalwart_domains, ConnectionState,
 };
 use crate::oauth::UserInfo;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
@@ -19,15 +20,18 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_admin_identities",
         "SELECT * FROM visible_webhook_tokens",
+        "SELECT * FROM visible_domains",
     ]);
     let state = use_connection_state();
     let conn_error = use_connection_error();
     let admin_identities = use_table_visible_admin_identities();
+    let domains = use_table_visible_domains();
     let register_admin = use_reducer_register_admin_identity();
     let unregister_admin = use_reducer_unregister_admin_identity();
     let dump_logs = use_reducer_dump_mta_logs_to_server_logs();
     let create_webhook_token = use_reducer_create_webhook_token();
     let revoke_webhook_token = use_reducer_revoke_webhook_token();
+    let (sync_domains_invoke, sync_domains_result) = use_procedure_sync_stalwart_domains();
 
     let admin_tokens = use_table_visible_webhook_tokens();
 
@@ -405,6 +409,108 @@ pub fn DebugPage(user_info: UserInfo) -> Element {
 
                             p { class: "small text-muted mt-2", "The token plaintext is shown only once in the browser and is not sent to the server. The server stores only a BLAKE3 hash."}
                         }
+                    }
+                }
+            }
+
+            // Domains card
+            Row { class: "mt-4",
+                Col { xs: ColumnSize::Span(12),
+                    Card {
+                        class: "shadow-sm",
+                        header_class: "bg-primary text-white",
+                        header: rsx! {
+                            h5 { class: "card-title mb-0 d-flex justify-content-between align-items-center",
+                                span {
+                                    Icon { name: "globe", class: "me-2" }
+                                    "Domains"
+                                    span { class: "badge bg-white text-primary ms-2", "{domains().len()}" }
+                                }
+                                Button {
+                                    color: Color::Light,
+                                    size: Size::Sm,
+                                    class: "ms-2",
+                                    onclick: {
+                                        let sync = sync_domains_invoke.clone();
+                                        move |_| {
+                                            info!("Triggering sync_stalwart_domains");
+                                            sync();
+                                        }
+                                    },
+                                    Icon { name: "arrow-repeat", class: "me-1" }
+                                    "Jetzt synchronisieren"
+                                }
+                            }
+                        },
+                        body: rsx! {
+                            if let Some(result) = sync_domains_result() {
+                                match result {
+                                    Ok(Ok(r)) => rsx! {
+                                        Alert {
+                                            color: Color::Success,
+                                            class: "mb-3 d-flex align-items-start",
+                                            Icon { name: "check-circle", class: "me-2 mt-1 flex-shrink-0" }
+                                            span {
+                                                "Synchronisierung abgeschlossen: "
+                                                strong { "{r.domains_found}" } " gefunden, "
+                                                strong { "{r.domains_added}" } " hinzugefügt, "
+                                                strong { "{r.domains_updated}" } " aktualisiert, "
+                                                strong { "{r.domains_removed}" } " entfernt."
+                                            }
+                                        }
+                                    },
+                                    Ok(Err(proc_err)) => rsx! {
+                                        Alert {
+                                            color: Color::Danger,
+                                            class: "mb-3 d-flex align-items-start",
+                                            Icon { name: "exclamation-circle", class: "me-2 mt-1 flex-shrink-0" }
+                                            "{proc_err}"
+                                        }
+                                    },
+                                    Err(internal_err) => rsx! {
+                                        Alert {
+                                            color: Color::Danger,
+                                            class: "mb-3 d-flex align-items-start",
+                                            Icon { name: "exclamation-circle", class: "me-2 mt-1 flex-shrink-0" }
+                                            "Interner Fehler: {internal_err}"
+                                        }
+                                    },
+                                }
+                            }
+                            if domains().is_empty() {
+                                p { class: "text-muted mb-0",
+                                    Icon { name: "inbox", class: "me-2" }
+                                    "Keine Domains vorhanden. Bitte synchronisieren."
+                                }
+                            } else {
+                                div { class: "table-responsive",
+                                    table { class: "table table-hover mb-0",
+                                        thead { class: "table-light",
+                                            tr {
+                                                th { "ID" }
+                                                th { "Name" }
+                                                th { "Beschreibung" }
+                                            }
+                                        }
+                                        tbody {
+                                            for domain in domains() {
+                                                tr {
+                                                    td { code { "{domain.id}" } }
+                                                    td { strong { "{domain.name}" } }
+                                                    td { class: "text-muted",
+                                                        if let Some(ref desc) = domain.description {
+                                                            "{desc}"
+                                                        } else {
+                                                            "–"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
                     }
                 }
             }

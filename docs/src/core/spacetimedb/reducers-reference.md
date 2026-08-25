@@ -46,6 +46,7 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `set_category_topics` | Admin | `category_id: u64, topic_names: Vec<String>` | Replaces a category's topic assignments, creating missing `topics` rows as needed. |
 | `rename_topic` | Admin | `topic_id: u64, new_name: String` | Renames an existing topic. |
 | `provision_message_category` **`[Procedure]`** | Admin | `name: String, email_address: String, description: String, visibility: CategoryVisibility` | Inserts category into DB **and** calls Stalwart JMAP REST API to create mailbox. |
+| `sync_stalwart_domains` **`[Procedure]`** | Admin/Owner | _(none)_ | Queries Stalwart JMAP REST API (`x:Domain/query`, `x:Domain/get`) and synchronizes domains into the `domains` table. |
 | `subscribe` | User/Admin | `subscriber_account_id: u64, subscriber_email: String, category_id: u64` | Subscribes account to a category (`ManuallySubscribed`). |
 | `unsubscribe` | User/Admin | `subscription_id: u64` | Unsubscribes account (`ManuallyUnsubscribed`). |
 | `unsubscribe_by_token` | Public | `token: String` | Processes one-click `List-Unsubscribe-Post` HTTP link (`LinkUnsubscribed`). |

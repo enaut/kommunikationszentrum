@@ -85,6 +85,14 @@ direction: down
     active: "bool"
     revoked_at: "Timestamp"
   }
+
+  domains: {
+    shape: sql_table
+    label: "domains [Private]"
+    id: "String" {constraint: primary_key}
+    name: "String" {constraint: unique}
+    description: "Option<String>"
+  }
 }
 
 "MTA Audit & Processing": {

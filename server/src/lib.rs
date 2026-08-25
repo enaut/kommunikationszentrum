@@ -8,6 +8,7 @@ use delivery::ExpireStaleDeliveryClaimsSchedule;
 
 mod account;
 mod delivery;
+mod domain;
 mod http_handlers;
 mod mail_message;
 mod mailing;

@@ -309,7 +309,9 @@ fn mailing_list_unsubscribe_handler(
     }
 
     let token = match query_param_token(&request) {
-        Some(token) => urlencoding::decode(&token).map(|s| s.into_owned()).unwrap_or(token),
+        Some(token) => urlencoding::decode(&token)
+            .map(|s| s.into_owned())
+            .unwrap_or(token),
         None => return json_response(400, json!({"error": "missing token query parameter"})),
     };
 
