@@ -34,20 +34,25 @@ cp .env.example .env
 
 The system consists of four main components:
 
-```
-┌─────────────────┐    ┌─────────────────┐
-│   Admin Web UI  │    │   SpacetimeDB   │
-│   (Dioxus)      │◄──►│   (Database)    │
-│   Port 8080     │    │   Port 3000     │
-└─────────────────┘    └─────────────────┘
-         │                       ▲
-         │                       │
-         ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐
-│ OAuth Provider  │    │ Stalwart MTA    │
-│ solawispielplatz│    │   (External)    │
-│ Django Port 8000│    └─────────────────┘
-└─────────────────┘
+```mermaid
+graph TD
+    %% Node Definitions
+    Admin["Admin Web UI<br>(Dioxus)<br>Port 8080"]
+    DB["Database<br>(SpacetimeDB)<br>Port 3000"]
+    OAuth["ExternalOAuth Provider<br>(solawispielplatz)<br>Django Port 8000"]
+    MTA["Stalwart MTA<br>(External)"]
+    Sender["Email Sender<br>(Rust-daemon)"]
+
+    %% Connections
+    Admin <--> DB
+    Admin --> OAuth
+    Admin --> Sender
+    DB <--> MTA
+    DB <--> Sender
+
+    %% Styling (Optional but keeps it clean and square)
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
+
 ```
 
 ### Components
