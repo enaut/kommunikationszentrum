@@ -2,80 +2,32 @@
 
 A Community Supported Agriculture (SoLaWi) email management system that processes and routes emails based on user subscriptions to mailing list categories.
 
+The main documentation is available at: [![Documentation](https://github.com/enaut/kommunikationszentrum/actions/workflows/deploy-docs.yaml/badge.svg)](https://github.com/enaut/kommunikationszentrum/actions/workflows/deploy-docs.yaml)
+
 ## Quick Start
 
-### Automated Development Setup
-
-The easiest way to start all development services is to use the vscode tasks.
-
-This will automatically start all required services:
-- SpacetimeDB Server (port 3000)
-- Django Backend (port 8000)
-- Admin Web UI (port 8080)
-
 ### Service Management
+It could make sense to create local zed tasks to start spacetimedb and solawis in the user settings (ctrl+shift+p→open tasks) see also: https://enaut.github.io/kommunikationszentrum/setup/installation.html.
 
-```bash
-# Check service status
-make status
+Some zed-editor tasks are defined in the project settings:
 
-# View recent logs
-make logs
-
-# Follow logs in real-time  
-make logs-follow
-
-# Stop all services
-make stop
-
-# Restart everything
-make restart
-
-# Clean up logs and stop services
-make clean
-```
-
-### VS Code Integration
-
-If you're using VS Code:
-1. Open the workspace: `kommunikationszentrum.code-workspace`
-2. Use **Ctrl+Shift+P** → "Tasks: Run Task" → "Start All Development Services"
-3. Or use **F5** to start with debugging support
-
-## Configuration
-
-The system supports flexible configuration via environment variables, following the [12-factor app](https://12factor.net/) methodology.
+#### externals
+1. start Django-Solawis
+1. start SpacetimeDB
+#### Zed tasks
+1. "Publish spacetime module"
+1. "Start Sender" (Starting the email sender that interacts with stalwart and spacetimedb)
+1. "Start Grafana" (Starting Grafana for log reading)
+1. "Start Dioxus" (Starting the admin interface)
+1. "Serve Docs" (Optional to read the docs)
 
 ### Environment Variables
 
-Create a `.env` file in the project root based on `.env.example`:
+In the `.env` directory are some example files for the different purposes. Rename `*.example` to `*` and adjust the values as needed.
 
 ```bash
 cp .env.example .env
 ```
-
-Key configuration variables:
-
-#### SpacetimeDB Configuration
-- `SPACETIMEDB_URI` - SpacetimeDB server URI (default: `http://localhost:3000`)
-- `SPACETIMEDB_MODULE_NAME` - Module name (default: `kommunikation`)
-
-#### OAuth/Authentication Configuration
-- `DJANGO_BASE_URL` - Django OAuth provider base URL (default: `http://127.0.0.1:8000`)
-- `OIDC_ISSUER_URL` - OAuth issuer URL (default: `http://127.0.0.1:8000/o`)
-- `OIDC_CLIENT_ID` - OAuth client ID (default: `admin-app`)
-- `ADMIN_REDIRECT_URI` - OAuth redirect URI (default: `http://127.0.0.1:8080/callback`)
-- `OAUTH_SCOPES` - OAuth scopes (default: `openid profile email`)
-
-#### Development vs Production
-
-For local development, use defaults from `.env.example`.
-
-For production deployments, see `.env.production.example` for guidance on production-appropriate values.
-
-### Configuration Loading
-- **Admin Web UI**: Loads configuration in browser from environment variables set during build
-- **Server Module**: Uses compile-time environment variables for SpacetimeDB WASM module
 
 ## Architecture Overview
 
@@ -110,7 +62,6 @@ The system consists of four main components:
 - [Rust](https://rustup.rs/) with `wasm32-unknown-unknown` target
 - [SpacetimeDB CLI](https://spacetimedb.com/install)
 - [Dioxus CLI](https://dioxuslabs.com/learn/0.6/getting_started): `cargo install dioxus-cli`
-- Python 3.x with Django environment at `/home/dietrich/.envs/Solawis/current/bin/python`
 
 ### Manual Service Startup
 
@@ -147,31 +98,6 @@ cd /home/dietrich/Projekte/Source/solawispielplatz
 /home/dietrich/.envs/Solawis/current/bin/python src/manage.py sync_users_to_spacetimedb
 ```
 
-## Development Commands
-
-```bash
-# Build all Rust components
-make build
-
-# Run tests
-make test
-
-# Sync users manually
-make sync-users
-
-# Reset database (DESTRUCTIVE!)
-make reset-db
-
-# Start documentation server
-make dev-docs
-```
-
-## Service URLs
-
-- **Admin Web UI**: http://localhost:8080
-- **Django Backend**: http://localhost:8000
-- **SpacetimeDB**: http://localhost:3000
-
 ## Documentation
 
 Complete documentation is available in the `docs/` directory:
@@ -179,26 +105,4 @@ Complete documentation is available in the `docs/` directory:
 ```bash
 # Start documentation server
 cd docs && mdbook serve --open
-```
-
-## Troubleshooting
-
-### Port Conflicts
-If you encounter port conflicts, check which services are running:
-```bash
-make status
-```
-
-### Service Logs
-View detailed logs for debugging:
-```bash
-make logs          # Recent logs
-make logs-follow   # Real-time logs
-```
-
-### Clean Restart
-For a complete clean restart:
-```bash
-make clean
-make start
 ```
