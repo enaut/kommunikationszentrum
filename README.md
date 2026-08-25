@@ -2,19 +2,20 @@
 
 A Community Supported Agriculture (SoLaWi) email management system that processes and routes emails based on user subscriptions to mailing list categories.
 
-The main documentation is available at: [![Documentation](https://github.com/enaut/kommunikationszentrum/actions/workflows/deploy-docs.yaml/badge.svg)](https://github.com/enaut/kommunikationszentrum/actions/workflows/deploy-docs.yaml)
+The main documentation is available at: [![Documentation](https://github.com/enaut/kommunikationszentrum/actions/workflows/deploy-docs.yaml/badge.svg)](https://enaut.github.io/kommunikationszentrum/)
 
 ## Quick Start
 
 ### Service Management
 It could make sense to create local zed tasks to start spacetimedb and solawis in the user settings (ctrl+shift+p→open tasks) see also: https://enaut.github.io/kommunikationszentrum/setup/installation.html.
 
-Some zed-editor tasks are defined in the project settings:
-
-#### externals
+#### Externals
 1. start Django-Solawis
 1. start SpacetimeDB
+
 #### Zed tasks
+Some zed-editor tasks are defined in the project settings:
+
 1. "Publish spacetime module"
 1. "Start Sender" (Starting the email sender that interacts with stalwart and spacetimedb)
 1. "Start Grafana" (Starting Grafana for log reading)
