@@ -1,8 +1,8 @@
+use crate::account::{account, account__view, is_admin_identity, is_admin_user, Account};
+use crate::domain::domains as _;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use spacetimedb::{Query, ReducerContext, SpacetimeType, Table, Timestamp, ViewContext};
-
-use crate::account::{account, account__view, is_admin_identity, is_admin_user, Account};
 
 // Private: clients never subscribe to this table directly. `visible_message_categories`
 // below is the only way clients can read category rows.
@@ -954,13 +954,14 @@ pub(crate) fn unsubscribe_subscription_by_token(
 pub fn provision_message_category(
     ctx: &mut spacetimedb::ProcedureContext,
     name: String,
-    email_address: String,
+    base: String,
+    domain_id: String,
     description: String,
     visibility: CategoryVisibility,
 ) -> Result<(), String> {
     info!(
-        "Provisioning a new Category: {}, {}, {}",
-        name, email_address, description
+        "Provisioning a new Category: name={}, base={}, domain_id={}, description={}",
+        name, base, domain_id, description
     );
     // 1) Authorization check: capture the procedure caller identity and check inside a transaction
     let caller = ctx.sender();
@@ -973,7 +974,12 @@ pub fn provision_message_category(
 
     info!("User has required permissions!");
 
-    // 2) Ensure category doesn't already exist
+    // 2) Look up domain to construct the full email address
+    let domain = ctx.with_tx(|tx| tx.db.domains().id().find(&domain_id));
+    let domain = domain.ok_or_else(|| format!("Domain with id '{}' not found", domain_id))?;
+    let email_address = format!("{}@{}", base.trim(), domain.name.trim());
+
+    // 3) Ensure category doesn't already exist
     let exists: bool = ctx.with_tx(|tx| {
         tx.db
             .message_categories()
@@ -990,7 +996,7 @@ pub fn provision_message_category(
         ));
     }
 
-    // 3) Read compile-time configuration for JMAP URL and admin token
+    // 4) Read compile-time configuration for JMAP URL and admin token
     let jmap_base = env!("STALWART_JMAP_URL");
     let admin_token = env!("STALWART_ADMIN_TOKEN");
 
@@ -1000,14 +1006,14 @@ pub fn provision_message_category(
         format!("{}/jmap", jmap_base.trim_end_matches('/'))
     };
 
-    // 4) Build JMAP payload
+    // 5) Build JMAP payload: base -> username, name -> fullname/description, domain_id -> domainId
     let create_map = serde_json::json!({
         "create": {
             "create-1": {
                 "@type": "User",
-                "name": email_address.split("@").next(),
-                "description": name,
-                "domainId": "b",
+                "name": base.trim(),
+                "description": name.trim(),
+                "domainId": domain_id,
                 "roles": {
                   "@type": "User"
                 },
@@ -1053,7 +1059,7 @@ pub fn provision_message_category(
         .body(body)
         .map_err(|e| format!("Failed to build HTTP request: {:?}", e))?;
     info!("request created!");
-    // 5) Perform HTTP request
+    // 6) Perform HTTP request
     let response = ctx.http.send(request).map_err(|e| {
         error!("Failed to perform request: {}", e);
         format!("HTTP send failed: {:?}", e)

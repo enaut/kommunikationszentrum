@@ -10,7 +10,8 @@ use super::category_visibility_type::CategoryVisibility;
 #[sats(crate = __lib)]
 struct ProvisionMessageCategoryArgs {
     pub name: String,
-    pub email_address: String,
+    pub base: String,
+    pub domain_id: String,
     pub description: String,
     pub visibility: CategoryVisibility,
 }
@@ -27,13 +28,15 @@ pub trait provision_message_category {
     fn provision_message_category(
         &self,
         name: String,
-        email_address: String,
+        base: String,
+        domain_id: String,
         description: String,
         visibility: CategoryVisibility,
     ) {
         self.provision_message_category_then(
             name,
-            email_address,
+            base,
+            domain_id,
             description,
             visibility,
             |_, _| {},
@@ -43,7 +46,8 @@ pub trait provision_message_category {
     fn provision_message_category_then(
         &self,
         name: String,
-        email_address: String,
+        base: String,
+        domain_id: String,
         description: String,
         visibility: CategoryVisibility,
 
@@ -57,7 +61,8 @@ impl provision_message_category for super::RemoteProcedures {
     fn provision_message_category_then(
         &self,
         name: String,
-        email_address: String,
+        base: String,
+        domain_id: String,
         description: String,
         visibility: CategoryVisibility,
 
@@ -70,7 +75,8 @@ impl provision_message_category for super::RemoteProcedures {
                 "provision_message_category",
                 ProvisionMessageCategoryArgs {
                     name,
-                    email_address,
+                    base,
+                    domain_id,
                     description,
                     visibility,
                 },

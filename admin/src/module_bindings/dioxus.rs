@@ -4130,7 +4130,7 @@ pub fn use_reducer_update_message_category_async() -> impl Fn(
 /// on failure once the server responds.
 #[must_use]
 pub fn use_procedure_provision_message_category() -> (
-    impl Fn(String, String, String, CategoryVisibility) + Clone + 'static,
+    impl Fn(String, String, String, String, CategoryVisibility) + Clone + 'static,
     SyncSignal<Option<Result<Result<(), String>, String>>>,
 ) {
     let conn_signal = use_connection();
@@ -4138,7 +4138,8 @@ pub fn use_procedure_provision_message_category() -> (
         use_signal_sync(|| None);
 
     let invoke = move |name: String,
-                       email_address: String,
+                       base: String,
+                       domain_id: String,
                        description: String,
                        visibility: CategoryVisibility| {
         let mut result = result;
@@ -4147,7 +4148,8 @@ pub fn use_procedure_provision_message_category() -> (
             let (tx, rx) = oneshot::channel();
             conn.procedures.provision_message_category_then(
                 name,
-                email_address,
+                base,
+                domain_id,
                 description,
                 visibility,
                 move |_ctx, res| {
@@ -4175,6 +4177,7 @@ pub fn use_procedure_provision_message_category_async() -> impl Fn(
     String,
     String,
     String,
+    String,
     CategoryVisibility,
 ) -> std::pin::Pin<
     Box<dyn std::future::Future<Output = Result<Result<(), String>, String>>>,
@@ -4183,7 +4186,8 @@ pub fn use_procedure_provision_message_category_async() -> impl Fn(
     let conn_signal = use_connection();
 
     move |name: String,
-          email_address: String,
+          base: String,
+          domain_id: String,
           description: String,
           visibility: CategoryVisibility|
           -> std::pin::Pin<
@@ -4197,7 +4201,8 @@ pub fn use_procedure_provision_message_category_async() -> impl Fn(
             let (tx, rx) = oneshot::channel();
             conn.procedures.provision_message_category_then(
                 name,
-                email_address,
+                base,
+                domain_id,
                 description,
                 visibility,
                 move |_ctx, res| {

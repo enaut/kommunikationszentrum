@@ -1,8 +1,7 @@
+use crate::account::{is_admin_identity, is_admin_user};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use spacetimedb::{ProcedureContext, Query, SpacetimeType, Table, ViewContext};
-
-use crate::account::{is_admin_identity, is_admin_user};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[spacetimedb::table(accessor = domains)]

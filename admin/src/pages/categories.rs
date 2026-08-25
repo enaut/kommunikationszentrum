@@ -31,8 +31,8 @@ pub fn CategoriesPage() -> Element {
     let mut selected_category: Signal<Option<u64>> = use_signal(|| None);
 
     let mut name = use_signal(String::new);
-    let mut email_local = use_signal(String::new);
-    let mut selected_domain: Signal<Option<String>> = use_signal(|| None);
+    let mut base = use_signal(String::new);
+    let mut selected_domain: Signal<Option<(String, String)>> = use_signal(|| None);
     let mut domain_dropdown_open = use_signal(|| false);
     let mut description = use_signal(String::new);
     let mut visibility = use_signal(|| CategoryVisibility::Public);
@@ -43,7 +43,7 @@ pub fn CategoriesPage() -> Element {
     {
         let mut add_result = add_result.clone();
         let mut name = name.clone();
-        let mut email_local = email_local.clone();
+        let mut base = base.clone();
         let mut selected_domain = selected_domain.clone();
         let mut domain_dropdown_open = domain_dropdown_open.clone();
         let mut description = description.clone();
@@ -58,7 +58,7 @@ pub fn CategoriesPage() -> Element {
                     Ok(inner) => match inner {
                         Ok(()) => {
                             name.set(String::new());
-                            email_local.set(String::new());
+                            base.set(String::new());
                             selected_domain.set(None);
                             domain_dropdown_open.set(false);
                             description.set(String::new());
@@ -134,32 +134,24 @@ pub fn CategoriesPage() -> Element {
                                 }
                                 Col { md: ColumnSize::Span(4),
                                     label { class: "form-label", "E-Mail-Adresse" }
-                                    if domain_dropdown_open() {
-                                        div {
-                                            style: "position: fixed; inset: 0; z-index: 990;",
-                                            onclick: move |_| domain_dropdown_open.set(false),
-                                        }
-                                    }
-                                    div {
-                                        class: "input-group",
-                                        style: if domain_dropdown_open() { "position: relative; z-index: 991;" } else { "" },
+                                    div { class: "input-group",
                                         input {
                                             class: "form-control",
                                             r#type: "text",
                                             placeholder: "postfach",
-                                            value: "{email_local}",
-                                            oninput: move |e| email_local.set(e.value()),
+                                            value: "{base}",
+                                            oninput: move |e| base.set(e.value()),
                                         }
                                         span { class: "input-group-text", "@" }
                                         button {
                                             class: if domain_dropdown_open() { "btn btn-outline-secondary dropdown-toggle show" } else { "btn btn-outline-secondary dropdown-toggle" },
                                             r#type: "button",
                                             "aria-expanded": if domain_dropdown_open() { "true" } else { "false" },
-                                            onclick: move |evt: MouseEvent| {
+                                            onclick: move |evt| {
                                                 evt.stop_propagation();
-                                                domain_dropdown_open.set(!domain_dropdown_open());
+                                                domain_dropdown_open.toggle();
                                             },
-                                            if let Some(ref d) = *selected_domain.read() {
+                                            if let Some((_, ref d)) = *selected_domain.read() {
                                                 "{d}"
                                             } else {
                                                 "Domain…"
@@ -167,8 +159,8 @@ pub fn CategoriesPage() -> Element {
                                         }
                                         ul {
                                             class: if domain_dropdown_open() { "dropdown-menu dropdown-menu-end show" } else { "dropdown-menu dropdown-menu-end" },
-                                            style: if domain_dropdown_open() { "position: absolute; right: 0; top: 100%; z-index: 992; display: block;" } else { "" },
-                                            onclick: move |_| domain_dropdown_open.set(false),
+                                            style: if domain_dropdown_open() { "position: absolute; inset: 0px 0px auto auto; margin: 0px; transform: translate(0px, 40px);" } else { "" },
+                                            "data-popper-placement": "bottom-end",
                                             if domains().is_empty() {
                                                 li {
                                                     span { class: "dropdown-item text-muted", "Keine Domains verfügbar" }
@@ -176,16 +168,15 @@ pub fn CategoriesPage() -> Element {
                                             } else {
                                                 for domain in domains() {
                                                     {
+                                                        let domain_id = domain.id.clone();
                                                         let domain_name = domain.name.clone();
-                                                        let domain_name_click = domain_name.clone();
                                                         rsx! {
                                                             li {
                                                                 button {
                                                                     class: "dropdown-item",
                                                                     r#type: "button",
-                                                                    onclick: move |e: MouseEvent| {
-                                                                        e.stop_propagation();
-                                                                        selected_domain.set(Some(domain_name_click.clone()));
+                                                                    onclick: move |_| {
+                                                                        selected_domain.set(Some((domain_id.clone(), domain_name.clone())));
                                                                         domain_dropdown_open.set(false);
                                                                     },
                                                                     "{domain_name}"
@@ -208,8 +199,8 @@ pub fn CategoriesPage() -> Element {
                                         oninput: move |e| description.set(e.value()),
                                     }
                                 }
-                                Col { md: ColumnSize::Span(2),
-                                    label { class: "form-label", "Sichtbarkeit" }
+                                Col { md: ColumnSize::Span(1),
+                                    label { class: "form-label", "Sichtbar" }
                                     select {
                                         class: "form-select",
                                         onchange: move |e| {
@@ -236,7 +227,7 @@ pub fn CategoriesPage() -> Element {
                                         color: Color::Primary,
                                         class: "w-100",
                                         disabled: name.read().is_empty()
-                                            || email_local.read().is_empty()
+                                            || base.read().is_empty()
                                             || selected_domain.read().is_none()
                                             || *is_sending.read(),
                                         onclick: {
@@ -245,13 +236,12 @@ pub fn CategoriesPage() -> Element {
                                             let visibility_signal = visibility.clone();
                                             move |_| {
                                                 let n = name.read().clone();
-                                                let local = email_local.read().clone();
-                                                let domain = selected_domain.read().clone().unwrap_or_default();
-                                                let e = format!("{local}@{domain}");
+                                                let b = base.read().clone();
+                                                let (domain_id, _) = selected_domain.read().clone().unwrap_or_default();
                                                 let d = description.read().clone();
                                                 let v = visibility_signal.read().clone();
                                                 is_sending.set(true);
-                                                add(n, e, d, v);
+                                                add(n, b, domain_id, d, v);
                                             }
                                         },
                                         Icon { name: "plus-lg" }
