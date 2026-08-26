@@ -2,6 +2,7 @@ use chrono::Utc;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::Error as SmtpError;
 use lettre::SmtpTransport;
+use opentelemetry::trace;
 use regex::Regex;
 use serde_json::to_string;
 use std::error::Error;
@@ -44,6 +45,8 @@ pub fn compose_delivery(
     category: &MessageCategory,
     token: &SubscriptionUnsubscribeToken,
 ) -> Result<(String, String), Box<dyn Error>> {
+    trace!("Composing delivery for {ingress_id}");
+
     let list_email = category.email_address.clone();
     let list_name = if category.name.trim().is_empty() {
         category
@@ -55,6 +58,7 @@ pub fn compose_delivery(
     } else {
         category.name.clone()
     };
+    trace!("List email: {list_email}, list name: {list_name}");
     let recipient_email = subscription.subscriber_email.clone();
     let subject = rewrite_subject(&list_name, &message.subject);
     let reply_to = message.sender_email.clone();
@@ -65,6 +69,7 @@ pub fn compose_delivery(
     );
     let date = Utc::now().to_rfc2822();
     let unsubscribe_url = format!("{}?token={}", config.unsubscribe_base_url, token.token);
+    trace!("Unsubscribe url {unsubscribe_url}");
 
     trace!("Writing list-mail for {list_email} to {recipient_email}");
 
@@ -134,6 +139,8 @@ fn is_forward_tag(tag: &str) -> bool {
 /// Strips all leading Re/Fwd-style prefixes (any supported locale, any order,
 /// any count) and reports whether a reply and/or forward tag was seen.
 fn strip_reply_fwd_prefixes(subject: &str) -> (bool, bool, &str) {
+    trace!("Strip reply/fwd prefixes from {subject}");
+
     let mut rest = subject;
     let mut saw_reply = false;
     let mut saw_fwd = false;
@@ -148,7 +155,7 @@ fn strip_reply_fwd_prefixes(subject: &str) -> (bool, bool, &str) {
         let m = caps.get(0).unwrap();
         rest = &rest[m.end()..];
     }
-
+    trace!("Saw reply: {saw_reply}, saw fwd: {saw_fwd}, rest: {rest}");
     (saw_reply, saw_fwd, rest)
 }
 

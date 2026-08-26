@@ -25,7 +25,7 @@
   },
   {
     "label": "Start Sender",
-    "command": "sh -lc 'if [ -f .env/.env.webhook-proxy ]; then set -a; . .env/.env.webhook-proxy; set +a; elif [ -f .env ]; then set -a; . .env; set +a; fi; cargo run --package sender'",
+    "command": "sh -lc '. .env/.env.webhook-proxy; cargo run --package sender'",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,

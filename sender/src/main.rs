@@ -200,6 +200,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn connect_to_spacetimedb(config: &SenderConfig) -> Result<DbConnection, Box<dyn Error>> {
+    trace!("Connecting to SpacetimeDB...");
+
     let mut builder = DbConnection::builder()
         .with_uri(config.spacetimedb_uri.clone())
         .with_database_name(config.spacetimedb_database_name.clone());
@@ -212,6 +214,8 @@ fn connect_to_spacetimedb(config: &SenderConfig) -> Result<DbConnection, Box<dyn
 }
 
 fn subscribe_to_spacetime_tables(connection: &DbConnection) {
+    trace!("Subscribing to SpacetimeDB tables...");
+
     connection.subscription_builder().subscribe([
         "SELECT * FROM sender_mail_ingress",
         "SELECT * FROM sender_mail_delivery_pending",
@@ -224,6 +228,8 @@ fn subscribe_to_spacetime_tables(connection: &DbConnection) {
 }
 
 fn setup_update_notifications(connection: &DbConnection, notify: &Arc<Notify>) {
+    trace!("Setting up update notifications...");
+
     // Wake the loop on ingress row inserts and updates
     {
         let notify = notify.clone();
@@ -231,6 +237,7 @@ fn setup_update_notifications(connection: &DbConnection, notify: &Arc<Notify>) {
             .db
             .sender_mail_ingress()
             .on_insert(move |_ctx, _row| {
+                trace!("Ingress row inserted");
                 notify.notify_one();
             });
     }
@@ -240,6 +247,7 @@ fn setup_update_notifications(connection: &DbConnection, notify: &Arc<Notify>) {
             .db
             .sender_mail_ingress()
             .on_update(move |_ctx, _old, _new| {
+                trace!("Ingress row updated");
                 notify.notify_one();
             });
     }
@@ -251,6 +259,7 @@ fn setup_update_notifications(connection: &DbConnection, notify: &Arc<Notify>) {
             .db
             .sender_mail_delivery_pending()
             .on_insert(move |_ctx, _row| {
+                trace!("Pending delivery row inserted");
                 notify.notify_one();
             });
     }
@@ -260,6 +269,7 @@ fn setup_update_notifications(connection: &DbConnection, notify: &Arc<Notify>) {
             .db
             .sender_mail_delivery_pending()
             .on_update(move |_ctx, _old, _new| {
+                trace!("Pending delivery row updated");
                 notify.notify_one();
             });
     }
@@ -271,6 +281,7 @@ fn setup_update_notifications(connection: &DbConnection, notify: &Arc<Notify>) {
             .db
             .sender_mail_delivery_claimed()
             .on_insert(move |_ctx, _row| {
+                trace!("Delivery claimed");
                 notify.notify_one();
             });
     }
@@ -282,6 +293,7 @@ fn setup_update_notifications(connection: &DbConnection, notify: &Arc<Notify>) {
             .db
             .sender_mail_delivery_claimed()
             .on_delete(move |_ctx, _row| {
+                trace!("Claimed delivery resolved");
                 notify.notify_one();
             });
     }
@@ -293,6 +305,7 @@ fn setup_update_notifications(connection: &DbConnection, notify: &Arc<Notify>) {
             .db
             .active_unsubscribe_tokens()
             .on_insert(move |_ctx, _row| {
+                trace!("Unsubscribe token created");
                 notify.notify_one();
             });
     }
@@ -304,6 +317,8 @@ async fn process_fanout_jobs(
     config: &SenderConfig,
     instance_id: &str,
 ) -> Result<bool, Box<dyn Error>> {
+    trace!("process_fanout_jobs started");
+
     let owner = match connection.try_identity() {
         Some(identity) => {
             trace!("Identity check succeeded");
@@ -357,6 +372,7 @@ fn self_owned_ingress_jobs(
     owner: spacetimedb_sdk::Identity,
     instance_id: &str,
 ) -> Vec<MailIngress> {
+    trace!("getting self-owned ingress jobs");
     connection
         .db
         .sender_mail_ingress()
@@ -388,7 +404,10 @@ fn process_subscription_job(
         "{}:{}:{}",
         ingress.id, subscription.id, subscription.subscriber_email
     );
-
+    trace!(
+        "processing subscription job for delivery_id: {}",
+        delivery_id
+    );
     if connection
         .db
         .sender_mail_delivery_pending()
@@ -408,6 +427,8 @@ fn process_subscription_job(
             .find(&delivery_id)
             .is_some()
     {
+        trace!("delivery already queued: {}", delivery_id);
+
         return Ok(SubscriptionJobOutcome::AlreadyQueued);
     }
 
@@ -428,6 +449,7 @@ fn process_subscription_job(
         }
     };
 
+    trace!("composing delivery for subscription: {}", subscription.id);
     let (_headers_raw, raw_message) = compose_delivery(
         config,
         &ingress.id,
@@ -437,6 +459,7 @@ fn process_subscription_job(
         &token_row,
     )?;
 
+    trace!("enqueueing delivery for subscription: {}", subscription.id);
     connection.reducers().enqueue_mail_delivery(
         ingress.id.clone(),
         subscription.id,
@@ -461,6 +484,7 @@ fn process_ingress_job(
     ingress: MailIngress,
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
+    trace!("processing ingress job for ingress_id: {}", ingress.id);
     // Lookup the mail message
     let message = connection
         .db
@@ -475,8 +499,15 @@ fn process_ingress_job(
         .iter()
         .find(|category| category.id == ingress.category_id)
     {
-        Some(category) => category,
+        Some(category) => {
+            trace!("Category found {category:?}");
+            category
+        }
         None => {
+            trace!(
+                "Category not found for category_id: {}",
+                ingress.category_id
+            );
             let _ = connection.reducers().fail_mail_ingress(
                 ingress.id.clone(),
                 instance_id.to_string(),
@@ -499,6 +530,7 @@ fn process_ingress_job(
     let mut waiting_for_tokens = false;
 
     for subscription in subscribers {
+        trace!("processing subscription: {}", subscription.id);
         let subscription_outcome = process_subscription_job(
             connection,
             config,
@@ -508,6 +540,7 @@ fn process_ingress_job(
             subscription.clone(),
         )
         .map_err(|e| {
+            trace!("error processing subscription: {}", e);
             // Increment the failed delivery count for this ingress.
             let _ = connection
                 .reducers()
@@ -519,6 +552,7 @@ fn process_ingress_job(
         })?;
         match subscription_outcome {
             SubscriptionJobOutcome::DeliveryQueued => {
+                trace!("delivery queued for subscription: {}", subscription.id);
                 connection
                     .reducers()
                     .increment_mail_ingress_delivery_count(
@@ -527,15 +561,21 @@ fn process_ingress_job(
                     )?;
             }
             SubscriptionJobOutcome::AlreadyQueued => {
+                trace!(
+                    "delivery already queued for subscription: {}",
+                    subscription.id
+                );
                 // No action needed; delivery already queued or sent
             }
             SubscriptionJobOutcome::AwaitingToken => {
+                trace!("awaiting token for subscription: {}", subscription.id);
                 waiting_for_tokens = true;
             }
         }
     }
 
     if waiting_for_tokens {
+        trace!("waiting for tokens");
         return Err("Waiting for unsubscribe token to be generated".into());
     }
 
@@ -551,6 +591,7 @@ fn claim_delivery_jobs(
     transport: &SmtpTransport,
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
+    trace!("claiming delivery jobs");
     let owner = match connection.try_identity() {
         Some(identity) => {
             trace!("Succeeded Identity check");
@@ -563,8 +604,10 @@ fn claim_delivery_jobs(
     };
 
     let owned_jobs = self_owned_delivery_jobs(&connection, owner, instance_id);
+    trace!("owned jobs: {}", owned_jobs.len());
 
     if owned_jobs.is_empty() {
+        trace!("no owned jobs, claiming next mail delivery");
         let inner_connection = Arc::clone(&connection);
         let transport = transport.clone();
         let inner_instance_id = instance_id.to_owned();
@@ -572,6 +615,7 @@ fn claim_delivery_jobs(
             instance_id.to_owned(),
             move |_ctx, res| match res {
                 Ok(_) => {
+                    trace!("claimed next mail delivery");
                     if let Err(error) = process_claimed_delivery_jobs(
                         &inner_connection,
                         &transport,
@@ -590,6 +634,7 @@ fn claim_delivery_jobs(
             Ok(()) => (),
         }
     } else {
+        trace!("processing claimed delivery jobs");
         return process_claimed_delivery_jobs(&connection, transport, instance_id);
     }
 
@@ -615,6 +660,7 @@ fn process_claimed_delivery_jobs(
     let owned_jobs = self_owned_delivery_jobs(connection, owner, instance_id);
 
     for delivery in owned_jobs {
+        trace!("processing delivery: {}", delivery.id);
         let delivery_id = delivery.id.clone();
         match send_delivery(connection, transport, delivery, instance_id) {
             Err(error) => {
@@ -623,6 +669,8 @@ fn process_claimed_delivery_jobs(
             Ok(_) => trace!("Delivered Mail {}", delivery_id),
         }
     }
+    trace!("processed all claimed delivery jobs");
+
     Ok(())
 }
 
@@ -632,6 +680,7 @@ fn self_owned_delivery_jobs(
     owner: spacetimedb_sdk::Identity,
     instance_id: &str,
 ) -> Vec<MailDeliveryClaimed> {
+    trace!("fetching self-owned delivery jobs");
     connection
         .db
         .sender_mail_delivery_claimed()
@@ -647,6 +696,7 @@ fn send_delivery(
     claimed: MailDeliveryClaimed,
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
+    trace!("sending delivery: {}", claimed.id);
     use lettre::address::Envelope;
 
     let envelope_result = {
@@ -656,8 +706,12 @@ fn send_delivery(
     };
 
     let envelope = match envelope_result {
-        Ok(e) => e,
+        Ok(e) => {
+            trace!("envelope: {e:?}");
+            e
+        }
         Err(error) => {
+            trace!("envelope error: {error}");
             let response = format!("Pre-SMTP error: {error}");
             connection.reducers().fail_mail_delivery(
                 claimed.id.clone(),
@@ -682,6 +736,7 @@ fn send_delivery(
             )?;
         }
         Err(error) => {
+            trace!("send_raw error: {error}");
             let code = error
                 .status()
                 .map(|status| status.to_string().parse::<u16>().unwrap_or(0));
@@ -696,6 +751,7 @@ fn send_delivery(
                     "smtp-permanent".to_string(),
                 )?;
             } else if is_transient_error(&error) {
+                trace!("transient error: {error}");
                 connection.reducers().schedule_mail_delivery_retry(
                     claimed.id.clone(),
                     instance_id.to_string(),
@@ -704,6 +760,7 @@ fn send_delivery(
                     "smtp-transient".to_string(),
                 )?;
             } else {
+                trace!("unknown error: {error}");
                 connection.reducers().schedule_mail_delivery_retry(
                     claimed.id.clone(),
                     instance_id.to_string(),
