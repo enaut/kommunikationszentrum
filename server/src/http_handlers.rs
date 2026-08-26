@@ -221,8 +221,7 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
                 .unwrap()
         }
         Stage::Rcpt => {
-            let accepted = ctx.with_tx(|tx| {
-                let mut accepted = false;
+            ctx.with_tx(|tx| {
                 if let Some(envelope) = &mta_req.envelope {
                     for recipient in &envelope.to {
                         let to_address = recipient.address.clone();
@@ -245,20 +244,11 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
                                 if category_found { "found" } else { "not found" }
                             ),
                         });
-                        if category_found {
-                            accepted = true;
-                            break;
-                        }
                     }
                 }
-                accepted
             });
 
-            let resp = if accepted {
-                MtaHookResponse::accept()
-            } else {
-                MtaHookResponse::reject(550, "No such mailing list".to_string())
-            };
+            let resp = MtaHookResponse::accept();
 
             let body = serde_json::to_vec(&resp).unwrap_or_default();
             HttpResponse::builder()
