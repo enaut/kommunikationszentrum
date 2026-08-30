@@ -8,20 +8,16 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub(super) struct ScheduleMailDeliveryRetryArgs {
     pub delivery_id: String,
-    pub instance_id: String,
-    pub smtp_status_code: Option<u16>,
-    pub smtp_response: String,
-    pub error_kind: String,
+    pub error_msg: String,
+    pub delay_micros: i64,
 }
 
 impl From<ScheduleMailDeliveryRetryArgs> for super::Reducer {
     fn from(args: ScheduleMailDeliveryRetryArgs) -> Self {
         Self::ScheduleMailDeliveryRetry {
             delivery_id: args.delivery_id,
-            instance_id: args.instance_id,
-            smtp_status_code: args.smtp_status_code,
-            smtp_response: args.smtp_response,
-            error_kind: args.error_kind,
+            error_msg: args.error_msg,
+            delay_micros: args.delay_micros,
         }
     }
 }
@@ -44,19 +40,10 @@ pub trait schedule_mail_delivery_retry {
     fn schedule_mail_delivery_retry(
         &self,
         delivery_id: String,
-        instance_id: String,
-        smtp_status_code: Option<u16>,
-        smtp_response: String,
-        error_kind: String,
+        error_msg: String,
+        delay_micros: i64,
     ) -> __sdk::Result<()> {
-        self.schedule_mail_delivery_retry_then(
-            delivery_id,
-            instance_id,
-            smtp_status_code,
-            smtp_response,
-            error_kind,
-            |_, _| {},
-        )
+        self.schedule_mail_delivery_retry_then(delivery_id, error_msg, delay_micros, |_, _| {})
     }
 
     /// Request that the remote module invoke the reducer `schedule_mail_delivery_retry` to run as soon as possible,
@@ -68,10 +55,8 @@ pub trait schedule_mail_delivery_retry {
     fn schedule_mail_delivery_retry_then(
         &self,
         delivery_id: String,
-        instance_id: String,
-        smtp_status_code: Option<u16>,
-        smtp_response: String,
-        error_kind: String,
+        error_msg: String,
+        delay_micros: i64,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -83,10 +68,8 @@ impl schedule_mail_delivery_retry for super::RemoteReducers {
     fn schedule_mail_delivery_retry_then(
         &self,
         delivery_id: String,
-        instance_id: String,
-        smtp_status_code: Option<u16>,
-        smtp_response: String,
-        error_kind: String,
+        error_msg: String,
+        delay_micros: i64,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -95,10 +78,8 @@ impl schedule_mail_delivery_retry for super::RemoteReducers {
         self.imp.invoke_reducer_with_callback(
             ScheduleMailDeliveryRetryArgs {
                 delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                error_kind,
+                error_msg,
+                delay_micros,
             },
             callback,
         )

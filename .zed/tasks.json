@@ -25,7 +25,7 @@
   },
   {
     "label": "Start Sender",
-    "command": "sh -lc '. .env/.env.webhook-proxy; cargo run --package sender'",
+    "command": "sh -lc '. .env/.env.webhook-proxy && cargo run --package sender'",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
@@ -49,7 +49,7 @@
   },
   {
     "label": "Publish spacetime module",
-    "command": "sh -lc 'if [ -f .env/.env.stalwart-jmap ]; then set -a; . .env/.env.stalwart-jmap; set +a; elif [ -f .env ]; then set -a; . .env; set +a; fi; spacetime publish -p server kommunikation'",
+    "command": "sh -lc '. .env/.env.stalwart-jmap && spacetime publish -p server kommunikation'",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,

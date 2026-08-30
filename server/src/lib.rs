@@ -4,7 +4,9 @@ use spacetimedb::{ReducerContext, ScheduleAt, Table};
 
 use account::{admin_identities, AdminIdentity};
 use delivery::expire_stale_delivery_claims_schedule;
+use delivery::requeue_temporary_failed_mails_schedule;
 use delivery::ExpireStaleDeliveryClaimsSchedule;
+use delivery::RequeueTemporaryFailedMailsSchedule;
 
 mod account;
 mod delivery;
@@ -48,6 +50,22 @@ pub fn init(ctx: &ReducerContext) {
                 scheduled_at: ScheduleAt::Interval(Duration::from_secs(60).into()),
             });
         log::info!("Seeded expire_stale_delivery_claims schedule");
+    }
+
+    if ctx
+        .db
+        .requeue_temporary_failed_mails_schedule()
+        .scheduled_id()
+        .find(&0)
+        .is_none()
+    {
+        ctx.db.requeue_temporary_failed_mails_schedule().insert(
+            RequeueTemporaryFailedMailsSchedule {
+                scheduled_id: 0,
+                scheduled_at: ScheduleAt::Interval(Duration::from_secs(10).into()),
+            },
+        );
+        log::info!("Seeded requeue_temporary_failed_mails schedule");
     }
 }
 

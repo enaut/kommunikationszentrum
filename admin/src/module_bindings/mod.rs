@@ -17,6 +17,7 @@ pub mod add_subscription_reducer;
 pub mod admin_add_subscription_reducer;
 pub mod admin_identity_type;
 pub mod blocked_ip_type;
+pub mod cancel_mail_delivery_retry_reducer;
 pub mod category_visibility_type;
 pub mod claim_next_mail_delivery_reducer;
 pub mod claim_next_mail_ingress_reducer;
@@ -40,6 +41,7 @@ pub mod mail_delivery_done_type;
 pub mod mail_delivery_event_type;
 pub mod mail_delivery_pending_type;
 pub mod mail_delivery_row_type;
+pub mod mail_delivery_temporary_failed_type;
 pub mod mail_ingress_type;
 pub mod mail_message_type;
 pub mod mark_mail_delivery_bounced_reducer;
@@ -54,12 +56,16 @@ pub mod register_admin_identity_reducer;
 pub mod remove_message_category_reducer;
 pub mod remove_subscription_reducer;
 pub mod rename_topic_reducer;
+pub mod requeue_temporary_failed_mails_schedule_table;
+pub mod requeue_temporary_failed_mails_schedule_type;
 pub mod retry_mail_ingress_reducer;
 pub mod revoke_webhook_token_reducer;
 pub mod schedule_mail_delivery_retry_reducer;
 pub mod sender_mail_delivery_claimed_table;
 pub mod sender_mail_delivery_done_table;
+pub mod sender_mail_delivery_events_table;
 pub mod sender_mail_delivery_pending_table;
+pub mod sender_mail_delivery_temporary_failed_table;
 pub mod sender_mail_ingress_table;
 pub mod sender_mail_messages_table;
 pub mod set_category_topics_reducer;
@@ -92,6 +98,7 @@ pub use add_subscription_reducer::add_subscription;
 pub use admin_add_subscription_reducer::admin_add_subscription;
 pub use admin_identity_type::AdminIdentity;
 pub use blocked_ip_type::BlockedIp;
+pub use cancel_mail_delivery_retry_reducer::cancel_mail_delivery_retry;
 pub use category_visibility_type::CategoryVisibility;
 pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
 pub use claim_next_mail_ingress_reducer::claim_next_mail_ingress;
@@ -115,6 +122,7 @@ pub use mail_delivery_done_type::MailDeliveryDone;
 pub use mail_delivery_event_type::MailDeliveryEvent;
 pub use mail_delivery_pending_type::MailDeliveryPending;
 pub use mail_delivery_row_type::MailDeliveryRow;
+pub use mail_delivery_temporary_failed_type::MailDeliveryTemporaryFailed;
 pub use mail_ingress_type::MailIngress;
 pub use mail_message_type::MailMessage;
 pub use mark_mail_delivery_bounced_reducer::mark_mail_delivery_bounced;
@@ -129,12 +137,16 @@ pub use register_admin_identity_reducer::register_admin_identity;
 pub use remove_message_category_reducer::remove_message_category;
 pub use remove_subscription_reducer::remove_subscription;
 pub use rename_topic_reducer::rename_topic;
+pub use requeue_temporary_failed_mails_schedule_table::*;
+pub use requeue_temporary_failed_mails_schedule_type::RequeueTemporaryFailedMailsSchedule;
 pub use retry_mail_ingress_reducer::retry_mail_ingress;
 pub use revoke_webhook_token_reducer::revoke_webhook_token;
 pub use schedule_mail_delivery_retry_reducer::schedule_mail_delivery_retry;
 pub use sender_mail_delivery_claimed_table::*;
 pub use sender_mail_delivery_done_table::*;
+pub use sender_mail_delivery_events_table::*;
 pub use sender_mail_delivery_pending_table::*;
+pub use sender_mail_delivery_temporary_failed_table::*;
 pub use sender_mail_ingress_table::*;
 pub use sender_mail_messages_table::*;
 pub use set_category_topics_reducer::set_category_topics;
@@ -190,6 +202,9 @@ pub enum Reducer {
         subscriber_email: String,
         category_id: u64,
         status: SubscriptionStatus,
+    },
+    CancelMailDeliveryRetry {
+        delivery_id: String,
     },
     ClaimNextMailDelivery {
         instance_id: String,
@@ -282,10 +297,8 @@ pub enum Reducer {
     },
     ScheduleMailDeliveryRetry {
         delivery_id: String,
-        instance_id: String,
-        smtp_status_code: Option<u16>,
-        smtp_response: String,
-        error_kind: String,
+        error_msg: String,
+        delay_micros: i64,
     },
     SetCategoryTopics {
         category_id: u64,
@@ -317,6 +330,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::AddMessageCategory { .. } => "add_message_category",
             Reducer::AddSubscription { .. } => "add_subscription",
             Reducer::AdminAddSubscription { .. } => "admin_add_subscription",
+            Reducer::CancelMailDeliveryRetry { .. } => "cancel_mail_delivery_retry",
             Reducer::ClaimNextMailDelivery { .. } => "claim_next_mail_delivery",
             Reducer::ClaimNextMailIngress { .. } => "claim_next_mail_ingress",
             Reducer::CompleteMailIngress { .. } => "complete_mail_ingress",
@@ -399,6 +413,11 @@ impl __sdk::Reducer for Reducer {
                 subscriber_email: subscriber_email.clone(),
                 category_id: category_id.clone(),
                 status: status.clone(),
+}),
+            Reducer::CancelMailDeliveryRetry{
+                delivery_id,
+}             => __sats::bsatn::to_vec(&cancel_mail_delivery_retry_reducer::CancelMailDeliveryRetryArgs {
+                delivery_id: delivery_id.clone(),
 }),
             Reducer::ClaimNextMailDelivery{
                 instance_id,
@@ -561,16 +580,12 @@ Reducer::EnqueueMailDelivery{
 }),
             Reducer::ScheduleMailDeliveryRetry{
                 delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                error_kind,
+                error_msg,
+                delay_micros,
 }             => __sats::bsatn::to_vec(&schedule_mail_delivery_retry_reducer::ScheduleMailDeliveryRetryArgs {
                 delivery_id: delivery_id.clone(),
-                instance_id: instance_id.clone(),
-                smtp_status_code: smtp_status_code.clone(),
-                smtp_response: smtp_response.clone(),
-                error_kind: error_kind.clone(),
+                error_msg: error_msg.clone(),
+                delay_micros: delay_micros.clone(),
 }),
             Reducer::SetCategoryTopics{
                 category_id,
@@ -614,9 +629,13 @@ pub struct DbUpdate {
     active_subscriptions: __sdk::TableUpdate<Subscription>,
     active_unsubscribe_tokens: __sdk::TableUpdate<SubscriptionUnsubscribeToken>,
     expire_stale_delivery_claims_schedule: __sdk::TableUpdate<ExpireStaleDeliveryClaimsSchedule>,
+    requeue_temporary_failed_mails_schedule:
+        __sdk::TableUpdate<RequeueTemporaryFailedMailsSchedule>,
     sender_mail_delivery_claimed: __sdk::TableUpdate<MailDeliveryClaimed>,
     sender_mail_delivery_done: __sdk::TableUpdate<MailDeliveryDone>,
+    sender_mail_delivery_events: __sdk::TableUpdate<MailDeliveryEvent>,
     sender_mail_delivery_pending: __sdk::TableUpdate<MailDeliveryPending>,
+    sender_mail_delivery_temporary_failed: __sdk::TableUpdate<MailDeliveryTemporaryFailed>,
     sender_mail_ingress: __sdk::TableUpdate<MailIngress>,
     sender_mail_messages: __sdk::TableUpdate<MailMessage>,
     visible_accounts: __sdk::TableUpdate<Account>,
@@ -649,15 +668,32 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                         )?,
                     )
                 }
+                "requeue_temporary_failed_mails_schedule" => {
+                    db_update.requeue_temporary_failed_mails_schedule.append(
+                        requeue_temporary_failed_mails_schedule_table::parse_table_update(
+                            table_update,
+                        )?,
+                    )
+                }
                 "sender_mail_delivery_claimed" => db_update.sender_mail_delivery_claimed.append(
                     sender_mail_delivery_claimed_table::parse_table_update(table_update)?,
                 ),
                 "sender_mail_delivery_done" => db_update.sender_mail_delivery_done.append(
                     sender_mail_delivery_done_table::parse_table_update(table_update)?,
                 ),
+                "sender_mail_delivery_events" => db_update.sender_mail_delivery_events.append(
+                    sender_mail_delivery_events_table::parse_table_update(table_update)?,
+                ),
                 "sender_mail_delivery_pending" => db_update.sender_mail_delivery_pending.append(
                     sender_mail_delivery_pending_table::parse_table_update(table_update)?,
                 ),
+                "sender_mail_delivery_temporary_failed" => {
+                    db_update.sender_mail_delivery_temporary_failed.append(
+                        sender_mail_delivery_temporary_failed_table::parse_table_update(
+                            table_update,
+                        )?,
+                    )
+                }
                 "sender_mail_ingress" => db_update
                     .sender_mail_ingress
                     .append(sender_mail_ingress_table::parse_table_update(table_update)?),
@@ -725,6 +761,12 @@ impl __sdk::DbUpdate for DbUpdate {
                 &self.expire_stale_delivery_claims_schedule,
             )
             .with_updates_by_pk(|row| &row.scheduled_id);
+        diff.requeue_temporary_failed_mails_schedule = cache
+            .apply_diff_to_table::<RequeueTemporaryFailedMailsSchedule>(
+                "requeue_temporary_failed_mails_schedule",
+                &self.requeue_temporary_failed_mails_schedule,
+            )
+            .with_updates_by_pk(|row| &row.scheduled_id);
         diff.active_subscriptions = cache.apply_diff_to_table::<Subscription>(
             "active_subscriptions",
             &self.active_subscriptions,
@@ -747,10 +789,22 @@ impl __sdk::DbUpdate for DbUpdate {
                 &self.sender_mail_delivery_done,
             )
             .with_updates_by_pk(|row| &row.id);
+        diff.sender_mail_delivery_events = cache
+            .apply_diff_to_table::<MailDeliveryEvent>(
+                "sender_mail_delivery_events",
+                &self.sender_mail_delivery_events,
+            )
+            .with_updates_by_pk(|row| &row.id);
         diff.sender_mail_delivery_pending = cache
             .apply_diff_to_table::<MailDeliveryPending>(
                 "sender_mail_delivery_pending",
                 &self.sender_mail_delivery_pending,
+            )
+            .with_updates_by_pk(|row| &row.id);
+        diff.sender_mail_delivery_temporary_failed = cache
+            .apply_diff_to_table::<MailDeliveryTemporaryFailed>(
+                "sender_mail_delivery_temporary_failed",
+                &self.sender_mail_delivery_temporary_failed,
             )
             .with_updates_by_pk(|row| &row.id);
         diff.sender_mail_ingress = cache
@@ -811,14 +865,23 @@ impl __sdk::DbUpdate for DbUpdate {
                 "expire_stale_delivery_claims_schedule" => db_update
                     .expire_stale_delivery_claims_schedule
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "requeue_temporary_failed_mails_schedule" => db_update
+                    .requeue_temporary_failed_mails_schedule
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_mail_delivery_claimed" => db_update
                     .sender_mail_delivery_claimed
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_mail_delivery_done" => db_update
                     .sender_mail_delivery_done
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_mail_delivery_events" => db_update
+                    .sender_mail_delivery_events
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_mail_delivery_pending" => db_update
                     .sender_mail_delivery_pending
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_mail_delivery_temporary_failed" => db_update
+                    .sender_mail_delivery_temporary_failed
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_mail_ingress" => db_update
                     .sender_mail_ingress
@@ -875,14 +938,23 @@ impl __sdk::DbUpdate for DbUpdate {
                 "expire_stale_delivery_claims_schedule" => db_update
                     .expire_stale_delivery_claims_schedule
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "requeue_temporary_failed_mails_schedule" => db_update
+                    .requeue_temporary_failed_mails_schedule
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_mail_delivery_claimed" => db_update
                     .sender_mail_delivery_claimed
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_mail_delivery_done" => db_update
                     .sender_mail_delivery_done
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_mail_delivery_events" => db_update
+                    .sender_mail_delivery_events
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_mail_delivery_pending" => db_update
                     .sender_mail_delivery_pending
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_mail_delivery_temporary_failed" => db_update
+                    .sender_mail_delivery_temporary_failed
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_mail_ingress" => db_update
                     .sender_mail_ingress
@@ -936,9 +1008,13 @@ pub struct AppliedDiff<'r> {
     active_unsubscribe_tokens: __sdk::TableAppliedDiff<'r, SubscriptionUnsubscribeToken>,
     expire_stale_delivery_claims_schedule:
         __sdk::TableAppliedDiff<'r, ExpireStaleDeliveryClaimsSchedule>,
+    requeue_temporary_failed_mails_schedule:
+        __sdk::TableAppliedDiff<'r, RequeueTemporaryFailedMailsSchedule>,
     sender_mail_delivery_claimed: __sdk::TableAppliedDiff<'r, MailDeliveryClaimed>,
     sender_mail_delivery_done: __sdk::TableAppliedDiff<'r, MailDeliveryDone>,
+    sender_mail_delivery_events: __sdk::TableAppliedDiff<'r, MailDeliveryEvent>,
     sender_mail_delivery_pending: __sdk::TableAppliedDiff<'r, MailDeliveryPending>,
+    sender_mail_delivery_temporary_failed: __sdk::TableAppliedDiff<'r, MailDeliveryTemporaryFailed>,
     sender_mail_ingress: __sdk::TableAppliedDiff<'r, MailIngress>,
     sender_mail_messages: __sdk::TableAppliedDiff<'r, MailMessage>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
@@ -978,6 +1054,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.expire_stale_delivery_claims_schedule,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<RequeueTemporaryFailedMailsSchedule>(
+            "requeue_temporary_failed_mails_schedule",
+            &self.requeue_temporary_failed_mails_schedule,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<MailDeliveryClaimed>(
             "sender_mail_delivery_claimed",
             &self.sender_mail_delivery_claimed,
@@ -988,9 +1069,19 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.sender_mail_delivery_done,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<MailDeliveryEvent>(
+            "sender_mail_delivery_events",
+            &self.sender_mail_delivery_events,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<MailDeliveryPending>(
             "sender_mail_delivery_pending",
             &self.sender_mail_delivery_pending,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<MailDeliveryTemporaryFailed>(
+            "sender_mail_delivery_temporary_failed",
+            &self.sender_mail_delivery_temporary_failed,
             event,
         );
         callbacks.invoke_table_row_callbacks::<MailIngress>(
@@ -1711,9 +1802,12 @@ impl __sdk::SpacetimeModule for RemoteModule {
         active_subscriptions_table::register_table(client_cache);
         active_unsubscribe_tokens_table::register_table(client_cache);
         expire_stale_delivery_claims_schedule_table::register_table(client_cache);
+        requeue_temporary_failed_mails_schedule_table::register_table(client_cache);
         sender_mail_delivery_claimed_table::register_table(client_cache);
         sender_mail_delivery_done_table::register_table(client_cache);
+        sender_mail_delivery_events_table::register_table(client_cache);
         sender_mail_delivery_pending_table::register_table(client_cache);
+        sender_mail_delivery_temporary_failed_table::register_table(client_cache);
         sender_mail_ingress_table::register_table(client_cache);
         sender_mail_messages_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
@@ -1730,9 +1824,12 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "active_subscriptions",
         "active_unsubscribe_tokens",
         "expire_stale_delivery_claims_schedule",
+        "requeue_temporary_failed_mails_schedule",
         "sender_mail_delivery_claimed",
         "sender_mail_delivery_done",
+        "sender_mail_delivery_events",
         "sender_mail_delivery_pending",
+        "sender_mail_delivery_temporary_failed",
         "sender_mail_ingress",
         "sender_mail_messages",
         "visible_accounts",

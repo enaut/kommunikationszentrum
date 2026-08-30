@@ -63,16 +63,21 @@ The async delivery pipeline transitions ingress records and individual recipient
 
 | Function | Visibility | Parameters | Description |
 |---|---|---|---|
-| `create_mail_ingress` | Module Internal | `ingress: MailIngress` | Inserts new `mail_ingress` record in `pending` state. |
-| `claim_pending_ingress` | Sender Daemon | `worker_identity: Identity` | Claims pending ingress lease (`claim_owner`, `claim_expires_at`). |
-| `heartbeat_ingress_claim` | Sender Daemon | `ingress_id: String` | Renews 10-minute ingress lease. |
-| `complete_ingress` | Sender Daemon | `ingress_id: String` | Marks fan-out processing complete. |
-| `create_mail_deliveries` | Sender Daemon | `ingress_id: String, deliveries: Vec<MailDelivery>` | Bulk-inserts subscriber delivery records. |
-| `claim_pending_deliveries` | Sender Daemon | `worker_identity: Identity, limit: u32` | Claims pending delivery leases (`claim_owner`, `claim_expires_at`). |
-| `heartbeat_delivery_claim` | Sender Daemon | `delivery_ids: Vec<String>` | Renews 5-minute delivery worker leases. |
-| `record_delivery_attempt` | Sender Daemon | `delivery_id: String, attempt_no: u32, ...` | Appends audit event record to `mail_delivery_events`. |
-| `record_delivery_success` | Sender Daemon | `delivery_id: String, smtp_code: u16, smtp_response: String` | Transitions delivery to `sent` state. |
-| `record_delivery_failure` | Sender Daemon | `delivery_id: String, error_kind: String, details: String, is_permanent: bool` | Handles back-off reschedule (`retry_scheduled`), max attempts (`failed`), or bounce (`bounced`). |
+| `claim_next_mail_ingress` | Sender Daemon | `instance_id: String` | Claims the next runnable ingress fan-out job by lease and retry time. |
+| `increment_mail_ingress_delivery_count` | Sender Daemon | `ingress_id: String, instance_id: String` | Increments the per-ingress success counter after enqueuing deliveries. |
+| `increment_mail_ingress_failed_delivery_count` | Sender Daemon | `ingress_id: String, instance_id: String` | Tracks per-ingress failures while preparing deliveries. |
+| `complete_mail_ingress` | Sender Daemon | `ingress_id: String, instance_id: String` | Marks the ingress fan-out job complete. |
+| `retry_mail_ingress` | Sender Daemon | `ingress_id: String, instance_id: String, error: String` | Re-schedules ingress fan-out retry if a transient failure occurs. |
+| `fail_mail_ingress` | Sender Daemon | `ingress_id: String, instance_id: String, error: String` | Marks ingress as terminally failed. |
+| `enqueue_mail_delivery` | Sender Daemon | `ingress_id: String, subscription_id: u64, recipient_email: String, ...` | Adds a subscriber delivery to `mail_delivery_pending`. |
+| `claim_next_mail_delivery` | Sender Daemon | `instance_id: String` | Claims the next ready delivery using a simple FIFO order. |
+| `mark_mail_delivery_sent` | Sender Daemon | `delivery_id: String, instance_id: String, smtp_status_code: Option<u16>, smtp_response: String` | Marks a delivery as sent and records it in `mail_delivery_done`. |
+| `schedule_mail_delivery_retry` | Sender Daemon | `delivery_id: String, error_msg: String, delay_micros: i64` | Deletes the active claim, bumps `attempt_count`, and inserts the record into `mail_delivery_temporary_failed`. |
+| `requeue_temporary_failed_mails` | System | `_ctx: &ReducerContext` | Moves all expired temporary failures back to `mail_delivery_pending`. |
+| `cancel_mail_delivery_retry` | Admin | `delivery_id: String` | Removes a temporarily failed delivery from the retry queue and records the cancellation as final. |
+| `fail_mail_delivery` | Sender Daemon | `delivery_id: String, instance_id: String, smtp_status_code: Option<u16>, smtp_response: String, error_kind: String` | Marks a delivery as permanently failed. |
+| `mark_mail_delivery_bounced` | Sender Daemon | `delivery_id: String, instance_id: String, smtp_status_code: Option<u16>, smtp_response: String, error_kind: String` | Records a bounce and stores the final state. |
+| `expire_stale_delivery_claims` | System | `_scheduled: ExpireStaleDeliveryClaimsSchedule` | Reclaims expired worker leases and requeues stalled deliveries. |
 
 ---
 

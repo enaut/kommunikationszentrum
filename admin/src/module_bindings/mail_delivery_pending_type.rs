@@ -11,7 +11,6 @@ use super::mail_delivery_row_type::MailDeliveryRow;
 pub struct MailDeliveryPending {
     pub id: String,
     pub ingress_id: String,
-    pub next_attempt_at: __sdk::Timestamp,
     pub row: MailDeliveryRow,
 }
 
@@ -25,7 +24,6 @@ impl __sdk::InModule for MailDeliveryPending {
 pub struct MailDeliveryPendingCols {
     pub id: __sdk::__query_builder::Col<MailDeliveryPending, String>,
     pub ingress_id: __sdk::__query_builder::Col<MailDeliveryPending, String>,
-    pub next_attempt_at: __sdk::__query_builder::Col<MailDeliveryPending, __sdk::Timestamp>,
     pub row: __sdk::__query_builder::Col<MailDeliveryPending, MailDeliveryRow>,
 }
 
@@ -35,7 +33,6 @@ impl __sdk::__query_builder::HasCols for MailDeliveryPending {
         MailDeliveryPendingCols {
             id: __sdk::__query_builder::Col::new(table_name, "id"),
             ingress_id: __sdk::__query_builder::Col::new(table_name, "ingress_id"),
-            next_attempt_at: __sdk::__query_builder::Col::new(table_name, "next_attempt_at"),
             row: __sdk::__query_builder::Col::new(table_name, "row"),
         }
     }
@@ -47,7 +44,6 @@ impl __sdk::__query_builder::HasCols for MailDeliveryPending {
 pub struct MailDeliveryPendingIxCols {
     pub id: __sdk::__query_builder::IxCol<MailDeliveryPending, String>,
     pub ingress_id: __sdk::__query_builder::IxCol<MailDeliveryPending, String>,
-    pub next_attempt_at: __sdk::__query_builder::IxCol<MailDeliveryPending, __sdk::Timestamp>,
 }
 
 impl __sdk::__query_builder::HasIxCols for MailDeliveryPending {
@@ -56,7 +52,6 @@ impl __sdk::__query_builder::HasIxCols for MailDeliveryPending {
         MailDeliveryPendingIxCols {
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
             ingress_id: __sdk::__query_builder::IxCol::new(table_name, "ingress_id"),
-            next_attempt_at: __sdk::__query_builder::IxCol::new(table_name, "next_attempt_at"),
         }
     }
 }

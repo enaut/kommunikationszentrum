@@ -72,18 +72,17 @@ Queued deliveries are claimed atomically, converted to RFC 5321 envelopes, and d
 {{#include control-flow-send-delivery.d2}}
 ```
 
-### Backoff & Retry Strategy
+### Temporary Failure Queue & Backoff
 
-When SMTP returns transient errors (4xx or network timeouts), deliveries are requeued with exponential backoff:
+When SMTP returns a transient error, the sender does not put the delivery back into the immediate `mail_delivery_pending` queue. Instead, it removes the active lease, increments the retry counter, and inserts the row into `mail_delivery_temporary_failed` with a retry timestamp and the original error text. The backend scheduler then re-enqueues expired rows back into `mail_delivery_pending` once `next_attempt_at` is reached.
 
-| Attempt | Backoff Delay |
+| Retry State | Delay |
 |---|---|
-| 1 | 30 seconds |
-| 2 | 2 minutes |
-| 3 | 10 minutes |
-| 4 | 30 minutes |
-| 5 | 60 minutes |
-| > 5 | 12 hours (marked `failed` after max attempts) |
+| transient SMTP failure | 5 minutes |
+| backend requeue check | every 10 seconds |
+| pending claim order | FIFO by delivery ID |
+
+This keeps the client subscription stream lean: the sender only listens to `mail_delivery_pending`, `mail_delivery_claimed`, and terminal tables, while the temporary-failure queue is intentionally not subscribed by the daemon.
 
 ---
 

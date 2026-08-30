@@ -20,6 +20,8 @@ All sender daemon configuration is loaded at startup from **environment variable
 | `SMTP_USERNAME` | _(none)_ | Optional SMTP AUTH username |
 | `SMTP_PASSWORD` | _(none)_ | Optional SMTP AUTH password |
 | `SMTP_USE_TLS` | `true` | Enable TLS (`true` for production relays, `false` for local debug relays) |
+| `SMTP_ACCEPT_INVALID_CERTS` | `false` | Accept expired or self-signed SMTP server certificates when TLS is enabled |
+| `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | Accept mismatched certificate hostnames for SMTP TLS connections |
 | `MAIL_MESSAGE_ID_DOMAIN` | derived from `SPACETIMEDB_URI` | Domain used in generated `Message-ID` headers |
 | `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | Endpoint for HTTPS one-click unsubscribe links |
 | `OTLP_ENDPOINT` | `http://localhost:4317` | OpenTelemetry gRPC collector endpoint (Alloy / Jaeger) |
@@ -37,6 +39,8 @@ SPACETIMEDB_TOKEN=<sender-auth-token>
 SMTP_HOST=localhost
 SMTP_PORT=1025
 SMTP_USE_TLS=false
+SMTP_ACCEPT_INVALID_CERTS=false
+SMTP_ACCEPT_INVALID_HOSTNAMES=false
 
 MAIL_MESSAGE_ID_DOMAIN=localhost
 MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikationszentrum/route/mailing-list/unsubscribe
@@ -57,6 +61,8 @@ SMTP_PORT=8465
 SMTP_USERNAME=relay_user
 SMTP_PASSWORD=relay_secret_password
 SMTP_USE_TLS=true
+SMTP_ACCEPT_INVALID_CERTS=false
+SMTP_ACCEPT_INVALID_HOSTNAMES=false
 
 MAIL_MESSAGE_ID_DOMAIN=solawis.de
 MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.example.org/v1/database/kommunikationszentrum/route/mailing-list/unsubscribe

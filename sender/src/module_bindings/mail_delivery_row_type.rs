@@ -22,7 +22,6 @@ pub struct MailDeliveryRow {
     pub raw_message: String,
     pub unsubscribe_token: String,
     pub attempt_count: u32,
-    pub next_attempt_at: __sdk::Timestamp,
     pub last_error: Option<String>,
     pub smtp_status_code: Option<u16>,
     pub smtp_response: Option<String>,

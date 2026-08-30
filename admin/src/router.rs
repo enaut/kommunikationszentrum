@@ -8,7 +8,8 @@ pub enum ActiveView {
     Messages,
     Categories,
     Members,
-    Debug,
+    ManagementConfiguration,
+    ManagementStatus,
 }
 
 /// Returns `true` when the currently connected SpacetimeDB identity is present

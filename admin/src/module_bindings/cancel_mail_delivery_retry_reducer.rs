@@ -8,81 +8,62 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
-pub(super) struct ScheduleMailDeliveryRetryArgs {
+pub(super) struct CancelMailDeliveryRetryArgs {
     pub delivery_id: String,
-    pub error_msg: String,
-    pub delay_micros: i64,
 }
 
-impl From<ScheduleMailDeliveryRetryArgs> for super::Reducer {
-    fn from(args: ScheduleMailDeliveryRetryArgs) -> Self {
-        Self::ScheduleMailDeliveryRetry {
+impl From<CancelMailDeliveryRetryArgs> for super::Reducer {
+    fn from(args: CancelMailDeliveryRetryArgs) -> Self {
+        Self::CancelMailDeliveryRetry {
             delivery_id: args.delivery_id,
-            error_msg: args.error_msg,
-            delay_micros: args.delay_micros,
         }
     }
 }
 
-impl __sdk::InModule for ScheduleMailDeliveryRetryArgs {
+impl __sdk::InModule for CancelMailDeliveryRetryArgs {
     type Module = super::RemoteModule;
 }
 
 #[allow(non_camel_case_types)]
-/// Extension trait for access to the reducer `schedule_mail_delivery_retry`.
+/// Extension trait for access to the reducer `cancel_mail_delivery_retry`.
 ///
 /// Implemented for [`super::RemoteReducers`].
-pub trait schedule_mail_delivery_retry {
-    /// Request that the remote module invoke the reducer `schedule_mail_delivery_retry` to run as soon as possible.
+pub trait cancel_mail_delivery_retry {
+    /// Request that the remote module invoke the reducer `cancel_mail_delivery_retry` to run as soon as possible.
     ///
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and this method provides no way to listen for its completion status.
     ///
-    /// Use [`schedule_mail_delivery_retry::schedule_mail_delivery_retry_then`] to run a callback after the reducer completes.
-    fn schedule_mail_delivery_retry(
-        &self,
-        delivery_id: String,
-        error_msg: String,
-        delay_micros: i64,
-    ) -> __sdk::Result<()> {
-        self.schedule_mail_delivery_retry_then(delivery_id, error_msg, delay_micros, |_, _| {})
+    /// Use [`cancel_mail_delivery_retry::cancel_mail_delivery_retry_then`] to run a callback after the reducer completes.
+    fn cancel_mail_delivery_retry(&self, delivery_id: String) -> __sdk::Result<()> {
+        self.cancel_mail_delivery_retry_then(delivery_id, |_, _| {})
     }
 
-    /// Request that the remote module invoke the reducer `schedule_mail_delivery_retry` to run as soon as possible,
+    /// Request that the remote module invoke the reducer `cancel_mail_delivery_retry` to run as soon as possible,
     /// registering `callback` to run when we are notified that the reducer completed.
     ///
     /// This method returns immediately, and errors only if we are unable to send the request.
     /// The reducer will run asynchronously in the future,
     ///  and its status can be observed with the `callback`.
-    fn schedule_mail_delivery_retry_then(
+    fn cancel_mail_delivery_retry_then(
         &self,
         delivery_id: String,
-        error_msg: String,
-        delay_micros: i64,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
     ) -> __sdk::Result<()>;
 }
 
-impl schedule_mail_delivery_retry for super::RemoteReducers {
-    fn schedule_mail_delivery_retry_then(
+impl cancel_mail_delivery_retry for super::RemoteReducers {
+    fn cancel_mail_delivery_retry_then(
         &self,
         delivery_id: String,
-        error_msg: String,
-        delay_micros: i64,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
     ) -> __sdk::Result<()> {
-        self.imp.invoke_reducer_with_callback(
-            ScheduleMailDeliveryRetryArgs {
-                delivery_id,
-                error_msg,
-                delay_micros,
-            },
-            callback,
-        )
+        self.imp
+            .invoke_reducer_with_callback(CancelMailDeliveryRetryArgs { delivery_id }, callback)
     }
 }

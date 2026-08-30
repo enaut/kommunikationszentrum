@@ -201,8 +201,11 @@ fn AuthenticatedApp(
                         ActiveView::Members => rsx! {
                             pages::members::MembersPage {}
                         },
-                        ActiveView::Debug => rsx! {
-                            pages::debug::DebugPage { user_info: user_info.clone() }
+                        ActiveView::ManagementConfiguration => rsx! {
+                            pages::management::configuration::ManagementConfigurationPage {}
+                        },
+                        ActiveView::ManagementStatus => rsx! {
+                            pages::management::status::ManagementStatusPage { user_info: user_info.clone() }
                         },
                     }
                 }

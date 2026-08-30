@@ -7,11 +7,9 @@ use crate::account::{is_admin_identity, is_admin_user};
 use crate::mail_message::mail_message;
 
 pub const MAX_INGRESS_ATTEMPTS: u32 = 3;
-pub const MAX_DELIVERY_ATTEMPTS: u32 = 5;
 
 const MICROS_PER_SEC: i64 = 1_000_000;
 const MICROS_PER_MIN: i64 = 60 * MICROS_PER_SEC;
-const MICROS_PER_HOUR: i64 = 60 * MICROS_PER_MIN;
 
 fn ingress_lease_duration() -> TimeDuration {
     TimeDuration::from_micros(10 * MICROS_PER_MIN)
@@ -19,17 +17,6 @@ fn ingress_lease_duration() -> TimeDuration {
 
 fn delivery_lease_duration() -> TimeDuration {
     TimeDuration::from_micros(5 * MICROS_PER_MIN)
-}
-
-fn delivery_retry_backoff(attempt_count: u32) -> TimeDuration {
-    match attempt_count {
-        1 => TimeDuration::from_micros(30 * MICROS_PER_SEC),
-        2 => TimeDuration::from_micros(2 * MICROS_PER_MIN),
-        3 => TimeDuration::from_micros(10 * MICROS_PER_MIN),
-        4 => TimeDuration::from_micros(30 * MICROS_PER_MIN),
-        5 => TimeDuration::from_micros(60 * MICROS_PER_MIN),
-        _ => TimeDuration::from_micros(12 * MICROS_PER_HOUR),
-    }
 }
 
 fn ingress_retry_backoff(attempt_count: u32) -> TimeDuration {
@@ -128,7 +115,7 @@ pub struct MailIngress {
     pub completed_at: Timestamp,
 }
 
-/// Shared row type for all three delivery-phase tables.
+/// Shared row type for all delivery-phase tables.
 #[derive(Clone, SpacetimeType)]
 pub struct MailDeliveryRow {
     pub id: String,
@@ -150,7 +137,6 @@ pub struct MailDeliveryRow {
     pub raw_message: String,
     pub unsubscribe_token: String,
     pub attempt_count: u32,
-    pub next_attempt_at: Timestamp,
     pub last_error: Option<String>,
     pub smtp_status_code: Option<u16>,
     pub smtp_response: Option<String>,
@@ -167,8 +153,18 @@ pub struct MailDeliveryPending {
     pub id: String,
     #[index(btree)]
     pub ingress_id: String,
+    pub row: MailDeliveryRow,
+}
+
+/// Temporary retry queue for transient SMTP failures.
+#[derive(Clone)]
+#[spacetimedb::table(accessor = mail_delivery_temporary_failed)]
+pub struct MailDeliveryTemporaryFailed {
+    #[primary_key]
+    pub id: String,
     #[index(btree)]
     pub next_attempt_at: Timestamp,
+    pub fail_reason: String,
     pub row: MailDeliveryRow,
 }
 
@@ -206,6 +202,20 @@ pub struct MailDeliveryDone {
     scheduled(expire_stale_delivery_claims)
 )]
 pub struct ExpireStaleDeliveryClaimsSchedule {
+    #[primary_key]
+    #[auto_inc]
+    pub scheduled_id: u64,
+    pub scheduled_at: ScheduleAt,
+}
+
+/// Schedule table for the `requeue_temporary_failed_mails` reducer.
+#[derive(Clone)]
+#[spacetimedb::table(
+    accessor = requeue_temporary_failed_mails_schedule,
+    public,
+    scheduled(requeue_temporary_failed_mails)
+)]
+pub struct RequeueTemporaryFailedMailsSchedule {
     #[primary_key]
     #[auto_inc]
     pub scheduled_id: u64,
@@ -259,6 +269,24 @@ pub fn sender_mail_delivery_claimed(ctx: &ViewContext) -> impl Query<MailDeliver
 pub fn sender_mail_delivery_done(ctx: &ViewContext) -> impl Query<MailDeliveryDone> {
     let is_admin = is_admin_user(ctx);
     ctx.from.mail_delivery_done().r#filter(move |_| is_admin)
+}
+
+/// Delivery event audit log — for admin troubleshooting and observability.
+#[spacetimedb::view(accessor = sender_mail_delivery_events, public)]
+pub fn sender_mail_delivery_events(ctx: &ViewContext) -> impl Query<MailDeliveryEvent> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.mail_delivery_events().r#filter(move |_| is_admin)
+}
+
+/// Temporarily failed deliveries waiting for retry – admin only.
+#[spacetimedb::view(accessor = sender_mail_delivery_temporary_failed, public)]
+pub fn sender_mail_delivery_temporary_failed(
+    ctx: &ViewContext,
+) -> impl Query<MailDeliveryTemporaryFailed> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from
+        .mail_delivery_temporary_failed()
+        .r#filter(move |_| is_admin)
 }
 
 fn make_ingress_id(ctx: &ReducerContext, queue_id: &str, category_id: u64) -> String {
@@ -548,7 +576,6 @@ pub(crate) fn upsert_mail_delivery(
         debug_assert_eq!(existing.row.subscription_id, subscription_id);
         debug_assert_eq!(existing.row.recipient_email, recipient_email);
 
-        let next_attempt_at = ctx.timestamp;
         existing.row.recipient_account_id = recipient_account_id;
         existing.row.list_email = list_email;
         existing.row.list_name = list_name;
@@ -557,14 +584,11 @@ pub(crate) fn upsert_mail_delivery(
         existing.row.reply_to = reply_to;
         existing.row.raw_message = raw_message;
         existing.row.unsubscribe_token = unsubscribe_token;
-        existing.row.updated_at = next_attempt_at;
-        existing.row.next_attempt_at = next_attempt_at;
-        existing.next_attempt_at = next_attempt_at;
+        existing.row.updated_at = ctx.timestamp;
         ctx.db.mail_delivery_pending().id().update(existing);
         return delivery_id;
     }
 
-    let next_attempt_at = ctx.timestamp;
     let row = MailDeliveryRow {
         id: delivery_id.clone(),
         ingress_id: ingress.id.clone(),
@@ -581,7 +605,6 @@ pub(crate) fn upsert_mail_delivery(
         raw_message,
         unsubscribe_token,
         attempt_count: 0,
-        next_attempt_at,
         last_error: None,
         smtp_status_code: None,
         smtp_response: None,
@@ -592,7 +615,6 @@ pub(crate) fn upsert_mail_delivery(
     ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
         id: delivery_id.clone(),
         ingress_id: ingress.id.clone(),
-        next_attempt_at,
         row,
     });
 
@@ -681,33 +703,20 @@ pub fn claim_next_mail_delivery(ctx: &ReducerContext, instance_id: String) -> Re
         return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
 
-    let now = ctx.timestamp;
-    let mut candidates: Vec<MailDeliveryPending> = ctx
-        .db
-        .mail_delivery_pending()
-        .next_attempt_at()
-        .filter(..=now)
-        .collect();
-
-    candidates.sort_by(|a, b| {
-        a.row
-            .next_attempt_at
-            .cmp(&b.row.next_attempt_at)
-            .then(a.row.id.cmp(&b.row.id))
-    });
+    let mut candidates: Vec<MailDeliveryPending> = ctx.db.mail_delivery_pending().iter().collect();
+    candidates.sort_by(|a, b| a.row.id.cmp(&b.row.id));
 
     let Some(pending) = candidates.into_iter().next() else {
         return Ok(());
     };
 
-    ctx.db.mail_delivery_pending().id().delete(&pending.row.id);
+    ctx.db.mail_delivery_pending().id().delete(&pending.id);
     ctx.db.mail_delivery_claimed().insert(MailDeliveryClaimed {
-        id: pending.row.id.clone(),
+        id: pending.id.clone(),
         worker: ctx.sender(),
         instance_id,
         lease_expires_at: ctx.timestamp + delivery_lease_duration(),
         row: MailDeliveryRow {
-            attempt_count: pending.row.attempt_count.saturating_add(1),
             updated_at: ctx.timestamp,
             ..pending.row
         },
@@ -762,76 +771,104 @@ pub fn mark_mail_delivery_sent(
 pub fn schedule_mail_delivery_retry(
     ctx: &ReducerContext,
     delivery_id: String,
-    instance_id: String,
-    smtp_status_code: Option<u16>,
-    smtp_response: String,
-    error_kind: String,
+    error_msg: String,
+    delay_micros: i64,
 ) -> Result<(), String> {
-    if !is_admin_identity(ctx, ctx.sender()) {
-        return Err(format!("Unauthorized: {:?}", ctx.sender()));
-    }
-    let claimed = require_claimed_by_me(ctx, &delivery_id, &instance_id)?;
+    let Some(claimed) = ctx.db.mail_delivery_claimed().id().find(&delivery_id) else {
+        return Err("Claimed delivery not found".to_string());
+    };
 
     ctx.db.mail_delivery_claimed().id().delete(&delivery_id);
 
-    if claimed.row.attempt_count >= MAX_DELIVERY_ATTEMPTS {
-        ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
-            id: 0,
-            delivery_id: delivery_id.clone(),
-            occurred_at: ctx.timestamp,
-            event_type: DeliveryStatus::Failed.to_string(),
-            attempt_no: claimed.row.attempt_count,
-            smtp_status_code,
-            smtp_response: Some(smtp_response.clone()),
-            error_kind: Some(error_kind),
-            details: format!("SMTP delivery failed (max attempts reached): {smtp_response}"),
-            worker_identity: Some(ctx.sender()),
+    let mut updated_row = claimed.row;
+    updated_row.attempt_count = updated_row.attempt_count.saturating_add(1);
+    updated_row.last_error = Some(error_msg.clone());
+    updated_row.updated_at = ctx.timestamp;
+
+    ctx.db
+        .mail_delivery_temporary_failed()
+        .insert(MailDeliveryTemporaryFailed {
+            id: delivery_id,
+            next_attempt_at: ctx.timestamp + TimeDuration::from_micros(delay_micros),
+            fail_reason: error_msg,
+            row: updated_row,
         });
 
-        ctx.db.mail_delivery_done().insert(MailDeliveryDone {
-            id: delivery_id.clone(),
-            ingress_id: claimed.row.ingress_id.clone(),
-            final_state: DeliveryStatus::Failed.to_string(),
-            row: MailDeliveryRow {
-                smtp_status_code,
-                smtp_response: Some(smtp_response.clone()),
-                last_error: Some(smtp_response),
-                finalized_at: ctx.timestamp,
-                updated_at: ctx.timestamp,
-                ..claimed.row
-            },
-        });
-    } else {
-        let backoff = delivery_retry_backoff(claimed.row.attempt_count);
-        let next_attempt_at = ctx.timestamp + backoff;
+    Ok(())
+}
 
-        ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
-            id: 0,
-            delivery_id: delivery_id.clone(),
-            occurred_at: ctx.timestamp,
-            event_type: DeliveryStatus::RetryScheduled.to_string(),
-            attempt_no: claimed.row.attempt_count,
-            smtp_status_code,
-            smtp_response: Some(smtp_response.clone()),
-            error_kind: Some(error_kind),
-            details: format!("SMTP retry scheduled: {smtp_response}"),
-            worker_identity: Some(ctx.sender()),
-        });
+#[spacetimedb::reducer]
+pub fn requeue_temporary_failed_mails(
+    ctx: &ReducerContext,
+    _scheduled: RequeueTemporaryFailedMailsSchedule,
+) -> Result<(), String> {
+    let now = ctx.timestamp;
+
+    let ready_to_retry: Vec<MailDeliveryTemporaryFailed> = ctx
+        .db
+        .mail_delivery_temporary_failed()
+        .iter()
+        .filter(|failed| failed.next_attempt_at <= now)
+        .collect();
+
+    for failed_job in ready_to_retry {
+        ctx.db
+            .mail_delivery_temporary_failed()
+            .id()
+            .delete(&failed_job.id);
 
         ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
-            id: delivery_id.clone(),
-            ingress_id: claimed.row.ingress_id.clone(),
-            next_attempt_at,
-            row: MailDeliveryRow {
-                smtp_status_code,
-                smtp_response: Some(smtp_response.clone()),
-                last_error: Some(smtp_response),
-                next_attempt_at,
-                updated_at: ctx.timestamp,
-                ..claimed.row
-            },
+            id: failed_job.id.clone(),
+            ingress_id: failed_job.row.ingress_id.clone(),
+            row: failed_job.row,
         });
     }
+
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn cancel_mail_delivery_retry(ctx: &ReducerContext, delivery_id: String) -> Result<(), String> {
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
+    }
+
+    let failed = ctx
+        .db
+        .mail_delivery_temporary_failed()
+        .id()
+        .find(&delivery_id)
+        .ok_or_else(|| format!("Temporary failed delivery '{delivery_id}' not found"))?;
+
+    ctx.db
+        .mail_delivery_temporary_failed()
+        .id()
+        .delete(&delivery_id);
+
+    ctx.db.mail_delivery_events().insert(MailDeliveryEvent {
+        id: 0,
+        delivery_id: delivery_id.clone(),
+        occurred_at: ctx.timestamp,
+        event_type: "retry_cancelled".to_string(),
+        attempt_no: failed.row.attempt_count,
+        smtp_status_code: failed.row.smtp_status_code,
+        smtp_response: failed.row.smtp_response.clone(),
+        error_kind: Some("manual_cancel".to_string()),
+        details: "Temporary retry cancelled by admin".to_string(),
+        worker_identity: Some(ctx.sender()),
+    });
+
+    ctx.db.mail_delivery_done().insert(MailDeliveryDone {
+        id: delivery_id.clone(),
+        ingress_id: failed.row.ingress_id.clone(),
+        final_state: "cancelled".to_string(),
+        row: MailDeliveryRow {
+            last_error: Some("Retry cancelled by admin".to_string()),
+            finalized_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+            ..failed.row
+        },
+    });
 
     Ok(())
 }
@@ -964,15 +1001,12 @@ pub fn expire_stale_delivery_claims(
 
     for claimed in stale {
         ctx.db.mail_delivery_claimed().id().delete(&claimed.id);
-        let next_attempt_at = now;
         ctx.db.mail_delivery_pending().insert(MailDeliveryPending {
             id: claimed.id.clone(),
             ingress_id: claimed.row.ingress_id.clone(),
-            next_attempt_at,
             row: MailDeliveryRow {
                 last_error: Some("Lease expired — requeued".to_string()),
-                next_attempt_at,
-                updated_at: next_attempt_at,
+                updated_at: now,
                 ..claimed.row
             },
         });

@@ -14,6 +14,7 @@ pub fn Navbar(
     let is_admin = use_is_admin();
     let collapsed = use_signal(|| true);
     let mut user_dropdown_open = use_signal(|| false);
+    let mut management_dropdown_open = use_signal(|| false);
 
     rsx! {
         nav { class: "navbar navbar-expand-lg bg-primary navbar-dark",
@@ -54,12 +55,44 @@ pub fn Navbar(
                                 active_view,
                                 theme: theme.clone(),
                             }
-                            NavLink {
-                                label: "Debug",
-                                icon: "bi-bug-fill",
-                                view: ActiveView::Debug,
-                                active_view,
-                                theme: theme.clone(),
+                            li { class: "nav-item dropdown",
+                                if management_dropdown_open() {
+                                    div {
+                                        style: "position: fixed; inset: 0; z-index: 990;",
+                                        onclick: move |_| management_dropdown_open.set(false),
+                                    }
+                                }
+                                div { style: if management_dropdown_open() { "position: relative; z-index: 991;" } else { "" },
+                                    button {
+                                        class: "nav-link btn btn-link text-white",
+                                        r#type: "button",
+                                        aria_expanded: if management_dropdown_open() { "true" } else { "false" },
+                                        onclick: move |evt| {
+                                            evt.stop_propagation();
+                                            management_dropdown_open.set(!management_dropdown_open());
+                                        },
+                                        i { class: "bi bi-sliders me-1" }
+                                        "Verwaltung"
+                                    }
+                                    ul {
+                                        class: if management_dropdown_open() { "dropdown-menu show" } else { "dropdown-menu" },
+                                        onclick: move |_| management_dropdown_open.set(false),
+                                        li {
+                                            button {
+                                                class: "dropdown-item",
+                                                onclick: move |_| active_view.set(ActiveView::ManagementConfiguration),
+                                                "Einstellungen"
+                                            }
+                                        }
+                                        li {
+                                            button {
+                                                class: "dropdown-item",
+                                                onclick: move |_| active_view.set(ActiveView::ManagementStatus),
+                                                "Status"
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

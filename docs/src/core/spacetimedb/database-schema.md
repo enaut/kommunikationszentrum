@@ -16,6 +16,8 @@ All underlying tables are module-private. Clients access the data only through t
 
 The delivery pipeline decouples MTA message acceptance from subscriber fan-out and outbound SMTP delivery using lease-based worker scheduling.
 
+The delivery row itself no longer carries a `next_attempt_at` timestamp. `MailDeliveryPending` is treated as a FIFO work queue, while transient SMTP failures move rows into a dedicated `mail_delivery_temporary_failed` table that keeps the retry deadline and the failure reason separately. The backend scheduler then re-enqueues expired rows back into pending once the backoff period expires.
+
 ```d2
 {{#include database-schema-delivery-pipeline.d2}}
 ```

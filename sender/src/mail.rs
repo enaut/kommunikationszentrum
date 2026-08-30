@@ -1,8 +1,8 @@
 use chrono::Utc;
 use lettre::transport::smtp::authentication::Credentials;
+use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::transport::smtp::Error as SmtpError;
 use lettre::SmtpTransport;
-use opentelemetry::trace;
 use regex::Regex;
 use serde_json::to_string;
 use std::error::Error;
@@ -15,7 +15,24 @@ use crate::module_bindings::{
 
 pub fn build_transport(config: &SenderConfig) -> Result<SmtpTransport, Box<dyn Error>> {
     let mut builder = if config.smtp_use_tls {
-        SmtpTransport::relay(&config.smtp_host)?
+        let tls = if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
+            let mut tls_builder = TlsParameters::builder(config.smtp_host.clone());
+
+            if config.smtp_accept_invalid_certs {
+                tls_builder = tls_builder.dangerous_accept_invalid_certs(true);
+            }
+
+            if config.smtp_accept_invalid_hostnames {
+                tls_builder = tls_builder.dangerous_accept_invalid_hostnames(true);
+            }
+
+            Tls::Required(tls_builder.build()?)
+        } else {
+            let tls_parameters = TlsParameters::builder(config.smtp_host.clone()).build()?;
+            Tls::Required(tls_parameters)
+        };
+
+        SmtpTransport::relay(&config.smtp_host)?.tls(tls)
     } else {
         SmtpTransport::builder_dangerous(&config.smtp_host)
     };

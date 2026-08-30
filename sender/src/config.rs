@@ -1,5 +1,7 @@
 use std::env;
 
+use tracing::info;
+
 #[derive(Debug, Clone)]
 pub struct SenderConfig {
     pub spacetimedb_uri: String,
@@ -10,6 +12,8 @@ pub struct SenderConfig {
     pub smtp_username: Option<String>,
     pub smtp_password: Option<String>,
     pub smtp_use_tls: bool,
+    pub smtp_accept_invalid_certs: bool,
+    pub smtp_accept_invalid_hostnames: bool,
     pub message_id_domain: String,
     pub unsubscribe_base_url: String,
     pub otlp_endpoint: String,
@@ -23,17 +27,30 @@ impl SenderConfig {
             env::var("SPACETIMEDB_DATABASE_NAME").unwrap_or_else(|_| "kommunikation".to_string());
         let otlp_endpoint =
             env::var("OTLP_ENDPOINT").unwrap_or_else(|_| "http://localhost:4317".to_string());
-        let smtp_host = env::var("SMTP_HOST").unwrap_or_else(|_| "mail-eu.smtp2go.com".to_string());
+        let smtp_host = env::var("SMTP_HOST").expect("Variable SMTP_HOST is not set");
         let smtp_port = env::var("SMTP_PORT")
             .ok()
             .and_then(|value| value.parse::<u16>().ok())
-            .unwrap_or(8465);
+            .unwrap_or(465);
+        if matches!(smtp_port, 143 | 993) {
+            panic!(
+                "SMTP_PORT is set to an IMAP port ({smtp_port}). SMTP uses ports like 25, 465, 587, or the relay-specific SMTP port; IMAP ports 143/993 are not valid for this sender."
+            );
+        }
         let smtp_username = env::var("SMTP_USERNAME").ok();
         let smtp_password = env::var("SMTP_PASSWORD").ok();
         let smtp_use_tls = env::var("SMTP_USE_TLS")
             .ok()
             .and_then(|value| value.parse::<bool>().ok())
             .unwrap_or(true);
+        let smtp_accept_invalid_certs = env::var("SMTP_ACCEPT_INVALID_CERTS")
+            .ok()
+            .and_then(|value| value.parse::<bool>().ok())
+            .unwrap_or(false);
+        let smtp_accept_invalid_hostnames = env::var("SMTP_ACCEPT_INVALID_HOSTNAMES")
+            .ok()
+            .and_then(|value| value.parse::<bool>().ok())
+            .unwrap_or(false);
         let message_id_domain = env::var("MAIL_MESSAGE_ID_DOMAIN").unwrap_or_else(|_| {
             spacetimedb_uri
                 .split_once("//")
@@ -57,6 +74,8 @@ impl SenderConfig {
             smtp_username,
             smtp_password,
             smtp_use_tls,
+            smtp_accept_invalid_certs,
+            smtp_accept_invalid_hostnames,
             message_id_domain,
             unsubscribe_base_url,
             otlp_endpoint,
