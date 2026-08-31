@@ -1,45 +1,73 @@
 direction: down
 
-
 external: "External Systems" {
-direction: down
-django: "Django\nOAuth Provider\nPort 8000" {
-  style.fill: lightyellow
-}
-
-stalwart: "Stalwart MTA\nPorts Submission: 465, 587\nPort Jmap: 443/8093" {
-  style.fill: lightgray
-}
-}
-
-core: "Core Kommunikationszentrum" {
-  admin_ui: "Admin Web UI\n(Dioxus)\nPort 8080" {
-  style.fill: lightblue
-}
-spacetimedb: "SpacetimeDB\n(Database + HTTP Routes)\nPort 3000" {
-  style.fill: lightcoral
-}
-sender: "Sender Service\n(Email Sending)" {
-  style.fill: lightgreen
+  direction: right
+  django: "Django\nOAuth + user sync" {
+    style.fill: "#fff3c6"
+  }
+  stalwart: "Stalwart MTA\nSMTP + JMAP + domains" {
+    style.fill: "#eaeaea"
+  }
+  relay: "Outbound SMTP relay" {
+    shape: cloud
+    style.fill: "#f2ebff"
   }
 }
 
+core: "Kommunikationszentrum" {
+  direction: right
+  admin: "Admin UI\nDioxus" {
+    style.fill: "#dfeeff"
+  }
+  db: "SpacetimeDB\nDB + reducers + HTTP" {
+    style.fill: "#ffd8d8"
+  }
+  sender: "Sender daemon\ndelivery + retry queue" {
+    style.fill: "#dfffe9"
+  }
+}
 
+retry: "Temporary failure queue" {
+  style.fill: "#ffe8c6"
+}
 
+domains: "Domain registry\ncategory app passwords" {
+  style.fill: "#f4e3ff"
+}
 
-core.admin_ui <-> core.spacetimedb: "WebSocket\nSubscriptions" {
-  style.stroke: blue
+core.admin <-> core.db: "live views\nand reducer calls" {
+  style.stroke: "#3b82f6"
 }
-core.admin_ui -> external.django: "OAuth\nLogin" {
-  style.stroke: orange
+core.admin -> external.django: "OIDC / OAuth" {
+  style.stroke: "#f59e0b"
 }
-external.stalwart -> core.spacetimedb: "MTA\nHooks (HTTP)\nInbound Email" {
-  style.stroke: red
+external.django -> core.db: "user sync\ncategory subscriptions" {
+  style.stroke: "#22c55e"
 }
-external.django -> core.spacetimedb: "User Sync (HTTP)\nvia admin command\nand via django signals" {
-  style.stroke: green
+external.stalwart -> core.db: "MTA hooks\ndomain sync" {
+  style.stroke: "#ef4444"
 }
-core.sender -> external.stalwart: "Send Email"
-core.sender -> core.spacetimedb: "Store Email Status"
-core.sender <-> core.spacetimedb: "Process Email (Fanout)"
-core.spacetimedb -> core.sender: "Load memberships"
+external.stalwart <-> core.db: "mailbox inventory\nmailbox credentials" {
+  style.stroke: "#8b5cf6"
+}
+core.db -> core.sender: "delivery fan-out" {
+  style.stroke: "#10b981"
+}
+core.db -> retry: "transient SMTP failures" {
+  style.stroke: "#f97316"
+}
+retry -> core.sender: "requeue" {
+  style.stroke: "#f97316"
+}
+core.sender -> external.stalwart: "submission via list SMTP auth" {
+  style.stroke: "#14b8a6"
+}
+core.sender -> external.relay: "final SMTP delivery" {
+  style.stroke: "#7c3aed"
+}
+core.db -> domains: "category and domain state" {
+  style.stroke: "#a855f7"
+}
+domains -> core.sender: "per-list credentials" {
+  style.stroke: "#a855f7"
+}

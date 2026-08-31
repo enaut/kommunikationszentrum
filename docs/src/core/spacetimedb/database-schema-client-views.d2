@@ -1,42 +1,34 @@
 direction: right
 
-"User Management & Auth": {
-  style.fill: "#eef2f7"
+"Private Tables": {
+  style.fill: "#edf2ff"
   account
   admin_identities
   webhook_tokens
-}
-
-"Mailing & Subscriptions": {
-  style.fill: "#e8f5e9"
   message_categories
   topics
   message_category_topics
   subscriptions
   subscription_unsubscribe_tokens
-}
-
-"MTA Audit & Processing": {
-  style.fill: "#e6ffe0"
+  category_app_passwords
+  domains
   received_message
-}
-
-"Delivery Pipeline": {
-  style.fill: "#e5f5e9"
+  mail_message
   mail_ingress
-  mail_deliveries
+  mail_delivery_pending
+  mail_delivery_temporary_failed
+  mail_delivery_claimed
+  mail_delivery_done
+  mail_delivery_events
 }
 
-"Client Views": "Client Views\nexpose visible data\nrestrict access" {
-  shape: rectangle
-  style.fill: "#9abca5"
-  direction: left
+"Member / Admin Views": {
+  style.fill: "#dcfce7"
 
   visible_accounts: |md
     ### visible_accounts
-    * **Sources:** `account`, `admin_identities`
-    * **Access:** User: own row / Admin: all rows
-    * *Primary identity surface for user/admin UI.*
+    * Admin sees all rows.
+    * Member sees only their own row.
   | {
     shape: rectangle
     style.fill: "#e3f2fd"
@@ -44,9 +36,7 @@ direction: right
 
   visible_admin_identities: |md
     ### visible_admin_identities
-    * **Sources:** `admin_identities`
-    * **Access:** User: empty / Admin: all rows
-    * *Lets admin UI verify admin role safely.*
+    * Admin-only authorization view.
   | {
     shape: rectangle
     style.fill: "#e3f2fd"
@@ -54,9 +44,15 @@ direction: right
 
   visible_webhook_tokens: |md
     ### visible_webhook_tokens
-    * **Sources:** `webhook_tokens`, `admin_identities`
-    * **Access:** User: empty / Admin: all rows
-    * *Hashed webhook token management.*
+    * Admin-only token management view.
+  | {
+    shape: rectangle
+    style.fill: "#e3f2fd"
+  }
+
+  visible_domains: |md
+    ### visible_domains
+    * Admin-only domain inventory view.
   | {
     shape: rectangle
     style.fill: "#e3f2fd"
@@ -64,9 +60,8 @@ direction: right
 
   visible_message_categories: |md
     ### visible_message_categories
-    * **Sources:** `message_categories`, `account`, `subscriptions`
-    * **Access:** Unknown: empty / Member: public + subscribed private / Admin: all
-    * *Mailing list discovery surface.*
+    * Public categories visible to all members.
+    * Private categories require admin or subscription.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
@@ -74,9 +69,7 @@ direction: right
 
   visible_topics: |md
     ### visible_topics
-    * **Sources:** `topics`
-    * **Access:** All authenticated callers
-    * *Public topic tags pass-through.*
+    * Public topic tags.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
@@ -84,9 +77,7 @@ direction: right
 
   visible_message_category_topics: |md
     ### visible_message_category_topics
-    * **Sources:** `message_category_topics`
-    * **Access:** All authenticated callers
-    * *Public category-topic assignments pass-through.*
+    * Public category-topic assignments.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
@@ -94,9 +85,8 @@ direction: right
 
   visible_subscriptions: |md
     ### visible_subscriptions
-    * **Sources:** `subscriptions`, `account`
-    * **Access:** User: own subscriptions / Admin: all
-    * *User subscription management & support view.*
+    * Member sees own subscriptions only.
+    * Admin sees all rows.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
@@ -104,9 +94,7 @@ direction: right
 
   active_subscriptions: |md
     ### active_subscriptions
-    * **Sources:** `subscriptions`
-    * **Access:** Admin only
-    * *Active subscriber fan-out list for sender daemon.*
+    * Admin-only active subscription fan-out list.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
@@ -114,9 +102,15 @@ direction: right
 
   active_unsubscribe_tokens: |md
     ### active_unsubscribe_tokens
-    * **Sources:** `subscription_unsubscribe_tokens`
-    * **Access:** Admin only
-    * *Active tokens for one-click unsubscribe links.*
+    * Admin-only active unsubscribe tokens.
+  | {
+    shape: rectangle
+    style.fill: "#e8f5e9"
+  }
+
+  visible_category_app_passwords: |md
+    ### visible_category_app_passwords
+    * Admin-only SMTP app-password metadata.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
@@ -124,71 +118,90 @@ direction: right
 
   visible_messages: |md
     ### visible_messages
-    * **Sources:** `received_message`, `account`, `subscriptions`
-    * **Access:** User: subscribed categories only / Admin: all
-    * *Message history restricted to user subscriptions.*
+    * Admin sees all rows.
+    * Member sees only subscribed categories.
   | {
     shape: rectangle
     style.fill: "#fff3e0"
   }
+}
 
-  sender_mail_ingress: |md
-    ### sender_mail_ingress
-    * **Sources:** `mail_ingress`
-    * **Access:** Admin only
-    * *Ingress queue pass-through for sender daemon.*
+"Sender Worker Views": {
+  style.fill: "#fef3c7"
+
+  sender_mail_messages: |md
+    ### sender_mail_messages
+    * Admin-only raw message bodies and headers.
   | {
     shape: rectangle
     style.fill: "#f3e5f5"
   }
 
-  sender_mail_deliveries: |md
-    ### sender_mail_deliveries
-    * **Sources:** `mail_deliveries`
-    * **Access:** Admin only
-    * *Delivery queue pass-through for sender daemon.*
+  sender_mail_ingress: |md
+    ### sender_mail_ingress
+    * Admin-only ingress queue for the sender daemon.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+
+  sender_mail_delivery_pending: |md
+    ### sender_mail_delivery_pending
+    * Current outbound work queue.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+
+  sender_mail_delivery_claimed: |md
+    ### sender_mail_delivery_claimed
+    * Active lease-bound work.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+
+  sender_mail_delivery_done: |md
+    ### sender_mail_delivery_done
+    * Terminal delivery audit rows.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+
+  sender_mail_delivery_events: |md
+    ### sender_mail_delivery_events
+    * Immutable attempt and SMTP logs.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+
+  sender_mail_delivery_temporary_failed: |md
+    ### sender_mail_delivery_temporary_failed
+    * Retry queue for transient SMTP failures.
   | {
     shape: rectangle
     style.fill: "#f3e5f5"
   }
 }
 
-# visible_accounts: reads account (primary), admin_identities (admin check)
-"User Management & Auth".account -> "Client Views".visible_accounts
-"User Management & Auth".admin_identities -> "Client Views".visible_accounts: {style.stroke-dash: 4; label: "admin check"}
-
-# visible_admin_identities
-"User Management & Auth".admin_identities -> "Client Views".visible_admin_identities
-"User Management & Auth".admin_identities -> "Client Views".visible_admin_identities: {style.stroke-dash: 4; label: "admin check"}
-
-# visible_webhook_tokens
-"User Management & Auth".webhook_tokens -> "Client Views".visible_webhook_tokens
-"User Management & Auth".admin_identities -> "Client Views".visible_webhook_tokens: {style.stroke-dash: 4; label: "admin check"}
-
-# visible_message_categories: reads message_categories, account + subscriptions for user filtering
-"Mailing & Subscriptions".message_categories -> "Client Views".visible_message_categories
-"User Management & Auth".account -> "Client Views".visible_message_categories: {style.stroke-dash: 4; label: "identity lookup"}
-"Mailing & Subscriptions".subscriptions -> "Client Views".visible_message_categories: {style.stroke-dash: 4; label: "subscribed private filter"}
-
-# visible_topics / visible_message_category_topics: fully public pass-through
-"Mailing & Subscriptions".topics -> "Client Views".visible_topics
-"Mailing & Subscriptions".message_category_topics -> "Client Views".visible_message_category_topics
-
-# visible_subscriptions: reads subscriptions + account (to resolve identity→id)
-"Mailing & Subscriptions".subscriptions -> "Client Views".visible_subscriptions
-"User Management & Auth".account -> "Client Views".visible_subscriptions: {style.stroke-dash: 4; label: "identity→id lookup"}
-
-# active_subscriptions: subscriptions only (admin-gated full fan-out list)
-"Mailing & Subscriptions".subscriptions -> "Client Views".active_subscriptions
-
-# active_unsubscribe_tokens: subscription_unsubscribe_tokens only (admin-gated)
-"Mailing & Subscriptions".subscription_unsubscribe_tokens -> "Client Views".active_unsubscribe_tokens
-
-# visible_messages: reads received_message + account + subscriptions for per-user category filtering
-"MTA Audit & Processing".received_message -> "Client Views".visible_messages
-"User Management & Auth".account -> "Client Views".visible_messages: {style.stroke-dash: 4; label: "identity→id lookup"}
-"Mailing & Subscriptions".subscriptions -> "Client Views".visible_messages: {style.stroke-dash: 4; label: "category filter"}
-
-# sender_mail_ingress / sender_mail_deliveries: pass-through (admin-gated)
-"Delivery Pipeline".mail_ingress -> "Client Views".sender_mail_ingress
-"Delivery Pipeline".mail_deliveries -> "Client Views".sender_mail_deliveries
+"Private Tables".account -> "Member / Admin Views".visible_accounts
+"Private Tables".admin_identities -> "Member / Admin Views".visible_admin_identities
+"Private Tables".webhook_tokens -> "Member / Admin Views".visible_webhook_tokens
+"Private Tables".domains -> "Member / Admin Views".visible_domains
+"Private Tables".message_categories -> "Member / Admin Views".visible_message_categories
+"Private Tables".topics -> "Member / Admin Views".visible_topics
+"Private Tables".message_category_topics -> "Member / Admin Views".visible_message_category_topics
+"Private Tables".subscriptions -> "Member / Admin Views".visible_subscriptions
+"Private Tables".subscriptions -> "Member / Admin Views".active_subscriptions
+"Private Tables".subscription_unsubscribe_tokens -> "Member / Admin Views".active_unsubscribe_tokens
+"Private Tables".category_app_passwords -> "Member / Admin Views".visible_category_app_passwords
+"Private Tables".received_message -> "Member / Admin Views".visible_messages
+"Private Tables".mail_message -> "Sender Worker Views".sender_mail_messages
+"Private Tables".mail_ingress -> "Sender Worker Views".sender_mail_ingress
+"Private Tables".mail_delivery_pending -> "Sender Worker Views".sender_mail_delivery_pending
+"Private Tables".mail_delivery_claimed -> "Sender Worker Views".sender_mail_delivery_claimed
+"Private Tables".mail_delivery_done -> "Sender Worker Views".sender_mail_delivery_done
+"Private Tables".mail_delivery_events -> "Sender Worker Views".sender_mail_delivery_events
+"Private Tables".mail_delivery_temporary_failed -> "Sender Worker Views".sender_mail_delivery_temporary_failed

@@ -1,94 +1,42 @@
-# Globale Konfiguration
 direction: right
 
-# Externe und globale Komponenten
-Internet {
+member: "Member / admin" {
+  shape: person
+  style.fill: "#e8f2ff"
+}
+
+admin_ui: "Admin UI\nDioxus / WASM" {
+  style.fill: "#dfeeff"
+}
+
+django: "Django\nsolawispielplatz\nOAuth + sync" {
+  style.fill: "#fff3c6"
+}
+
+spacetime: "SpacetimeDB\nmodule + reducers + views" {
+  style.fill: "#ffd8d8"
+}
+
+stalwart: "Stalwart MTA\nSMTP + JMAP + domains" {
+  style.fill: "#eaeaea"
+}
+
+sender: "Sender daemon\nSMTP delivery + retries" {
+  style.fill: "#dfffe9"
+}
+
+relay: "Outbound SMTP\nrelay / recipient" {
   shape: cloud
-  Externe Sender: "Externe Sender\n(web.de, posteo.de...)" {
-    shape: c4-person
-  }
-  MX: "DNS-Server\nMX,DKIM,DMARC,SPF" {
-  }
-  Externe Empfänger: "Externe Empfänger\n(web.de, posteo.de...)" {
-    shape: c4-person
-  }
-  smtp2go: "smtp2go\n(o.ä.)\n(Mails senden)" {
-  }
-
-  S3: "S3\n(Mailspeicher)" {
-}
+  style.fill: "#f2ebff"
 }
 
-Hetzner: "Hetzner\n(Cloudserver)" {
-  style.fill: "#f0f0f3"
-  icon: https://icons.d2lang.com/tech/022-server.svg
-
-Mail-Infrastruktur {
-Stalwart: "Stalwart\n(Mails senden)" {
-}
-
-RocksDB
-
-
-Stalwart <-> RocksDB: "Metadaten"
-
-}
-
-# Mailinglisten
-Kommunikationszentrum: "Kommunikationszentrum" {
-
-  Server: "Server\n(läuft in Spacetimedb)"{}
-
-  Sender
-
-  Admin
-
-  Admin <-> Server: Nutzer konfigurieren
-  Sender -> Server: verschickt zu sendende mails
-}
-}
-
-# Lokale Mailclients Gruppe
-Mailclients: "Mailclients" {
-
-  Thunderbird: "z.B. Thunderbird\n(Lokaler Mailclient)" {
-  }
-  Balwark: "Balwark\n(Webmailclient)" {
-  }
-}
-
-# Contabo Server Gruppe
-Contabo: "Contabo (Server)" {
-  Django: "Django\n(Webportal wir.solawis.de)" {
-  sync_users_to_spacetime: "sync_users_to_spacetime\n(mitgliederverwaltung.management.commands)"
-  mailing
-  django-oauth
-  }
-}
-
-# Verbindungen und Beziehungen
-Internet.Externe Sender -> Hetzner.Mail-Infrastruktur.Stalwart:" Senden an Mailinglisten"
-
-Internet.MX -> Hetzner.Mail-Infrastruktur.Stalwart: "Verweist und Signiert"{
-  style.stroke-dash: 5
-}
-
-Internet.S3 <-> Hetzner.Mail-Infrastruktur.Stalwart: "Anhänge und Emails" {
-  style.stroke-dash: 2
-}
-
-Mailclients.Thunderbird <-> Hetzner.Mail-Infrastruktur.Stalwart: "IMAP/SMTP"
-Mailclients.Balwark <-> Hetzner.Mail-Infrastruktur.Stalwart: "JMAP"
-
-Hetzner.Mail-Infrastruktur.Stalwart -> Internet.smtp2go: "sendet via relay\n(Spamvermeidung)"
-Hetzner.Mail-Infrastruktur.Stalwart -> Internet.Externe Empfänger: "Sendet direkt"
-Internet.smtp2go -> Internet.Externe Empfänger:"liefert aus"
-
-Hetzner.Mail-Infrastruktur.Stalwart -> Hetzner.Kommunikationszentrum.Server: "Mailinglistenmail\nper webhook/HTTP"
-Hetzner.Kommunikationszentrum.Sender -> Hetzner.Mail-Infrastruktur.Stalwart: "Sendet via SMTP\n(direkt)"
-Hetzner.Kommunikationszentrum.Sender -> Internet.smtp2go: "Sendet via SMTP\n(relay)"
-
-Contabo.Django.mailing -> Hetzner.Mail-Infrastruktur.Stalwart: "Mailversand"
-Contabo.Django.signale -> Hetzner.Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
-Contabo.Django.sync_users_to_spacetime -> Hetzner.Kommunikationszentrum.Server: "Synchronisiert\nNutzer und\nListen"
-Contabo.Django.django-oauth <-> Hetzner.Kommunikationszentrum.Admin: "OAuth2.0\nAuthentifizierung"
+member <-> admin_ui: "subscriptions\nand admin actions"
+admin_ui <-> spacetime: "WebSocket updates\nreducer calls"
+admin_ui -> django: "OIDC / OAuth"
+django -> spacetime: "user sync\ncategories\nsubscriptions"
+stalwart -> spacetime: "MTA hooks\nmail ingress"
+stalwart <-> spacetime: "domain sync\nmailbox state"
+spacetime -> sender: "pending deliveries\nfan-out jobs"
+sender -> stalwart: "submission via\ncategory app passwords"
+sender -> relay: "outbound SMTP delivery"
+spacetime -> sender: "retry queue\ntransient failures"

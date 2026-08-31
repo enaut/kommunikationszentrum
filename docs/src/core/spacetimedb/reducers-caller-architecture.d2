@@ -15,7 +15,7 @@ direction: down
   }
   DjangoWebhook: {
     shape: cloud
-    label: "Django Webhook (HTTP)"
+    label: "Django Sync Webhook (HTTP)"
   }
   SenderDaemon: {
     shape: rectangle
@@ -26,8 +26,7 @@ direction: down
 "SpacetimeDB Reducers & Procedures": {
   "Auth & Identity": {
     register_admin_identity
-    unregister_admin_identity
-    generate_webhook_token
+    create_webhook_token
     revoke_webhook_token
     sync_user
   }
@@ -35,28 +34,35 @@ direction: down
   "Category Management": {
     add_message_category
     update_message_category
-    set_message_category_active
-    delete_message_category
     set_category_topics
     rename_topic
-    provision_message_category: "Procedure (JMAP REST Call)"
+    remove_message_category
+    provision_message_category: "Procedure (JMAP + app password)"
   }
 
   "Subscription Flow": {
-    subscribe
-    unsubscribe
-    unsubscribe_by_token: "List-Unsubscribe POST"
-    admin_set_subscription_status
+    add_subscription
+    admin_add_subscription
+    remove_subscription
+    ensure_subscription_unsubscribe_token
+    unsubscribe_subscription_by_token: "List-Unsubscribe POST"
   }
 
   "MTA Hook & Security": {
     handle_mta_hook
-    block_ip
+    dump_mta_logs_to_server_logs
   }
 
   "Delivery Pipeline": {
-    ingress_reducers: "claim / heartbeat / complete ingress"
-    delivery_reducers: "fan-out / claim / record success & failure"
+    claim_next_mail_ingress
+    complete_mail_ingress
+    retry_mail_ingress
+    fail_mail_ingress
+    claim_next_mail_delivery
+    complete_mail_delivery
+    schedule_mail_delivery_retry
+    requeue_temporary_failed_mails
+    cancel_mail_delivery_retry
   }
 }
 
@@ -65,29 +71,34 @@ direction: down
   admin_identities
   webhook_tokens
   message_categories
+  category_app_passwords
   topics
   message_category_topics
   subscriptions
   subscription_unsubscribe_tokens
+  domains
   mta_connection_log
   mta_message_log
-  received_message
   blocked_ips
+  received_message
+  mail_message
   mail_ingress
-  mail_deliveries
+  mail_delivery_pending
+  mail_delivery_temporary_failed
+  mail_delivery_claimed
+  mail_delivery_done
   mail_delivery_events
 }
 
-# Invocations & Mutations
 "Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Auth & Identity": "Admin actions"
 "Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Category Management": "Manage categories"
-"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."MTA Hook & Security".block_ip: "IP block"
+"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."MTA Hook & Security": "Manage IP and audit state"
 
-"Client & Integration Callers".UserClient -> "SpacetimeDB Reducers & Procedures"."Subscription Flow".subscribe: "User opt-in"
+"Client & Integration Callers".UserClient -> "SpacetimeDB Reducers & Procedures"."Subscription Flow".add_subscription: "User opt-in"
 
-"Client & Integration Callers".DjangoWebhook -> "SpacetimeDB Reducers & Procedures"."Auth & Identity".sync_user: "User/VP Sync"
-"Client & Integration Callers".MTAHook -> "SpacetimeDB Reducers & Procedures"."MTA Hook & Security".handle_mta_hook: "Hook Events"
+"Client & Integration Callers".DjangoWebhook -> "SpacetimeDB Reducers & Procedures"."Auth & Identity".sync_user: "User / category sync"
+"Client & Integration Callers".MTAHook -> "SpacetimeDB Reducers & Procedures"."MTA Hook & Security".handle_mta_hook: "Hook events"
 
-"Client & Integration Callers".SenderDaemon -> "SpacetimeDB Reducers & Procedures"."Delivery Pipeline": "Lease & Execute"
+"Client & Integration Callers".SenderDaemon -> "SpacetimeDB Reducers & Procedures"."Delivery Pipeline": "Lease, retry, and finalize work"
 
-"SpacetimeDB Reducers & Procedures" -> "Database Tables": "Transactional Mutate"
+"SpacetimeDB Reducers & Procedures" -> "Database Tables": "Transactional mutation"

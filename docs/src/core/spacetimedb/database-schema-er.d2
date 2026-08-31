@@ -21,7 +21,7 @@ direction: down
   admin_identities: {
     shape: sql_table
     label: "admin_identities [Private]"
-    identity: "Identity" {constraint: [primary_key; foreign_key; BTree]}
+    identity: "Identity" {constraint: [primary_key; BTree]}
   }
 
   webhook_tokens: {
@@ -29,25 +29,35 @@ direction: down
     label: "webhook_tokens [Private]"
     id: "u64" {constraint: [primary_key; INC]}
     token_hash: "String" {constraint: unique}
-    "label": "String"
+    label: "String"
     permissions: "Vec<String>"
     created_at: "Timestamp" {constraint: BTree}
     active: "bool"
   }
 }
 
-"Mailing & Subscriptions": {
+"Mailing & Categories": {
   style.fill: "#e8f5e9"
 
   message_categories: {
     shape: sql_table
     label: "message_categories [Private]"
     id: "u64" {constraint: [primary_key; INC]}
-    email_address: "String" {constraint: unique}
     name: "String"
+    email_address: "String" {constraint: unique}
     description: "String"
     active: "bool"
     visibility: "CategoryVisibility" {constraint: BTree}
+    app_password_id: "Option<u64>" {constraint: [BTree; foreign_key]}
+  }
+
+  category_app_passwords: {
+    shape: sql_table
+    label: "category_app_passwords [Private]"
+    id: "u64" {constraint: [primary_key; INC]}
+    secret: "String"
+    stalwart_id: "String" {constraint: BTree}
+    created_at: "Timestamp"
   }
 
   topics: {
@@ -98,23 +108,15 @@ direction: down
 "MTA Audit & Processing": {
   style.fill: "#fff3e0"
 
-  mail_message: {
+  mta_connection_log: {
     shape: sql_table
-    label: "mail_message [Private]"
+    label: "mta_connection_log [Private]"
     id: "u64" {constraint: [primary_key; INC]}
-    queue_id: "Option<String>"
-    received_at: "Timestamp"
-    sender_account_id: "Option<u64>" {constraint: [foreign_key]}
-    sender_email: "String"
-    subject: "String"
-    from_header: "String"
-    reply_to: "Option<String>"
-    date_header: "Option<String>"
-    message_id: "Option<String>"
-    cc_header: "Option<String>"
-    headers_raw: "String (JSON)"
-    body_raw: "String"
-    message_size: "u64"
+    client_ip: "String"
+    stage: "String"
+    action: "String"
+    timestamp: "Timestamp"
+    details: "String"
   }
 
   mta_message_log: {
@@ -128,6 +130,34 @@ direction: down
     category_count: "u32"
   }
 
+  blocked_ips: {
+    shape: sql_table
+    label: "blocked_ips [Private]"
+    ip: "String" {constraint: primary_key}
+    reason: "String"
+    blocked_at: "Timestamp"
+    active: "bool"
+  }
+
+  mail_message: {
+    shape: sql_table
+    label: "mail_message [Private]"
+    id: "u64" {constraint: [primary_key; INC]}
+    queue_id: "Option<String>"
+    received_at: "Timestamp"
+    sender_account_id: "Option<u64>" {constraint: foreign_key}
+    sender_email: "String"
+    subject: "String"
+    from_header: "String"
+    reply_to: "Option<String>"
+    date_header: "Option<String>"
+    message_id: "Option<String>"
+    cc_header: "Option<String>"
+    headers_raw: "String"
+    body_raw: "String"
+    message_size: "u64"
+  }
+
   received_message: {
     shape: sql_table
     label: "received_message [Private]"
@@ -136,15 +166,6 @@ direction: down
     category_id: "u64" {constraint: [foreign_key; BTree]}
     category_email: "String"
     received_at: "Timestamp" {constraint: BTree}
-  }
-
-  blocked_ips: {
-    shape: sql_table
-    label: "blocked_ips [Private]"
-    ip: "String" {constraint: primary_key}
-    reason: "String"
-    blocked_at: "Timestamp"
-    active: "bool"
   }
 }
 
@@ -170,7 +191,15 @@ direction: down
     label: "mail_delivery_pending [Private]"
     id: "String" {constraint: primary_key}
     ingress_id: "String" {constraint: [foreign_key; BTree]}
+    row: "MailDeliveryRow"
+  }
+
+  mail_delivery_temporary_failed: {
+    shape: sql_table
+    label: "mail_delivery_temporary_failed [Private]"
+    id: "String" {constraint: primary_key}
     next_attempt_at: "Timestamp" {constraint: BTree}
+    fail_reason: "String"
     row: "MailDeliveryRow"
   }
 
@@ -207,24 +236,77 @@ direction: down
     details: "String"
     worker_identity: "Option<Identity>"
   }
+
+  expire_stale_delivery_claims_schedule: {
+    shape: sql_table
+    label: "expire_stale_delivery_claims_schedule [Public]"
+    scheduled_id: "u64" {constraint: [primary_key; INC]}
+    scheduled_at: "ScheduleAt"
+  }
+
+  requeue_temporary_failed_mails_schedule: {
+    shape: sql_table
+    label: "requeue_temporary_failed_mails_schedule [Public]"
+    scheduled_id: "u64" {constraint: [primary_key; INC]}
+    scheduled_at: "ScheduleAt"
+  }
 }
 
-# Key Foreign Keys & Relationships
+claim_state: {
+  shape: class
+  label: "ClaimState\nembedded in ingress state"
+  status: "DeliveryStatus"
+  next_attempt_at: "Timestamp"
+  claim_owner: "Option<Identity>"
+  instance_id: "Option<String>"
+  claim_expires_at: "Timestamp"
+  attempt_count: "u32"
+  last_error: "Option<String>"
+  updated_at: "Timestamp"
+}
+
+delivery_row: {
+  shape: class
+  label: "MailDeliveryRow\nembedded payload"
+  id: "String"
+  ingress_id: "String"
+  mail_message_id: "u64"
+  category_id: "u64"
+  subscription_id: "u64"
+  recipient_email: "String"
+  recipient_account_id: "Option<u64>"
+  list_email: "String"
+  list_name: "String"
+  original_sender_email: "String"
+  from_header: "String"
+  reply_to: "String"
+  raw_message: "String"
+  unsubscribe_token: "String"
+  attempt_count: "u32"
+  last_error: "Option<String>"
+  smtp_status_code: "Option<u16>"
+  smtp_response: "Option<String>"
+  finalized_at: "Timestamp"
+  updated_at: "Timestamp"
+}
+
 "User Management & Auth".admin_identities.identity -> "User Management & Auth".account.identity
-
-"Mailing & Subscriptions".subscriptions.subscriber_account_id -> "User Management & Auth".account.id
-"Mailing & Subscriptions".subscriptions.category_id -> "Mailing & Subscriptions".message_categories.id
-"Mailing & Subscriptions".subscription_unsubscribe_tokens.subscription_id -> "Mailing & Subscriptions".subscriptions.id
-"Mailing & Subscriptions".message_category_topics.category_id -> "Mailing & Subscriptions".message_categories.id
-"Mailing & Subscriptions".message_category_topics.topic_id -> "Mailing & Subscriptions".topics.id
-
+"Mailing & Categories".subscriptions.subscriber_account_id -> "User Management & Auth".account.id
+"Mailing & Categories".subscriptions.category_id -> "Mailing & Categories".message_categories.id
+"Mailing & Categories".subscription_unsubscribe_tokens.subscription_id -> "Mailing & Categories".subscriptions.id
+"Mailing & Categories".message_category_topics.category_id -> "Mailing & Categories".message_categories.id
+"Mailing & Categories".message_category_topics.topic_id -> "Mailing & Categories".topics.id
+"Mailing & Categories".message_categories.app_password_id -> "Mailing & Categories".category_app_passwords.id
 "MTA Audit & Processing".mail_message.sender_account_id -> "User Management & Auth".account.id
 "MTA Audit & Processing".received_message.mail_message_id -> "MTA Audit & Processing".mail_message.id
-"MTA Audit & Processing".received_message.category_id -> "Mailing & Subscriptions".message_categories.id
-
+"MTA Audit & Processing".received_message.category_id -> "Mailing & Categories".message_categories.id
 "Delivery Pipeline".mail_ingress.mail_message_id -> "MTA Audit & Processing".mail_message.id
-"Delivery Pipeline".mail_ingress.category_id -> "Mailing & Subscriptions".message_categories.id
+"Delivery Pipeline".mail_ingress.category_id -> "Mailing & Categories".message_categories.id
 "Delivery Pipeline".mail_delivery_pending.ingress_id -> "Delivery Pipeline".mail_ingress.id
-"Delivery Pipeline".mail_delivery_claimed.id -> "Delivery Pipeline".mail_delivery_pending.id
 "Delivery Pipeline".mail_delivery_done.ingress_id -> "Delivery Pipeline".mail_ingress.id
 "Delivery Pipeline".mail_delivery_events.delivery_id -> "Delivery Pipeline".mail_delivery_pending.id
+"Delivery Pipeline".mail_delivery_pending.row -> delivery_row
+"Delivery Pipeline".mail_delivery_temporary_failed.row -> delivery_row
+"Delivery Pipeline".mail_delivery_claimed.row -> delivery_row
+"Delivery Pipeline".mail_delivery_done.row -> delivery_row
+"Delivery Pipeline".mail_ingress.claim -> claim_state

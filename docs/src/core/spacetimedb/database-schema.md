@@ -1,10 +1,10 @@
 # Database Schema
 
-The SpacetimeDB database for Kommunikationszentrum manages identity and access control, mailing list categories and subscriptions, MTA hook audit logging, and asynchronous mail delivery fan-out.
+The SpacetimeDB module for Kommunikationszentrum is the canonical state for user identity, category subscriptions, domain metadata, MTA audit records, and the outbound delivery pipeline. The schema is intentionally private to the module; client access is restricted to scoped public views.
 
 ## Full Entity-Relationship Schema
 
-All underlying tables are module-private. Clients access the data only through the public, access-controlled views described below.
+The module stores identity, category, and delivery state in private tables, while admin/member visibility is enforced by public views such as `visible_accounts`, `visible_message_categories`, and `visible_domains`.
 
 ```d2
 {{#include database-schema-er.d2}}
@@ -14,9 +14,7 @@ All underlying tables are module-private. Clients access the data only through t
 
 ## Delivery Pipeline Architecture
 
-The delivery pipeline decouples MTA message acceptance from subscriber fan-out and outbound SMTP delivery using lease-based worker scheduling.
-
-The delivery row itself no longer carries a `next_attempt_at` timestamp. `MailDeliveryPending` is treated as a FIFO work queue, while transient SMTP failures move rows into a dedicated `mail_delivery_temporary_failed` table that keeps the retry deadline and the failure reason separately. The backend scheduler then re-enqueues expired rows back into pending once the backoff period expires.
+The delivery pipeline separates inbound message ingestion from outbound SMTP work. A `mail_ingress` row is created once per category and message, then one `mail_delivery_pending` row is generated per recipient subscription. Transient SMTP failures move the delivery row into `mail_delivery_temporary_failed`, where a scheduled reducer requeues rows after their `next_attempt_at` deadline.
 
 ```d2
 {{#include database-schema-delivery-pipeline.d2}}
@@ -26,19 +24,19 @@ The delivery row itself no longer carries a `next_attempt_at` timestamp. `MailDe
 
 ## Subscription Lifecycle & Unsubscribe Flow
 
-Subscriptions track user opt-in status across automated Django syncs and manual user actions.
+Subscriptions carry the current member state across automatic Django syncs and explicit user or admin actions. The status model tracks automatic subscriptions, required assignments, manual actions, and one-click unsubscribe actions.
 
 ```d2
 {{#include database-schema-subscription-lifecycle.d2}}
 ```
 
-> **Sync Protection Rule:** Django owns `RequiredSubscribed` subscriptions: it creates them for required assignments and removes them when the assignment ends. A member cannot remove a required subscription through the UI or a `List-Unsubscribe` link; administrators can still remove one explicitly. The sync path does not overwrite `ManuallySubscribed`, `ManuallyUnsubscribed`, or `LinkUnsubscribed` optional subscriptions.
+> **Sync protection rule:** Django owns `RequiredSubscribed` assignments and may add or remove them as membership data changes. The sync path will not overwrite `ManuallySubscribed`, `ManuallyUnsubscribed`, or `LinkUnsubscribed` states, and a member cannot remove a required subscription through a list-unsubscribe link.
 
 ---
 
-## Table Access & Client Visibility Views
+## Client Visibility Views
 
-SpacetimeDB tables are module-private. Public computed views are the only client-queryable schema surface and enforce caller-specific visibility.
+SpacetimeDB tables remain module-private. Public views enforce caller-specific visibility for members, admins, and the sender worker.
 
 ```d2
 {{#include database-schema-client-views.d2}}

@@ -2,48 +2,75 @@ direction: right
 
 MTA: {
   shape: cloud
-  label: "Stalwart MTA / Webhook"
+  label: "Stalwart MTA / webhook"
+}
+
+MailMessage: {
+  shape: page
+  label: "mail_message [Private]"
+  purpose: "Canonical inbound message"
 }
 
 Ingress: {
   shape: class
-  label: "mail_ingress [Private]\n(1 per category email)"
-  claim: "pending | processing | retry_scheduled | completed | failed"
-  lease: "claim_owner, instance_id & claim_expires_at (10 min)"
+  label: "mail_ingress [Private]"
+  state: "pending | processing | retry_scheduled | completed | failed"
+  lease: "claim_owner, instance_id, claim_expires_at"
 }
 
 FanOut: {
   shape: diamond
-  label: "Fan-Out Engine\n(Sender Daemon)"
+  label: "Fan-out engine\n(sender daemon)"
 }
 
 Pending: {
   shape: class
-  label: "mail_delivery_pending [Private]\n(Queued for SMTP delivery)"
-  keys: "id (ingress:sub:email), next_attempt_at"
+  label: "mail_delivery_pending [Private]"
+  key: "one row per recipient delivery"
+}
+
+TemporaryRetry: {
+  shape: queue
+  label: "mail_delivery_temporary_failed [Private]"
+  backoff: "next_attempt_at + fail_reason"
 }
 
 Claimed: {
   shape: class
-  label: "mail_delivery_claimed [Private]\n(Active Worker Lease)"
-  lease: "worker, instance_id & lease_expires_at (5 min)"
+  label: "mail_delivery_claimed [Private]"
+  lease: "worker + instance_id + lease_expires_at"
 }
 
 Done: {
   shape: class
-  label: "mail_delivery_done [Private]\n(Terminal records)"
+  label: "mail_delivery_done [Private]"
   state: "sent | failed | bounced"
 }
 
-Audit: {
+Events: {
   shape: page
-  label: "mail_delivery_events [Private]\n(Immutable audit trail)"
+  label: "mail_delivery_events [Private]"
+  audit: "attempts + SMTP response"
 }
 
-MTA -> Ingress: "POST /mta-hook (DATA stage)"
-Ingress -> FanOut: "Claim ingress lease"
-FanOut -> Pending: "enqueue_mail_delivery()"
+ExpireSchedule: {
+  shape: cylinder
+  label: "expire_stale_delivery_claims_schedule"
+}
+
+RetrySchedule: {
+  shape: cylinder
+  label: "requeue_temporary_failed_mails_schedule"
+}
+
+MTA -> MailMessage: "mail hook"
+MailMessage -> Ingress: "upsert_mail_ingress()"
+Ingress -> FanOut: "claim next ingress"
+FanOut -> Pending: "enqueue delivery rows"
 Pending -> Claimed: "claim_next_mail_delivery()"
-Claimed -> Done: "mark_sent() / fail() / bounce()"
-Claimed -> Audit: "Log attempt & SMTP response"
-Claimed -> Pending: "schedule_retry() / lease_expired" { style.stroke-dash: 5 }
+Claimed -> Done: "sent / failed / bounced"
+Claimed -> TemporaryRetry: "temporary SMTP failure" { style.stroke: "#f97316" }
+TemporaryRetry -> Pending: "requeue_temporary_failed_mails()" { style.stroke: "#f97316"; style.stroke-dash: 5 }
+Claimed -> Events: "log SMTP outcome"
+ExpireSchedule -> Claimed: "lease recovery" { style.stroke-dash: 5 }
+RetrySchedule -> TemporaryRetry: "retry sweep" { style.stroke-dash: 5 }

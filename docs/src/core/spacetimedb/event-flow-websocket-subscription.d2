@@ -4,11 +4,11 @@ admin_ui: "Admin UI\n(Dioxus/WASM)" { style.fill: lightblue }
 daemon: "Sender Daemon\n(Rust)" { style.fill: lightblue }
 spacetime: "SpacetimeDB\nViews" { style.fill: lightcoral }
 
-admin_ui -> spacetime: "subscribe:\nvisible_accounts\nvisible_subscriptions\nvisible_messages\nvisible_admin_identities\nvisible_webhook_tokens" { style.stroke-dash: 5 }
-daemon -> spacetime: "subscribe:\nsender_mail_ingress\nsender_mail_deliveries" { style.stroke-dash: 5 }
+admin_ui -> spacetime: "subscribe:\nvisible_accounts\nvisible_message_categories\nvisible_subscriptions\nvisible_messages\nvisible_domains\nvisible_admin_identities\nvisible_webhook_tokens\nvisible_category_app_passwords" { style.stroke-dash: 5 }
+daemon -> spacetime: "subscribe:\nsender_mail_messages\nsender_mail_ingress\nsender_mail_delivery_pending\nsender_mail_delivery_claimed\nsender_mail_delivery_done\nsender_mail_delivery_events\nsender_mail_delivery_temporary_failed" { style.stroke-dash: 5 }
 
 spacetime -> admin_ui: "row updates (WebSocket)" { style.stroke: purple }
 spacetime -> daemon: "row updates (WebSocket)" { style.stroke: purple }
 
-admin_ui -> spacetime: "call reducers\n(e.g. add_subscription)" { style.stroke: green }
-daemon -> spacetime: "call reducers\n(e.g. claim_next_mail_ingress)" { style.stroke: green }
+admin_ui -> spacetime: "call reducers\n(e.g. add_subscription, set_category_topics)" { style.stroke: green }
+daemon -> spacetime: "call reducers\n(e.g. claim_next_mail_ingress, claim_next_mail_delivery)" { style.stroke: green }

@@ -18,25 +18,27 @@ The Kommunikationszentrum acts as an intelligent email gateway that:
 ## Key Features
 
 ### 🔐 **Authentication & Authorization**
-- OAuth integration with Django solawispielplatz
-- JWT-based authentication for secure API access
-- Role-based permissions (admin vs. regular users)
-- Seamless user synchronization between systems
+- OAuth integration with the Django solawispielplatz identity provider
+- JWT-based authorization for WebSocket and HTTP access
+- Role-based admin checks enforced in SpacetimeDB views and reducers
+- User synchronization from Django into the canonical subscription model
 
-### 📧 **Email Processing**
-- Real-time MTA hook processing from Stalwart email server
-- Category-based email routing (e.g., `verteilpunkte@solawis.de`, `events@solawis.de`)
+### 📧 **Mail routing & category management**
+- Stalwart MTA hooks are normalized and classified in SpacetimeDB
+- Category addresses are provisioned as mailing-list identities with visibility rules
+- Domain metadata and mailbox state are synchronized from Stalwart into the module
+- Account activation state is synchronized from Django and enforced before delivery is created
+- Category-specific SMTP app passwords support list submission without broad credentials
 
-### 🛡️ **Spam Protection**
-- Email format validation at multiple stages
-- Sender verification and subscription checks
-- IP-based blocking system with configurable rules
+### 🧯 **Delivery resilience**
+- Transient SMTP errors are stored in a temporary retry queue instead of being lost
+- Delivery jobs are leased to worker instances and recovered after lease expiry
+- Sender state and final delivery outcomes are kept in the database for inspection
 
-### 👥 **User Management**
-- Self-service subscription management interface
-- Admin interface for user and category administration
-- Automatic user synchronization from Django
-- Real-time updates via WebSocket connections
+### 👥 **Member experience**
+- Self-service subscription management in the Dioxus admin UI
+- Admin controls for users, categories, domains, and routing state
+- Real-time updates via SpacetimeDB subscriptions and scoped views
 
 ## Use Cases
 

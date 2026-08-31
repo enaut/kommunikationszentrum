@@ -1,16 +1,25 @@
 direction: right
-incoming_email: "Incoming\nEmail" { style.fill: lightcoral }
-user_changes: "User\nChanges" { style.fill: lightblue }
-admin_actions: "Admin\nActions" { style.fill: lightgreen }
 
-stalwart_mta: "Stalwart\nMTA" { style.fill: lightgray }
-spacetimedb: "SpacetimeDB" { style.fill: lightcoral }
-admin_ui: "Admin UI" { style.fill: lightblue }
-django: "Django" { style.fill: lightyellow }
+incoming_email: "Incoming mail" { style.fill: "#fecaca" }
+user_sync: "Django user sync" { style.fill: "#dbeafe" }
+admin_actions: "Admin actions" { style.fill: "#dcfce7" }
+domain_sync: "Domain sync" { style.fill: "#f3e8ff" }
 
-incoming_email -> stalwart_mta -> spacetimedb: "1" { style.stroke: red }
-user_changes -> django -> spacetimedb: "2" { style.stroke: blue }
-user_changes -> admin_ui -> spacetimedb: "3" { style.stroke: blue}
-admin_actions -> admin_ui -> spacetimedb: "4" { style.stroke: green }
-admin_ui -> django: "OAuth" { style.stroke: orange; style.stroke-dash: 5 }
-spacetimedb -> admin_ui: "WebSocket\nUpdates" { style.stroke: purple; style.stroke-dash: 2 }
+stalwart_mta: "Stalwart MTA" { style.fill: "#e5e7eb" }
+spacetimedb: "SpacetimeDB" { style.fill: "#fca5a5" }
+admin_ui: "Admin UI" { style.fill: "#bfdbfe" }
+django: "Django" { style.fill: "#fef3c7" }
+sender: "Sender daemon" { style.fill: "#bbf7d0" }
+retry_queue: "Temporary retry queue" { style.fill: "#fed7aa" }
+external_recipients: "External recipients" { shape: cloud; style.fill: "#ede9fe" }
+
+incoming_email -> stalwart_mta -> spacetimedb: "1. MTA hook" { style.stroke: "#ef4444" }
+user_sync -> django -> spacetimedb: "2. accounts + subscriptions" { style.stroke: "#3b82f6" }
+domain_sync -> stalwart_mta -> spacetimedb: "3. domain inventory" { style.stroke: "#a855f7" }
+admin_actions -> admin_ui -> spacetimedb: "4. category + policy changes" { style.stroke: "#22c55e" }
+admin_ui -> django: "OAuth" { style.stroke: "#f59e0b"; style.stroke-dash: 5 }
+spacetimedb -> sender: "5. delivery fan-out" { style.stroke: "#10b981" }
+sender -> retry_queue: "6. transient SMTP errors" { style.stroke: "#f97316" }
+retry_queue -> sender: "7. requeue" { style.stroke: "#f97316" }
+sender -> external_recipients: "8. SMTP delivery" { style.stroke: "#7c3aed" }
+spacetimedb -> admin_ui: "WebSocket updates" { style.stroke: "#8b5cf6"; style.stroke-dash: 2 }

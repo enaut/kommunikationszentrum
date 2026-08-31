@@ -34,16 +34,13 @@ The database primarily interacts with four components in the ecosystem:
 
 ## 5. WebSocket Subscription Model
 
-The Admin UI and sender daemon connect to SpacetimeDB over WebSocket and subscribe to **views**,
-not raw tables. SpacetimeDB pushes incremental row updates whenever a subscribed view's result
-set changes.
+The Admin UI and sender daemon connect to SpacetimeDB over WebSocket and subscribe to **views**, not raw tables. SpacetimeDB pushes incremental row updates whenever a subscribed view's result set changes.
 
 ```d2
 {{#include event-flow-websocket-subscription.d2}}
 ```
 
-**View selection by identity:**
-- When an admin connects, `visible_accounts` returns all accounts.
-- When a regular user connects, `visible_accounts` returns only their own row.
-- The sender daemon connects with its own identity (which must be added to `admin_identities`)
-  and subscribes to `sender_mail_ingress` / `sender_mail_deliveries`.
+**Current view selection by identity:**
+- Admin clients receive access to `visible_accounts`, `visible_admin_identities`, `visible_webhook_tokens`, `visible_domains`, `visible_category_app_passwords`, and the full `visible_messages` stream.
+- Regular members receive a filtered `visible_accounts` row, their own `visible_subscriptions`, their visible mailing-list metadata, and message rows for subscribed categories only.
+- The sender daemon connects as an admin identity and subscribes to outbound worker views such as `sender_mail_ingress`, `sender_mail_delivery_pending`, `sender_mail_delivery_claimed`, `sender_mail_delivery_done`, `sender_mail_delivery_events`, `sender_mail_delivery_temporary_failed`, and `sender_mail_messages`.

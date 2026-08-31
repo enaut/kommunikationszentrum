@@ -30,36 +30,43 @@ In the `.env` directory are some example files for the different purposes. Renam
 cp .env.example .env
 ```
 
-## Architecture Overview
+## Current Architecture
 
-The system consists of four main components:
+The system is organized around four cooperating layers:
+
+- Django provides user identity, OAuth, and membership data.
+- Stalwart owns the mail transfer layer, domain inventory, and mailbox provisioning.
+- SpacetimeDB stores the canonical routing state, subscriptions, and delivery pipeline.
+- The sender daemon claims outbound work, sends mail, and retries transient SMTP failures.
 
 ```mermaid
 graph TD
-    %% Node Definitions
-    Admin["Admin Web UI<br>(Dioxus)<br>Port 8080"]
-    DB["Database<br>(SpacetimeDB)<br>Port 3000"]
-    OAuth["ExternalOAuth Provider<br>(solawispielplatz)<br>Django Port 8000"]
-    MTA["Stalwart MTA<br>(External)"]
-    Sender["Email Sender<br>(Rust-daemon)"]
+    Admin["Admin Web UI<br/>Dioxus<br/>Port 8080"]
+    DB["SpacetimeDB<br/>Database + reducers<br/>Port 3000"]
+    Django["Django / OAuth<br/>solawispielplatz<br/>Port 8000"]
+    Stalwart["Stalwart MTA<br/>SMTP + JMAP + domains"]
+    Sender["Sender Daemon<br/>delivery + retry queue"]
+    Queue["Temporary failure queue"]
+    Relay["Outbound SMTP relay"]
 
-    %% Connections
     Admin <--> DB
-    Admin --> OAuth
-    Admin --> Sender
-    DB <--> MTA
-    DB <--> Sender
-
-    %% Styling (Optional but keeps it clean and square)
-    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
-
+    Admin --> Django
+    Django --> DB
+    Stalwart --> DB
+    Stalwart <--> DB
+    DB --> Sender
+    Sender --> Queue
+    Queue --> Sender
+    Sender --> Stalwart
+    Sender --> Relay
 ```
 
 ### Components
 
-1. **SpacetimeDB Server** (`/server`): Core database and business logic layer
-2. **Admin Web Interface** (`/admin`): Dioxus WebAssembly frontend
-3. **Django Backend** (external): User management and OAuth provider
+1. **SpacetimeDB Server** (`/server`): canonical state for accounts, categories, subscriptions, domains, and delivery jobs
+2. **Admin Web Interface** (`/admin`): Dioxus frontend for member and admin workflows
+3. **Sender Daemon** (`/sender`): SMTP delivery worker with retry, lease expiry, and queue recovery
+4. **External integrations**: Django OAuth/user sync and Stalwart MTA/domain management
 
 ## Manual Setup
 
