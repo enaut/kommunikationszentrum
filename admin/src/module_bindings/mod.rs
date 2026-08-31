@@ -18,6 +18,7 @@ pub mod admin_add_subscription_reducer;
 pub mod admin_identity_type;
 pub mod blocked_ip_type;
 pub mod cancel_mail_delivery_retry_reducer;
+pub mod category_app_password_type;
 pub mod category_visibility_type;
 pub mod claim_next_mail_delivery_reducer;
 pub mod claim_next_mail_ingress_reducer;
@@ -80,6 +81,7 @@ pub mod unregister_admin_identity_reducer;
 pub mod update_message_category_reducer;
 pub mod visible_accounts_table;
 pub mod visible_admin_identities_table;
+pub mod visible_category_app_passwords_table;
 pub mod visible_domains_table;
 pub mod visible_message_categories_table;
 pub mod visible_message_category_topics_table;
@@ -99,6 +101,7 @@ pub use admin_add_subscription_reducer::admin_add_subscription;
 pub use admin_identity_type::AdminIdentity;
 pub use blocked_ip_type::BlockedIp;
 pub use cancel_mail_delivery_retry_reducer::cancel_mail_delivery_retry;
+pub use category_app_password_type::CategoryAppPassword;
 pub use category_visibility_type::CategoryVisibility;
 pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
 pub use claim_next_mail_ingress_reducer::claim_next_mail_ingress;
@@ -161,6 +164,7 @@ pub use unregister_admin_identity_reducer::unregister_admin_identity;
 pub use update_message_category_reducer::update_message_category;
 pub use visible_accounts_table::*;
 pub use visible_admin_identities_table::*;
+pub use visible_category_app_passwords_table::*;
 pub use visible_domains_table::*;
 pub use visible_message_categories_table::*;
 pub use visible_message_category_topics_table::*;
@@ -640,6 +644,7 @@ pub struct DbUpdate {
     sender_mail_messages: __sdk::TableUpdate<MailMessage>,
     visible_accounts: __sdk::TableUpdate<Account>,
     visible_admin_identities: __sdk::TableUpdate<AdminIdentity>,
+    visible_category_app_passwords: __sdk::TableUpdate<CategoryAppPassword>,
     visible_domains: __sdk::TableUpdate<Domain>,
     visible_message_categories: __sdk::TableUpdate<MessageCategory>,
     visible_message_category_topics: __sdk::TableUpdate<MessageCategoryTopic>,
@@ -706,6 +711,11 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "visible_admin_identities" => db_update.visible_admin_identities.append(
                     visible_admin_identities_table::parse_table_update(table_update)?,
                 ),
+                "visible_category_app_passwords" => {
+                    db_update.visible_category_app_passwords.append(
+                        visible_category_app_passwords_table::parse_table_update(table_update)?,
+                    )
+                }
                 "visible_domains" => db_update
                     .visible_domains
                     .append(visible_domains_table::parse_table_update(table_update)?),
@@ -821,6 +831,12 @@ impl __sdk::DbUpdate for DbUpdate {
                 &self.visible_admin_identities,
             )
             .with_updates_by_pk(|row| &row.identity);
+        diff.visible_category_app_passwords = cache
+            .apply_diff_to_table::<CategoryAppPassword>(
+                "visible_category_app_passwords",
+                &self.visible_category_app_passwords,
+            )
+            .with_updates_by_pk(|row| &row.id);
         diff.visible_domains = cache
             .apply_diff_to_table::<Domain>("visible_domains", &self.visible_domains)
             .with_updates_by_pk(|row| &row.id);
@@ -895,6 +911,9 @@ impl __sdk::DbUpdate for DbUpdate {
                 "visible_admin_identities" => db_update
                     .visible_admin_identities
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_category_app_passwords" => db_update
+                    .visible_category_app_passwords
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_domains" => db_update
                     .visible_domains
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
@@ -968,6 +987,9 @@ impl __sdk::DbUpdate for DbUpdate {
                 "visible_admin_identities" => db_update
                     .visible_admin_identities
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_category_app_passwords" => db_update
+                    .visible_category_app_passwords
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_domains" => db_update
                     .visible_domains
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -1019,6 +1041,7 @@ pub struct AppliedDiff<'r> {
     sender_mail_messages: __sdk::TableAppliedDiff<'r, MailMessage>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
     visible_admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
+    visible_category_app_passwords: __sdk::TableAppliedDiff<'r, CategoryAppPassword>,
     visible_domains: __sdk::TableAppliedDiff<'r, Domain>,
     visible_message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
     visible_message_category_topics: __sdk::TableAppliedDiff<'r, MessageCategoryTopic>,
@@ -1102,6 +1125,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<AdminIdentity>(
             "visible_admin_identities",
             &self.visible_admin_identities,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<CategoryAppPassword>(
+            "visible_category_app_passwords",
+            &self.visible_category_app_passwords,
             event,
         );
         callbacks.invoke_table_row_callbacks::<Domain>(
@@ -1812,6 +1840,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         sender_mail_messages_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
         visible_admin_identities_table::register_table(client_cache);
+        visible_category_app_passwords_table::register_table(client_cache);
         visible_domains_table::register_table(client_cache);
         visible_message_categories_table::register_table(client_cache);
         visible_message_category_topics_table::register_table(client_cache);
@@ -1834,6 +1863,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "sender_mail_messages",
         "visible_accounts",
         "visible_admin_identities",
+        "visible_category_app_passwords",
         "visible_domains",
         "visible_message_categories",
         "visible_message_category_topics",

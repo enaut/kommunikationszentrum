@@ -34,6 +34,7 @@ pub struct TableSignals {
     pub sender_mail_messages: SyncSignal<Vec<MailMessage>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
     pub visible_admin_identities: SyncSignal<Vec<AdminIdentity>>,
+    pub visible_category_app_passwords: SyncSignal<Vec<CategoryAppPassword>>,
     pub visible_domains: SyncSignal<Vec<Domain>>,
     pub visible_message_categories: SyncSignal<Vec<MessageCategory>>,
     pub visible_message_category_topics: SyncSignal<Vec<MessageCategoryTopic>>,
@@ -200,6 +201,7 @@ pub fn use_spacetimedb_context_provider(
         sender_mail_messages: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
         visible_admin_identities: use_signal_sync(Vec::new),
+        visible_category_app_passwords: use_signal_sync(Vec::new),
         visible_domains: use_signal_sync(Vec::new),
         visible_message_categories: use_signal_sync(Vec::new),
         visible_message_category_topics: use_signal_sync(Vec::new),
@@ -685,6 +687,41 @@ pub fn use_spacetimedb_context_provider(
                                     .visible_admin_identities
                                     .set(updated);
                             });
+                        // Populate initial rows for visible_category_app_passwords
+                        let current: Vec<CategoryAppPassword> =
+                            conn.db.visible_category_app_passwords().iter().collect();
+                        table_signals_on_connect
+                            .visible_category_app_passwords
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .visible_category_app_passwords()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.visible_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .visible_category_app_passwords
+                                    .set(updated);
+                            });
+                        conn.db.visible_category_app_passwords().on_update(
+                            move |ctx, _old, _new| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.visible_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .visible_category_app_passwords
+                                    .set(updated);
+                            },
+                        );
+                        conn.db
+                            .visible_category_app_passwords()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.visible_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .visible_category_app_passwords
+                                    .set(updated);
+                            });
                         // Populate initial rows for visible_domains
                         let current: Vec<Domain> = conn.db.visible_domains().iter().collect();
                         table_signals_on_connect.visible_domains.set(current);
@@ -1091,6 +1128,13 @@ pub fn use_table_visible_accounts() -> SyncSignal<Vec<Account>> {
 pub fn use_table_visible_admin_identities() -> SyncSignal<Vec<AdminIdentity>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.visible_admin_identities
+}
+
+/// Get a reactive signal containing all rows of the `visible_category_app_passwords` table.
+#[must_use]
+pub fn use_table_visible_category_app_passwords() -> SyncSignal<Vec<CategoryAppPassword>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_category_app_passwords
 }
 
 /// Get a reactive signal containing all rows of the `visible_domains` table.

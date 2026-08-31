@@ -3,8 +3,8 @@ mod mail;
 mod module_bindings;
 
 use config::SenderConfig;
-use lettre::{SmtpTransport, Transport};
-use mail::{build_transport, compose_delivery, is_permanent_error, is_transient_error};
+use lettre::Transport;
+use mail::{build_transport, compose_delivery, is_permanent_error, is_transient_error, resolve_category_smtp_credentials};
 use module_bindings::{
     claim_next_mail_delivery, claim_next_mail_ingress, complete_mail_ingress,
     enqueue_mail_delivery, ensure_subscription_unsubscribe_token, fail_mail_delivery,
@@ -21,7 +21,7 @@ use crate::module_bindings::{
     SenderMailDeliveryClaimedTableAccess as _, SenderMailDeliveryDoneTableAccess as _,
     SenderMailDeliveryPendingTableAccess as _, SenderMailIngressTableAccess as _,
     SenderMailMessagesTableAccess as _, VisibleAdminIdentitiesTableAccess as _,
-    VisibleMessageCategoriesTableAccess as _,
+    VisibleCategoryAppPasswordsTableAccess as _, VisibleMessageCategoriesTableAccess as _,
 };
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider as _;
@@ -130,8 +130,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut pump_handle = tokio::spawn(async move { db_conn.run_async().await });
 
     // Build the SMTP transport for sending emails
-    let transport = build_transport(&config)?;
-
     info!("Entering mail processing loop. Press Ctrl+C to stop.");
 
     // Setup a shutdown signal listener for graceful termination
@@ -175,7 +173,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 };
 
                 // Process delivery jobs take one delivery job and send it via SMTP.
-                match claim_delivery_jobs(&connection, &transport, &instance_id){
+                match claim_delivery_jobs(&connection, &config, &instance_id){
                     Ok(_) => (),
                     Err(error) => error!("Error processing delivery jobs: {:?}", error),
                 }
@@ -265,6 +263,7 @@ fn subscribe_to_spacetime_tables(connection: &DbConnection, token: String) {
             "SELECT * FROM sender_mail_messages",
             "SELECT * FROM active_subscriptions",
             "SELECT * FROM visible_message_categories",
+            "SELECT * FROM visible_category_app_passwords",
             "SELECT * FROM active_unsubscribe_tokens",
             "SELECT * FROM visible_admin_identities",
         ]);
@@ -549,6 +548,29 @@ fn process_ingress_job(
         }
     };
 
+    let Some(app_password_id) = category.app_password_id else {
+        let _ = connection.reducers().fail_mail_ingress(
+            ingress.id.clone(),
+            instance_id.to_string(),
+            "category has no SMTP app password".to_string(),
+        );
+        return Ok(());
+    };
+
+    if connection
+        .db
+        .visible_category_app_passwords()
+        .id()
+        .find(&app_password_id)
+        .is_none()
+    {
+        return Err(format!(
+            "SMTP app password for category {} not in local cache yet",
+            category.id
+        )
+        .into());
+    }
+
     let mut subscribers: Vec<Subscription> = connection
         .db
         .active_subscriptions()
@@ -620,7 +642,7 @@ fn process_ingress_job(
 #[instrument(skip_all)]
 fn claim_delivery_jobs(
     connection: &DbConnection, // No longer needs Arc!
-    transport: &SmtpTransport,
+    config: &SenderConfig,
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
     trace!("claiming delivery jobs");
@@ -644,7 +666,7 @@ fn claim_delivery_jobs(
         }
     } else {
         trace!("processing claimed delivery jobs");
-        process_claimed_delivery_jobs(connection, transport, instance_id)?;
+        process_claimed_delivery_jobs(connection, config, instance_id)?;
     }
 
     Ok(())
@@ -653,7 +675,7 @@ fn claim_delivery_jobs(
 #[instrument(skip_all)]
 fn process_claimed_delivery_jobs(
     connection: &DbConnection,
-    transport: &SmtpTransport,
+    config: &SenderConfig,
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
     let owner = match connection.try_identity() {
@@ -671,7 +693,7 @@ fn process_claimed_delivery_jobs(
     for delivery in owned_jobs {
         trace!("processing delivery: {}", delivery.id);
         let delivery_id = delivery.id.clone();
-        match send_delivery(connection, transport, delivery, instance_id) {
+        match send_delivery(connection, config, delivery, instance_id) {
             Err(error) => {
                 warn!("delivery failure: {}", error);
             }
@@ -698,15 +720,46 @@ fn self_owned_delivery_jobs(
         .collect()
 }
 
-#[instrument(skip(connection, transport), fields(delivery_id = %claimed.id))]
+#[instrument(skip(connection, config), fields(delivery_id = %claimed.id))]
 fn send_delivery(
     connection: &DbConnection,
-    transport: &SmtpTransport,
+    config: &SenderConfig,
     claimed: MailDeliveryClaimed,
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
     trace!("sending delivery: {}", claimed.id);
     use lettre::address::Envelope;
+
+    let (smtp_username, smtp_password) =
+        match resolve_category_smtp_credentials(connection, claimed.row.category_id) {
+            Ok(credentials) => credentials,
+            Err(error) => {
+                let response = format!("Pre-SMTP error: {error}");
+                connection.reducers().fail_mail_delivery(
+                    claimed.id.clone(),
+                    instance_id.to_string(),
+                    Some(0),
+                    response,
+                    "missing-category-smtp-credentials".to_string(),
+                )?;
+                return Err(error);
+            }
+        };
+
+    let transport = match build_transport(config, &smtp_username, &smtp_password) {
+        Ok(transport) => transport,
+        Err(error) => {
+            let response = format!("Pre-SMTP error: {error}");
+            connection.reducers().fail_mail_delivery(
+                claimed.id.clone(),
+                instance_id.to_string(),
+                Some(0),
+                response,
+                "smtp-transport-build".to_string(),
+            )?;
+            return Err(error);
+        }
+    };
 
     let envelope_result = {
         let from = claimed.row.original_sender_email.parse()?;

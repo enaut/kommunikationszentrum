@@ -5,15 +5,21 @@ use lettre::transport::smtp::Error as SmtpError;
 use lettre::SmtpTransport;
 use regex::Regex;
 use serde_json::to_string;
+use spacetimedb_sdk::Table as _;
 use std::error::Error;
 use tracing::trace;
 
 use crate::config::SenderConfig;
 use crate::module_bindings::{
-    MailMessage, MessageCategory, Subscription, SubscriptionUnsubscribeToken,
+    DbConnection, MailMessage, MessageCategory, Subscription, SubscriptionUnsubscribeToken,
+    VisibleCategoryAppPasswordsTableAccess as _, VisibleMessageCategoriesTableAccess as _,
 };
 
-pub fn build_transport(config: &SenderConfig) -> Result<SmtpTransport, Box<dyn Error>> {
+pub fn build_transport(
+    config: &SenderConfig,
+    username: &str,
+    password: &str,
+) -> Result<SmtpTransport, Box<dyn Error>> {
     let mut builder = if config.smtp_use_tls {
         let tls = if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
             let mut tls_builder = TlsParameters::builder(config.smtp_host.clone());
@@ -38,12 +44,40 @@ pub fn build_transport(config: &SenderConfig) -> Result<SmtpTransport, Box<dyn E
     };
 
     builder = builder.port(config.smtp_port);
-
-    if let (Some(username), Some(password)) = (&config.smtp_username, &config.smtp_password) {
-        builder = builder.credentials(Credentials::new(username.clone(), password.clone()));
-    }
+    builder = builder.credentials(Credentials::new(username.to_owned(), password.to_owned()));
 
     Ok(builder.build())
+}
+
+pub fn resolve_category_smtp_credentials(
+    connection: &DbConnection,
+    category_id: u64,
+) -> Result<(String, String), Box<dyn Error>> {
+    let category = connection
+        .db
+        .visible_message_categories()
+        .iter()
+        .find(|category| category.id == category_id)
+        .ok_or_else(|| format!("Category {category_id} not in local cache"))?;
+
+    let app_password_id = category
+        .app_password_id
+        .ok_or_else(|| format!("Category {category_id} has no SMTP app password"))?;
+
+    let app_password = connection
+        .db
+        .visible_category_app_passwords()
+        .id()
+        .find(&app_password_id)
+        .ok_or_else(|| {
+            format!("App password {app_password_id} for category {category_id} not in local cache")
+        })?;
+    trace!(
+        "Determined credentials: {} {}",
+        category.email_address,
+        app_password.secret
+    );
+    Ok((category.email_address, app_password.secret))
 }
 
 pub fn is_transient_error(error: &SmtpError) -> bool {

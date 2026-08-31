@@ -1,7 +1,6 @@
 use crate::account::{account, account__view, is_admin_identity, is_admin_user, Account};
 use crate::domain::domains as _;
 use log::{error, info};
-use serde::{Deserialize, Serialize};
 use spacetimedb::{Query, ReducerContext, SpacetimeType, Table, Timestamp, ViewContext};
 
 // Private: clients never subscribe to this table directly. `visible_message_categories`
@@ -21,6 +20,26 @@ pub struct MessageCategory {
     #[index(btree)]
     #[default(CategoryVisibility::Public)]
     pub visibility: CategoryVisibility,
+    /// Stalwart app password for SMTP submission from this category mailbox.
+    /// Set during `provision_message_category`; absent for DB-only categories.
+    #[index(btree)]
+    #[default(None::<u64>)]
+    pub app_password_id: Option<u64>,
+}
+
+// Private: clients never subscribe to this table directly. `visible_category_app_passwords`
+// below is the only way clients can read app-password rows.
+#[spacetimedb::table(accessor = category_app_passwords)]
+pub struct CategoryAppPassword {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    /// Plaintext Stalwart app password, returned only on creation.
+    pub secret: String,
+    /// Stalwart credential id for future revocation via JMAP.
+    #[index(btree)]
+    pub stalwart_id: String,
+    pub created_at: Timestamp,
 }
 
 /// Determines who can discover a message category in the member-facing view.
@@ -68,7 +87,7 @@ pub struct MessageCategoryTopic {
 /// Category data as sent by the Django user-sync webhook for a single
 /// mailing-list assignment (e.g. a Verteilpunkt). Used to ensure the
 /// category exists and to subscribe an account to it in one step.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct CategorySyncData {
     pub name: String,
     pub email_address: String,
@@ -299,6 +318,15 @@ pub fn visible_message_category_topics(ctx: &ViewContext) -> impl Query<MessageC
     ctx.from.message_category_topics()
 }
 
+/// Returns category app passwords only for admins. Regular users get an empty list.
+#[spacetimedb::view(accessor = visible_category_app_passwords, public)]
+pub fn visible_category_app_passwords(ctx: &ViewContext) -> impl Query<CategoryAppPassword> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from
+        .category_app_passwords()
+        .r#filter(move |_| is_admin)
+}
+
 #[spacetimedb::reducer]
 pub fn add_message_category(
     ctx: &ReducerContext,
@@ -318,6 +346,7 @@ pub fn add_message_category(
         description,
         active: true,
         visibility,
+        app_password_id: None,
     });
     log::info!(
         "Added new message category (by identity: {:?})",
@@ -331,14 +360,17 @@ pub fn remove_message_category(ctx: &ReducerContext, category_id: u64) -> Result
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
     }
-    if ctx
+    let category = ctx
         .db
         .message_categories()
         .id()
         .find(&category_id)
-        .is_none()
-    {
-        return Err(format!("Message category {} not found", category_id));
+        .ok_or_else(|| format!("Message category {} not found", category_id))?;
+    if let Some(app_password_id) = category.app_password_id {
+        ctx.db
+            .category_app_passwords()
+            .id()
+            .delete(&app_password_id);
     }
     ctx.db.message_categories().id().delete(&category_id);
     log::info!(
@@ -686,6 +718,7 @@ pub(crate) fn do_add_and_subscribe_category(
                 description,
                 active: true,
                 visibility,
+                app_password_id: None,
             });
             ctx.db
                 .message_categories()
@@ -996,17 +1029,7 @@ pub fn provision_message_category(
         ));
     }
 
-    // 4) Read compile-time configuration for JMAP URL and admin token
-    let jmap_base = env!("STALWART_JMAP_URL");
-    let admin_token = env!("STALWART_ADMIN_TOKEN");
-
-    let endpoint = if jmap_base.ends_with("/jmap") {
-        jmap_base.trim_end_matches('/').to_string()
-    } else {
-        format!("{}/jmap", jmap_base.trim_end_matches('/'))
-    };
-
-    // 5) Build JMAP payload: base -> username, name -> fullname/description, domain_id -> domainId
+    // 4) Create the Stalwart mailbox account
     let create_map = serde_json::json!({
         "create": {
             "create-1": {
@@ -1031,7 +1054,7 @@ pub fn provision_message_category(
         }
     });
 
-    let payload = serde_json::json!({
+    let account_payload = serde_json::json!({
         "using": [
             "urn:ietf:params:jmap:core",
             "urn:stalwart:jmap"
@@ -1041,12 +1064,67 @@ pub fn provision_message_category(
         ]
     });
 
+    let account_res = send_stalwart_jmap_request(ctx, account_payload)?;
+    let account_result = jmap_method_result(&account_res, "x:Account/set")?;
+    jmap_check_not_created(account_result, "x:Account/set")?;
+
+    let account_id = account_result
+        .get("created")
+        .and_then(|created| created.get("create-1"))
+        .and_then(jmap_created_id)
+        .ok_or_else(|| {
+            format!(
+                "Missing created account id in JMAP response: {}",
+                account_res
+            )
+        })?;
+
+    // 5) Create an app password for SMTP submission from this category mailbox
+    let app_password_description = format!("kommunikationszentrum sender ({email_address})");
+    let (stalwart_id, secret) =
+        provision_stalwart_app_password(ctx, &account_id, &app_password_description)?;
+
+    // 6) Persist the category and its app password
+    ctx.with_tx(|tx| {
+        let app_password = tx.db.category_app_passwords().insert(CategoryAppPassword {
+            id: 0,
+            secret: secret.clone(),
+            stalwart_id: stalwart_id.clone(),
+            created_at: tx.timestamp,
+        });
+        tx.db.message_categories().insert(MessageCategory {
+            id: 0,
+            name: name.clone(),
+            email_address: email_address.clone(),
+            description: description.clone(),
+            active: true,
+            visibility,
+            app_password_id: Some(app_password.id),
+        });
+    });
+
+    Ok(())
+}
+
+fn stalwart_jmap_endpoint() -> String {
+    let jmap_base = env!("STALWART_JMAP_URL");
+    if jmap_base.ends_with("/jmap") {
+        jmap_base.trim_end_matches('/').to_string()
+    } else {
+        format!("{}/jmap", jmap_base.trim_end_matches('/'))
+    }
+}
+
+fn send_stalwart_jmap_request(
+    ctx: &mut spacetimedb::ProcedureContext,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let endpoint = stalwart_jmap_endpoint();
+    let admin_token = env!("STALWART_ADMIN_TOKEN");
     let body = serde_json::to_vec(&payload).map_err(|e| {
         error!("Failed to serialize JMAP payload: {}", e);
         format!("Failed to serialize JMAP payload: {}", e)
     })?;
-
-    info!("body created!");
 
     let request = spacetimedb::http::Request::builder()
         .uri(endpoint)
@@ -1058,17 +1136,13 @@ pub fn provision_message_category(
         ))
         .body(body)
         .map_err(|e| format!("Failed to build HTTP request: {:?}", e))?;
-    info!("request created!");
-    // 6) Perform HTTP request
+
     let response = ctx.http.send(request).map_err(|e| {
         error!("Failed to perform request: {}", e);
         format!("HTTP send failed: {:?}", e)
     })?;
 
-    info!("Response: {:?}", response.status());
-
     let (parts, body) = response.into_parts();
-
     if parts.status != 200 {
         let body = body.into_string_lossy();
         error!(
@@ -1082,44 +1156,118 @@ pub fn provision_message_category(
     }
 
     let body_bytes = body.into_bytes();
-    let res_body: serde_json::Value = serde_json::from_slice(&body_bytes)
-        .map_err(|e| format!("Failed to parse JSON response: {}", e))?;
+    serde_json::from_slice(&body_bytes).map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
 
-    info!("Response Body: {}", res_body);
+fn jmap_method_result<'a>(
+    res_body: &'a serde_json::Value,
+    method_name: &str,
+) -> Result<&'a serde_json::Value, String> {
+    let method_responses = res_body
+        .get("methodResponses")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| format!("Missing methodResponses in JMAP response: {}", res_body))?;
 
-    // Inspect methodResponses for x:Account/set and check for `notCreated`
-    if let Some(method_responses) = res_body.get("methodResponses").and_then(|v| v.as_array()) {
-        for entry in method_responses {
-            if let Some(method_name) = entry.get(0).and_then(|v| v.as_str()) {
-                if method_name == "x:Account/set" {
-                    if let Some(result_obj) = entry.get(1) {
-                        if let Some(not_created) = result_obj.get("notCreated") {
-                            if not_created
-                                .as_object()
-                                .map(|m| !m.is_empty())
-                                .unwrap_or(false)
-                            {
-                                return Err(format!("JMAP reported notCreated: {}", not_created));
-                            }
-                        }
-                        // Success path: insert the category inside a transaction
-                        ctx.with_tx(|tx| {
-                            tx.db.message_categories().insert(MessageCategory {
-                                id: 0,
-                                name: name.clone(),
-                                email_address: email_address.clone(),
-                                description: description.clone(),
-                                active: true,
-                                visibility,
-                            });
-                        });
-
-                        return Ok(());
-                    }
-                }
-            }
+    for entry in method_responses {
+        if entry.get(0).and_then(|value| value.as_str()) == Some(method_name) {
+            return entry.get(1).ok_or_else(|| {
+                format!("Missing result object for {} in JMAP response", method_name)
+            });
         }
     }
 
-    Err(format!("Unexpected JMAP response: {}", res_body))
+    Err(format!(
+        "Method {} not found in JMAP response: {}",
+        method_name, res_body
+    ))
+}
+
+fn jmap_check_not_created(result: &serde_json::Value, label: &str) -> Result<(), String> {
+    if let Some(not_created) = result.get("notCreated") {
+        if not_created
+            .as_object()
+            .map(|entries| !entries.is_empty())
+            .unwrap_or(false)
+        {
+            return Err(format!(
+                "JMAP {} reported notCreated: {}",
+                label, not_created
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Extract an object id from a JMAP Foo/set `created` entry. Stalwart may return
+/// either a plain string id or an object such as `{"id": "..."}`.
+fn jmap_created_id(value: &serde_json::Value) -> Option<String> {
+    if let Some(id) = value.as_str() {
+        return Some(id.to_string());
+    }
+    value
+        .get("id")
+        .and_then(|id| id.as_str())
+        .map(|id| id.to_string())
+}
+
+fn provision_stalwart_app_password(
+    ctx: &mut spacetimedb::ProcedureContext,
+    account_id: &str,
+    description: &str,
+) -> Result<(String, String), String> {
+    let payload = serde_json::json!({
+        "using": [
+            "urn:ietf:params:jmap:core",
+            "urn:stalwart:jmap"
+        ],
+        "methodCalls": [
+            [
+                "x:AppPassword/set",
+                {
+                    "accountId": account_id,
+                    "create": {
+                        "app-pw-1": {
+                            "description": description,
+                            "permissions": {
+                                "@type": "Replace",
+                                "permissions": {
+                                    "emailSend": true,
+                                    "authenticate": true
+                                }
+                            },
+                            "allowedIps": {}
+                        }
+                    }
+                },
+                "call-id-app-pw"
+            ]
+        ]
+    });
+
+    let res_body = send_stalwart_jmap_request(ctx, payload)?;
+    let result = jmap_method_result(&res_body, "x:AppPassword/set")?;
+    jmap_check_not_created(result, "x:AppPassword/set")?;
+
+    let created = result
+        .get("created")
+        .and_then(|created| created.get("app-pw-1"))
+        .ok_or_else(|| {
+            format!(
+                "Missing created app password in JMAP response: {}",
+                res_body
+            )
+        })?;
+
+    let stalwart_id = created
+        .get("id")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| format!("Missing app password id in JMAP response: {}", created))?
+        .to_string();
+    let secret = created
+        .get("secret")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| format!("Missing app password secret in JMAP response: {}", created))?
+        .to_string();
+
+    Ok((stalwart_id, secret))
 }

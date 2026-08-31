@@ -1,7 +1,5 @@
 use std::env;
 
-use tracing::info;
-
 #[derive(Debug, Clone)]
 pub struct SenderConfig {
     pub spacetimedb_uri: String,
@@ -9,8 +7,6 @@ pub struct SenderConfig {
     pub spacetimedb_token: Option<String>,
     pub smtp_host: String,
     pub smtp_port: u16,
-    pub smtp_username: Option<String>,
-    pub smtp_password: Option<String>,
     pub smtp_use_tls: bool,
     pub smtp_accept_invalid_certs: bool,
     pub smtp_accept_invalid_hostnames: bool,
@@ -37,8 +33,6 @@ impl SenderConfig {
                 "SMTP_PORT is set to an IMAP port ({smtp_port}). SMTP uses ports like 25, 465, 587, or the relay-specific SMTP port; IMAP ports 143/993 are not valid for this sender."
             );
         }
-        let smtp_username = env::var("SMTP_USERNAME").ok();
-        let smtp_password = env::var("SMTP_PASSWORD").ok();
         let smtp_use_tls = env::var("SMTP_USE_TLS")
             .ok()
             .and_then(|value| value.parse::<bool>().ok())
@@ -71,8 +65,6 @@ impl SenderConfig {
             spacetimedb_token: env::var("SPACETIMEDB_TOKEN").ok(),
             smtp_host,
             smtp_port,
-            smtp_username,
-            smtp_password,
             smtp_use_tls,
             smtp_accept_invalid_certs,
             smtp_accept_invalid_hostnames,

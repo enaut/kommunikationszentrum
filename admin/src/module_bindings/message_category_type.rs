@@ -15,6 +15,7 @@ pub struct MessageCategory {
     pub description: String,
     pub active: bool,
     pub visibility: CategoryVisibility,
+    pub app_password_id: Option<u64>,
 }
 
 impl __sdk::InModule for MessageCategory {
@@ -31,6 +32,7 @@ pub struct MessageCategoryCols {
     pub description: __sdk::__query_builder::Col<MessageCategory, String>,
     pub active: __sdk::__query_builder::Col<MessageCategory, bool>,
     pub visibility: __sdk::__query_builder::Col<MessageCategory, CategoryVisibility>,
+    pub app_password_id: __sdk::__query_builder::Col<MessageCategory, Option<u64>>,
 }
 
 impl __sdk::__query_builder::HasCols for MessageCategory {
@@ -43,6 +45,7 @@ impl __sdk::__query_builder::HasCols for MessageCategory {
             description: __sdk::__query_builder::Col::new(table_name, "description"),
             active: __sdk::__query_builder::Col::new(table_name, "active"),
             visibility: __sdk::__query_builder::Col::new(table_name, "visibility"),
+            app_password_id: __sdk::__query_builder::Col::new(table_name, "app_password_id"),
         }
     }
 }
@@ -51,6 +54,7 @@ impl __sdk::__query_builder::HasCols for MessageCategory {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct MessageCategoryIxCols {
+    pub app_password_id: __sdk::__query_builder::IxCol<MessageCategory, Option<u64>>,
     pub email_address: __sdk::__query_builder::IxCol<MessageCategory, String>,
     pub id: __sdk::__query_builder::IxCol<MessageCategory, u64>,
     pub visibility: __sdk::__query_builder::IxCol<MessageCategory, CategoryVisibility>,
@@ -60,6 +64,7 @@ impl __sdk::__query_builder::HasIxCols for MessageCategory {
     type IxCols = MessageCategoryIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         MessageCategoryIxCols {
+            app_password_id: __sdk::__query_builder::IxCol::new(table_name, "app_password_id"),
             email_address: __sdk::__query_builder::IxCol::new(table_name, "email_address"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
             visibility: __sdk::__query_builder::IxCol::new(table_name, "visibility"),
