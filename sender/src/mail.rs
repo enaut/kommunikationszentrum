@@ -72,11 +72,6 @@ pub fn resolve_category_smtp_credentials(
         .ok_or_else(|| {
             format!("App password {app_password_id} for category {category_id} not in local cache")
         })?;
-    trace!(
-        "Determined credentials: {} {}",
-        category.email_address,
-        app_password.secret
-    );
     Ok((category.email_address, app_password.secret))
 }
 
