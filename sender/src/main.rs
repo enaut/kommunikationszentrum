@@ -35,6 +35,14 @@ use tracing::{error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
+/// Events sent through the main channel.
+enum Event {
+    /// Wake the processing loop to check for new work.
+    Wakeup,
+    /// A fatal error occurred; the main loop should exit with this message.
+    FatalError(String),
+}
+
 struct OTelProviders {
     tracer_provider: SdkTracerProvider,
     logger_provider: SdkLoggerProvider,
@@ -118,7 +126,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "Starting sender service"
     );
 
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Event>();
     let connection = Arc::new(connect_to_spacetimedb(&config, tx.clone())?);
 
     // Setup DB update notifications and subscriptions are registered in the
@@ -137,7 +145,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::pin!(shutdown_signal);
 
     // Bootstrap: wake the loop once immediately so it checks for work on startup.
-    let _ = tx.send(());
+    let _ = tx.send(Event::Wakeup);
 
     // Main reactive processing loop: wait for database updates, shutdown signal, or pump termination
     loop {
@@ -163,19 +171,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 return Err(err_msg.into());
             }
 
-            Some(_) = rx.recv() => {
-                trace!("Database subscription updated. Processing jobs...");
+            Some(event) = rx.recv() => {
+                match event {
+                    Event::FatalError(msg) => {
+                        error!("{}", msg);
+                        break;
+                    }
+                    Event::Wakeup => {
+                        trace!("Database subscription updated. Processing jobs...");
 
-                // Process fanout jobs take one incoming mail and create delivery jobs for all subscribers.
-                match process_fanout_jobs(&connection, &config, &instance_id) {
-                    Ok(_) => (),
-                    Err(error) => error!("Error processing fanout jobs: {:?}", error),
-                };
+                        // Process fanout jobs take one incoming mail and create delivery jobs for all subscribers.
+                        match process_fanout_jobs(&connection, &config, &instance_id) {
+                            Ok(_) => (),
+                            Err(error) => error!("Error processing fanout jobs: {:?}", error),
+                        };
 
-                // Process delivery jobs take one delivery job and send it via SMTP.
-                match claim_delivery_jobs(&connection, &config, &instance_id){
-                    Ok(_) => (),
-                    Err(error) => error!("Error processing delivery jobs: {:?}", error),
+                        // Process delivery jobs take one delivery job and send it via SMTP.
+                        match claim_delivery_jobs(&connection, &config, &instance_id){
+                            Ok(_) => (),
+                            Err(error) => error!("Error processing delivery jobs: {:?}", error),
+                        }
+                    }
                 }
             }
         }
@@ -192,7 +208,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn connect_to_spacetimedb(
     config: &SenderConfig,
-    tx: tokio::sync::mpsc::UnboundedSender<()>,
+    tx: tokio::sync::mpsc::UnboundedSender<Event>,
 ) -> Result<DbConnection, Box<dyn Error>> {
     trace!("Connecting to SpacetimeDB...");
     info!("Config: {:?}", config);
@@ -224,6 +240,7 @@ fn connect_to_spacetimedb(
                 .as_ref()
                 .unwrap()
                 .to_owned(),
+            tx.clone(),
         );
         setup_update_notifications(connection, tx.clone());
     });
@@ -231,7 +248,11 @@ fn connect_to_spacetimedb(
     Ok(builder.build()?)
 }
 
-fn subscribe_to_spacetime_tables(connection: &DbConnection, token: String) {
+fn subscribe_to_spacetime_tables(
+    connection: &DbConnection,
+    token: String,
+    tx: tokio::sync::mpsc::UnboundedSender<Event>,
+) {
     trace!("Subscribing to SpacetimeDB tables...");
 
     let identity = connection.identity();
@@ -252,8 +273,7 @@ fn subscribe_to_spacetime_tables(connection: &DbConnection, token: String) {
                     identity, token
                 );
                 error!("{}", msg);
-                eprintln!("{}", msg);
-                std::process::exit(1);
+                let _ = tx.send(Event::FatalError(msg));
             }
         })
         .subscribe([
@@ -271,7 +291,7 @@ fn subscribe_to_spacetime_tables(connection: &DbConnection, token: String) {
 
 fn setup_update_notifications(
     connection: &DbConnection,
-    tx: tokio::sync::mpsc::UnboundedSender<()>,
+    tx: tokio::sync::mpsc::UnboundedSender<Event>,
 ) {
     trace!("Setting up update notifications...");
 
@@ -283,7 +303,7 @@ fn setup_update_notifications(
             .sender_mail_ingress()
             .on_insert(move |_ctx, _row| {
                 trace!("Ingress row inserted");
-                let _ = tx.send(());
+                let _ = tx.send(Event::Wakeup);
             });
     }
     {
@@ -293,7 +313,7 @@ fn setup_update_notifications(
             .sender_mail_ingress()
             .on_update(move |_ctx, _old, _new| {
                 trace!("Ingress row updated");
-                let _ = tx.send(());
+                let _ = tx.send(Event::Wakeup);
             });
     }
 
@@ -305,7 +325,7 @@ fn setup_update_notifications(
             .sender_mail_delivery_pending()
             .on_insert(move |_ctx, _row| {
                 trace!("Pending delivery row inserted");
-                let _ = tx.send(());
+                let _ = tx.send(Event::Wakeup);
             });
     }
     {
@@ -315,7 +335,7 @@ fn setup_update_notifications(
             .sender_mail_delivery_pending()
             .on_update(move |_ctx, _old, _new| {
                 trace!("Pending delivery row updated");
-                let _ = tx.send(());
+                let _ = tx.send(Event::Wakeup);
             });
     }
 
@@ -327,7 +347,7 @@ fn setup_update_notifications(
             .sender_mail_delivery_claimed()
             .on_insert(move |_ctx, _row| {
                 trace!("Delivery claimed");
-                let _ = tx.send(());
+                let _ = tx.send(Event::Wakeup);
             });
     }
 
@@ -339,7 +359,7 @@ fn setup_update_notifications(
             .sender_mail_delivery_claimed()
             .on_delete(move |_ctx, _row| {
                 trace!("Claimed delivery resolved");
-                let _ = tx.send(());
+                let _ = tx.send(Event::Wakeup);
             });
     }
 
@@ -351,7 +371,7 @@ fn setup_update_notifications(
             .active_unsubscribe_tokens()
             .on_insert(move |_ctx, _row| {
                 trace!("Unsubscribe token created");
-                let _ = tx.send(());
+                let _ = tx.send(Event::Wakeup);
             });
     }
 }
