@@ -167,9 +167,8 @@ SMTP_HOST=localhost SMTP_PORT=1025 SMTP_USE_TLS=false cargo run
 
 ### Manual Triggering
 
-To test without a real Stalwart MTA, insert a `MailIngress` row directly via the SpacetimeDB
-CLI (using the module's `upsert_mail_ingress` helper indirectly by calling `handle_mta_hook`
-with a crafted DATA-stage payload):
+To test without a real Stalwart MTA, post a crafted DATA-stage payload directly to the
+module's `/mta-hook` HTTP endpoint:
 
 ```bash
 curl -X POST \

@@ -317,21 +317,17 @@ pub(crate) fn upsert_mail_ingress(
     let queue_id = msg.queue_id.as_deref().unwrap_or("");
     let ingress_id = make_ingress_id(ctx, queue_id, category_id);
 
-    // TODO: this guard is always true because make_ingress_id includes entropy;
-    // consider removing entropy from the ID if true idempotency is needed.
-    if ctx.db.mail_ingress().id().find(&ingress_id).is_none() {
-        ctx.db.mail_ingress().insert(MailIngress {
-            id: ingress_id.clone(),
-            mail_message_id,
-            category_id,
-            category_email,
-            claim: ClaimState::new_pending(ctx.timestamp),
-            recipient_count: 0,
-            delivery_count: 0,
-            failed_delivery_count: 0,
-            completed_at: Timestamp::UNIX_EPOCH,
-        });
-    }
+    ctx.db.mail_ingress().insert(MailIngress {
+        id: ingress_id.clone(),
+        mail_message_id,
+        category_id,
+        category_email,
+        claim: ClaimState::new_pending(ctx.timestamp),
+        recipient_count: 0,
+        delivery_count: 0,
+        failed_delivery_count: 0,
+        completed_at: Timestamp::UNIX_EPOCH,
+    });
 
     ingress_id
 }

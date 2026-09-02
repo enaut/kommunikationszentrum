@@ -782,7 +782,7 @@ fn send_delivery(
     };
 
     let envelope_result = {
-        let from = claimed.row.original_sender_email.parse()?;
+        let from = claimed.row.list_email.parse()?;
         let to = vec![claimed.row.recipient_email.parse()?];
         Ok(Envelope::new(Some(from), to)?)
     };

@@ -48,8 +48,7 @@ direction: down
     unsubscribe_subscription_by_token: "List-Unsubscribe POST"
   }
 
-  "MTA Hook & Security": {
-    handle_mta_hook
+  "MTA Diagnostics": {
     dump_mta_logs_to_server_logs
   }
 
@@ -92,12 +91,11 @@ direction: down
 
 "Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Auth & Identity": "Admin actions"
 "Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Category Management": "Manage categories"
-"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."MTA Hook & Security": "Manage IP and audit state"
+"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."MTA Diagnostics": "Inspect logs"
 
 "Client & Integration Callers".UserClient -> "SpacetimeDB Reducers & Procedures"."Subscription Flow".add_subscription: "User opt-in"
 
 "Client & Integration Callers".DjangoWebhook -> "SpacetimeDB Reducers & Procedures"."Auth & Identity".sync_user: "User / category sync"
-"Client & Integration Callers".MTAHook -> "SpacetimeDB Reducers & Procedures"."MTA Hook & Security".handle_mta_hook: "Hook events"
 
 "Client & Integration Callers".SenderDaemon -> "SpacetimeDB Reducers & Procedures"."Delivery Pipeline": "Lease, retry, and finalize work"
 

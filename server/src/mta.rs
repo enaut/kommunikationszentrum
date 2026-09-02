@@ -1,7 +1,7 @@
 use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
-use stalwart_mta_hook_types::{Request as MtaHookRequest, Stage};
+use stalwart_mta_hook_types::Request as MtaHookRequest;
 
-use crate::account::{account, account__view, admin_identities, is_admin_identity, is_admin_user};
+use crate::account::{account, account__view, admin_identities, is_admin_user};
 use crate::delivery;
 use crate::mail_message;
 use crate::mailing::{message_categories, subscriptions, subscriptions__view};
@@ -62,166 +62,6 @@ pub struct ReceivedMessage {
     /// without requiring a join.
     #[index(btree)]
     pub received_at: Timestamp,
-}
-
-#[spacetimedb::reducer]
-pub fn handle_mta_hook(ctx: &ReducerContext, hook_data: String) -> Result<(), String> {
-    if !is_admin_identity(ctx, ctx.sender()) {
-        return Err(format!(
-            "Unauthorized: MTA hook called by non-admin identity {:?}",
-            ctx.sender()
-        ));
-    }
-
-    match serde_json::from_str::<MtaHookRequest>(&hook_data) {
-        Ok(request) => {
-            let timestamp = ctx.timestamp;
-
-            match request.context.stage {
-                Stage::Connect => handle_connect_stage(ctx, &request, timestamp),
-                Stage::Ehlo => handle_ehlo_stage(ctx, &request, timestamp),
-                Stage::Mail => handle_mail_stage(ctx, &request, timestamp),
-                Stage::Rcpt => handle_rcpt_stage(ctx, &request, timestamp),
-                Stage::Data => handle_data_stage(ctx, &request, timestamp),
-                Stage::Auth => handle_auth_stage(ctx, &request, timestamp),
-            }
-        }
-        Err(e) => {
-            log::error!("Failed to parse MTA hook data: {}", e);
-        }
-    }
-    Ok(())
-}
-
-pub(crate) fn handle_connect_stage(
-    ctx: &ReducerContext,
-    request: &MtaHookRequest,
-    timestamp: Timestamp,
-) {
-    let client_ip = &request.context.client.ip;
-
-    log::info!("Connect stage - IP: [REDACTED]");
-
-    // Check if IP is blocked
-    if let Some(blocked) = ctx.db.blocked_ips().ip().find(client_ip) {
-        if blocked.active {
-            log::warn!("Blocked connection from IP");
-            ctx.db.mta_connection_log().insert(MtaConnectionLog {
-                id: 0,
-                client_ip: "[REDACTED]".to_string(),
-                stage: "connect".to_string(),
-                action: "reject".to_string(),
-                timestamp,
-                details: "IP blocked".to_string(),
-            });
-            return;
-        }
-    }
-
-    ctx.db.mta_connection_log().insert(MtaConnectionLog {
-        id: 0,
-        client_ip: client_ip.to_string(),
-        stage: "connect".to_string(),
-        action: "accept".to_string(),
-        timestamp,
-        details: "Connection accepted".to_string(),
-    });
-}
-
-pub(crate) fn handle_ehlo_stage(
-    ctx: &ReducerContext,
-    request: &MtaHookRequest,
-    timestamp: Timestamp,
-) {
-    let client_ip = request.context.client.ip.as_str();
-    let helo = request.context.client.helo.as_deref().unwrap_or("unknown");
-
-    log::info!("EHLO stage - HELO: [REDACTED]");
-
-    // Basic EHLO validation
-    let is_valid = !helo.is_empty() && helo != "unknown";
-    let action = if is_valid { "accept" } else { "reject" };
-    let details = if is_valid {
-        "Valid EHLO/HELO".to_string()
-    } else {
-        "Invalid EHLO/HELO".to_string()
-    };
-
-    ctx.db.mta_connection_log().insert(MtaConnectionLog {
-        id: 0,
-        client_ip: client_ip.to_string(),
-        stage: "ehlo".to_string(),
-        action: action.to_string(),
-        timestamp,
-        details,
-    });
-}
-
-pub(crate) fn handle_mail_stage(
-    ctx: &ReducerContext,
-    request: &MtaHookRequest,
-    timestamp: Timestamp,
-) {
-    let from_address = request
-        .envelope
-        .as_ref()
-        .map(|env| env.from.address.as_str())
-        .unwrap_or("unknown");
-
-    log::trace!("MAIL stage - From: {}", from_address);
-
-    // Basic sender validation
-    let is_valid = from_address.contains('@') && !from_address.is_empty();
-    let action = if is_valid { "accept" } else { "reject" };
-    let details = format!(
-        "Sender validation: {}",
-        if is_valid { "passed" } else { "failed" }
-    );
-
-    ctx.db.mta_connection_log().insert(MtaConnectionLog {
-        id: 0,
-        client_ip: "[REDACTED]".to_string(),
-        stage: "mail".to_string(),
-        action: action.to_string(),
-        timestamp,
-        details,
-    });
-}
-
-pub(crate) fn handle_rcpt_stage(
-    ctx: &ReducerContext,
-    request: &MtaHookRequest,
-    timestamp: Timestamp,
-) {
-    if let Some(envelope) = &request.envelope {
-        for recipient in &envelope.to {
-            let to_address = recipient.address.as_str();
-            log::trace!("RCPT stage - To: {}", to_address);
-
-            // O(1) unique-index lookup instead of full table scan
-            let category_found = ctx
-                .db
-                .message_categories()
-                .email_address()
-                .find(&to_address.to_string())
-                .map_or(false, |c| c.active);
-
-            let action = if category_found { "accept" } else { "reject" };
-            let details = format!(
-                "Category validation: {}",
-                if category_found { "found" } else { "not found" }
-            );
-
-            ctx.db.mta_connection_log().insert(MtaConnectionLog {
-                id: 0,
-                client_ip: "[REDACTED]".to_string(),
-                stage: "rcpt".to_string(),
-                action: action.to_string(),
-                timestamp,
-                details,
-            });
-        }
-    }
 }
 
 pub(crate) fn handle_data_stage(
@@ -450,22 +290,6 @@ pub(crate) fn handle_data_stage(
     }
 }
 
-pub(crate) fn handle_auth_stage(
-    ctx: &ReducerContext,
-    _request: &MtaHookRequest,
-    timestamp: Timestamp,
-) {
-    log::info!("AUTH stage - accepting");
-
-    ctx.db.mta_connection_log().insert(MtaConnectionLog {
-        id: 0,
-        client_ip: "[REDACTED]".to_string(),
-        stage: "auth".to_string(),
-        action: "accept".to_string(),
-        timestamp,
-        details: "Authentication stage - accept".to_string(),
-    });
-}
 
 /// Find the first header whose name (case-insensitive) matches `name` and return its trimmed value.
 fn extract_header(headers: &[(String, String)], name: &str) -> Option<String> {

@@ -52,12 +52,13 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `unsubscribe_by_token` | Public | `token: String` | Processes one-click `List-Unsubscribe-Post` HTTP link (`LinkUnsubscribed`). |
 | `admin_set_subscription_status` | Admin | `subscription_id: u64, status: SubscriptionStatus` | Overrides subscription status directly. |
 
-### MTA Hook & Security Reducers
+### MTA Diagnostics & Log Reducers
+
+MTA hook processing is handled via HTTP handlers (`POST /mta-hook`), documented in [MTA Hook Processing](./http-handlers/mta-hook-processing.md).
 
 | Function | Visibility | Parameters | Description |
 |---|---|---|---|
-| `handle_mta_hook` | MTA Webhook | `hook_data: String` | Parses Stalwart hook JSON (CONNECT, EHLO, MAIL, RCPT, DATA, AUTH), validates IP/subscriptions, logs audit events, creates `mail_ingress`. |
-| `block_ip` | Admin | `ip: String, reason: String` | Blacklists IP address in `blocked_ips`. |
+| `dump_mta_logs_to_server_logs` | Admin | _(none)_ | Dumps `mta_connection_log` and `mta_message_log` table contents to server log output for debugging. |
 
 ### Delivery Pipeline Reducers
 
