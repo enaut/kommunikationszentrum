@@ -57,12 +57,13 @@ fn AdminIdentityCard() -> Element {
                     body: rsx! {
                         Row { class: "g-2 mb-3",
                             Col {
-                                input {
-                                    class: "form-control form-control-sm font-monospace",
+                                Input {
                                     r#type: "text",
+                                    size: Size::Sm,
+                                    class: "font-monospace",
                                     placeholder: "Identity Hex (64 Zeichen)",
                                     value: "{register_hex}",
-                                    oninput: move |e| register_hex.set(e.value()),
+                                    oninput: move |e: FormEvent| register_hex.set(e.value()),
                                 }
                             }
                             Col { class: "col-auto",
@@ -90,14 +91,14 @@ fn AdminIdentityCard() -> Element {
                         if admin_identities().is_empty() {
                             p { class: "text-muted mb-0", "Keine Admin-Identitäten registriert." }
                         } else {
-                            div { class: "list-group list-group-flush",
+                            ListGroup { flush: true,
                                 for ident in admin_identities() {
                                     {
                                         let hex = ident.identity.to_string();
                                         let hex_for_remove = hex.clone();
                                         let unregister = unregister_admin.clone();
                                         rsx! {
-                                            div { class: "list-group-item d-flex justify-content-between align-items-center",
+                                            ListGroupItem { tag: "div", class: "d-flex justify-content-between align-items-center",
                                                 code { class: "small text-break", "{hex}" }
                                                 Button {
                                                     color: Color::Danger,
@@ -152,21 +153,21 @@ fn WebhookTokenCard() -> Element {
                     body: rsx! {
                         Row { class: "g-2 mb-3",
                             Col {
-                                input {
-                                    class: "form-control form-control-sm",
+                                Input {
                                     r#type: "text",
+                                    size: Size::Sm,
                                     placeholder: "Label",
                                     value: "{token_label}",
-                                    oninput: move |e| token_label.set(e.value()),
+                                    oninput: move |e: FormEvent| token_label.set(e.value()),
                                 }
                             }
                             Col {
-                                input {
-                                    class: "form-control form-control-sm",
+                                Input {
                                     r#type: "text",
+                                    size: Size::Sm,
                                     placeholder: "Permissions (comma-separated, e.g. mta-hook,sync-user)",
                                     value: "{permissions_input}",
-                                    oninput: move |e| permissions_input.set(e.value()),
+                                    oninput: move |e: FormEvent| permissions_input.set(e.value()),
                                 }
                             }
                             Col { class: "col-auto",
@@ -252,7 +253,7 @@ fn WebhookTokenCard() -> Element {
                         }
 
                         if !admin_tokens().is_empty() {
-                            div { class: "list-group list-group-flush mt-3",
+                            ListGroup { flush: true, tag: "div", class: "mt-3",
                                 for t in admin_tokens() {
                                     {
                                         let hash = t.token_hash.clone();
@@ -260,7 +261,7 @@ fn WebhookTokenCard() -> Element {
                                         let perms = t.permissions.join(", ");
                                         let revoke = revoke_webhook_token.clone();
                                         rsx! {
-                                            div { class: "list-group-item d-flex justify-content-between align-items-start",
+                                            ListGroupItem { tag: "div", class: "d-flex justify-content-between align-items-start",
                                                 div {
                                                     code { class: "small text-break", "{hash}" }
                                                     div { class: "small text-muted", "{label} · {perms}" }
@@ -371,8 +372,7 @@ fn DomainsCard() -> Element {
                                 "Keine Domains vorhanden. Bitte synchronisieren."
                             }
                         } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-hover mb-0",
+                            Table { hover: true, responsive: true, class: "mb-0",
                                     thead { class: "table-light",
                                         tr {
                                             th { "ID" }
@@ -396,7 +396,6 @@ fn DomainsCard() -> Element {
                                         }
                                     }
                                 }
-                            }
                         }
                     },
                 }

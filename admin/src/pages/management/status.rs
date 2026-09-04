@@ -124,62 +124,60 @@ fn TemporaryFailedCard() -> Element {
     rows.sort_by(|a, b| a.id.cmp(&b.id));
 
     rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-warning text-dark",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "clock-history", class: "me-2" }
-                            "mail_delivery_temporary_failed"
-                            span { class: "badge bg-dark text-white ms-2",
-                                "{rows.len()}"
-                            }
+    Row { class: "mt-4",
+        Col { xs: ColumnSize::Span(12),
+            Card {
+                class: "shadow-sm",
+                header_class: "bg-warning text-dark",
+                header: rsx! {
+                    h5 { class: "card-title mb-0",
+                        Icon { name: "clock-history", class: "me-2" }
+                        "mail_delivery_temporary_failed"
+                        span { class: "badge bg-dark text-white ms-2",
+                            "{rows.len()}"
                         }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0",
-                                Icon { name: "inbox", class: "me-2" }
-                                "Keine temporär fehlgeschlagenen Mail-Deliveries."
-                            }
-                        } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-hover table-sm mb-0 align-middle",
-                                    thead { class: "table-light",
-                                        tr {
-                                            th { "Delivery ID" }
-                                            th { "Recipient" }
-                                            th { "Retry at" }
-                                            th { "Reason" }
-                                            th { class: "text-end", "Action" }
-                                        }
+                    }
+                },
+                body: rsx! {
+                    if rows.is_empty() {
+                        p { class: "text-muted mb-0",
+                            Icon { name: "inbox", class: "me-2" }
+                            "Keine temporär fehlgeschlagenen Mail-Deliveries."
+                        }
+                    } else {
+                        Table { hover: true, size: Size::Sm, responsive: true, class: "mb-0 align-middle",
+                                thead { class: "table-light",
+                                    tr {
+                                        th { "Delivery ID" }
+                                        th { "Recipient" }
+                                        th { "Retry at" }
+                                        th { "Reason" }
+                                        th { class: "text-end", "Action" }
                                     }
-                                    tbody {
-                                        for failed in rows {
-                                            {
-                                                let delivery_id = failed.id.clone();
-                                                let cancel = cancel_retry.clone();
-                                                rsx! {
-                                                    tr {
-                                                        td { code { class: "small text-break", "{failed.id}" } }
-                                                        td { small { class: "text-muted", "{failed.row.recipient_email}" } }
-                                                        td { small { class: "text-muted", "{failed.next_attempt_at}" } }
-                                                        td { div { class: "small text-break", "{failed.fail_reason}" } }
-                                                        td { class: "text-end",
-                                                            Button {
-                                                                color: Color::Warning,
-                                                                outline: true,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    if let Err(e) = cancel(delivery_id.clone()) {
-                                                                        error!("cancel_mail_delivery_retry failed: {e:?}");
-                                                                    }
-                                                                },
-                                                                Icon { name: "x-circle", class: "me-1" }
-                                                                "Cancel"
-                                                            }
+                                }
+                                tbody {
+                                    for failed in rows {
+                                        {
+                                            let delivery_id = failed.id.clone();
+                                            let cancel = cancel_retry.clone();
+                                            rsx! {
+                                                tr {
+                                                    td { code { class: "small text-break", "{failed.id}" } }
+                                                    td { small { class: "text-muted", "{failed.row.recipient_email}" } }
+                                                    td { small { class: "text-muted", "{failed.next_attempt_at}" } }
+                                                    td { div { class: "small text-break", "{failed.fail_reason}" } }
+                                                    td { class: "text-end",
+                                                        Button {
+                                                            color: Color::Warning,
+                                                            outline: true,
+                                                            size: Size::Sm,
+                                                            onclick: move |_| {
+                                                                if let Err(e) = cancel(delivery_id.clone()) {
+                                                                    error!("cancel_mail_delivery_retry failed: {e:?}");
+                                                                }
+                                                            },
+                                                            Icon { name: "x-circle", class: "me-1" }
+                                                            "Cancel"
                                                         }
                                                     }
                                                 }
@@ -205,37 +203,35 @@ fn DeliveryEventsCard() -> Element {
     rows.sort_by(|a, b| a.id.cmp(&b.id));
 
     rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-dark text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "journal-text", class: "me-2" }
-                            "mail_delivery_events"
-                            span { class: "badge bg-white text-dark ms-2",
-                                "{rows.len()}"
-                            }
+    Row { class: "mt-4",
+        Col { xs: ColumnSize::Span(12),
+            Card {
+                class: "shadow-sm",
+                header_class: "bg-dark text-white",
+                header: rsx! {
+                    h5 { class: "card-title mb-0",
+                        Icon { name: "journal-text", class: "me-2" }
+                        "mail_delivery_events"
+                        span { class: "badge bg-white text-dark ms-2",
+                            "{rows.len()}"
                         }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0", "Keine Mail-Delivery-Events." }
-                        } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-sm table-hover mb-0",
-                                    thead { class: "table-light",
-                                        tr { th { "ID" } th { "Type" } th { "Attempt" } th { "Details" } }
-                                    }
-                                    tbody {
-                                        for event in rows {
-                                            tr {
-                                                td { code { class: "small text-break", "{event.id}" } }
-                                                td { small { class: "text-muted", "{event.event_type}" } }
-                                                td { small { class: "text-muted", "{event.attempt_no}" } }
-                                                td { div { class: "small text-break", "{event.details}" } }
-                                            }
+                    }
+                },
+                body: rsx! {
+                    if rows.is_empty() {
+                        p { class: "text-muted mb-0", "Keine Mail-Delivery-Events." }
+                    } else {
+                        Table { hover: true, size: Size::Sm, responsive: true, class: "mb-0",
+                                thead { class: "table-light",
+                                    tr { th { "ID" } th { "Type" } th { "Attempt" } th { "Details" } }
+                                }
+                                tbody {
+                                    for event in rows {
+                                        tr {
+                                            td { code { class: "small text-break", "{event.id}" } }
+                                            td { small { class: "text-muted", "{event.event_type}" } }
+                                            td { small { class: "text-muted", "{event.attempt_no}" } }
+                                            td { div { class: "small text-break", "{event.details}" } }
                                         }
                                     }
                                 }
@@ -257,36 +253,34 @@ fn PendingCard() -> Element {
     rows.sort_by(|a, b| a.id.cmp(&b.id));
 
     rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-secondary text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "hourglass-split", class: "me-2" }
-                            "mail_delivery_pending"
-                            span { class: "badge bg-white text-secondary ms-2",
-                                "{rows.len()}"
-                            }
+    Row { class: "mt-4",
+        Col { xs: ColumnSize::Span(12),
+            Card {
+                class: "shadow-sm",
+                header_class: "bg-secondary text-white",
+                header: rsx! {
+                    h5 { class: "card-title mb-0",
+                        Icon { name: "hourglass-split", class: "me-2" }
+                        "mail_delivery_pending"
+                        span { class: "badge bg-white text-secondary ms-2",
+                            "{rows.len()}"
                         }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0", "Keine offenen Deliveries." }
-                        } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-sm table-hover mb-0",
-                                    thead { class: "table-light",
-                                        tr { th { "ID" } th { "Recipient" } th { "Ingress" } }
-                                    }
-                                    tbody {
-                                        for row in rows {
-                                            tr {
-                                                td { code { class: "small text-break", "{row.id}" } }
-                                                td { small { class: "text-muted", "{row.row.recipient_email}" } }
-                                                td { small { class: "text-muted", "{row.ingress_id}" } }
-                                            }
+                    }
+                },
+                body: rsx! {
+                    if rows.is_empty() {
+                        p { class: "text-muted mb-0", "Keine offenen Deliveries." }
+                    } else {
+                        Table { hover: true, size: Size::Sm, responsive: true, class: "mb-0",
+                                thead { class: "table-light",
+                                    tr { th { "ID" } th { "Recipient" } th { "Ingress" } }
+                                }
+                                tbody {
+                                    for row in rows {
+                                        tr {
+                                            td { code { class: "small text-break", "{row.id}" } }
+                                            td { small { class: "text-muted", "{row.row.recipient_email}" } }
+                                            td { small { class: "text-muted", "{row.ingress_id}" } }
                                         }
                                     }
                                 }
@@ -308,37 +302,35 @@ fn ClaimedCard() -> Element {
     rows.sort_by(|a, b| a.id.cmp(&b.id));
 
     rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-info text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "person-workspace", class: "me-2" }
-                            "mail_delivery_claimed"
-                            span { class: "badge bg-white text-info ms-2",
-                                "{rows.len()}"
-                            }
+    Row { class: "mt-4",
+        Col { xs: ColumnSize::Span(12),
+            Card {
+                class: "shadow-sm",
+                header_class: "bg-info text-white",
+                header: rsx! {
+                    h5 { class: "card-title mb-0",
+                        Icon { name: "person-workspace", class: "me-2" }
+                        "mail_delivery_claimed"
+                        span { class: "badge bg-white text-info ms-2",
+                            "{rows.len()}"
                         }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0", "Keine geclaimten Deliveries." }
-                        } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-sm table-hover mb-0",
-                                    thead { class: "table-light",
-                                        tr { th { "ID" } th { "Worker" } th { "Lease" } th { "Recipient" } }
-                                    }
-                                    tbody {
-                                        for row in rows {
-                                            tr {
-                                                td { code { class: "small text-break", "{row.id}" } }
-                                                td { small { class: "text-muted", "{row.worker}" } }
-                                                td { small { class: "text-muted", "{row.lease_expires_at}" } }
-                                                td { small { class: "text-muted", "{row.row.recipient_email}" } }
-                                            }
+                    }
+                },
+                body: rsx! {
+                    if rows.is_empty() {
+                        p { class: "text-muted mb-0", "Keine geclaimten Deliveries." }
+                    } else {
+                        Table { hover: true, size: Size::Sm, responsive: true, class: "mb-0",
+                                thead { class: "table-light",
+                                    tr { th { "ID" } th { "Worker" } th { "Lease" } th { "Recipient" } }
+                                }
+                                tbody {
+                                    for row in rows {
+                                        tr {
+                                            td { code { class: "small text-break", "{row.id}" } }
+                                            td { small { class: "text-muted", "{row.worker}" } }
+                                            td { small { class: "text-muted", "{row.lease_expires_at}" } }
+                                            td { small { class: "text-muted", "{row.row.recipient_email}" } }
                                         }
                                     }
                                 }
@@ -360,49 +352,47 @@ fn DoneCard() -> Element {
     rows.sort_by(|a, b| a.id.cmp(&b.id));
 
     rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-success text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "check-circle", class: "me-2" }
-                            "mail_delivery_done"
-                            span { class: "badge bg-white text-success ms-2",
-                                "{rows.len()}"
-                            }
+    Row { class: "mt-4",
+        Col { xs: ColumnSize::Span(12),
+            Card {
+                class: "shadow-sm",
+                header_class: "bg-success text-white",
+                header: rsx! {
+                    h5 { class: "card-title mb-0",
+                        Icon { name: "check-circle", class: "me-2" }
+                        "mail_delivery_done"
+                        span { class: "badge bg-white text-success ms-2",
+                            "{rows.len()}"
                         }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0", "Keine abgeschlossenen Deliveries." }
-                        } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-sm table-hover mb-0",
-                                    thead { class: "table-light",
-                                        tr { th { "ID" } th { "Status" } th { "Recipient" } th { "Reason" } }
-                                    }
-                                    tbody {
-                                        for row in rows {
-                                            {
-                                                let is_failed = row.final_state == "failed";
-                                                let status_icon = if is_failed { "x-circle-fill" } else { "check-circle-fill" };
-                                                let status_color = if is_failed { "text-danger" } else { "text-success" };
-                                                let status_text = if is_failed { "failed" } else { "sent" };
-                                                let reason = if let Some(ref err) = row.row.last_error { err.clone() } else { "—".to_string() };
-                                                rsx! {
-                                                    tr {
-                                                        td { code { class: "small text-break", "{row.id}" } }
-                                                        td {
-                                                            span { class: "d-inline-flex align-items-center gap-2",
-                                                                Icon { name: status_icon, class: format!("{status_color} fw-bold") }
-                                                                small { class: "text-muted", "{status_text}" }
-                                                            }
+                    }
+                },
+                body: rsx! {
+                    if rows.is_empty() {
+                        p { class: "text-muted mb-0", "Keine abgeschlossenen Deliveries." }
+                    } else {
+                        Table { hover: true, size: Size::Sm, responsive: true, class: "mb-0",
+                                thead { class: "table-light",
+                                    tr { th { "ID" } th { "Status" } th { "Recipient" } th { "Reason" } }
+                                }
+                                tbody {
+                                    for row in rows {
+                                        {
+                                            let is_failed = row.final_state == "failed";
+                                            let status_icon = if is_failed { "x-circle-fill" } else { "check-circle-fill" };
+                                            let status_color = if is_failed { "text-danger" } else { "text-success" };
+                                            let status_text = if is_failed { "failed" } else { "sent" };
+                                            let reason = if let Some(ref err) = row.row.last_error { err.clone() } else { "—".to_string() };
+                                            rsx! {
+                                                tr {
+                                                    td { code { class: "small text-break", "{row.id}" } }
+                                                    td {
+                                                        span { class: "d-inline-flex align-items-center gap-2",
+                                                            Icon { name: status_icon, class: format!("{status_color} fw-bold") }
+                                                            small { class: "text-muted", "{status_text}" }
                                                         }
-                                                        td { small { class: "text-muted", "{row.row.recipient_email}" } }
-                                                        td { small { class: "text-break text-muted", "{reason}" } }
                                                     }
+                                                    td { small { class: "text-muted", "{row.row.recipient_email}" } }
+                                                    td { small { class: "text-break text-muted", "{reason}" } }
                                                 }
                                             }
                                         }

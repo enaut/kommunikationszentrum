@@ -133,19 +133,18 @@ pub fn CategorySubscribersCard(
                         "Keine Abonnenten."
                     }
                 } else {
-                    div { class: "table-responsive",
-                        table { class: "table table-hover mb-0",
-                            thead { class: "table-light",
-                                tr {
-                                    th { "Name" }
-                                    th { "E-Mail" }
-                                    th { "Status" }
-                                    th { class: "text-end", "Aktionen" }
-                                }
+                    Table { hover: true, responsive: true, class: "mb-0",
+                        thead { class: "table-light",
+                            tr {
+                                th { "Name" }
+                                th { "E-Mail" }
+                                th { "Status" }
+                                th { class: "text-end", "Aktionen" }
                             }
-                            tbody {
-                                for (sub, account) in subscriber_rows {
-                                    {
+                        }
+                        tbody {
+                            for (sub, account) in subscriber_rows {
+                                {
                                         let sub_id = sub.id;
                                         let sub_account_id = sub.subscriber_account_id;
                                         let sub_status = sub.status;
@@ -200,7 +199,6 @@ pub fn CategorySubscribersCard(
                                                 }
                                             }
                                         }
-                                    }
                                 }
                             }
                         }

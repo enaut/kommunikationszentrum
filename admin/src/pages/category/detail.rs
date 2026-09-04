@@ -1,9 +1,6 @@
 use std::collections::HashSet;
 
-use ::dioxus::{
-    logger::tracing::error,
-    prelude::*,
-};
+use ::dioxus::{logger::tracing::error, prelude::*};
 use dioxus_bootstrap_css::prelude::*;
 
 use crate::module_bindings::dioxus::{
@@ -29,6 +26,10 @@ pub fn CategoryDetailsCard(
 ) -> Element {
     let update_category = use_reducer_update_message_category();
     let category_id = category.id;
+    let visibility_value = match visibility() {
+        CategoryVisibility::Public => "Public",
+        CategoryVisibility::Private => "Private",
+    };
 
     rsx! {
         Card {
@@ -44,60 +45,45 @@ pub fn CategoryDetailsCard(
                 if let Some((msg, color)) = save_message.read().clone() {
                     Alert { color, class: "mb-3", "{msg}" }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "Name" }
-                    input {
-                        class: "form-control",
+                FormGroup { label: "Name",
+                    Input {
                         r#type: "text",
                         value: "{name}",
-                        oninput: move |e| name.set(e.value()),
+                        oninput: move |e: FormEvent| name.set(e.value()),
                     }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "Beschreibung" }
-                    textarea {
-                        class: "form-control",
-                        rows: "3",
+                FormGroup { label: "Beschreibung",
+                    Textarea {
+                        rows: 3,
                         value: "{description}",
-                        oninput: move |e| description.set(e.value()),
+                        oninput: move |e: FormEvent| description.set(e.value()),
                     }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "Sichtbarkeit" }
-                    select {
-                        class: "form-select",
-                        onchange: move |e| {
+                FormGroup { label: "Sichtbarkeit",
+                    Select {
+                        value: visibility_value,
+                        onchange: move |e: FormEvent| {
                             match e.value().as_str() {
                                 "Public" => visibility.set(CategoryVisibility::Public),
                                 "Private" => visibility.set(CategoryVisibility::Private),
                                 _ => {}
                             }
                         },
-                        option {
-                            value: "Public",
-                            selected: *visibility.read() == CategoryVisibility::Public,
-                            "Öffentlich"
-                        }
-                        option {
-                            value: "Private",
-                            selected: *visibility.read() == CategoryVisibility::Private,
-                            "Privat"
-                        }
+                        option { value: "Public", "Öffentlich" }
+                        option { value: "Private", "Privat" }
                     }
-                    div { class: "form-text",
+                    FormText {
                         "Öffentliche Themen sind für alle Mitglieder sichtbar. Private Themen sind nur für Administratoren und abonnierte Mitglieder sichtbar."
                     }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "E-Mail-Adresse" }
-                    input {
-                        class: "form-control",
+                FormGroup { label: "E-Mail-Adresse",
+                    Input {
                         r#type: "text",
                         value: "{category.email_address}",
                         disabled: true,
                         readonly: true,
                     }
-                    div { class: "form-text",
+                    FormText {
                         "Die E-Mail-Adresse ist fest mit dem Thema verknüpft und kann nicht geändert werden."
                     }
                 }

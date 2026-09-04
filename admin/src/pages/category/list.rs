@@ -21,11 +21,10 @@ pub fn AddCategoryCard() -> Element {
     let mut name = use_signal(String::new);
     let mut base = use_signal(String::new);
     let mut selected_domain: Signal<Option<(String, String)>> = use_signal(|| None);
-    let mut domain_dropdown_open = use_signal(|| false);
     let mut description = use_signal(String::new);
     let mut visibility = use_signal(|| CategoryVisibility::Public);
-    let mut add_error: Signal<Option<(String, Color)>> = use_signal(|| None);
-    let mut is_sending = use_signal(|| false);
+    let add_error: Signal<Option<(String, Color)>> = use_signal(|| None);
+    let is_sending = use_signal(|| false);
 
     // React to procedure result signal and update UI accordingly.
     {
@@ -33,7 +32,6 @@ pub fn AddCategoryCard() -> Element {
         let mut name = name.clone();
         let mut base = base.clone();
         let mut selected_domain = selected_domain.clone();
-        let mut domain_dropdown_open = domain_dropdown_open.clone();
         let mut description = description.clone();
         let mut visibility = visibility.clone();
         let mut add_error = add_error.clone();
@@ -48,7 +46,6 @@ pub fn AddCategoryCard() -> Element {
                             name.set(String::new());
                             base.set(String::new());
                             selected_domain.set(None);
-                            domain_dropdown_open.set(false);
                             description.set(String::new());
                             visibility.set(CategoryVisibility::Public);
                             add_error.set(Some((
@@ -73,6 +70,16 @@ pub fn AddCategoryCard() -> Element {
         });
     }
 
+    let domain_value = selected_domain
+        .read()
+        .as_ref()
+        .map(|(id, name)| format!("{id}:{name}"))
+        .unwrap_or_default();
+    let visibility_value = match visibility() {
+        CategoryVisibility::Public => "Public",
+        CategoryVisibility::Private => "Private",
+    };
+
     rsx! {
         Card {
             class: "shadow-sm",
@@ -88,74 +95,49 @@ pub fn AddCategoryCard() -> Element {
                     Alert {
                         color: add_error.read().clone().unwrap_or_default().1,
                         class: "mb-3 d-flex align-items-start",
-                        role: "alert",
                         Icon { name: "exclamation-circle", class: "me-2 mt-1 flex-shrink-0" }
                         "{add_error.read().clone().unwrap_or_default().0}"
                     }
                 }
                 Row { class: "g-3 align-items-end",
                     Col { md: ColumnSize::Span(3),
-                        label { class: "form-label", "Thema" }
-                        input {
-                            class: "form-control",
-                            r#type: "text",
-                            placeholder: "Thema Name",
-                            value: "{name}",
-                            oninput: move |e| name.set(e.value()),
+                        FormGroup { label: "Thema",
+                            Input {
+                                r#type: "text",
+                                placeholder: "Thema Name",
+                                value: "{name}",
+                                oninput: move |e: FormEvent| name.set(e.value()),
+                            }
                         }
                     }
                     Col { md: ColumnSize::Span(4),
-                        label { class: "form-label", "E-Mail-Adresse" }
-                        div { class: "input-group",
-                            input {
-                                class: "form-control",
-                                r#type: "text",
-                                placeholder: "postfach",
-                                value: "{base}",
-                                oninput: move |e| base.set(e.value()),
-                            }
-                            span { class: "input-group-text", "@" }
-                            button {
-                                class: if domain_dropdown_open() { "btn btn-outline-secondary dropdown-toggle show" } else { "btn btn-outline-secondary dropdown-toggle" },
-                                r#type: "button",
-                                "aria-expanded": if domain_dropdown_open() { "true" } else { "false" },
-                                onclick: move |evt| {
-                                    evt.stop_propagation();
-                                    domain_dropdown_open.toggle();
-                                },
-                                if let Some((_, ref d)) = *selected_domain.read() {
-                                    "{d}"
-                                } else {
-                                    "Domain…"
+                        FormGroup { label: "E-Mail-Adresse",
+                            InputGroup {
+                                Input {
+                                    r#type: "text",
+                                    placeholder: "postfach",
+                                    value: "{base}",
+                                    oninput: move |e: FormEvent| base.set(e.value()),
                                 }
-                            }
-                            ul {
-                                class: if domain_dropdown_open() { "dropdown-menu dropdown-menu-end show" } else { "dropdown-menu dropdown-menu-end" },
-                                style: if domain_dropdown_open() { "position: absolute; inset: 0px 0px auto auto; margin: 0px; transform: translate(0px, 40px);" } else { "" },
-                                "data-popper-placement": "bottom-end",
-                                if domains().is_empty() {
-                                    li {
-                                        span { class: "dropdown-item text-muted", "Keine Domains verfügbar" }
-                                    }
-                                } else {
+                                InputGroupText { "@" }
+                                Select {
+                                    value: domain_value,
+                                    onchange: move |e: FormEvent| {
+                                        let val = e.value();
+                                        if val.is_empty() {
+                                            selected_domain.set(None);
+                                        } else if let Some(idx) = val.find(':') {
+                                            let id = val[..idx].to_string();
+                                            let dname = val[idx + 1..].to_string();
+                                            selected_domain.set(Some((id, dname)));
+                                        }
+                                    },
+                                    option { value: "", "Domain…" }
                                     for domain in domains() {
-                                        {
-                                            let domain_id = domain.id.clone();
-                                            let domain_name = domain.name.clone();
-                                            rsx! {
-                                                li {
-                                                    button {
-                                                        key: "{domain_id}",
-                                                        class: "dropdown-item",
-                                                        r#type: "button",
-                                                        onclick: move |_| {
-                                                            selected_domain.set(Some((domain_id.clone(), domain_name.clone())));
-                                                            domain_dropdown_open.set(false);
-                                                        },
-                                                        "{domain_name}"
-                                                    }
-                                                }
-                                            }
+                                        option {
+                                            key: "{domain.id}",
+                                            value: "{domain.id}:{domain.name}",
+                                            "{domain.name}"
                                         }
                                     }
                                 }
@@ -163,35 +145,28 @@ pub fn AddCategoryCard() -> Element {
                         }
                     }
                     Col { md: ColumnSize::Span(3),
-                        label { class: "form-label", "Beschreibung" }
-                        input {
-                            class: "form-control",
-                            r#type: "text",
-                            placeholder: "Kurze Beschreibung",
-                            value: "{description}",
-                            oninput: move |e| description.set(e.value()),
+                        FormGroup { label: "Beschreibung",
+                            Input {
+                                r#type: "text",
+                                placeholder: "Kurze Beschreibung",
+                                value: "{description}",
+                                oninput: move |e: FormEvent| description.set(e.value()),
+                            }
                         }
                     }
                     Col { md: ColumnSize::Span(1),
-                        label { class: "form-label", "Sichtbar" }
-                        select {
-                            class: "form-select",
-                            onchange: move |e| {
-                                match e.value().as_str() {
-                                    "Public" => visibility.set(CategoryVisibility::Public),
-                                    "Private" => visibility.set(CategoryVisibility::Private),
-                                    _ => {}
-                                }
-                            },
-                            option {
-                                value: "Public",
-                                selected: *visibility.read() == CategoryVisibility::Public,
-                                "Öffentlich"
-                            }
-                            option {
-                                value: "Private",
-                                selected: *visibility.read() == CategoryVisibility::Private,
-                                "Privat"
+                        FormGroup { label: "Sichtbar",
+                            Select {
+                                value: visibility_value,
+                                onchange: move |e: FormEvent| {
+                                    match e.value().as_str() {
+                                        "Public" => visibility.set(CategoryVisibility::Public),
+                                        "Private" => visibility.set(CategoryVisibility::Private),
+                                        _ => {}
+                                    }
+                                },
+                                option { value: "Public", "Öffentlich" }
+                                option { value: "Private", "Privat" }
                             }
                         }
                     }
@@ -252,82 +227,80 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                         "Keine Themen vorhanden."
                     }
                 } else {
-                    div { class: "table-responsive",
-                        table { class: "table table-hover mb-0",
-                            thead { class: "table-light",
-                                tr {
-                                    th { "Name" }
-                                    th { "E-Mail-Adresse" }
-                                    th { "Beschreibung" }
-                                    th { "Status" }
-                                    th { "Sichtbarkeit" }
-                                    th { class: "text-end", "Abonnenten" }
-                                    th { class: "text-end", "Aktionen" }
-                                }
+                    Table { hover: true, responsive: true, class: "mb-0",
+                        thead { class: "table-light",
+                            tr {
+                                th { "Name" }
+                                th { "E-Mail-Adresse" }
+                                th { "Beschreibung" }
+                                th { "Status" }
+                                th { "Sichtbarkeit" }
+                                th { class: "text-end", "Abonnenten" }
+                                th { class: "text-end", "Aktionen" }
                             }
-                            tbody {
-                                for cat in categories() {
-                                    {
-                                        let cat_id = cat.id;
-                                        let remove = remove_category.clone();
-                                        let subscriber_count = subscriptions()
-                                            .iter()
-                                            .filter(|s| s.category_id == cat_id && crate::pages::is_active_subscription(&s.status))
-                                            .count();
-                                        rsx! {
-                                            tr {
-                                                key: "{cat_id}",
-                                                style: "cursor: pointer;",
-                                                onclick: move |_| selected_category.set(Some(cat_id)),
-                                                td {
-                                                    strong { "{cat.name}" }
+                        }
+                        tbody {
+                            for cat in categories() {
+                                {
+                                    let cat_id = cat.id;
+                                    let remove = remove_category.clone();
+                                    let subscriber_count = subscriptions()
+                                        .iter()
+                                        .filter(|s| s.category_id == cat_id && crate::pages::is_active_subscription(&s.status))
+                                        .count();
+                                    rsx! {
+                                        tr {
+                                            key: "{cat_id}",
+                                            style: "cursor: pointer;",
+                                            onclick: move |_| selected_category.set(Some(cat_id)),
+                                            td {
+                                                strong { "{cat.name}" }
+                                            }
+                                            td {
+                                                code { "{cat.email_address}" }
+                                            }
+                                            td { class: "text-muted", "{cat.description}" }
+                                            td {
+                                                if cat.active {
+                                                    Badge { color: Color::Success, "Aktiv" }
+                                                } else {
+                                                    Badge { color: Color::Secondary, "Inaktiv" }
                                                 }
-                                                td {
-                                                    code { "{cat.email_address}" }
+                                            }
+                                            td {
+                                                if cat.visibility == CategoryVisibility::Public {
+                                                    Badge { color: Color::Info, "Öffentlich" }
+                                                } else {
+                                                    Badge { color: Color::Warning, "Privat" }
                                                 }
-                                                td { class: "text-muted", "{cat.description}" }
-                                                td {
-                                                    if cat.active {
-                                                        Badge { color: Color::Success, "Aktiv" }
-                                                    } else {
-                                                        Badge { color: Color::Secondary, "Inaktiv" }
-                                                    }
+                                            }
+                                            td { class: "text-end",
+                                                Badge { color: Color::Primary, "{subscriber_count}" }
+                                            }
+                                            td { class: "text-end",
+                                                Button {
+                                                    color: Color::Primary,
+                                                    size: Size::Sm,
+                                                    class: "me-1",
+                                                    onclick: move |evt: MouseEvent| {
+                                                        evt.stop_propagation();
+                                                        selected_category.set(Some(cat_id));
+                                                    },
+                                                    Icon { name: "pencil-square", class: "me-1" }
+                                                    "Details"
                                                 }
-                                                td {
-                                                    if cat.visibility == CategoryVisibility::Public {
-                                                        Badge { color: Color::Info, "Öffentlich" }
-                                                    } else {
-                                                        Badge { color: Color::Warning, "Privat" }
-                                                    }
-                                                }
-                                                td { class: "text-end",
-                                                    Badge { color: Color::Primary, "{subscriber_count}" }
-                                                }
-                                                td { class: "text-end",
-                                                    Button {
-                                                        color: Color::Primary,
-                                                        size: Size::Sm,
-                                                        class: "me-1",
-                                                        onclick: move |evt: MouseEvent| {
-                                                            evt.stop_propagation();
-                                                            selected_category.set(Some(cat_id));
-                                                        },
-                                                        Icon { name: "pencil-square", class: "me-1" }
-                                                        "Details"
-                                                    }
-                                                    Button {
-                                                        color: Color::Danger,
-                                                        size: Size::Sm,
-                                                        onclick: move |evt: MouseEvent| {
-                                                            evt.stop_propagation();
-                                                            info!("Removing category {cat_id}");
-                                                            if let Err(e) = remove(cat_id) {
-                                                                error!("remove_message_category failed: {e:?}");
-                                                            }
-                                                        },
-                                                        Icon { name: "trash", class: "me-1" }
-                                                        "Löschen"
-                                                    }
+                                                Button {
+                                                    color: Color::Danger,
+                                                    size: Size::Sm,
+                                                    onclick: move |evt: MouseEvent| {
+                                                        evt.stop_propagation();
+                                                        info!("Removing category {cat_id}");
+                                                        if let Err(e) = remove(cat_id) {
+                                                            error!("remove_message_category failed: {e:?}");
+                                                        }
+                                                    },
+                                                    Icon { name: "trash", class: "me-1" }
+                                                    "Löschen"
                                                 }
                                             }
                                         }

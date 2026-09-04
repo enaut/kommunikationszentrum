@@ -112,7 +112,9 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
             }
 
             if !topic_ids.is_empty() || show_sonstige {
-                ul { class: "nav nav-tabs mb-3",
+                Nav {
+                    tabs: true,
+                    class: "mb-3",
                     for topic_id in topic_ids.iter().copied() {
                         TopicTabButton {
                             key: "{topic_id}",
@@ -125,10 +127,10 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                         }
                     }
                     if show_sonstige {
-                        li { class: "nav-item",
-                            button {
-                                class: if current == TopicTab::Sonstige { "nav-link active" } else { "nav-link" },
-                                r#type: "button",
+                        NavItem {
+                            NavLink {
+                                active: current == TopicTab::Sonstige,
+                                prevent_default: true,
                                 onclick: move |_| {
                                     user_picked_tab.set(true);
                                     active_tab.set(TopicTab::Sonstige);
@@ -256,10 +258,10 @@ fn TopicTabButton(topic_id: u64, active: bool, on_select: EventHandler<()>) -> E
     }
 
     rsx! {
-        li { class: "nav-item",
-            button {
-                class: if active { "nav-link active" } else { "nav-link" },
-                r#type: "button",
+        NavItem {
+            NavLink {
+                active,
+                prevent_default: true,
                 onclick: move |_| on_select.call(()),
                 "{label}"
             }

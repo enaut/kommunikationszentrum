@@ -1,7 +1,7 @@
 use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::{
-    Dropdown, DropdownItem, NavItem, NavLink, Navbar as BsNavbar, NavbarCollapse, NavbarExpand,
-    NavbarNav, NavbarToggler, Theme, ThemeToggle,
+    Color, Dropdown, DropdownItem, Icon, NavItem, NavLink, Navbar as BsNavbar, NavbarCollapse,
+    NavbarExpand, NavbarNav, NavbarToggler, Theme, ThemeToggle,
 };
 
 use crate::oauth::UserInfo;
@@ -18,42 +18,40 @@ pub fn Navbar(
     let collapsed = use_signal(|| true);
     let user_dropdown_open = use_signal(|| false);
     let management_dropdown_open = use_signal(|| false);
-
     rsx! {
         BsNavbar {
             expand: NavbarExpand::Lg,
-            class: "bg-primary navbar-dark",
+            color: Color::Primary,
+            class: "navbar-dark",
             brand: rsx! {
-                span { class: "navbar-brand",
-                    i { class: "bi bi-envelope-fill me-2" }
-                    "Kommunikationszentrum"
-                }
+                Icon { name: "envelope-fill", class: "me-2" }
+                "Kommunikationszentrum"
             },
             NavbarToggler { collapsed }
             NavbarCollapse { collapsed,
                 NavbarNav { class: "me-auto",
                     AppNavLink {
                         label: "Meine Themen",
-                        icon: "bi-envelope-check",
+                        icon: "envelope-check",
                         view: ActiveView::MySubscriptions,
                         active_view,
                     }
                     AppNavLink {
                         label: "Nachrichten",
-                        icon: "bi-envelope",
+                        icon: "envelope",
                         view: ActiveView::Messages,
                         active_view,
                     }
                     if is_admin {
                         AppNavLink {
                             label: "Themen",
-                            icon: "bi-tags-fill",
+                            icon: "tags-fill",
                             view: ActiveView::Categories,
                             active_view,
                         }
                         AppNavLink {
                             label: "Mitglieder",
-                            icon: "bi-people-fill",
+                            icon: "people-fill",
                             view: ActiveView::Members,
                             active_view,
                         }
@@ -62,7 +60,7 @@ pub fn Navbar(
                                 open: management_dropdown_open,
                                 toggle_class: "btn-link nav-link text-white",
                                 toggle: rsx! {
-                                    i { class: "bi bi-sliders me-1" }
+                                    Icon { name: "sliders", class: "me-1" }
                                     "Verwaltung"
                                 },
                                 menu: rsx! {
@@ -89,7 +87,7 @@ pub fn Navbar(
                             align_end: true,
                             toggle_class: "btn-link nav-link text-white",
                             toggle: rsx! {
-                                i { class: "bi bi-person-circle me-2" }
+                                Icon { name: "person-circle", class: "me-2" }
                                 if let Some(name) = &user_info.name {
                                     "{name}"
                                 } else {
@@ -99,7 +97,7 @@ pub fn Navbar(
                             menu: rsx! {
                                 DropdownItem {
                                     onclick: move |_| on_logout.call(()),
-                                    i { class: "bi bi-box-arrow-right me-2" }
+                                    Icon { name: "box-arrow-right", class: "me-2" }
                                     "Abmelden"
                                 }
                             },
@@ -126,7 +124,7 @@ fn AppNavLink(
                 active: is_active,
                 prevent_default: true,
                 onclick: move |_| active_view.set(view_for_click.clone()),
-                i { class: "bi {icon} me-1" }
+                Icon { name: icon, class: "me-1" }
                 "{label}"
             }
         }

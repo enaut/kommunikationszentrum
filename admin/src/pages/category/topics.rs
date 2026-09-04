@@ -63,7 +63,7 @@ pub fn TopicCheckRow(
     let is_renaming = renaming_topic_id() == Some(topic_id);
 
     rsx! {
-        div { class: "list-group-item d-flex align-items-center gap-2 position-relative",
+        ListGroupItem { tag: "div", class: "d-flex align-items-center gap-2 position-relative",
             if is_renaming {
                 input {
                     class: "form-control",
@@ -139,44 +139,37 @@ pub fn TopicCheckRow(
                     },
                 }
             } else {
-                div { class: "form-check mb-0 flex-grow-1",
-                    input {
-                        class: "form-check-input",
-                        r#type: "checkbox",
-                        id: "topic-check-{topic_id}",
-                        checked: is_checked,
-                        onchange: move |_| {
-                            let mut next = current_assigned_topic_names(
-                                category_id,
-                                &topics(),
-                                &category_topics(),
-                            );
-                            let current_name = topic_name();
-                            if is_checked {
-                                next.retain(|n| n != &current_name);
-                            } else if !current_name.is_empty() {
-                                next.push(current_name);
+                Checkbox {
+                    input_id: "topic-check-{topic_id}",
+                    class: "mb-0 flex-grow-1",
+                    checked: is_checked,
+                    label: name.clone(),
+                    onchange: move |_| {
+                        let mut next = current_assigned_topic_names(
+                            category_id,
+                            &topics(),
+                            &category_topics(),
+                        );
+                        let current_name = topic_name();
+                        if is_checked {
+                            next.retain(|n| n != &current_name);
+                        } else if !current_name.is_empty() {
+                            next.push(current_name);
+                        }
+                        next.sort();
+                        next.dedup();
+                        info!("Setting topics for category {category_id}: {next:?}");
+                        match set_category_topics(category_id, next) {
+                            Ok(()) => topics_message.set(None),
+                            Err(e) => {
+                                error!("set_category_topics failed: {e:?}");
+                                topics_message.set(Some((
+                                    format!("Fehler: {e:?}"),
+                                    Color::Danger,
+                                )));
                             }
-                            next.sort();
-                            next.dedup();
-                            info!("Setting topics for category {category_id}: {next:?}");
-                            match set_category_topics(category_id, next) {
-                                Ok(()) => topics_message.set(None),
-                                Err(e) => {
-                                    error!("set_category_topics failed: {e:?}");
-                                    topics_message.set(Some((
-                                        format!("Fehler: {e:?}"),
-                                        Color::Danger,
-                                    )));
-                                }
-                            }
-                        },
-                    }
-                    label {
-                        class: "form-check-label",
-                        r#for: "topic-check-{topic_id}",
-                        "{name}"
-                    }
+                        }
+                    },
                 }
                 Button {
                     color: Color::Success,
@@ -232,7 +225,7 @@ pub fn CategoryTopicsCard(
                         "Noch keine Schlagwörter vorhanden."
                     }
                 } else {
-                    div { class: "list-group mb-3",
+                    ListGroup { tag: "div", class: "mb-3",
                         for topic_id in topic_ids.iter().copied() {
                             TopicCheckRow {
                                 key: "{topic_id}",
@@ -246,18 +239,17 @@ pub fn CategoryTopicsCard(
                         }
                     }
                 }
-                div { class: "input-group",
+                InputGroup {
                     {
                         let set_topics_enter = set_category_topics.clone();
                         let set_topics_click = set_category_topics.clone();
                         rsx! {
-                            input {
-                                class: "form-control",
+                            Input {
                                 r#type: "text",
                                 placeholder: "Neues Schlagwort …",
                                 value: "{new_topic_name}",
-                                oninput: move |e| new_topic_name.set(e.value()),
-                                onkeydown: move |e| {
+                                oninput: move |e: FormEvent| new_topic_name.set(e.value()),
+                                onkeydown: move |e: KeyboardEvent| {
                                     if e.key() == Key::Enter {
                                         let name = new_topic_name.read().trim().to_string();
                                         if name.is_empty() {
