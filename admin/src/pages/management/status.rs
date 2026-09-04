@@ -41,11 +41,7 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
     let state = use_connection_state();
     let conn_error = use_connection_error();
     let (alert_color, icon_name, status_text): (Color, &'static str, String) = match state() {
-        ConnectionState::Connected(id, _) => (
-            Color::Success,
-            "check-circle-fill",
-            format!("Verbunden · Identity: {id}"),
-        ),
+        ConnectionState::Connected(id, _) => (Color::Primary, "check-circle-fill", format!("{id}")),
         ConnectionState::Connecting => (
             Color::Info,
             "arrow-repeat",
@@ -73,27 +69,25 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
             Col { xs: ColumnSize::Span(12),
                 Card {
                     class: "shadow-sm",
-                    header_class: "bg-primary text-white",
+                    header_class: "bg-{alert_color} text-white",
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "plug-fill", class: "me-2" }
                             "SpacetimeDB Verbindung"
+                            Icon { name: icon_name, class: "mx-3" }
                         }
                     },
                     body: rsx! {
-                        Alert {
-                            color: alert_color,
-                            class: "d-flex align-items-start",
-                            role: "alert",
-                            Icon { name: icon_name, class: "me-2 mt-1 flex-shrink-0" }
-                            div { style: "overflow-x: auto; width: 100%;",
-                                div { "{status_text}" }
-                                if let Some(err) = conn_error() {
-                                    div { class: "text-danger mt-1 small", "Fehler: {err}" }
+                        Row { class: "text-center",
+                            Col { md: ColumnSize::Span(4),
+                                div { class: "border-end",
+                                    h6 { class: "text-muted mb-1", "Identity" }
+                                    p { class: "h5 mb-0", "{status_text}" }
+                                    if let Some(err) = conn_error() {
+                                        div { class: "text-danger mt-1 small", "Fehler: {err}" }
+                                    }
                                 }
                             }
-                        }
-                        Row { class: "text-center",
                             Col { md: ColumnSize::Span(4),
                                 div { class: "border-end",
                                     h6 { class: "text-muted mb-1", "Mitgliedsnummer" }
@@ -106,19 +100,6 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
                                     p { class: "h5 mb-0",
                                         if let Some(email) = &user_info.email {
                                             "{email}"
-                                        } else {
-                                            "–"
-                                        }
-                                    }
-                                }
-                            }
-                            Col { md: ColumnSize::Span(4),
-                                div {
-                                    h6 { class: "text-muted mb-1", "ID Token" }
-                                    p {
-                                        style: "font-size: 0.55rem; word-break: break-all;",
-                                        if let Some(token) = &user_info.id_token {
-                                            "{token}"
                                         } else {
                                             "–"
                                         }
