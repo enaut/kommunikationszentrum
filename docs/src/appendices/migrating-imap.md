@@ -41,8 +41,6 @@ line_counter=0
         echo "==== Starting imapsync with --host1 $h1 --user1 $u1 --host2 $h2 --user2 $u2 $extra $@ ===="
         echo "Got those values from file.txt presented inside brackets: [$h1] [$u1] [$h2] [$u2] [$extra] [$fake]"
 
-        # Aufruf ohne 'eval', um Sonderzeichen in Passwörtern zu schützen.
-        # --nosslcheck wurde durch --nosslcheck1 und --nosslcheck2 ersetzt.
         if imapsync --host1 "$h1" --user1 "$u1" --password1 "$p1" \
                     --host2 "$h2" --ssl2 --user2 "$u2" --password2 "$p2" \
                     --syncinternaldates --automap --nosslcheck $extra "$@"
