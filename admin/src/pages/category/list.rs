@@ -171,28 +171,30 @@ pub fn AddCategoryCard() -> Element {
                         }
                     }
                     Col { md: ColumnSize::Span(1),
-                        Button {
-                            color: Color::Primary,
-                            class: "w-100",
-                            disabled: name.read().is_empty()
-                                || base.read().is_empty()
-                                || selected_domain.read().is_none()
-                                || *is_sending.read(),
-                            onclick: {
-                                let add = add_invoke.clone();
-                                let mut is_sending = is_sending.clone();
-                                let visibility_signal = visibility.clone();
-                                move |_| {
-                                    let n = name.read().clone();
-                                    let b = base.read().clone();
-                                    let (domain_id, _) = selected_domain.read().clone().unwrap_or_default();
-                                    let d = description.read().clone();
-                                    let v = visibility_signal.read().clone();
-                                    is_sending.set(true);
-                                    add(n, b, domain_id, d, v);
-                                }
-                            },
-                            Icon { name: "plus-lg" }
+                        FormGroup { label: " ",
+                            Button {
+                                color: Color::Primary,
+                                class: "w-100",
+                                disabled: name.read().is_empty()
+                                    || base.read().is_empty()
+                                    || selected_domain.read().is_none()
+                                    || *is_sending.read(),
+                                onclick: {
+                                    let add = add_invoke.clone();
+                                    let mut is_sending = is_sending.clone();
+                                    let visibility_signal = visibility.clone();
+                                    move |_| {
+                                        let n = name.read().clone();
+                                        let b = base.read().clone();
+                                        let (domain_id, _) = selected_domain.read().clone().unwrap_or_default();
+                                        let d = description.read().clone();
+                                        let v = visibility_signal.read().clone();
+                                        is_sending.set(true);
+                                        add(n, b, domain_id, d, v);
+                                    }
+                                },
+                                Icon { name: "plus-lg" }
+                            }
                         }
                     }
                 }

@@ -83,9 +83,7 @@ pub fn CategoryDetailsCard(
                         disabled: true,
                         readonly: true,
                     }
-                    FormText {
-                        "Die E-Mail-Adresse ist fest mit dem Thema verknüpft und kann nicht geändert werden."
-                    }
+                    FormText { "Die E-Mail-Adresse ist fest mit dem Thema verknüpft und kann nicht geändert werden." }
                 }
                 Button {
                     color: Color::Primary,
@@ -97,9 +95,7 @@ pub fn CategoryDetailsCard(
                         match update_category(category_id, n, d, Some(v)) {
                             Ok(()) => {
                                 save_message
-                                    .set(
-                                        Some(("Änderungen gespeichert.".to_string(), Color::Success)),
-                                    );
+                                    .set(Some(("Änderungen gespeichert.".to_string(), Color::Success)));
                             }
                             Err(e) => {
                                 error!("update_message_category failed: {e:?}");
@@ -222,14 +218,30 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                         Icon { name: "tag-fill", class: "me-2" }
                         "{cat.name}"
                         if cat.active {
-                            Badge { color: Color::Success, class: "ms-2 align-middle", "Aktiv" }
+                            Badge {
+                                color: Color::Success,
+                                class: "ms-2 align-middle",
+                                "Aktiv"
+                            }
                         } else {
-                            Badge { color: Color::Secondary, class: "ms-2 align-middle", "Inaktiv" }
+                            Badge {
+                                color: Color::Secondary,
+                                class: "ms-2 align-middle",
+                                "Inaktiv"
+                            }
                         }
                         if cat.visibility == CategoryVisibility::Public {
-                            Badge { color: Color::Info, class: "ms-2 align-middle", "Öffentlich" }
+                            Badge {
+                                color: Color::Info,
+                                class: "ms-2 align-middle",
+                                "Öffentlich"
+                            }
                         } else {
-                            Badge { color: Color::Warning, class: "ms-2 align-middle", "Privat" }
+                            Badge {
+                                color: Color::Warning,
+                                class: "ms-2 align-middle",
+                                "Privat"
+                            }
                         }
                     }
                 }
@@ -275,11 +287,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                 available_accounts,
             }
 
-            EditSubscriptionModal {
-                show: show_edit_modal,
-                category_id,
-                target: edit_target,
-            }
+            EditSubscriptionModal { show: show_edit_modal, category_id, target: edit_target }
         }
     }
 }

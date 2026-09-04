@@ -24,8 +24,8 @@ pub fn Navbar(
             color: Color::Primary,
             class: "navbar-dark",
             brand: rsx! {
-                Icon { name: "envelope-fill", class: "me-2" }
-                "Kommunikationszentrum"
+                Icon { name: "envelope-fill", class: "me-2 text-white" }
+                span { class: "text-white", "Kommunikationszentrum" }
             },
             NavbarToggler { collapsed }
             NavbarCollapse { collapsed,
@@ -64,14 +64,8 @@ pub fn Navbar(
                                     "Verwaltung"
                                 },
                                 menu: rsx! {
-                                    DropdownItem {
-                                        onclick: move |_| active_view.set(ActiveView::ManagementConfiguration),
-                                        "Einstellungen"
-                                    }
-                                    DropdownItem {
-                                        onclick: move |_| active_view.set(ActiveView::ManagementStatus),
-                                        "Status"
-                                    }
+                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementConfiguration), "Einstellungen" }
+                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementStatus), "Status" }
                                 },
                             }
                         }
@@ -95,8 +89,7 @@ pub fn Navbar(
                                 }
                             },
                             menu: rsx! {
-                                DropdownItem {
-                                    onclick: move |_| on_logout.call(()),
+                                DropdownItem { onclick: move |_| on_logout.call(()),
                                     Icon { name: "box-arrow-right", class: "me-2" }
                                     "Abmelden"
                                 }

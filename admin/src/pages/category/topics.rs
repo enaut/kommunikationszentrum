@@ -63,7 +63,9 @@ pub fn TopicCheckRow(
     let is_renaming = renaming_topic_id() == Some(topic_id);
 
     rsx! {
-        ListGroupItem { tag: "div", class: "d-flex align-items-center gap-2 position-relative",
+        ListGroupItem {
+            tag: "div",
+            class: "d-flex align-items-center gap-2 position-relative",
             if is_renaming {
                 input {
                     class: "form-control",
@@ -84,10 +86,8 @@ pub fn TopicCheckRow(
                         }
                         let new_name = rename_draft.read().trim().to_string();
                         if new_name.is_empty() {
-                            topics_message.set(Some((
-                                "Name darf nicht leer sein.".to_string(),
-                                Color::Danger,
-                            )));
+                            topics_message
+                                .set(Some(("Name darf nicht leer sein.".to_string(), Color::Danger)));
                             return;
                         }
                         if new_name == topic_name() {
@@ -97,17 +97,12 @@ pub fn TopicCheckRow(
                         match rename_topic_key(topic_id, new_name) {
                             Ok(()) => {
                                 renaming_topic_id.set(None);
-                                topics_message.set(Some((
-                                    "Schlagwort umbenannt.".to_string(),
-                                    Color::Success,
-                                )));
+                                topics_message
+                                    .set(Some(("Schlagwort umbenannt.".to_string(), Color::Success)));
                             }
                             Err(e) => {
                                 error!("rename_topic failed: {e:?}");
-                                topics_message.set(Some((
-                                    format!("Fehler: {e:?}"),
-                                    Color::Danger,
-                                )));
+                                topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
                             }
                         }
                     },
@@ -123,17 +118,12 @@ pub fn TopicCheckRow(
                         match rename_topic_blur(topic_id, new_name) {
                             Ok(()) => {
                                 renaming_topic_id.set(None);
-                                topics_message.set(Some((
-                                    "Schlagwort umbenannt.".to_string(),
-                                    Color::Success,
-                                )));
+                                topics_message
+                                    .set(Some(("Schlagwort umbenannt.".to_string(), Color::Success)));
                             }
                             Err(e) => {
                                 error!("rename_topic failed: {e:?}");
-                                topics_message.set(Some((
-                                    format!("Fehler: {e:?}"),
-                                    Color::Danger,
-                                )));
+                                topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
                             }
                         }
                     },
@@ -163,10 +153,7 @@ pub fn TopicCheckRow(
                             Ok(()) => topics_message.set(None),
                             Err(e) => {
                                 error!("set_category_topics failed: {e:?}");
-                                topics_message.set(Some((
-                                    format!("Fehler: {e:?}"),
-                                    Color::Danger,
-                                )));
+                                topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
                             }
                         }
                     },
@@ -266,17 +253,17 @@ pub fn CategoryTopicsCard(
                                         match set_topics_enter(category_id, next) {
                                             Ok(()) => {
                                                 new_topic_name.set(String::new());
-                                                topics_message.set(Some((
-                                                    "Schlagwort hinzugefügt.".to_string(),
-                                                    Color::Success,
-                                                )));
+                                                topics_message
+                                                    .set(
+                                                        Some((
+                                                            "Schlagwort hinzugefügt.".to_string(),
+                                                            Color::Success,
+                                                        )),
+                                                    );
                                             }
                                             Err(e) => {
                                                 error!("set_category_topics (add) failed: {e:?}");
-                                                topics_message.set(Some((
-                                                    format!("Fehler: {e:?}"),
-                                                    Color::Danger,
-                                                )));
+                                                topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
                                             }
                                         }
                                     }
@@ -301,17 +288,12 @@ pub fn CategoryTopicsCard(
                                     match set_topics_click(category_id, next) {
                                         Ok(()) => {
                                             new_topic_name.set(String::new());
-                                            topics_message.set(Some((
-                                                "Schlagwort hinzugefügt.".to_string(),
-                                                Color::Success,
-                                            )));
+                                            topics_message
+                                                .set(Some(("Schlagwort hinzugefügt.".to_string(), Color::Success)));
                                         }
                                         Err(e) => {
                                             error!("set_category_topics (add) failed: {e:?}");
-                                            topics_message.set(Some((
-                                                format!("Fehler: {e:?}"),
-                                                Color::Danger,
-                                            )));
+                                            topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
                                         }
                                     }
                                 },

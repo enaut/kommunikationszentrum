@@ -219,8 +219,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                             class: "shadow-sm",
                             body_class: "p-0",
                             body: rsx! {
-                                ListGroup {
-                                    flush: true,
+                                ListGroup { flush: true,
                                     for msg in filtered.clone() {
                                         {
                                             let msg_id = msg.received_message.id;
@@ -285,9 +284,9 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 body: rsx! {
                                     // ── Parsed header fields ───────────────
                                     Table {
-                                        size: Size::Sm,
-                                        borderless: true,
-                                        class: "mb-0",
+                                    size: Size::Sm,
+                                    borderless: true,
+                                    class: "mb-0",
                                         tbody {
                                             tr {
                                                 th {

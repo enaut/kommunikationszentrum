@@ -58,10 +58,7 @@ pub fn MembersPage() -> Element {
                     class: "shadow-sm",
                     body_class: "p-0",
                     body: rsx! {
-                        Table {
-                            hover: true,
-                            responsive: true,
-                            class: "mb-0",
+                        Table { hover: true, responsive: true, class: "mb-0",
                             thead { class: "table-light",
                                 tr {
                                     th { "ID" }
@@ -79,7 +76,10 @@ pub fn MembersPage() -> Element {
                                         let acct_email = account.email.clone();
                                         let member_subs: Vec<_> = subscriptions()
                                             .into_iter()
-                                            .filter(|s| { s.subscriber_account_id == acct_id && crate::pages::is_active_subscription(&s.status) })
+                                            .filter(|s| {
+                                                s.subscriber_account_id == acct_id
+                                                    && crate::pages::is_active_subscription(&s.status)
+                                            })
                                             .collect();
                                         let is_form_open = add_form_account() == Some(acct_id);
                                         rsx! {
@@ -102,7 +102,7 @@ pub fn MembersPage() -> Element {
                                                     for sub in &member_subs {
                                                         {
                                                             let sub_id = sub.id;
-                                                            let cat_color =  status_color(&sub.status);
+                                                            let cat_color = status_color(&sub.status);
                                                             let cat = categories()
                                                                 .into_iter()
                                                                 .find(|c| c.id == sub.category_id);
