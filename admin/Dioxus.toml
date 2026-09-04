@@ -3,17 +3,4 @@
 [web.app]
 
 # HTML title tag content
-title = "admin"
-
-# include `assets` in web platform
-[web.resource]
-
-
-# Additional JavaScript files
-script = []
-
-[web.resource.dev]
-
-# Javascript code file
-# serve: [dev-server] only
-script = []
+title = "Kommunikationszentrum Adminr"
