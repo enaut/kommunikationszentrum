@@ -49,7 +49,7 @@ line_counter=0
         then
                 echo "success sync for line $line_counter "
         else
-                echo "$h1;$u1;$p1;$h2;$u2;$p2;$extra;" | tee -a file_failures.txt
+                echo "$h1;$u1;$h2;$u2;$extra;" | tee -a file_failures.txt
         fi
         echo "==== Ended imapsync with --host1 $h1 --user1 $u1 --host2 $h2 --user2 $u2 $extra $@ ===="
         echo
