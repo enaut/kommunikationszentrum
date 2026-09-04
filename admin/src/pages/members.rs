@@ -10,7 +10,7 @@ use crate::{
         use_table_visible_accounts, use_table_visible_message_categories,
         use_table_visible_subscriptions,
     },
-    pages::category_detail::status_color,
+    pages::category::status_color,
 };
 
 /// Admin-only view: all members with their current subscriptions.

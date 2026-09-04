@@ -1,7 +1,6 @@
 use crate::module_bindings::SubscriptionStatus;
 
-pub mod categories;
-pub mod category_detail;
+pub mod category;
 pub mod management;
 pub mod members;
 pub mod messages;

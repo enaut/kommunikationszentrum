@@ -196,7 +196,7 @@ fn AuthenticatedApp(
                             pages::messages::MessagesPage { user_info: user_info.clone() }
                         },
                         ActiveView::Categories => rsx! {
-                            pages::categories::CategoriesPage {}
+                            pages::category::CategoriesPage {}
                         },
                         ActiveView::Members => rsx! {
                             pages::members::MembersPage {}
