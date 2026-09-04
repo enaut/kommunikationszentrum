@@ -5,6 +5,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_rename_topic, use_reducer_set_category_topics,
@@ -87,7 +88,7 @@ pub fn TopicCheckRow(
                         let new_name = rename_draft.read().trim().to_string();
                         if new_name.is_empty() {
                             topics_message
-                                .set(Some(("Name darf nicht leer sein.".to_string(), Color::Danger)));
+                                .set(Some((tid!("category-topic-name-empty"), Color::Danger)));
                             return;
                         }
                         if new_name == topic_name() {
@@ -98,11 +99,11 @@ pub fn TopicCheckRow(
                             Ok(()) => {
                                 renaming_topic_id.set(None);
                                 topics_message
-                                    .set(Some(("Schlagwort umbenannt.".to_string(), Color::Success)));
+                                    .set(Some((tid!("category-topic-renamed"), Color::Success)));
                             }
                             Err(e) => {
                                 error!("rename_topic failed: {e:?}");
-                                topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
+                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                             }
                         }
                     },
@@ -119,11 +120,11 @@ pub fn TopicCheckRow(
                             Ok(()) => {
                                 renaming_topic_id.set(None);
                                 topics_message
-                                    .set(Some(("Schlagwort umbenannt.".to_string(), Color::Success)));
+                                    .set(Some((tid!("category-topic-renamed"), Color::Success)));
                             }
                             Err(e) => {
                                 error!("rename_topic failed: {e:?}");
-                                topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
+                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                             }
                         }
                     },
@@ -153,7 +154,7 @@ pub fn TopicCheckRow(
                             Ok(()) => topics_message.set(None),
                             Err(e) => {
                                 error!("set_category_topics failed: {e:?}");
-                                topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
+                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                             }
                         }
                     },
@@ -196,7 +197,7 @@ pub fn CategoryTopicsCard(
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "bookmark-star", class: "me-2" }
-                    "Schlagwörter"
+                    "{tid!(\"category-topics-title\")}"
                 }
             },
             body: rsx! {
@@ -204,12 +205,12 @@ pub fn CategoryTopicsCard(
                     Alert { color, class: "mb-3", "{msg}" }
                 }
                 p { class: "text-muted small mb-3",
-                    "Schlagwörter gruppieren Mailinglisten auf der Mitglieder-Startseite in Tabs."
+                    "{tid!(\"category-topics-description\")}"
                 }
                 if topic_ids.is_empty() {
                     div { class: "text-muted mb-3",
                         Icon { name: "inbox", class: "me-2" }
-                        "Noch keine Schlagwörter vorhanden."
+                        "{tid!(\"category-topics-empty\")}"
                     }
                 } else {
                     ListGroup { tag: "div", class: "mb-3",
@@ -233,7 +234,7 @@ pub fn CategoryTopicsCard(
                         rsx! {
                             Input {
                                 r#type: "text",
-                                placeholder: "Neues Schlagwort …",
+                                placeholder: tid!("category-topics-placeholder"),
                                 value: "{new_topic_name}",
                                 oninput: move |e: FormEvent| new_topic_name.set(e.value()),
                                 onkeydown: move |e: KeyboardEvent| {
@@ -243,9 +244,9 @@ pub fn CategoryTopicsCard(
                                             return;
                                         }
                                         let mut next = current_assigned_topic_names(
-                                            category_id,
-                                            &topics(),
-                                            &category_topics(),
+                                             category_id,
+                                             &topics(),
+                                             &category_topics(),
                                         );
                                         next.push(name);
                                         next.sort();
@@ -256,14 +257,14 @@ pub fn CategoryTopicsCard(
                                                 topics_message
                                                     .set(
                                                         Some((
-                                                            "Schlagwort hinzugefügt.".to_string(),
+                                                            tid!("category-topic-added"),
                                                             Color::Success,
                                                         )),
                                                     );
                                             }
                                             Err(e) => {
                                                 error!("set_category_topics (add) failed: {e:?}");
-                                                topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
+                                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                                             }
                                         }
                                     }
@@ -289,11 +290,11 @@ pub fn CategoryTopicsCard(
                                         Ok(()) => {
                                             new_topic_name.set(String::new());
                                             topics_message
-                                                .set(Some(("Schlagwort hinzugefügt.".to_string(), Color::Success)));
+                                                .set(Some((tid!("category-topic-added"), Color::Success)));
                                         }
                                         Err(e) => {
                                             error!("set_category_topics (add) failed: {e:?}");
-                                            topics_message.set(Some((format!("Fehler: {e:?}"), Color::Danger)));
+                                            topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                                         }
                                     }
                                 },

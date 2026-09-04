@@ -3,7 +3,9 @@ use dioxus_bootstrap_css::prelude::{
     Color, Dropdown, DropdownItem, Icon, NavItem, NavLink, Navbar as BsNavbar, NavbarCollapse,
     NavbarExpand, NavbarNav, NavbarToggler, Theme, ThemeToggle,
 };
+use dioxus_i18n::tid;
 
+use crate::components::language_switcher::LanguageSwitcher;
 use crate::oauth::UserInfo;
 use crate::router::{use_is_admin, ActiveView};
 
@@ -25,32 +27,32 @@ pub fn Navbar(
             class: "navbar-dark",
             brand: rsx! {
                 Icon { name: "envelope-fill", class: "me-2 text-white" }
-                span { class: "text-white", "Kommunikationszentrum" }
+                span { class: "text-white", "{tid!(\"navbar-brand\")}" }
             },
             NavbarToggler { collapsed }
             NavbarCollapse { collapsed,
                 NavbarNav { class: "me-auto",
                     AppNavLink {
-                        label: "Meine Themen",
+                        label: tid!("navbar-my-topics"),
                         icon: "envelope-check",
                         view: ActiveView::MySubscriptions,
                         active_view,
                     }
                     AppNavLink {
-                        label: "Nachrichten",
+                        label: tid!("navbar-messages"),
                         icon: "envelope",
                         view: ActiveView::Messages,
                         active_view,
                     }
                     if is_admin {
                         AppNavLink {
-                            label: "Themen",
+                            label: tid!("navbar-topics"),
                             icon: "tags-fill",
                             view: ActiveView::Categories,
                             active_view,
                         }
                         AppNavLink {
-                            label: "Mitglieder",
+                            label: tid!("navbar-members"),
                             icon: "people-fill",
                             view: ActiveView::Members,
                             active_view,
@@ -61,17 +63,20 @@ pub fn Navbar(
                                 toggle_class: "btn-link nav-link text-white",
                                 toggle: rsx! {
                                     Icon { name: "sliders", class: "me-1" }
-                                    "Verwaltung"
+                                    "{tid!(\"navbar-management\")}"
                                 },
                                 menu: rsx! {
-                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementConfiguration), "Einstellungen" }
-                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementStatus), "Status" }
+                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementConfiguration), "{tid!(\"navbar-settings\")}" }
+                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementStatus), "{tid!(\"navbar-status\")}" }
                                 },
                             }
                         }
                     }
                 }
                 NavbarNav { class: "ms-auto",
+                    NavItem {
+                        LanguageSwitcher {}
+                    }
                     NavItem {
                         ThemeToggle { theme }
                     }
@@ -91,7 +96,7 @@ pub fn Navbar(
                             menu: rsx! {
                                 DropdownItem { onclick: move |_| on_logout.call(()),
                                     Icon { name: "box-arrow-right", class: "me-2" }
-                                    "Abmelden"
+                                    "{tid!(\"navbar-logout\")}"
                                 }
                             },
                         }
@@ -104,7 +109,7 @@ pub fn Navbar(
 
 #[component]
 fn AppNavLink(
-    label: &'static str,
+    label: String,
     icon: &'static str,
     view: ActiveView,
     mut active_view: Signal<ActiveView>,

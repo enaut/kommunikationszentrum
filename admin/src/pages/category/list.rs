@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_procedure_provision_message_category, use_reducer_remove_message_category,
@@ -49,7 +50,7 @@ pub fn AddCategoryCard() -> Element {
                             description.set(String::new());
                             visibility.set(CategoryVisibility::Public);
                             add_error.set(Some((
-                                "Neues Thema erfolgreich erstellt!".to_string(),
+                                tid!("category-add-success"),
                                 Color::Success,
                             )));
                         }
@@ -87,7 +88,7 @@ pub fn AddCategoryCard() -> Element {
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "plus-circle", class: "me-2" }
-                    "Neues Thema hinzufügen"
+                    "{tid!(\"category-add-title\")}"
                 }
             },
             body: rsx! {
@@ -101,21 +102,21 @@ pub fn AddCategoryCard() -> Element {
                 }
                 Row { class: "g-3 align-items-end",
                     Col { md: ColumnSize::Span(3),
-                        FormGroup { label: "Thema",
+                        FormGroup { label: tid!("category-form-name"),
                             Input {
                                 r#type: "text",
-                                placeholder: "Thema Name",
+                                placeholder: tid!("category-form-name-placeholder"),
                                 value: "{name}",
                                 oninput: move |e: FormEvent| name.set(e.value()),
                             }
                         }
                     }
                     Col { md: ColumnSize::Span(4),
-                        FormGroup { label: "E-Mail-Adresse",
+                        FormGroup { label: tid!("category-form-email"),
                             InputGroup {
                                 Input {
                                     r#type: "text",
-                                    placeholder: "postfach",
+                                    placeholder: tid!("category-form-mailbox-placeholder"),
                                     value: "{base}",
                                     oninput: move |e: FormEvent| base.set(e.value()),
                                 }
@@ -132,7 +133,7 @@ pub fn AddCategoryCard() -> Element {
                                             selected_domain.set(Some((id, dname)));
                                         }
                                     },
-                                    option { value: "", "Domain…" }
+                                    option { value: "", "{tid!(\"category-form-domain-select\")}" }
                                     for domain in domains() {
                                         option {
                                             key: "{domain.id}",
@@ -145,17 +146,17 @@ pub fn AddCategoryCard() -> Element {
                         }
                     }
                     Col { md: ColumnSize::Span(3),
-                        FormGroup { label: "Beschreibung",
+                        FormGroup { label: tid!("category-form-description"),
                             Input {
                                 r#type: "text",
-                                placeholder: "Kurze Beschreibung",
+                                placeholder: tid!("category-form-description-placeholder"),
                                 value: "{description}",
                                 oninput: move |e: FormEvent| description.set(e.value()),
                             }
                         }
                     }
                     Col { md: ColumnSize::Span(1),
-                        FormGroup { label: "Sichtbar",
+                        FormGroup { label: tid!("category-form-visibility"),
                             Select {
                                 value: visibility_value,
                                 onchange: move |e: FormEvent| {
@@ -165,8 +166,8 @@ pub fn AddCategoryCard() -> Element {
                                         _ => {}
                                     }
                                 },
-                                option { value: "Public", "Öffentlich" }
-                                option { value: "Private", "Privat" }
+                                option { value: "Public", "{tid!(\"category-visibility-public\")}" }
+                                option { value: "Private", "{tid!(\"category-visibility-private\")}" }
                             }
                         }
                     }
@@ -218,7 +219,7 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "list-ul", class: "me-2" }
-                    "Vorhandene Themen"
+                    "{tid!(\"category-table-title\")}"
                     span { class: "badge bg-white text-primary ms-2", "{categories().len()}" }
                 }
             },
@@ -226,19 +227,19 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                 if categories().is_empty() {
                     div { class: "p-4 text-muted",
                         Icon { name: "inbox", class: "me-2" }
-                        "Keine Themen vorhanden."
+                        "{tid!(\"category-table-empty\")}"
                     }
                 } else {
                     Table { hover: true, responsive: true, class: "mb-0",
                         thead { class: "table-light",
                             tr {
-                                th { "Name" }
-                                th { "E-Mail-Adresse" }
-                                th { "Beschreibung" }
-                                th { "Status" }
-                                th { "Sichtbarkeit" }
-                                th { class: "text-end", "Abonnenten" }
-                                th { class: "text-end", "Aktionen" }
+                                th { "{tid!(\"category-table-th-name\")}" }
+                                th { "{tid!(\"category-table-th-email\")}" }
+                                th { "{tid!(\"category-table-th-description\")}" }
+                                th { "{tid!(\"category-table-th-status\")}" }
+                                th { "{tid!(\"category-table-th-visibility\")}" }
+                                th { class: "text-end", "{tid!(\"category-table-th-subscribers\")}" }
+                                th { class: "text-end", "{tid!(\"category-table-th-actions\")}" }
                             }
                         }
                         tbody {
@@ -264,16 +265,16 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                                             td { class: "text-muted", "{cat.description}" }
                                             td {
                                                 if cat.active {
-                                                    Badge { color: Color::Success, "Aktiv" }
+                                                    Badge { color: Color::Success, "{tid!(\"category-status-active\")}" }
                                                 } else {
-                                                    Badge { color: Color::Secondary, "Inaktiv" }
+                                                    Badge { color: Color::Secondary, "{tid!(\"category-status-inactive\")}" }
                                                 }
                                             }
                                             td {
                                                 if cat.visibility == CategoryVisibility::Public {
-                                                    Badge { color: Color::Info, "Öffentlich" }
+                                                    Badge { color: Color::Info, "{tid!(\"category-visibility-public\")}" }
                                                 } else {
-                                                    Badge { color: Color::Warning, "Privat" }
+                                                    Badge { color: Color::Warning, "{tid!(\"category-visibility-private\")}" }
                                                 }
                                             }
                                             td { class: "text-end",
@@ -289,7 +290,7 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                                                         selected_category.set(Some(cat_id));
                                                     },
                                                     Icon { name: "pencil-square", class: "me-1" }
-                                                    "Details"
+                                                    "{tid!(\"category-action-details\")}"
                                                 }
                                                 Button {
                                                     color: Color::Danger,
@@ -302,7 +303,7 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                                                         }
                                                     },
                                                     Icon { name: "trash", class: "me-1" }
-                                                    "Löschen"
+                                                    "{tid!(\"category-action-delete\")}"
                                                 }
                                             }
                                         }
@@ -338,7 +339,7 @@ pub fn CategoriesPage() -> Element {
                     Col {
                         h2 { class: "mb-0",
                             Icon { name: "tags-fill", class: "me-2" }
-                            "Themen"
+                            "{tid!(\"category-page-title\")}"
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 mod components;
 mod config;
+mod i18n;
 mod module_bindings;
 mod oauth;
 mod pages;
@@ -72,6 +73,7 @@ fn solawi_theme() -> BootstrapTheme {
 
 #[component]
 fn App() -> Element {
+    let _i18n = i18n::use_init_app_i18n();
     let config = use_signal(AdminConfig::load);
     let (auth_state, login, logout) = use_oauth(config.read().oauth.clone());
 
