@@ -313,7 +313,6 @@ pub(crate) fn upsert_mail_delivery(
         last_updated: ctx.timestamp,
     });
 
-    ingress.delivery_count = ingress.delivery_count.saturating_add(1);
     ingress.recipient_count = ingress.recipient_count.saturating_add(1);
     ctx.db.mail_ingress().id().update(ingress.clone());
 
