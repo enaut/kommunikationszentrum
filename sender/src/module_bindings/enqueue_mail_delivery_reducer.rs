@@ -11,13 +11,9 @@ pub(super) struct EnqueueMailDeliveryArgs {
     pub subscription_id: u64,
     pub recipient_email: String,
     pub recipient_account_id: Option<u64>,
-    pub list_email: String,
-    pub list_name: String,
-    pub original_sender_email: String,
     pub from_header: String,
     pub reply_to: String,
     pub raw_message: String,
-    pub unsubscribe_token: String,
 }
 
 impl From<EnqueueMailDeliveryArgs> for super::Reducer {
@@ -27,13 +23,9 @@ impl From<EnqueueMailDeliveryArgs> for super::Reducer {
             subscription_id: args.subscription_id,
             recipient_email: args.recipient_email,
             recipient_account_id: args.recipient_account_id,
-            list_email: args.list_email,
-            list_name: args.list_name,
-            original_sender_email: args.original_sender_email,
             from_header: args.from_header,
             reply_to: args.reply_to,
             raw_message: args.raw_message,
-            unsubscribe_token: args.unsubscribe_token,
         }
     }
 }
@@ -59,26 +51,18 @@ pub trait enqueue_mail_delivery {
         subscription_id: u64,
         recipient_email: String,
         recipient_account_id: Option<u64>,
-        list_email: String,
-        list_name: String,
-        original_sender_email: String,
         from_header: String,
         reply_to: String,
         raw_message: String,
-        unsubscribe_token: String,
     ) -> __sdk::Result<()> {
         self.enqueue_mail_delivery_then(
             ingress_id,
             subscription_id,
             recipient_email,
             recipient_account_id,
-            list_email,
-            list_name,
-            original_sender_email,
             from_header,
             reply_to,
             raw_message,
-            unsubscribe_token,
             |_, _| {},
         )
     }
@@ -95,13 +79,9 @@ pub trait enqueue_mail_delivery {
         subscription_id: u64,
         recipient_email: String,
         recipient_account_id: Option<u64>,
-        list_email: String,
-        list_name: String,
-        original_sender_email: String,
         from_header: String,
         reply_to: String,
         raw_message: String,
-        unsubscribe_token: String,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -116,13 +96,9 @@ impl enqueue_mail_delivery for super::RemoteReducers {
         subscription_id: u64,
         recipient_email: String,
         recipient_account_id: Option<u64>,
-        list_email: String,
-        list_name: String,
-        original_sender_email: String,
         from_header: String,
         reply_to: String,
         raw_message: String,
-        unsubscribe_token: String,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -134,13 +110,9 @@ impl enqueue_mail_delivery for super::RemoteReducers {
                 subscription_id,
                 recipient_email,
                 recipient_account_id,
-                list_email,
-                list_name,
-                original_sender_email,
                 from_header,
                 reply_to,
                 raw_message,
-                unsubscribe_token,
             },
             callback,
         )

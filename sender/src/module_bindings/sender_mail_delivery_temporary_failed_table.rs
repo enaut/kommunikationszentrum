@@ -2,7 +2,6 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN YOUR MODULE SOURCE CODE INSTEAD.
 
 #![allow(unused, clippy::all)]
-use super::mail_delivery_row_type::MailDeliveryRow;
 use super::mail_delivery_temporary_failed_type::MailDeliveryTemporaryFailed;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
@@ -171,30 +170,30 @@ impl<'ctx> __sdk::WithUpdate for SenderMailDeliveryTemporaryFailedTableHandle<'c
     }
 }
 
-/// Access to the `id` unique index on the table `sender_mail_delivery_temporary_failed`,
+/// Access to the `delivery_id` unique index on the table `sender_mail_delivery_temporary_failed`,
 /// which allows point queries on the field of the same name
-/// via the [`SenderMailDeliveryTemporaryFailedIdUnique::find`] method.
+/// via the [`SenderMailDeliveryTemporaryFailedDeliveryIdUnique::find`] method.
 ///
 /// Users are encouraged not to explicitly reference this type,
 /// but to directly chain method calls,
-/// like `ctx.db.sender_mail_delivery_temporary_failed().id().find(...)`.
-pub struct SenderMailDeliveryTemporaryFailedIdUnique<'ctx> {
+/// like `ctx.db.sender_mail_delivery_temporary_failed().delivery_id().find(...)`.
+pub struct SenderMailDeliveryTemporaryFailedDeliveryIdUnique<'ctx> {
     imp: __sdk::UniqueConstraintHandle<MailDeliveryTemporaryFailed, String>,
     phantom: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
 impl<'ctx> SenderMailDeliveryTemporaryFailedTableHandle<'ctx> {
-    /// Get a handle on the `id` unique index on the table `sender_mail_delivery_temporary_failed`.
-    pub fn id(&self) -> SenderMailDeliveryTemporaryFailedIdUnique<'ctx> {
-        SenderMailDeliveryTemporaryFailedIdUnique {
-            imp: self.imp.get_unique_constraint::<String>("id"),
+    /// Get a handle on the `delivery_id` unique index on the table `sender_mail_delivery_temporary_failed`.
+    pub fn delivery_id(&self) -> SenderMailDeliveryTemporaryFailedDeliveryIdUnique<'ctx> {
+        SenderMailDeliveryTemporaryFailedDeliveryIdUnique {
+            imp: self.imp.get_unique_constraint::<String>("delivery_id"),
             phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'ctx> SenderMailDeliveryTemporaryFailedIdUnique<'ctx> {
-    /// Find the subscribed row whose `id` column value is equal to `col_val`,
+impl<'ctx> SenderMailDeliveryTemporaryFailedDeliveryIdUnique<'ctx> {
+    /// Find the subscribed row whose `delivery_id` column value is equal to `col_val`,
     /// if such a row is present in the client cache.
     pub fn find(&self, col_val: &String) -> Option<MailDeliveryTemporaryFailed> {
         self.imp.find(col_val)
@@ -205,7 +204,7 @@ impl<'ctx> SenderMailDeliveryTemporaryFailedIdUnique<'ctx> {
 pub(super) fn register_table(client_cache: &mut __sdk::ClientCache<super::RemoteModule>) {
     let _table = client_cache
         .get_or_make_table::<MailDeliveryTemporaryFailed>("sender_mail_delivery_temporary_failed");
-    _table.add_unique_constraint::<String>("id", |row| &row.id);
+    _table.add_unique_constraint::<String>("delivery_id", |row| &row.delivery_id);
 }
 
 #[doc(hidden)]

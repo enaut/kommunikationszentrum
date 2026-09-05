@@ -1,76 +1,8 @@
-use log::info;
 use serde::{Deserialize, Serialize};
-use spacetimedb::{
-    CtxDbRead, CtxWithSender, Identity, Query, ReducerContext, Table, Timestamp, ViewContext,
-};
+use spacetimedb::{Identity, ReducerContext, Table};
 
-// Configuration constants that can be set at compile time via environment variables
-const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
-    Some(url) => url,
-    None => "http://127.0.0.1:8000",
-};
-
-const DJANGO_OAUTH_ISSUER_PATH: &str = "/o";
-
-// Private: clients never subscribe to this table directly. `visible_accounts`
-// below is the only way clients can read account rows.
-#[derive(Debug)]
-#[spacetimedb::table(accessor = account)]
-pub struct Account {
-    #[primary_key]
-    pub id: u64, // mitgliedsnr from Django
-    #[unique]
-    pub identity: Identity,
-    pub name: String,
-    #[index(btree)]
-    pub email: String,
-    pub is_active: bool,
-    #[index(btree)]
-    pub last_synced: Timestamp,
-}
-
-/// Returns only the caller's own account for regular users.
-/// Returns all accounts for admins (identity present in admin_identities).
-/// The admin UI subscribes to this view instead of the raw account table.
-#[spacetimedb::view(accessor = visible_accounts, public)]
-pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
-    let sender = ctx.sender();
-    let is_admin = is_admin_user(ctx);
-    if is_admin {
-        ctx.db
-            .account()
-            .last_synced()
-            .filter(Timestamp::UNIX_EPOCH..)
-            .collect()
-    } else {
-        ctx.db
-            .account()
-            .identity()
-            .find(&sender)
-            .into_iter()
-            .collect()
-    }
-}
-
-#[spacetimedb::table(accessor = admin_identities)]
-pub struct AdminIdentity {
-    #[primary_key]
-    pub identity: Identity,
-}
-
-/// A view that restricts admin_identities to only show the admin identities to admins.
-/// This allows the admin UI to check if the current user is an admin without exposing the full list of admin identities.
-///
-/// Note: there's no need to also special-case "is this row the caller's own
-/// identity" here — if the caller's identity were in `admin_identities`,
-/// `is_admin_user` would already be `true` and every row would be visible.
-#[spacetimedb::view(accessor = visible_admin_identities, public)]
-pub fn visible_admin_identities(ctx: &ViewContext) -> impl Query<AdminIdentity> {
-    info!("Checking if user is admin for visible_admin_identities view");
-    let is_admin = is_admin_user(ctx);
-    info!("Is an admin user: {}", is_admin);
-    ctx.from.admin_identities().r#filter(move |_| is_admin)
-}
+use crate::common::auth::{is_admin_identity, is_admin_user};
+use crate::models::account::*;
 
 #[derive(Serialize, Deserialize)]
 pub struct UserSyncData {
@@ -80,72 +12,12 @@ pub struct UserSyncData {
     pub is_active: Option<bool>,
     pub is_admin: Option<bool>,
     pub updated_at: Option<String>,
-    // Optional: precomputed Spacetime Identity as hex string (provided by Django)
     pub identity_hex: Option<String>,
-    // Categories (e.g. Verteilpunkt mailing lists) the user should currently be
-    // subscribed to. Categories are created if missing and never modified or
-    // removed by this sync path.
-    pub categories: Option<Vec<crate::categories::CategorySyncData>>,
-    // Email addresses of categories the user should be unsubscribed from as
-    // part of this sync (e.g. their previous Verteilpunkt, after a change).
-    // Only the subscription is deactivated; the category itself is untouched.
+    pub categories: Option<Vec<crate::models::category::CategorySyncData>>,
     pub unsubscribe_category_emails: Option<Vec<String>>,
 }
 
-// Webhook token table: stores hashed bearer tokens and permissions.
-#[spacetimedb::table(accessor = webhook_tokens)]
-pub struct WebhookToken {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    #[unique]
-    pub token_hash: String,
-    pub label: String,
-    pub permissions: Vec<String>,
-    #[index(btree)]
-    pub created_at: Timestamp,
-    pub active: bool,
-}
-
-/// A view that only returns the webhook_tokens when the user is admin. Regular users get an empty list.
-/// This is used by the admin UI to list and manage webhook tokens without exposing them to regular users.
-#[spacetimedb::view(accessor = visible_webhook_tokens, public)]
-pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.webhook_tokens().r#filter(move |_| is_admin)
-}
-
-/// Check if the current user has admin permissions.
-/// Works with any context that exposes a sender and read-only DB access
-/// (`ReducerContext`, `ViewContext`, `TxContext`, …).
-pub(crate) fn is_admin_user(ctx: &(impl CtxDbRead + CtxWithSender)) -> bool {
-    let res = is_admin_identity(ctx, ctx.sender());
-    res
-}
-
-/// True if the provided identity is the module identity or listed in admin_identities.
-///
-/// Generic over [`CtxDbRead`] so it can be shared by reducers, views, and
-/// procedure/HTTP transactions (`ReducerContext`, `ViewContext`, `TxContext`, …).
-pub(crate) fn is_admin_identity(ctx: &impl CtxDbRead, who: Identity) -> bool {
-    // Same host call as `ReducerContext::database_identity()` — available outside reducers.
-    let module_identity = Identity::from_byte_array(spacetimedb::sys::identity());
-    if who == module_identity {
-        info!("is_admin_identity: caller is module identity");
-        return true;
-    }
-    let res = ctx
-        .db_read_only()
-        .admin_identities()
-        .identity()
-        .find(&who)
-        .is_some();
-    info!("is_admin_identity: caller is admin identity: {}", res);
-    res
-}
-
 /// Add an identity to admin_identities. Only existing admins may call this.
-/// `identity_hex` is the 64-character hex string.
 #[spacetimedb::reducer]
 pub fn register_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Result<(), String> {
     log::info!("Adding admin Identity");
@@ -162,7 +34,7 @@ pub fn register_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Re
         .is_some()
     {
         log::info!("Identity was already listed!");
-        return Ok(()); // idempotent
+        return Ok(());
     }
     ctx.db.admin_identities().insert(AdminIdentity { identity });
     log::info!("Registered admin identity: {:?}", identity);
@@ -170,7 +42,6 @@ pub fn register_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Re
 }
 
 /// Remove an identity from admin_identities. Only existing admins may call this.
-/// `identity_hex` is the 64-character hex string of the identity to remove.
 #[spacetimedb::reducer]
 pub fn unregister_admin_identity(ctx: &ReducerContext, identity_hex: String) -> Result<(), String> {
     if !is_admin_user(ctx) {
@@ -183,7 +54,6 @@ pub fn unregister_admin_identity(ctx: &ReducerContext, identity_hex: String) -> 
     Ok(())
 }
 
-// New reducers for webhook token management
 #[spacetimedb::reducer]
 pub fn create_webhook_token(
     ctx: &ReducerContext,
@@ -194,7 +64,6 @@ pub fn create_webhook_token(
     if !is_admin_user(ctx) {
         return Err("Unauthorized: only admins can create webhook tokens".into());
     }
-    // The token hash must be computed client-side (BLAKE3 hex). The reducer never receives the plaintext token.
     if ctx
         .db
         .webhook_tokens()
@@ -226,8 +95,6 @@ pub fn revoke_webhook_token(ctx: &ReducerContext, token_hash: String) -> Result<
     Ok(())
 }
 
-// Keep existing sync_user logic but factor into helper so HTTP handler can call it.
-
 pub(crate) fn do_sync_user(
     ctx: &ReducerContext,
     action: String,
@@ -247,11 +114,9 @@ pub(crate) fn do_sync_user(
                 let issuer_url = format!("{}{}", DJANGO_OAUTH_BASE_URL, DJANGO_OAUTH_ISSUER_PATH);
                 let identity_of_user = Identity::from_claims(&issuer_url, &mitgliedsnr);
                 let is_admin = data.is_admin.unwrap_or(false);
-                // Captured before `data.email` is moved into the Account below.
                 let subscriber_email = data.email.clone().unwrap_or_default();
 
                 if let Some(existing) = ctx.db.account().id().find(&data.mitgliedsnr) {
-                    // Update in place — Django is source of truth for is_admin
                     let updated = Account {
                         identity: identity_of_user,
                         name: data.name.unwrap_or_default(),
@@ -263,7 +128,6 @@ pub(crate) fn do_sync_user(
                     ctx.db.account().id().update(updated);
                     log::info!("Updated existing account: {}", data.mitgliedsnr);
                 } else {
-                    // Insert new account
                     let account = Account {
                         id: data.mitgliedsnr,
                         identity: identity_of_user,
@@ -277,7 +141,6 @@ pub(crate) fn do_sync_user(
                     log::info!("Inserted new account: {}", data.mitgliedsnr);
                 }
 
-                // Keep admin_identities table in sync with Django's admin flag
                 if is_admin {
                     if ctx
                         .db
@@ -305,13 +168,9 @@ pub(crate) fn do_sync_user(
                     log::info!("Revoked admin_identities for account: {}", data.mitgliedsnr);
                 }
 
-                // Ensure category subscriptions (e.g. Verteilpunkt mailing lists) match
-                // what Django reports as current. Categories are created if missing but
-                // never modified or removed; failures for one category are logged and
-                // skipped so they don't block the rest of the account sync.
                 for category in data.categories.unwrap_or_default() {
                     let category_email = category.email_address.clone();
-                    if let Err(e) = crate::categories::do_add_and_subscribe_category(
+                    if let Err(e) = crate::reducers::categories::do_add_and_subscribe_category(
                         ctx,
                         data.mitgliedsnr,
                         subscriber_email.clone(),
@@ -331,15 +190,14 @@ pub(crate) fn do_sync_user(
                     }
                 }
 
-                // Explicit unsubscribes (e.g. the account's previous Verteilpunkt after a
-                // change) only ever deactivate a subscription; the category row itself is
-                // never touched.
                 for category_email in data.unsubscribe_category_emails.unwrap_or_default() {
-                    if let Err(e) = crate::categories::do_remove_subscription_for_category_email(
-                        ctx,
-                        data.mitgliedsnr,
-                        &category_email,
-                    ) {
+                    if let Err(e) =
+                        crate::reducers::categories::do_remove_subscription_for_category_email(
+                            ctx,
+                            data.mitgliedsnr,
+                            &category_email,
+                        )
+                    {
                         log::error!(
                             "Failed to remove subscription to category '{}' for account {}: {}",
                             category_email,
@@ -350,12 +208,10 @@ pub(crate) fn do_sync_user(
                 }
             }
             "delete" => {
-                // Find and delete the account
                 if let Some(existing) = ctx.db.account().id().find(&data.mitgliedsnr) {
                     let identity_of_user = existing.identity;
                     ctx.db.account().delete(existing);
                     log::info!("Deleted user: {} ({})", data.mitgliedsnr, action);
-                    // Also remove from admin_identities if present
                     if ctx
                         .db
                         .admin_identities()

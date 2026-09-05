@@ -2,8 +2,8 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN YOUR MODULE SOURCE CODE INSTEAD.
 
 #![allow(unused, clippy::all)]
+use super::delivery_final_state_type::DeliveryFinalState;
 use super::mail_delivery_done_type::MailDeliveryDone;
-use super::mail_delivery_row_type::MailDeliveryRow;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 /// Table handle for the table `sender_mail_delivery_done`.
@@ -167,30 +167,30 @@ impl<'ctx> __sdk::WithUpdate for SenderMailDeliveryDoneTableHandle<'ctx> {
     }
 }
 
-/// Access to the `id` unique index on the table `sender_mail_delivery_done`,
+/// Access to the `delivery_id` unique index on the table `sender_mail_delivery_done`,
 /// which allows point queries on the field of the same name
-/// via the [`SenderMailDeliveryDoneIdUnique::find`] method.
+/// via the [`SenderMailDeliveryDoneDeliveryIdUnique::find`] method.
 ///
 /// Users are encouraged not to explicitly reference this type,
 /// but to directly chain method calls,
-/// like `ctx.db.sender_mail_delivery_done().id().find(...)`.
-pub struct SenderMailDeliveryDoneIdUnique<'ctx> {
+/// like `ctx.db.sender_mail_delivery_done().delivery_id().find(...)`.
+pub struct SenderMailDeliveryDoneDeliveryIdUnique<'ctx> {
     imp: __sdk::UniqueConstraintHandle<MailDeliveryDone, String>,
     phantom: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
 impl<'ctx> SenderMailDeliveryDoneTableHandle<'ctx> {
-    /// Get a handle on the `id` unique index on the table `sender_mail_delivery_done`.
-    pub fn id(&self) -> SenderMailDeliveryDoneIdUnique<'ctx> {
-        SenderMailDeliveryDoneIdUnique {
-            imp: self.imp.get_unique_constraint::<String>("id"),
+    /// Get a handle on the `delivery_id` unique index on the table `sender_mail_delivery_done`.
+    pub fn delivery_id(&self) -> SenderMailDeliveryDoneDeliveryIdUnique<'ctx> {
+        SenderMailDeliveryDoneDeliveryIdUnique {
+            imp: self.imp.get_unique_constraint::<String>("delivery_id"),
             phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'ctx> SenderMailDeliveryDoneIdUnique<'ctx> {
-    /// Find the subscribed row whose `id` column value is equal to `col_val`,
+impl<'ctx> SenderMailDeliveryDoneDeliveryIdUnique<'ctx> {
+    /// Find the subscribed row whose `delivery_id` column value is equal to `col_val`,
     /// if such a row is present in the client cache.
     pub fn find(&self, col_val: &String) -> Option<MailDeliveryDone> {
         self.imp.find(col_val)
@@ -200,7 +200,7 @@ impl<'ctx> SenderMailDeliveryDoneIdUnique<'ctx> {
 #[doc(hidden)]
 pub(super) fn register_table(client_cache: &mut __sdk::ClientCache<super::RemoteModule>) {
     let _table = client_cache.get_or_make_table::<MailDeliveryDone>("sender_mail_delivery_done");
-    _table.add_unique_constraint::<String>("id", |row| &row.id);
+    _table.add_unique_constraint::<String>("delivery_id", |row| &row.delivery_id);
 }
 
 #[doc(hidden)]

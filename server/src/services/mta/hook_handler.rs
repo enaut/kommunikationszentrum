@@ -1,70 +1,52 @@
-use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
+use spacetimedb::{ReducerContext, Table, Timestamp};
 use stalwart_mta_hook_types::Request as MtaHookRequest;
 
-use crate::account::{account, account__view, admin_identities, is_admin_user};
-use crate::categories::{message_categories, subscriptions, subscriptions__view};
-use crate::delivery;
-use crate::mail_message;
+use crate::models::account::{account, admin_identities};
+use crate::models::category::{message_categories, subscriptions};
+use crate::models::mail_message::{mail_message, MailMessage};
+use crate::models::mta::*;
+use crate::reducers::delivery::upsert_mail_ingress;
+use crate::services::mta::envelope_parser::{
+    extract_header, extract_subject_from_request, parse_email_addresses,
+};
 
-#[spacetimedb::table(accessor = mta_connection_log)]
-pub struct MtaConnectionLog {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    pub client_ip: String,
-    pub stage: String,
-    pub action: String,
-    pub timestamp: Timestamp,
-    pub details: String,
+pub fn insert_mail_message(
+    ctx: &ReducerContext,
+    queue_id: Option<String>,
+    sender_account_id: Option<u64>,
+    sender_email: String,
+    subject: String,
+    from_header: String,
+    reply_to: Option<String>,
+    date_header: Option<String>,
+    message_id: Option<String>,
+    cc_header: Option<String>,
+    headers_raw: String,
+    body_raw: String,
+    message_size: u64,
+) -> u64 {
+    ctx.db
+        .mail_message()
+        .insert(MailMessage {
+            id: 0,
+            queue_id,
+            received_at: ctx.timestamp,
+            sender_account_id,
+            sender_email,
+            subject: subject.chars().take(500).collect(),
+            from_header,
+            reply_to,
+            date_header,
+            message_id,
+            cc_header,
+            headers_raw,
+            body_raw,
+            message_size,
+        })
+        .id
 }
 
-#[spacetimedb::table(accessor = mta_message_log)]
-pub struct MtaMessageLog {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    pub stage: String,
-    pub action: String,
-    pub timestamp: Timestamp,
-    pub queue_id: Option<String>,
-    pub category_count: u32,
-}
-
-#[spacetimedb::table(accessor = blocked_ips)]
-pub struct BlockedIp {
-    #[primary_key]
-    pub ip: String,
-    pub reason: String,
-    pub blocked_at: Timestamp,
-    pub active: bool,
-}
-
-/// One row per accepted email delivery, linked to its canonical `MailMessage`
-/// and the target mailing-list category.
-/// Not directly public — exposed to clients through the `visible_messages` view.
-/// Display fields (subject, sender, body …) are fetched from `MailMessage` by the
-/// client after it receives the `ReceivedMessage` row, using `mail_message_id`.
-#[derive(Clone)]
-#[spacetimedb::table(accessor = received_message)]
-pub struct ReceivedMessage {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    /// FK → MailMessage.id
-    #[index(btree)]
-    pub mail_message_id: u64,
-    /// FK → MessageCategory.id (used for per-category lookup in user view)
-    #[index(btree)]
-    pub category_id: u64,
-    /// The mailing-list address this message was delivered to
-    pub category_email: String,
-    /// Copy of MailMessage.received_at for efficient range scans in the admin view
-    /// without requiring a join.
-    #[index(btree)]
-    pub received_at: Timestamp,
-}
-
-pub(crate) fn handle_data_stage(
+pub fn handle_data_stage(
     ctx: &ReducerContext,
     request: &MtaHookRequest,
     timestamp: Timestamp,
@@ -157,7 +139,6 @@ pub(crate) fn handle_data_stage(
     // Persist the full message for each accepted category delivery
     if !valid_categories.is_empty() {
         if let Some(message) = &request.message {
-            // Look up sender's SoLaWi account by email (None for external senders)
             let sender_account_id = ctx
                 .db
                 .account()
@@ -166,7 +147,6 @@ pub(crate) fn handle_data_stage(
                 .next()
                 .map(|a| a.id);
 
-            // Filter valid_categories: only allow if sender is an admin OR has an active subscription to that category
             let sender_is_admin = sender_account_id
                 .and_then(|id| ctx.db.account().id().find(&id))
                 .map_or(false, |acc| {
@@ -214,7 +194,6 @@ pub(crate) fn handle_data_stage(
                 return;
             }
 
-            // Extract parsed header fields
             let from_header = extract_header(&message.headers, "from")
                 .unwrap_or_else(|| from_address.to_string());
             let date_header = extract_header(&message.headers, "date");
@@ -222,7 +201,6 @@ pub(crate) fn handle_data_stage(
             let reply_to = extract_header(&message.headers, "reply-to");
             let cc_header = extract_header(&message.headers, "cc");
 
-            // Combine original and server-added headers into a single JSON array
             let all_headers: Vec<(&str, &str)> = message
                 .headers
                 .iter()
@@ -231,7 +209,6 @@ pub(crate) fn handle_data_stage(
                 .collect();
             let headers_raw = serde_json::to_string(&all_headers).unwrap_or_default();
 
-            // Skip body storage for very large messages to avoid excessive memory use
             const MAX_BODY_SIZE: usize = 2_000_000;
             let body_raw = if message.size > MAX_BODY_SIZE {
                 log::warn!(
@@ -245,15 +222,12 @@ pub(crate) fn handle_data_stage(
 
             let queue_id = request.context.queue.as_ref().map(|q| q.id.clone());
 
-            // Write the canonical message record exactly once for this inbound email,
-            // before the per-category fan-out loop. Both ReceivedMessage and MailIngress
-            // rows reference this single row via mail_message_id.
-            let mail_message_id = mail_message::insert_mail_message(
+            let mail_message_id = insert_mail_message(
                 ctx,
                 queue_id.clone(),
                 sender_account_id,
                 from_address.to_string(),
-                subject.clone(), // subject is capped to 500 chars inside insert_mail_message
+                subject.clone(),
                 from_header.clone(),
                 reply_to.clone(),
                 date_header.clone(),
@@ -273,7 +247,7 @@ pub(crate) fn handle_data_stage(
                     received_at: timestamp,
                 });
 
-                let ingress_id = delivery::upsert_mail_ingress(
+                let ingress_id = upsert_mail_ingress(
                     ctx,
                     mail_message_id,
                     *category_id,
@@ -287,130 +261,5 @@ pub(crate) fn handle_data_stage(
                 );
             }
         }
-    }
-}
-
-/// Find the first header whose name (case-insensitive) matches `name` and return its trimmed value.
-fn extract_header(headers: &[(String, String)], name: &str) -> Option<String> {
-    headers
-        .iter()
-        .find(|(n, _)| n.to_lowercase() == name)
-        .map(|(_, v)| v.trim().to_string())
-}
-
-pub(crate) fn extract_subject_from_request(request: &MtaHookRequest) -> String {
-    request
-        .message
-        .as_ref()
-        .and_then(|m| extract_header(&m.headers, "subject"))
-        .unwrap_or_else(|| "No subject".to_string())
-}
-
-/// Parse a `To`-style header value into individual email addresses.
-/// This is a permissive, heuristic parser that handles common forms like:
-/// - "Alice <alice@example.com>, bob@example.com"
-/// - "bob@example.com; carol@example.org"
-fn parse_email_addresses(header: &str) -> Vec<String> {
-    header
-        .split(|c| c == ',' || c == ';')
-        .filter_map(|part| {
-            let s = part.trim();
-            if s.is_empty() {
-                return None;
-            }
-            // Prefer angle-bracket form: Name <addr@domain>
-            if let Some(start) = s.find('<') {
-                if let Some(end) = s.find('>') {
-                    let addr = s[start + 1..end].trim();
-                    if addr.contains('@') {
-                        return Some(addr.to_string());
-                    }
-                }
-            }
-            // Otherwise, take the first whitespace-delimited token that contains '@'
-            if let Some(tok) = s.split_whitespace().find(|t| t.contains('@')) {
-                let addr = tok
-                    .trim_matches(|c: char| c == '<' || c == '>' || c == '"' || c == '\'')
-                    .trim()
-                    .to_string();
-                if addr.contains('@') {
-                    return Some(addr);
-                }
-            }
-            // Last-resort: if the whole part contains '@', return it cleaned
-            if s.contains('@') {
-                Some(
-                    s.trim_matches(|c: char| c == '<' || c == '>' || c == '"' || c == '\'')
-                        .trim()
-                        .to_string(),
-                )
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-#[spacetimedb::view(accessor = visible_messages, public)]
-pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
-    let sender = ctx.sender();
-    let is_admin = is_admin_user(ctx);
-    if is_admin {
-        ctx.db
-            .received_message()
-            .received_at()
-            .filter(Timestamp::UNIX_EPOCH..)
-            .collect()
-    } else {
-        match ctx.db.account().identity().find(&sender) {
-            Some(acc) => {
-                // Collect subscribed category IDs first to release the borrow on ctx.db
-                // before the second round of indexed lookups.
-                let subscribed_category_ids: Vec<u64> = ctx
-                    .db
-                    .subscriptions()
-                    .subscriber_account_id()
-                    .filter(&acc.id)
-                    .filter(|s| s.status.is_active())
-                    .map(|s| s.category_id)
-                    .collect();
-                subscribed_category_ids
-                    .into_iter()
-                    .flat_map(|cat_id| {
-                        ctx.db
-                            .received_message()
-                            .category_id()
-                            .filter(&cat_id)
-                            .collect::<Vec<_>>()
-                    })
-                    .collect()
-            }
-            None => vec![],
-        }
-    }
-}
-
-#[spacetimedb::reducer]
-pub fn dump_mta_logs_to_server_logs(ctx: &ReducerContext) {
-    log::info!("=== MTA Connection Logs ===");
-    for log in ctx.db.mta_connection_log().iter() {
-        log::info!(
-            "Connection Log {}: {} - {} - {}",
-            log.id,
-            log.stage,
-            log.action,
-            log.details
-        );
-    }
-
-    log::info!("=== MTA Message Logs ===");
-    for log in ctx.db.mta_message_log().iter() {
-        log::info!(
-            "Message Log {}: {} - {} - Categories: {}",
-            log.id,
-            log.stage,
-            log.action,
-            log.category_count
-        );
     }
 }

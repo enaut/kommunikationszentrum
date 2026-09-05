@@ -14,6 +14,7 @@ pub mod add_message_category_reducer;
 pub mod add_subscription_reducer;
 pub mod admin_add_subscription_reducer;
 pub mod admin_identity_type;
+pub mod admin_stalwart_config_table;
 pub mod blocked_ip_type;
 pub mod cancel_mail_delivery_retry_reducer;
 pub mod category_app_password_type;
@@ -23,6 +24,7 @@ pub mod claim_next_mail_ingress_reducer;
 pub mod claim_state_type;
 pub mod complete_mail_ingress_reducer;
 pub mod create_webhook_token_reducer;
+pub mod delivery_final_state_type;
 pub mod delivery_status_type;
 pub mod domain_type;
 pub mod dump_mta_logs_to_server_logs_reducer;
@@ -37,8 +39,8 @@ pub mod increment_mail_ingress_failed_delivery_count_reducer;
 pub mod mail_delivery_claimed_type;
 pub mod mail_delivery_done_type;
 pub mod mail_delivery_event_type;
+pub mod mail_delivery_message_type;
 pub mod mail_delivery_pending_type;
-pub mod mail_delivery_row_type;
 pub mod mail_delivery_temporary_failed_type;
 pub mod mail_ingress_type;
 pub mod mail_message_type;
@@ -62,11 +64,14 @@ pub mod schedule_mail_delivery_retry_reducer;
 pub mod sender_mail_delivery_claimed_table;
 pub mod sender_mail_delivery_done_table;
 pub mod sender_mail_delivery_events_table;
+pub mod sender_mail_delivery_messages_table;
 pub mod sender_mail_delivery_pending_table;
 pub mod sender_mail_delivery_temporary_failed_table;
 pub mod sender_mail_ingress_table;
 pub mod sender_mail_messages_table;
 pub mod set_category_topics_reducer;
+pub mod set_stalwart_config_reducer;
+pub mod stalwart_config_type;
 pub mod subscription_status_type;
 pub mod subscription_type;
 pub mod subscription_unsubscribe_token_type;
@@ -96,6 +101,7 @@ pub use add_message_category_reducer::add_message_category;
 pub use add_subscription_reducer::add_subscription;
 pub use admin_add_subscription_reducer::admin_add_subscription;
 pub use admin_identity_type::AdminIdentity;
+pub use admin_stalwart_config_table::*;
 pub use blocked_ip_type::BlockedIp;
 pub use cancel_mail_delivery_retry_reducer::cancel_mail_delivery_retry;
 pub use category_app_password_type::CategoryAppPassword;
@@ -105,6 +111,7 @@ pub use claim_next_mail_ingress_reducer::claim_next_mail_ingress;
 pub use claim_state_type::ClaimState;
 pub use complete_mail_ingress_reducer::complete_mail_ingress;
 pub use create_webhook_token_reducer::create_webhook_token;
+pub use delivery_final_state_type::DeliveryFinalState;
 pub use delivery_status_type::DeliveryStatus;
 pub use domain_type::Domain;
 pub use dump_mta_logs_to_server_logs_reducer::dump_mta_logs_to_server_logs;
@@ -119,8 +126,8 @@ pub use increment_mail_ingress_failed_delivery_count_reducer::increment_mail_ing
 pub use mail_delivery_claimed_type::MailDeliveryClaimed;
 pub use mail_delivery_done_type::MailDeliveryDone;
 pub use mail_delivery_event_type::MailDeliveryEvent;
+pub use mail_delivery_message_type::MailDeliveryMessage;
 pub use mail_delivery_pending_type::MailDeliveryPending;
-pub use mail_delivery_row_type::MailDeliveryRow;
 pub use mail_delivery_temporary_failed_type::MailDeliveryTemporaryFailed;
 pub use mail_ingress_type::MailIngress;
 pub use mail_message_type::MailMessage;
@@ -144,11 +151,14 @@ pub use schedule_mail_delivery_retry_reducer::schedule_mail_delivery_retry;
 pub use sender_mail_delivery_claimed_table::*;
 pub use sender_mail_delivery_done_table::*;
 pub use sender_mail_delivery_events_table::*;
+pub use sender_mail_delivery_messages_table::*;
 pub use sender_mail_delivery_pending_table::*;
 pub use sender_mail_delivery_temporary_failed_table::*;
 pub use sender_mail_ingress_table::*;
 pub use sender_mail_messages_table::*;
 pub use set_category_topics_reducer::set_category_topics;
+pub use set_stalwart_config_reducer::set_stalwart_config;
+pub use stalwart_config_type::StalwartConfig;
 pub use subscription_status_type::SubscriptionStatus;
 pub use subscription_type::Subscription;
 pub use subscription_unsubscribe_token_type::SubscriptionUnsubscribeToken;
@@ -227,13 +237,9 @@ pub enum Reducer {
         subscription_id: u64,
         recipient_email: String,
         recipient_account_id: Option<u64>,
-        list_email: String,
-        list_name: String,
-        original_sender_email: String,
         from_header: String,
         reply_to: String,
         raw_message: String,
-        unsubscribe_token: String,
     },
     EnsureSubscriptionUnsubscribeToken {
         subscription_id: u64,
@@ -294,12 +300,17 @@ pub enum Reducer {
     },
     ScheduleMailDeliveryRetry {
         delivery_id: String,
+        instance_id: String,
         error_msg: String,
         delay_micros: i64,
     },
     SetCategoryTopics {
         category_id: u64,
         topic_names: Vec<String>,
+    },
+    SetStalwartConfig {
+        jmap_url: String,
+        admin_token: String,
     },
     SyncUser {
         action: String,
@@ -355,6 +366,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::RevokeWebhookToken { .. } => "revoke_webhook_token",
             Reducer::ScheduleMailDeliveryRetry { .. } => "schedule_mail_delivery_retry",
             Reducer::SetCategoryTopics { .. } => "set_category_topics",
+            Reducer::SetStalwartConfig { .. } => "set_stalwart_config",
             Reducer::SyncUser { .. } => "sync_user",
             Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
             Reducer::UpdateMessageCategory { .. } => "update_message_category",
@@ -448,25 +460,17 @@ Reducer::EnqueueMailDelivery{
                 subscription_id,
                 recipient_email,
                 recipient_account_id,
-                list_email,
-                list_name,
-                original_sender_email,
                 from_header,
                 reply_to,
                 raw_message,
-                unsubscribe_token,
 }             => __sats::bsatn::to_vec(&enqueue_mail_delivery_reducer::EnqueueMailDeliveryArgs {
                 ingress_id: ingress_id.clone(),
                 subscription_id: subscription_id.clone(),
                 recipient_email: recipient_email.clone(),
                 recipient_account_id: recipient_account_id.clone(),
-                list_email: list_email.clone(),
-                list_name: list_name.clone(),
-                original_sender_email: original_sender_email.clone(),
                 from_header: from_header.clone(),
                 reply_to: reply_to.clone(),
                 raw_message: raw_message.clone(),
-                unsubscribe_token: unsubscribe_token.clone(),
 }),
             Reducer::EnsureSubscriptionUnsubscribeToken{
                 subscription_id,
@@ -571,10 +575,12 @@ Reducer::EnqueueMailDelivery{
 }),
             Reducer::ScheduleMailDeliveryRetry{
                 delivery_id,
+                instance_id,
                 error_msg,
                 delay_micros,
 }             => __sats::bsatn::to_vec(&schedule_mail_delivery_retry_reducer::ScheduleMailDeliveryRetryArgs {
                 delivery_id: delivery_id.clone(),
+                instance_id: instance_id.clone(),
                 error_msg: error_msg.clone(),
                 delay_micros: delay_micros.clone(),
 }),
@@ -584,6 +590,13 @@ Reducer::EnqueueMailDelivery{
 }             => __sats::bsatn::to_vec(&set_category_topics_reducer::SetCategoryTopicsArgs {
                 category_id: category_id.clone(),
                 topic_names: topic_names.clone(),
+}),
+            Reducer::SetStalwartConfig{
+                jmap_url,
+                admin_token,
+}             => __sats::bsatn::to_vec(&set_stalwart_config_reducer::SetStalwartConfigArgs {
+                jmap_url: jmap_url.clone(),
+                admin_token: admin_token.clone(),
 }),
             Reducer::SyncUser{
                 action,
@@ -619,12 +632,14 @@ Reducer::EnqueueMailDelivery{
 pub struct DbUpdate {
     active_subscriptions: __sdk::TableUpdate<Subscription>,
     active_unsubscribe_tokens: __sdk::TableUpdate<SubscriptionUnsubscribeToken>,
+    admin_stalwart_config: __sdk::TableUpdate<StalwartConfig>,
     expire_stale_delivery_claims_schedule: __sdk::TableUpdate<ExpireStaleDeliveryClaimsSchedule>,
     requeue_temporary_failed_mails_schedule:
         __sdk::TableUpdate<RequeueTemporaryFailedMailsSchedule>,
     sender_mail_delivery_claimed: __sdk::TableUpdate<MailDeliveryClaimed>,
     sender_mail_delivery_done: __sdk::TableUpdate<MailDeliveryDone>,
     sender_mail_delivery_events: __sdk::TableUpdate<MailDeliveryEvent>,
+    sender_mail_delivery_messages: __sdk::TableUpdate<MailDeliveryMessage>,
     sender_mail_delivery_pending: __sdk::TableUpdate<MailDeliveryPending>,
     sender_mail_delivery_temporary_failed: __sdk::TableUpdate<MailDeliveryTemporaryFailed>,
     sender_mail_ingress: __sdk::TableUpdate<MailIngress>,
@@ -653,6 +668,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "active_unsubscribe_tokens" => db_update.active_unsubscribe_tokens.append(
                     active_unsubscribe_tokens_table::parse_table_update(table_update)?,
                 ),
+                "admin_stalwart_config" => db_update.admin_stalwart_config.append(
+                    admin_stalwart_config_table::parse_table_update(table_update)?,
+                ),
                 "expire_stale_delivery_claims_schedule" => {
                     db_update.expire_stale_delivery_claims_schedule.append(
                         expire_stale_delivery_claims_schedule_table::parse_table_update(
@@ -675,6 +693,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 ),
                 "sender_mail_delivery_events" => db_update.sender_mail_delivery_events.append(
                     sender_mail_delivery_events_table::parse_table_update(table_update)?,
+                ),
+                "sender_mail_delivery_messages" => db_update.sender_mail_delivery_messages.append(
+                    sender_mail_delivery_messages_table::parse_table_update(table_update)?,
                 ),
                 "sender_mail_delivery_pending" => db_update.sender_mail_delivery_pending.append(
                     sender_mail_delivery_pending_table::parse_table_update(table_update)?,
@@ -774,36 +795,48 @@ impl __sdk::DbUpdate for DbUpdate {
                 &self.active_unsubscribe_tokens,
             )
             .with_updates_by_pk(|row| &row.token);
+        diff.admin_stalwart_config = cache
+            .apply_diff_to_table::<StalwartConfig>(
+                "admin_stalwart_config",
+                &self.admin_stalwart_config,
+            )
+            .with_updates_by_pk(|row| &row.id);
         diff.sender_mail_delivery_claimed = cache
             .apply_diff_to_table::<MailDeliveryClaimed>(
                 "sender_mail_delivery_claimed",
                 &self.sender_mail_delivery_claimed,
             )
-            .with_updates_by_pk(|row| &row.id);
+            .with_updates_by_pk(|row| &row.delivery_id);
         diff.sender_mail_delivery_done = cache
             .apply_diff_to_table::<MailDeliveryDone>(
                 "sender_mail_delivery_done",
                 &self.sender_mail_delivery_done,
             )
-            .with_updates_by_pk(|row| &row.id);
+            .with_updates_by_pk(|row| &row.delivery_id);
         diff.sender_mail_delivery_events = cache
             .apply_diff_to_table::<MailDeliveryEvent>(
                 "sender_mail_delivery_events",
                 &self.sender_mail_delivery_events,
             )
             .with_updates_by_pk(|row| &row.id);
+        diff.sender_mail_delivery_messages = cache
+            .apply_diff_to_table::<MailDeliveryMessage>(
+                "sender_mail_delivery_messages",
+                &self.sender_mail_delivery_messages,
+            )
+            .with_updates_by_pk(|row| &row.delivery_id);
         diff.sender_mail_delivery_pending = cache
             .apply_diff_to_table::<MailDeliveryPending>(
                 "sender_mail_delivery_pending",
                 &self.sender_mail_delivery_pending,
             )
-            .with_updates_by_pk(|row| &row.id);
+            .with_updates_by_pk(|row| &row.delivery_id);
         diff.sender_mail_delivery_temporary_failed = cache
             .apply_diff_to_table::<MailDeliveryTemporaryFailed>(
                 "sender_mail_delivery_temporary_failed",
                 &self.sender_mail_delivery_temporary_failed,
             )
-            .with_updates_by_pk(|row| &row.id);
+            .with_updates_by_pk(|row| &row.delivery_id);
         diff.sender_mail_ingress = cache
             .apply_diff_to_table::<MailIngress>("sender_mail_ingress", &self.sender_mail_ingress)
             .with_updates_by_pk(|row| &row.id);
@@ -865,6 +898,9 @@ impl __sdk::DbUpdate for DbUpdate {
                 "active_unsubscribe_tokens" => db_update
                     .active_unsubscribe_tokens
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "admin_stalwart_config" => db_update
+                    .admin_stalwart_config
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "expire_stale_delivery_claims_schedule" => db_update
                     .expire_stale_delivery_claims_schedule
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
@@ -879,6 +915,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_mail_delivery_events" => db_update
                     .sender_mail_delivery_events
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_mail_delivery_messages" => db_update
+                    .sender_mail_delivery_messages
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_mail_delivery_pending" => db_update
                     .sender_mail_delivery_pending
@@ -941,6 +980,9 @@ impl __sdk::DbUpdate for DbUpdate {
                 "active_unsubscribe_tokens" => db_update
                     .active_unsubscribe_tokens
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "admin_stalwart_config" => db_update
+                    .admin_stalwart_config
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "expire_stale_delivery_claims_schedule" => db_update
                     .expire_stale_delivery_claims_schedule
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -955,6 +997,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_mail_delivery_events" => db_update
                     .sender_mail_delivery_events
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_mail_delivery_messages" => db_update
+                    .sender_mail_delivery_messages
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_mail_delivery_pending" => db_update
                     .sender_mail_delivery_pending
@@ -1015,6 +1060,7 @@ impl __sdk::DbUpdate for DbUpdate {
 pub struct AppliedDiff<'r> {
     active_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     active_unsubscribe_tokens: __sdk::TableAppliedDiff<'r, SubscriptionUnsubscribeToken>,
+    admin_stalwart_config: __sdk::TableAppliedDiff<'r, StalwartConfig>,
     expire_stale_delivery_claims_schedule:
         __sdk::TableAppliedDiff<'r, ExpireStaleDeliveryClaimsSchedule>,
     requeue_temporary_failed_mails_schedule:
@@ -1022,6 +1068,7 @@ pub struct AppliedDiff<'r> {
     sender_mail_delivery_claimed: __sdk::TableAppliedDiff<'r, MailDeliveryClaimed>,
     sender_mail_delivery_done: __sdk::TableAppliedDiff<'r, MailDeliveryDone>,
     sender_mail_delivery_events: __sdk::TableAppliedDiff<'r, MailDeliveryEvent>,
+    sender_mail_delivery_messages: __sdk::TableAppliedDiff<'r, MailDeliveryMessage>,
     sender_mail_delivery_pending: __sdk::TableAppliedDiff<'r, MailDeliveryPending>,
     sender_mail_delivery_temporary_failed: __sdk::TableAppliedDiff<'r, MailDeliveryTemporaryFailed>,
     sender_mail_ingress: __sdk::TableAppliedDiff<'r, MailIngress>,
@@ -1059,6 +1106,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.active_unsubscribe_tokens,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<StalwartConfig>(
+            "admin_stalwart_config",
+            &self.admin_stalwart_config,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<ExpireStaleDeliveryClaimsSchedule>(
             "expire_stale_delivery_claims_schedule",
             &self.expire_stale_delivery_claims_schedule,
@@ -1082,6 +1134,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<MailDeliveryEvent>(
             "sender_mail_delivery_events",
             &self.sender_mail_delivery_events,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<MailDeliveryMessage>(
+            "sender_mail_delivery_messages",
+            &self.sender_mail_delivery_messages,
             event,
         );
         callbacks.invoke_table_row_callbacks::<MailDeliveryPending>(
@@ -1816,11 +1873,13 @@ impl __sdk::SpacetimeModule for RemoteModule {
     fn register_tables(client_cache: &mut __sdk::ClientCache<Self>) {
         active_subscriptions_table::register_table(client_cache);
         active_unsubscribe_tokens_table::register_table(client_cache);
+        admin_stalwart_config_table::register_table(client_cache);
         expire_stale_delivery_claims_schedule_table::register_table(client_cache);
         requeue_temporary_failed_mails_schedule_table::register_table(client_cache);
         sender_mail_delivery_claimed_table::register_table(client_cache);
         sender_mail_delivery_done_table::register_table(client_cache);
         sender_mail_delivery_events_table::register_table(client_cache);
+        sender_mail_delivery_messages_table::register_table(client_cache);
         sender_mail_delivery_pending_table::register_table(client_cache);
         sender_mail_delivery_temporary_failed_table::register_table(client_cache);
         sender_mail_ingress_table::register_table(client_cache);
@@ -1839,11 +1898,13 @@ impl __sdk::SpacetimeModule for RemoteModule {
     const ALL_TABLE_NAMES: &'static [&'static str] = &[
         "active_subscriptions",
         "active_unsubscribe_tokens",
+        "admin_stalwart_config",
         "expire_stale_delivery_claims_schedule",
         "requeue_temporary_failed_mails_schedule",
         "sender_mail_delivery_claimed",
         "sender_mail_delivery_done",
         "sender_mail_delivery_events",
+        "sender_mail_delivery_messages",
         "sender_mail_delivery_pending",
         "sender_mail_delivery_temporary_failed",
         "sender_mail_ingress",
