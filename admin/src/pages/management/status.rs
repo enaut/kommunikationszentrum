@@ -447,7 +447,7 @@ fn DoneCard() -> Element {
                                             let reason = if let Some(ref err) = row.row.last_error {
                                                 err.clone()
                                             } else {
-                                                "{tid!(\"general-none\")}".to_string()
+                                                tid!("general-none")
                                             };
                                             rsx! {
                                                 tr {
