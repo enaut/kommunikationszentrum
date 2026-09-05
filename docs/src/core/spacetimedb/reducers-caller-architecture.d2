@@ -26,18 +26,22 @@ direction: down
 "SpacetimeDB Reducers & Procedures": {
   "Auth & Identity": {
     register_admin_identity
+    unregister_admin_identity
     create_webhook_token
     revoke_webhook_token
     sync_user
+    set_stalwart_config
   }
 
   "Category Management": {
     add_message_category
     update_message_category
+    remove_message_category
     set_category_topics
     rename_topic
-    remove_message_category
+    add_and_subscribe_category
     provision_message_category: "Procedure (JMAP + app password)"
+    sync_stalwart_domains: "Procedure (JMAP sync)"
   }
 
   "Subscription Flow": {
@@ -45,7 +49,6 @@ direction: down
     admin_add_subscription
     remove_subscription
     ensure_subscription_unsubscribe_token
-    unsubscribe_subscription_by_token: "List-Unsubscribe POST"
   }
 
   "MTA Diagnostics": {
@@ -54,14 +57,20 @@ direction: down
 
   "Delivery Pipeline": {
     claim_next_mail_ingress
+    increment_mail_ingress_delivery_count
+    increment_mail_ingress_failed_delivery_count
     complete_mail_ingress
     retry_mail_ingress
     fail_mail_ingress
+    enqueue_mail_delivery
     claim_next_mail_delivery
-    complete_mail_delivery
+    mark_mail_delivery_sent
     schedule_mail_delivery_retry
-    requeue_temporary_failed_mails
+    requeue_temporary_failed_mails: "Scheduled"
     cancel_mail_delivery_retry
+    fail_mail_delivery
+    mark_mail_delivery_bounced
+    expire_stale_delivery_claims: "Scheduled"
   }
 }
 
@@ -69,6 +78,7 @@ direction: down
   account
   admin_identities
   webhook_tokens
+  stalwart_config
   message_categories
   category_app_passwords
   topics
@@ -82,14 +92,17 @@ direction: down
   received_message
   mail_message
   mail_ingress
+  mail_delivery_message
   mail_delivery_pending
   mail_delivery_temporary_failed
   mail_delivery_claimed
   mail_delivery_done
   mail_delivery_events
+  expire_stale_delivery_claims_schedule
+  requeue_temporary_failed_mails_schedule
 }
 
-"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Auth & Identity": "Admin actions"
+"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Auth & Identity": "Admin actions & config"
 "Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Category Management": "Manage categories"
 "Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."MTA Diagnostics": "Inspect logs"
 

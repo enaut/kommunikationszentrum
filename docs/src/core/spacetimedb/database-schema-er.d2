@@ -36,6 +36,19 @@ direction: down
   }
 }
 
+"Configuration": {
+  style.fill: "#f0fdf4"
+
+  stalwart_config: {
+    shape: sql_table
+    label: "stalwart_config [Private]"
+    id: "u64" {constraint: primary_key}
+    jmap_url: "String"
+    admin_token: "String"
+    updated_at: "Timestamp"
+  }
+}
+
 "Mailing & Categories": {
   style.fill: "#e8f5e9"
 
@@ -186,40 +199,68 @@ direction: down
     completed_at: "Timestamp"
   }
 
+  mail_delivery_message: {
+    shape: sql_table
+    label: "mail_delivery_message [Private]"
+    delivery_id: "String" {constraint: primary_key}
+    mail_message_id: "u64" {constraint: [foreign_key; BTree]}
+    ingress_id: "String" {constraint: [foreign_key; BTree]}
+    subscription_id: "u64" {constraint: foreign_key}
+    recipient_email: "String"
+    recipient_account_id: "Option<u64>" {constraint: foreign_key}
+    from_header: "String"
+    reply_to: "String"
+    raw_message: "String"
+  }
+
   mail_delivery_pending: {
     shape: sql_table
     label: "mail_delivery_pending [Private]"
-    id: "String" {constraint: primary_key}
+    delivery_id: "String" {constraint: [primary_key; foreign_key]}
     ingress_id: "String" {constraint: [foreign_key; BTree]}
-    row: "MailDeliveryRow"
+    attempt_count: "u32"
+    last_error: "Option<String>"
+    last_updated: "Timestamp"
   }
 
   mail_delivery_temporary_failed: {
     shape: sql_table
     label: "mail_delivery_temporary_failed [Private]"
-    id: "String" {constraint: primary_key}
+    delivery_id: "String" {constraint: [primary_key; foreign_key]}
+    ingress_id: "String" {constraint: [foreign_key; BTree]}
     next_attempt_at: "Timestamp" {constraint: BTree}
-    fail_reason: "String"
-    row: "MailDeliveryRow"
+    attempt_count: "u32"
+    last_error: "String"
+    smtp_status_code: "Option<u16>"
+    smtp_response: "Option<String>"
+    last_updated: "Timestamp"
   }
 
   mail_delivery_claimed: {
     shape: sql_table
     label: "mail_delivery_claimed [Private]"
-    id: "String" {constraint: primary_key}
+    delivery_id: "String" {constraint: [primary_key; foreign_key]}
+    ingress_id: "String" {constraint: [foreign_key; BTree]}
     worker: "Identity"
     instance_id: "String"
     lease_expires_at: "Timestamp" {constraint: BTree}
-    row: "MailDeliveryRow"
+    attempt_count: "u32"
+    last_error: "Option<String>"
+    last_updated: "Timestamp"
   }
 
   mail_delivery_done: {
     shape: sql_table
     label: "mail_delivery_done [Private]"
-    id: "String" {constraint: primary_key}
+    delivery_id: "String" {constraint: [primary_key; foreign_key]}
     ingress_id: "String" {constraint: [foreign_key; BTree]}
-    final_state: "String"
-    row: "MailDeliveryRow"
+    final_state: "DeliveryFinalState"
+    attempt_count: "u32"
+    last_error: "Option<String>"
+    smtp_status_code: "Option<u16>"
+    smtp_response: "Option<String>"
+    finalized_at: "Timestamp"
+    last_updated: "Timestamp"
   }
 
   mail_delivery_events: {
@@ -265,29 +306,13 @@ claim_state: {
   updated_at: "Timestamp"
 }
 
-delivery_row: {
+delivery_final_state: {
   shape: class
-  label: "MailDeliveryRow\nembedded payload"
-  id: "String"
-  ingress_id: "String"
-  mail_message_id: "u64"
-  category_id: "u64"
-  subscription_id: "u64"
-  recipient_email: "String"
-  recipient_account_id: "Option<u64>"
-  list_email: "String"
-  list_name: "String"
-  original_sender_email: "String"
-  from_header: "String"
-  reply_to: "String"
-  raw_message: "String"
-  unsubscribe_token: "String"
-  attempt_count: "u32"
-  last_error: "Option<String>"
-  smtp_status_code: "Option<u16>"
-  smtp_response: "Option<String>"
-  finalized_at: "Timestamp"
-  updated_at: "Timestamp"
+  label: "DeliveryFinalState\nenum"
+  Sent
+  Failed
+  Bounced
+  Cancelled
 }
 
 "User Management & Auth".admin_identities.identity -> "User Management & Auth".account.identity
@@ -302,11 +327,18 @@ delivery_row: {
 "MTA Audit & Processing".received_message.category_id -> "Mailing & Categories".message_categories.id
 "Delivery Pipeline".mail_ingress.mail_message_id -> "MTA Audit & Processing".mail_message.id
 "Delivery Pipeline".mail_ingress.category_id -> "Mailing & Categories".message_categories.id
+"Delivery Pipeline".mail_delivery_message.mail_message_id -> "MTA Audit & Processing".mail_message.id
+"Delivery Pipeline".mail_delivery_message.ingress_id -> "Delivery Pipeline".mail_ingress.id
+"Delivery Pipeline".mail_delivery_message.subscription_id -> "Mailing & Categories".subscriptions.id
+"Delivery Pipeline".mail_delivery_message.recipient_account_id -> "User Management & Auth".account.id
+"Delivery Pipeline".mail_delivery_pending.delivery_id -> "Delivery Pipeline".mail_delivery_message.delivery_id
+"Delivery Pipeline".mail_delivery_claimed.delivery_id -> "Delivery Pipeline".mail_delivery_message.delivery_id
+"Delivery Pipeline".mail_delivery_temporary_failed.delivery_id -> "Delivery Pipeline".mail_delivery_message.delivery_id
+"Delivery Pipeline".mail_delivery_done.delivery_id -> "Delivery Pipeline".mail_delivery_message.delivery_id
+"Delivery Pipeline".mail_delivery_events.delivery_id -> "Delivery Pipeline".mail_delivery_message.delivery_id
 "Delivery Pipeline".mail_delivery_pending.ingress_id -> "Delivery Pipeline".mail_ingress.id
+"Delivery Pipeline".mail_delivery_temporary_failed.ingress_id -> "Delivery Pipeline".mail_ingress.id
+"Delivery Pipeline".mail_delivery_claimed.ingress_id -> "Delivery Pipeline".mail_ingress.id
 "Delivery Pipeline".mail_delivery_done.ingress_id -> "Delivery Pipeline".mail_ingress.id
-"Delivery Pipeline".mail_delivery_events.delivery_id -> "Delivery Pipeline".mail_delivery_pending.id
-"Delivery Pipeline".mail_delivery_pending.row -> delivery_row
-"Delivery Pipeline".mail_delivery_temporary_failed.row -> delivery_row
-"Delivery Pipeline".mail_delivery_claimed.row -> delivery_row
-"Delivery Pipeline".mail_delivery_done.row -> delivery_row
+"Delivery Pipeline".mail_delivery_done.final_state -> delivery_final_state
 "Delivery Pipeline".mail_ingress.claim -> claim_state
