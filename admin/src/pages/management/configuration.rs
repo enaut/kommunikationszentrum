@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 
 use crate::module_bindings::dioxus::{
@@ -20,7 +21,7 @@ pub fn ManagementConfigurationPage() -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "sliders", class: "me-2" }
-                        "Verwaltung · Einstellungen"
+                        "{tid!(\"management-config-title\") }"
                     }
                 }
             }
@@ -48,7 +49,7 @@ fn AdminIdentityCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "shield-fill", class: "me-2" }
-                            "Admin-Identitäten"
+                            "{tid!(\"management-config-admin-identities\") }"
                             span { class: "badge bg-white text-primary ms-2",
                                 "{admin_identities().len()}"
                             }
@@ -57,12 +58,13 @@ fn AdminIdentityCard() -> Element {
                     body: rsx! {
                         Row { class: "g-2 mb-3",
                             Col {
-                                input {
-                                    class: "form-control form-control-sm font-monospace",
+                                Input {
                                     r#type: "text",
-                                    placeholder: "Identity Hex (64 Zeichen)",
+                                    size: Size::Sm,
+                                    class: "font-monospace",
+                                    placeholder: tid!("management-config-admin-identity-placeholder"),
                                     value: "{register_hex}",
-                                    oninput: move |e| register_hex.set(e.value()),
+                                    oninput: move |e: FormEvent| register_hex.set(e.value()),
                                 }
                             }
                             Col { class: "col-auto",
@@ -83,21 +85,21 @@ fn AdminIdentityCard() -> Element {
                                         }
                                     },
                                     Icon { name: "person-plus", class: "me-1" }
-                                    "Hinzufügen"
+                                    "{tid!(\"management-config-admin-add\") }"
                                 }
                             }
                         }
                         if admin_identities().is_empty() {
-                            p { class: "text-muted mb-0", "Keine Admin-Identitäten registriert." }
+                            p { class: "text-muted mb-0", "{tid!(\"management-config-admin-no-identities\") }" }
                         } else {
-                            div { class: "list-group list-group-flush",
+                            ListGroup { flush: true,
                                 for ident in admin_identities() {
                                     {
                                         let hex = ident.identity.to_string();
                                         let hex_for_remove = hex.clone();
                                         let unregister = unregister_admin.clone();
                                         rsx! {
-                                            div { class: "list-group-item d-flex justify-content-between align-items-center",
+                                            ListGroupItem { tag: "div", class: "d-flex justify-content-between align-items-center",
                                                 code { class: "small text-break", "{hex}" }
                                                 Button {
                                                     color: Color::Danger,
@@ -134,7 +136,7 @@ fn WebhookTokenCard() -> Element {
     let mut token_plain = use_signal(String::new);
     let mut token_hash = use_signal(String::new);
     let mut token_label = use_signal(String::new);
-    let mut token_copy_button_label = use_signal(|| "Copy".to_string());
+    let mut token_copy_button_label = use_signal(|| tid!("management-config-token-copy"));
     let mut permissions_input = use_signal(String::new);
 
     rsx! {
@@ -146,27 +148,27 @@ fn WebhookTokenCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "key-fill", class: "me-2" }
-                            "Webhook Tokens"
+                            "{tid!(\"management-config-webhook-title\") }"
                         }
                     },
                     body: rsx! {
                         Row { class: "g-2 mb-3",
                             Col {
-                                input {
-                                    class: "form-control form-control-sm",
+                                Input {
                                     r#type: "text",
-                                    placeholder: "Label",
+                                    size: Size::Sm,
+                                    placeholder: tid!("management-config-webhook-label"),
                                     value: "{token_label}",
-                                    oninput: move |e| token_label.set(e.value()),
+                                    oninput: move |e: FormEvent| token_label.set(e.value()),
                                 }
                             }
                             Col {
-                                input {
-                                    class: "form-control form-control-sm",
+                                Input {
                                     r#type: "text",
-                                    placeholder: "Permissions (comma-separated, e.g. mta-hook,sync-user)",
+                                    size: Size::Sm,
+                                    placeholder: tid!("management-config-webhook-permissions"),
                                     value: "{permissions_input}",
-                                    oninput: move |e| permissions_input.set(e.value()),
+                                    oninput: move |e: FormEvent| permissions_input.set(e.value()),
                                 }
                             }
                             Col { class: "col-auto",
@@ -185,7 +187,7 @@ fn WebhookTokenCard() -> Element {
                                         token_hash.set(hash);
                                     },
                                     Icon { name: "plus", class: "me-1" }
-                                    "Generate Token"
+                                    "{tid!(\"management-config-token-generate\") }"
                                 }
                             }
                         }
@@ -202,11 +204,11 @@ fn WebhookTokenCard() -> Element {
                                                 let ret = JsFuture::from(promise).await;
                                                 match ret {
                                                     Ok(_) => {
-                                                        token_copy_button_label.set("Copied!".to_string());
+                                                        token_copy_button_label.set(tid!("management-config-token-copied"));
                                                         info!("Token copied to clipboard")
                                                     },
                                                     Err(e) => {
-                                                        token_copy_button_label.set("Failed to Copy!".to_string());
+                                                        token_copy_button_label.set(tid!("management-config-token-copy-failed"));
                                                         error!("Failed to copy token to clipboard: {e:?}")
                                                     },
                                                 }
@@ -248,11 +250,11 @@ fn WebhookTokenCard() -> Element {
                                 }
                             },
                             Icon { name: "key", class: "me-1" }
-                            "Create Token"
+                            "{tid!(\"management-config-token-create\") }"
                         }
 
                         if !admin_tokens().is_empty() {
-                            div { class: "list-group list-group-flush mt-3",
+                            ListGroup { flush: true, tag: "div", class: "mt-3",
                                 for t in admin_tokens() {
                                     {
                                         let hash = t.token_hash.clone();
@@ -260,7 +262,7 @@ fn WebhookTokenCard() -> Element {
                                         let perms = t.permissions.join(", ");
                                         let revoke = revoke_webhook_token.clone();
                                         rsx! {
-                                            div { class: "list-group-item d-flex justify-content-between align-items-start",
+                                            ListGroupItem { tag: "div", class: "d-flex justify-content-between align-items-start",
                                                 div {
                                                     code { class: "small text-break", "{hash}" }
                                                     div { class: "small text-muted", "{label} · {perms}" }
@@ -284,10 +286,10 @@ fn WebhookTokenCard() -> Element {
                                 }
                             }
                         } else {
-                            p { class: "text-muted mb-0", "Keine Webhook Tokens erstellt." }
+                            p { class: "text-muted mb-0", "{tid!(\"management-config-token-empty\") }" }
                         }
 
-                        p { class: "small text-muted mt-2", "The token plaintext is shown only once in the browser and is not sent to the server. The server stores only a BLAKE3 hash." }
+                        p { class: "small text-muted mt-2", "{tid!(\"management-config-token-security\") }" }
                     }
                 }
             }
@@ -311,7 +313,7 @@ fn DomainsCard() -> Element {
                         h5 { class: "card-title mb-0 d-flex justify-content-between align-items-center",
                             span {
                                 Icon { name: "globe", class: "me-2" }
-                                "Domains"
+                                "{tid!(\"management-config-domains-title\") }"
                                 span { class: "badge bg-white text-primary ms-2", "{domains().len()}" }
                             }
                             Button {
@@ -326,7 +328,7 @@ fn DomainsCard() -> Element {
                                     }
                                 },
                                 Icon { name: "arrow-repeat", class: "me-1" }
-                                "Jetzt synchronisieren"
+                                "{tid!(\"management-config-domains-sync\") }"
                             }
                         }
                     },
@@ -339,11 +341,12 @@ fn DomainsCard() -> Element {
                                         class: "mb-3 d-flex align-items-start",
                                         Icon { name: "check-circle", class: "me-2 mt-1 flex-shrink-0" }
                                         span {
-                                            "Synchronisierung abgeschlossen: "
-                                            strong { "{r.domains_found}" } " gefunden, "
-                                            strong { "{r.domains_added}" } " hinzugefügt, "
-                                            strong { "{r.domains_updated}" } " aktualisiert, "
-                                            strong { "{r.domains_removed}" } " entfernt."
+                                            "{tid!(\"management-config-sync-success\") }"
+                                            ": "
+                                            strong { "{r.domains_found}" } " {tid!(\"management-config-sync-found\")} , "
+                                            strong { "{r.domains_added}" } " {tid!(\"management-config-sync-added\")} , "
+                                            strong { "{r.domains_updated}" } " {tid!(\"management-config-sync-updated\")} , "
+                                            strong { "{r.domains_removed}" } " {tid!(\"management-config-sync-removed\")} ."
                                         }
                                     }
                                 },
@@ -368,16 +371,15 @@ fn DomainsCard() -> Element {
                         if domains().is_empty() {
                             p { class: "text-muted mb-0",
                                 Icon { name: "inbox", class: "me-2" }
-                                "Keine Domains vorhanden. Bitte synchronisieren."
+                                "{tid!(\"management-config-domains-empty\") }"
                             }
                         } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-hover mb-0",
+                            Table { hover: true, responsive: true, class: "mb-0",
                                     thead { class: "table-light",
                                         tr {
-                                            th { "ID" }
-                                            th { "Name" }
-                                            th { "Beschreibung" }
+                                            th { "{tid!(\"management-config-table-id\")}" }
+                                            th { "{tid!(\"management-config-table-name\")}" }
+                                            th { "{tid!(\"management-config-table-description\")}" }
                                         }
                                     }
                                     tbody {
@@ -389,14 +391,13 @@ fn DomainsCard() -> Element {
                                                     if let Some(ref desc) = domain.description {
                                                         "{desc}"
                                                     } else {
-                                                        "–"
+                                                        "{tid!(\"general-none\") }"
                                                     }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            }
                         }
                     },
                 }

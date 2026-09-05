@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_connection_error, use_connection_state, use_subscription,
@@ -21,7 +22,7 @@ pub fn ManagementStatusPage(user_info: UserInfo) -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "activity", class: "me-2" }
-                        "Verwaltung · Status"
+                        "{tid!(\"management-status-title\") }"
                     }
                 }
             }
@@ -45,22 +46,25 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
         ConnectionState::Connecting => (
             Color::Info,
             "arrow-repeat",
-            "Verbindung wird hergestellt…".to_string(),
+            tid!("status-connection-connecting"),
         ),
         ConnectionState::Reconnecting { attempt, delay_ms } => (
             Color::Warning,
             "exclamation-triangle-fill",
-            format!("Wiederverbinden… (Versuch {attempt}, {delay_ms} ms)"),
+            format!(
+                "{} ({attempt}, {delay_ms} ms)",
+                tid!("status-connection-reconnecting")
+            ),
         ),
         ConnectionState::Error => (
             Color::Danger,
             "exclamation-circle-fill",
-            "Verbindungsfehler".to_string(),
+            tid!("status-connection-error"),
         ),
         ConnectionState::Disconnected => (
             Color::Secondary,
             "circle-fill",
-            "Nicht verbunden".to_string(),
+            tid!("status-connection-disconnected"),
         ),
     };
 
@@ -73,7 +77,7 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "plug-fill", class: "me-2" }
-                            "SpacetimeDB Verbindung"
+                            "{tid!(\"status-connection-title\") }"
                             Icon { name: icon_name, class: "mx-3" }
                         }
                     },
@@ -81,33 +85,33 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
                         Row { class: "text-center",
                             Col { md: ColumnSize::Span(4),
                                 div { class: "border-end",
-                                    h6 { class: "text-muted mb-1", "Identity" }
+                                    h6 { class: "text-muted mb-1", "{tid!(\"status-identity\")}" }
                                     p { class: "h5 mb-0", "{status_text}" }
                                     if let Some(err) = conn_error() {
-                                        div { class: "text-danger mt-1 small", "Fehler: {err}" }
+                                        div { class: "text-danger mt-1 small", "{tid!(\"status-error-label\")}: {err}" }
                                     }
                                 }
                             }
                             Col { md: ColumnSize::Span(4),
                                 div { class: "border-end",
-                                    h6 { class: "text-muted mb-1", "Mitgliedsnummer" }
+                                    h6 { class: "text-muted mb-1", "{tid!(\"status-member-number\")}" }
                                     p { class: "h5 mb-0", "{user_info.mitgliedsnr}" }
                                 }
                             }
                             Col { md: ColumnSize::Span(4),
                                 div { class: "border-end",
-                                    h6 { class: "text-muted mb-1", "E-Mail" }
+                                    h6 { class: "text-muted mb-1", "{tid!(\"status-email\")}" }
                                     p { class: "h5 mb-0",
                                         if let Some(email) = &user_info.email {
                                             "{email}"
                                         } else {
-                                            "–"
+                                            "{tid!(\"status-email-empty\") }"
                                         }
                                     }
                                 }
                             }
                         }
-                    }
+                    },
                 }
             }
         }
@@ -132,54 +136,62 @@ fn TemporaryFailedCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "clock-history", class: "me-2" }
-                            "mail_delivery_temporary_failed"
-                            span { class: "badge bg-dark text-white ms-2",
-                                "{rows.len()}"
-                            }
+                            "{tid!(\"status-temporary-failed-title\") }"
+                            span { class: "badge bg-dark text-white ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
                             p { class: "text-muted mb-0",
                                 Icon { name: "inbox", class: "me-2" }
-                                "Keine temporär fehlgeschlagenen Mail-Deliveries."
+                                "{tid!(\"status-temporary-failed-empty\") }"
                             }
                         } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-hover table-sm mb-0 align-middle",
-                                    thead { class: "table-light",
-                                        tr {
-                                            th { "Delivery ID" }
-                                            th { "Recipient" }
-                                            th { "Retry at" }
-                                            th { "Reason" }
-                                            th { class: "text-end", "Action" }
-                                        }
+                            Table {
+                                hover: true,
+                                size: Size::Sm,
+                                responsive: true,
+                                class: "mb-0 align-middle",
+                                thead { class: "table-light",
+                                    tr {
+                                        th { "{tid!(\"status-temporary-failed-delivery-id\")}" }
+                                        th { "{tid!(\"status-temporary-failed-recipient\")}" }
+                                        th { "{tid!(\"status-temporary-failed-retry-at\")}" }
+                                        th { "{tid!(\"status-temporary-failed-reason\")}" }
+                                        th { class: "text-end", "{tid!(\"status-temporary-failed-action\")}" }
                                     }
-                                    tbody {
-                                        for failed in rows {
-                                            {
-                                                let delivery_id = failed.id.clone();
-                                                let cancel = cancel_retry.clone();
-                                                rsx! {
-                                                    tr {
-                                                        td { code { class: "small text-break", "{failed.id}" } }
-                                                        td { small { class: "text-muted", "{failed.row.recipient_email}" } }
-                                                        td { small { class: "text-muted", "{failed.next_attempt_at}" } }
-                                                        td { div { class: "small text-break", "{failed.fail_reason}" } }
-                                                        td { class: "text-end",
-                                                            Button {
-                                                                color: Color::Warning,
-                                                                outline: true,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    if let Err(e) = cancel(delivery_id.clone()) {
-                                                                        error!("cancel_mail_delivery_retry failed: {e:?}");
-                                                                    }
-                                                                },
-                                                                Icon { name: "x-circle", class: "me-1" }
-                                                                "Cancel"
-                                                            }
+                                }
+                                tbody {
+                                    for failed in rows {
+                                        {
+                                            let delivery_id = failed.id.clone();
+                                            let cancel = cancel_retry.clone();
+                                            rsx! {
+                                                tr {
+                                                    td {
+                                                        code { class: "small text-break", "{failed.id}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{failed.row.recipient_email}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{failed.next_attempt_at}" }
+                                                    }
+                                                    td {
+                                                        div { class: "small text-break", "{failed.fail_reason}" }
+                                                    }
+                                                    td { class: "text-end",
+                                                        Button {
+                                                            color: Color::Warning,
+                                                            outline: true,
+                                                            size: Size::Sm,
+                                                            onclick: move |_| {
+                                                                if let Err(e) = cancel(delivery_id.clone()) {
+                                                                    error!("cancel_mail_delivery_retry failed: {e:?}");
+                                                                }
+                                                            },
+                                                            Icon { name: "x-circle", class: "me-1" }
+                                                            "{tid!(\"status-temporary-failed-cancel\") }"
                                                         }
                                                     }
                                                 }
@@ -189,7 +201,7 @@ fn TemporaryFailedCard() -> Element {
                                 }
                             }
                         }
-                    }
+                    },
                 }
             }
         }
@@ -213,35 +225,48 @@ fn DeliveryEventsCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "journal-text", class: "me-2" }
-                            "mail_delivery_events"
-                            span { class: "badge bg-white text-dark ms-2",
-                                "{rows.len()}"
-                            }
+                            "{tid!(\"status-delivery-events-title\") }"
+                            span { class: "badge bg-white text-dark ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0", "Keine Mail-Delivery-Events." }
+                            p { class: "text-muted mb-0", "{tid!(\"status-delivery-events-empty\") }" }
                         } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-sm table-hover mb-0",
-                                    thead { class: "table-light",
-                                        tr { th { "ID" } th { "Type" } th { "Attempt" } th { "Details" } }
+                            Table {
+                                hover: true,
+                                size: Size::Sm,
+                                responsive: true,
+                                class: "mb-0",
+                                thead { class: "table-light",
+                                    tr {
+                                        th { "{tid!(\"status-delivery-events-id\")}" }
+                                        th { "{tid!(\"status-delivery-events-type\")}" }
+                                        th { "{tid!(\"status-delivery-events-attempt\")}" }
+                                        th { "{tid!(\"status-delivery-events-details\")}" }
                                     }
-                                    tbody {
-                                        for event in rows {
-                                            tr {
-                                                td { code { class: "small text-break", "{event.id}" } }
-                                                td { small { class: "text-muted", "{event.event_type}" } }
-                                                td { small { class: "text-muted", "{event.attempt_no}" } }
-                                                td { div { class: "small text-break", "{event.details}" } }
+                                }
+                                tbody {
+                                    for event in rows {
+                                        tr {
+                                            td {
+                                                code { class: "small text-break", "{event.id}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted", "{event.event_type}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted", "{event.attempt_no}" }
+                                            }
+                                            td {
+                                                div { class: "small text-break", "{event.details}" }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
+                    },
                 }
             }
         }
@@ -265,34 +290,44 @@ fn PendingCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "hourglass-split", class: "me-2" }
-                            "mail_delivery_pending"
-                            span { class: "badge bg-white text-secondary ms-2",
-                                "{rows.len()}"
-                            }
+                            "{tid!(\"status-pending-title\") }"
+                            span { class: "badge bg-white text-secondary ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0", "Keine offenen Deliveries." }
+                            p { class: "text-muted mb-0", "{tid!(\"status-pending-empty\") }" }
                         } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-sm table-hover mb-0",
-                                    thead { class: "table-light",
-                                        tr { th { "ID" } th { "Recipient" } th { "Ingress" } }
+                            Table {
+                                hover: true,
+                                size: Size::Sm,
+                                responsive: true,
+                                class: "mb-0",
+                                thead { class: "table-light",
+                                    tr {
+                                        th { "{tid!(\"status-pending-id\")}" }
+                                        th { "{tid!(\"status-pending-recipient\")}" }
+                                        th { "{tid!(\"status-pending-ingress\")}" }
                                     }
-                                    tbody {
-                                        for row in rows {
-                                            tr {
-                                                td { code { class: "small text-break", "{row.id}" } }
-                                                td { small { class: "text-muted", "{row.row.recipient_email}" } }
-                                                td { small { class: "text-muted", "{row.ingress_id}" } }
+                                }
+                                tbody {
+                                    for row in rows {
+                                        tr {
+                                            td {
+                                                code { class: "small text-break", "{row.id}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted", "{row.row.recipient_email}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted", "{row.ingress_id}" }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
+                    },
                 }
             }
         }
@@ -316,35 +351,48 @@ fn ClaimedCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "person-workspace", class: "me-2" }
-                            "mail_delivery_claimed"
-                            span { class: "badge bg-white text-info ms-2",
-                                "{rows.len()}"
-                            }
+                            "{tid!(\"status-claimed-title\") }"
+                            span { class: "badge bg-white text-info ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0", "Keine geclaimten Deliveries." }
+                            p { class: "text-muted mb-0", "{tid!(\"status-claimed-empty\") }" }
                         } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-sm table-hover mb-0",
-                                    thead { class: "table-light",
-                                        tr { th { "ID" } th { "Worker" } th { "Lease" } th { "Recipient" } }
+                            Table {
+                                hover: true,
+                                size: Size::Sm,
+                                responsive: true,
+                                class: "mb-0",
+                                thead { class: "table-light",
+                                    tr {
+                                        th { "{tid!(\"status-claimed-id\")}" }
+                                        th { "{tid!(\"status-claimed-worker\")}" }
+                                        th { "{tid!(\"status-claimed-lease\")}" }
+                                        th { "{tid!(\"status-claimed-recipient\")}" }
                                     }
-                                    tbody {
-                                        for row in rows {
-                                            tr {
-                                                td { code { class: "small text-break", "{row.id}" } }
-                                                td { small { class: "text-muted", "{row.worker}" } }
-                                                td { small { class: "text-muted", "{row.lease_expires_at}" } }
-                                                td { small { class: "text-muted", "{row.row.recipient_email}" } }
+                                }
+                                tbody {
+                                    for row in rows {
+                                        tr {
+                                            td {
+                                                code { class: "small text-break", "{row.id}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted", "{row.worker}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted", "{row.lease_expires_at}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted", "{row.row.recipient_email}" }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
+                    },
                 }
             }
         }
@@ -368,40 +416,55 @@ fn DoneCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "check-circle", class: "me-2" }
-                            "mail_delivery_done"
-                            span { class: "badge bg-white text-success ms-2",
-                                "{rows.len()}"
-                            }
+                            "{tid!(\"status-done-title\") }"
+                            span { class: "badge bg-white text-success ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0", "Keine abgeschlossenen Deliveries." }
+                            p { class: "text-muted mb-0", "{tid!(\"status-done-empty\") }" }
                         } else {
-                            div { class: "table-responsive",
-                                table { class: "table table-sm table-hover mb-0",
-                                    thead { class: "table-light",
-                                        tr { th { "ID" } th { "Status" } th { "Recipient" } th { "Reason" } }
+                            Table {
+                                hover: true,
+                                size: Size::Sm,
+                                responsive: true,
+                                class: "mb-0",
+                                thead { class: "table-light",
+                                    tr {
+                                        th { "{tid!(\"status-done-id\")}" }
+                                        th { "{tid!(\"status-done-status\")}" }
+                                        th { "{tid!(\"status-done-recipient\")}" }
+                                        th { "{tid!(\"status-done-reason\")}" }
                                     }
-                                    tbody {
-                                        for row in rows {
-                                            {
-                                                let is_failed = row.final_state == "failed";
-                                                let status_icon = if is_failed { "x-circle-fill" } else { "check-circle-fill" };
-                                                let status_color = if is_failed { "text-danger" } else { "text-success" };
-                                                let status_text = if is_failed { "failed" } else { "sent" };
-                                                let reason = if let Some(ref err) = row.row.last_error { err.clone() } else { "—".to_string() };
-                                                rsx! {
-                                                    tr {
-                                                        td { code { class: "small text-break", "{row.id}" } }
-                                                        td {
-                                                            span { class: "d-inline-flex align-items-center gap-2",
-                                                                Icon { name: status_icon, class: format!("{status_color} fw-bold") }
-                                                                small { class: "text-muted", "{status_text}" }
-                                                            }
+                                }
+                                tbody {
+                                    for row in rows {
+                                        {
+                                            let is_failed = row.final_state == "failed";
+                                            let status_icon = if is_failed { "x-circle-fill" } else { "check-circle-fill" };
+                                            let status_color = if is_failed { "text-danger" } else { "text-success" };
+                                            let status_text = if is_failed { tid!("status-done-failed") } else { tid!("status-done-sent") };
+                                            let reason = if let Some(ref err) = row.row.last_error {
+                                                err.clone()
+                                            } else {
+                                                tid!("general-none")
+                                            };
+                                            rsx! {
+                                                tr {
+                                                    td {
+                                                        code { class: "small text-break", "{row.id}" }
+                                                    }
+                                                    td {
+                                                        span { class: "d-inline-flex align-items-center gap-2",
+                                                            Icon { name: status_icon, class: format!("{status_color} fw-bold") }
+                                                            small { class: "text-muted", "{status_text}" }
                                                         }
-                                                        td { small { class: "text-muted", "{row.row.recipient_email}" } }
-                                                        td { small { class: "text-break text-muted", "{reason}" } }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{row.row.recipient_email}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-break text-muted", "{reason}" }
                                                     }
                                                 }
                                             }
@@ -410,7 +473,7 @@ fn DoneCard() -> Element {
                                 }
                             }
                         }
-                    }
+                    },
                 }
             }
         }

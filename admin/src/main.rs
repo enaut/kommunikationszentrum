@@ -1,5 +1,6 @@
 mod components;
 mod config;
+mod i18n;
 mod module_bindings;
 mod oauth;
 mod pages;
@@ -8,6 +9,7 @@ mod router;
 use ::dioxus::{logger::tracing::info, prelude::*};
 use config::AdminConfig;
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 use module_bindings::dioxus::{
     use_connection_state, use_spacetimedb_context_provider, ConnectionState,
 };
@@ -72,6 +74,7 @@ fn solawi_theme() -> BootstrapTheme {
 
 #[component]
 fn App() -> Element {
+    let _i18n = i18n::use_init_app_i18n();
     let config = use_signal(AdminConfig::load);
     let (auth_state, login, logout) = use_oauth(config.read().oauth.clone());
 
@@ -111,15 +114,15 @@ fn LoginPage(on_login: Callback<()>) -> Element {
             Card { class: "shadow p-4", style: "min-width: 320px;",
                 div { class: "text-center mb-4",
                     Icon { name: "envelope-fill", class: "text-primary" }
-                    h4 { class: "mt-2 mb-0", "Kommunikationszentrum" }
-                    p { class: "text-muted small", "SoLaWi Nachrichten verwaltung" }
+                    h4 { class: "mt-2 mb-0", "{tid!(\"app-login-title\")}" }
+                    p { class: "text-muted small", "{tid!(\"app-login-subtitle\")}" }
                 }
                 Button {
                     color: Color::Primary,
                     class: "w-100",
                     onclick: move |_| on_login.call(()),
                     Icon { name: "box-arrow-in-right", class: "me-2" }
-                    "Mit SoLaWi-Account anmelden"
+                    "{tid!(\"app-login-button\")}"
                 }
             }
         }
@@ -131,8 +134,8 @@ fn AuthenticatingPage() -> Element {
     rsx! {
         div { class: "d-flex justify-content-center align-items-center vh-100",
             div { class: "text-center",
-                Spinner { color: Color::Primary, class: "mb-3", "Laden…" }
-                p { class: "text-muted", "Anmeldung wird verarbeitet…" }
+                Spinner { color: Color::Primary, class: "mb-3", "{tid!(\"app-loading\")}" }
+                p { class: "text-muted", "{tid!(\"app-authenticating\")}" }
             }
         }
     }
@@ -144,13 +147,13 @@ fn ErrorPage(error: String, on_retry: Callback<()>) -> Element {
         div { class: "d-flex justify-content-center align-items-center vh-100 bg-light",
             Card { class: "shadow p-4 text-center", style: "min-width: 320px;",
                 Icon { name: "exclamation-triangle-fill", class: "text-danger" }
-                h5 { class: "mt-3 text-danger", "Authentifizierungsfehler" }
+                h5 { class: "mt-3 text-danger", "{tid!(\"app-authentication-error\")}" }
                 p { class: "text-muted small mb-4", "{error}" }
                 Button {
                     color: Color::Primary,
                     onclick: move |_| on_retry.call(()),
                     Icon { name: "arrow-clockwise", class: "me-2" }
-                    "Erneut versuchen"
+                    "{tid!(\"app-retry\")}"
                 }
             }
         }
@@ -213,8 +216,8 @@ fn AuthenticatedApp(
                     rsx! {
                         div { class: "d-flex justify-content-center align-items-center mt-5",
                             div { class: "text-center",
-                                Spinner { color: Color::Primary, class: "mb-3", "Laden…" }
-                                p { class: "text-muted", "Verbindung zu SpacetimeDB wird hergestellt…" }
+                                Spinner { color: Color::Primary, class: "mb-3", "{tid!(\"app-loading\")}" }
+                                p { class: "text-muted", "{tid!(\"app-connection-loading\")}" }
                             }
                         }
                     }
@@ -223,7 +226,7 @@ fn AuthenticatedApp(
                     Container { class: "mt-5",
                         Alert { color: Color::Danger, class: "d-flex align-items-center",
                             Icon { name: "exclamation-circle", class: "me-2" }
-                            "Verbindung zu SpacetimeDB getrennt oder fehlgeschlagen."
+                            "{tid!(\"app-connection-lost\")}"
                         }
                     }
                 },

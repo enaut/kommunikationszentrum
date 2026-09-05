@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_remove_subscription, use_table_visible_accounts, use_table_visible_subscriptions,
@@ -10,15 +11,21 @@ use crate::module_bindings::dioxus::{
 use crate::module_bindings::SubscriptionStatus;
 use crate::pages::category::modals::EditSubscriptionTarget;
 
-/// German display label for each subscription status.
-pub fn status_label(status: &SubscriptionStatus) -> &'static str {
+/// Localized display label for each subscription status.
+pub fn status_label(status: &SubscriptionStatus) -> String {
     match status {
-        SubscriptionStatus::ManuallySubscribed => "Manuell abonniert",
-        SubscriptionStatus::AutomaticallySubscribed => "Automatisch abonniert",
-        SubscriptionStatus::ManuallyUnsubscribed => "Manuell abgemeldet",
-        SubscriptionStatus::AutomaticallyUnsubscribed => "Automatisch abgemeldet",
-        SubscriptionStatus::LinkUnsubscribed => "Per Link abgemeldet",
-        SubscriptionStatus::RequiredSubscribed => "Diese Mitgliedschaft ist erforderlich",
+        SubscriptionStatus::ManuallySubscribed => tid!("subscription-status-manually-subscribed"),
+        SubscriptionStatus::AutomaticallySubscribed => {
+            tid!("subscription-status-automatically-subscribed")
+        }
+        SubscriptionStatus::ManuallyUnsubscribed => {
+            tid!("subscription-status-manually-unsubscribed")
+        }
+        SubscriptionStatus::AutomaticallyUnsubscribed => {
+            tid!("subscription-status-automatically-unsubscribed")
+        }
+        SubscriptionStatus::LinkUnsubscribed => tid!("subscription-status-link-unsubscribed"),
+        SubscriptionStatus::RequiredSubscribed => tid!("subscription-status-required-subscribed"),
     }
 }
 
@@ -112,7 +119,7 @@ pub fn CategorySubscribersCard(
                 div { class: "d-flex justify-content-between align-items-center",
                     h5 { class: "card-title mb-0",
                         Icon { name: "people-fill", class: "me-2" }
-                        "Abonnenten"
+                        "{tid!(\"category-table-th-subscribers\") }"
                         span { class: "badge bg-white text-primary ms-2", "{active_subscriber_count}" }
                     }
                     Button {
@@ -122,7 +129,7 @@ pub fn CategorySubscribersCard(
                             show_add_modal.set(true);
                         },
                         Icon { name: "plus-lg", class: "me-1" }
-                        "Hinzufügen"
+                        "{tid!(\"subscriber-add\") }"
                     }
                 }
             },
@@ -130,73 +137,70 @@ pub fn CategorySubscribersCard(
                 if subscriber_rows.is_empty() {
                     div { class: "p-4 text-muted",
                         Icon { name: "inbox", class: "me-2" }
-                        "Keine Abonnenten."
+                        "{tid!(\"category-table-empty\") }"
                     }
                 } else {
-                    div { class: "table-responsive",
-                        table { class: "table table-hover mb-0",
-                            thead { class: "table-light",
-                                tr {
-                                    th { "Name" }
-                                    th { "E-Mail" }
-                                    th { "Status" }
-                                    th { class: "text-end", "Aktionen" }
-                                }
+                    Table { hover: true, responsive: true, class: "mb-0",
+                        thead { class: "table-light",
+                            tr {
+                                th { "{tid!(\"members-table-name\")}" }
+                                th { "{tid!(\"members-table-email\")}" }
+                                th { "{tid!(\"members-table-status\")}" }
+                                th { class: "text-end", "{tid!(\"members-table-action\")}" }
                             }
-                            tbody {
-                                for (sub, account) in subscriber_rows {
-                                    {
-                                        let sub_id = sub.id;
-                                        let sub_account_id = sub.subscriber_account_id;
-                                        let sub_status = sub.status;
-                                        let remove = remove_subscription.clone();
-                                        let (name_disp, email_disp) = match &account {
-                                            Some(a) => (a.name.clone(), a.email.clone()),
-                                            None => (
-                                                format!("Mitglied #{}", sub.subscriber_account_id),
+                        }
+                        tbody {
+                            for (sub, account) in subscriber_rows {
+                                {
+                                    let sub_id = sub.id;
+                                    let sub_account_id = sub.subscriber_account_id;
+                                    let sub_status = sub.status;
+                                    let remove = remove_subscription.clone();
+                                    let (name_disp, email_disp) = match &account {
+                                        Some(a) => (a.name.clone(), a.email.clone()),
+                                        None => {
+                                            (
+                                                format!("{} #{}", tid!("subscriber-member-label"), sub.subscriber_account_id),
                                                 sub.subscriber_email.clone(),
-                                            ),
-                                        };
-                                        let badge_color = status_color(&sub.status);
-                                        let badge_label = status_label(&sub.status);
-                                        let row_target = EditSubscriptionTarget {
-                                            account_id: sub_account_id,
-                                            name: name_disp.clone(),
-                                            email: email_disp.clone(),
-                                            status: sub_status,
-                                        };
-                                        rsx! {
-                                            tr {
-                                                key: "{sub_id}",
-                                                style: "cursor: pointer;",
-                                                onclick: move |_| {
-                                                    edit_target.set(Some(row_target.clone()));
-                                                    show_edit_modal.set(true);
-                                                },
-                                                td { "{name_disp}" }
-                                                td {
-                                                    code { "{email_disp}" }
-                                                }
-                                                td {
-                                                    Badge {
-                                                        color: badge_color,
-                                                        "{badge_label}"
-                                                    }
-                                                }
-                                                td { class: "text-end",
-                                                    Button {
-                                                        color: Color::Danger,
-                                                        size: Size::Sm,
-                                                        onclick: move |evt: MouseEvent| {
-                                                            evt.stop_propagation();
-                                                            info!("Removing subscription {sub_id}");
-                                                            if let Err(e) = remove(sub_id) {
-                                                                error!("remove_subscription failed: {e:?}");
-                                                            }
-                                                        },
-                                                        Icon { name: "trash", class: "me-1" }
-                                                        "Entfernen"
-                                                    }
+                                            )
+                                        }
+                                    };
+                                    let badge_color = status_color(&sub.status);
+                                    let badge_label = status_label(&sub.status);
+                                    let row_target = EditSubscriptionTarget {
+                                        account_id: sub_account_id,
+                                        name: name_disp.clone(),
+                                        email: email_disp.clone(),
+                                        status: sub_status,
+                                    };
+                                    rsx! {
+                                        tr {
+                                            key: "{sub_id}",
+                                            style: "cursor: pointer;",
+                                            onclick: move |_| {
+                                                edit_target.set(Some(row_target.clone()));
+                                                show_edit_modal.set(true);
+                                            },
+                                            td { "{name_disp}" }
+                                            td {
+                                                code { "{email_disp}" }
+                                            }
+                                            td {
+                                                Badge { color: badge_color, "{badge_label}" }
+                                            }
+                                            td { class: "text-end",
+                                                Button {
+                                                    color: Color::Danger,
+                                                    size: Size::Sm,
+                                                    onclick: move |evt: MouseEvent| {
+                                                        evt.stop_propagation();
+                                                        info!("Removing subscription {sub_id}");
+                                                        if let Err(e) = remove(sub_id) {
+                                                            error!("remove_subscription failed: {e:?}");
+                                                        }
+                                                    },
+                                                    Icon { name: "trash", class: "me-1" }
+                                                    "{tid!(\"subscriber-remove\") }"
                                                 }
                                             }
                                         }

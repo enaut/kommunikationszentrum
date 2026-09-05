@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::use_reducer_admin_add_subscription;
 use crate::module_bindings::{Account, SubscriptionStatus};
@@ -57,30 +58,31 @@ pub fn AddSubscriberModal(
         .collect();
 
     let available_for_filter = available_accounts.clone();
+    let filter_count_text = tid!(
+        "members-filter-count",
+        filtered: filtered_accounts.len(),
+        total: available_accounts.len()
+    );
 
     rsx! {
         Modal {
             show,
-            title: "Abonnent hinzufügen",
+            title: tid!("subscriber-add-title"),
             body: rsx! {
                 if let Some(err) = add_sub_error.read().clone() {
                     Alert { color: Color::Danger, class: "mb-3", "{err}" }
                 }
                 if available_accounts.is_empty() {
-                    p { class: "text-muted mb-0", "Alle Mitglieder sind bereits abonniert." }
+                    p { class: "text-muted mb-0", "{tid!(\"subscriber-add-all-claimed\") }" }
                 } else {
-                    div { class: "mb-3",
-                        label { class: "form-label", "Mitglied" }
-                        div { class: "input-group mb-2",
-                            span { class: "input-group-text",
-                                Icon { name: "search" }
-                            }
-                            input {
-                                class: "form-control",
+                    FormGroup { label: tid!("subscriber-member-label"),
+                        InputGroup { class: "mb-2",
+                            InputGroupText { Icon { name: "search" } }
+                            Input {
                                 r#type: "search",
-                                placeholder: "Name oder E-Mail filtern …",
+                                placeholder: tid!("subscriber-search-placeholder"),
                                 value: "{account_filter}",
-                                oninput: move |e| {
+                                oninput: move |e: FormEvent| {
                                     let new_val = e.value();
                                     let new_filter = new_val.to_lowercase();
                                     account_filter.set(new_val);
@@ -103,66 +105,48 @@ pub fn AddSubscriberModal(
                                 },
                             }
                         }
-                        select {
-                            class: "form-select",
-                            onchange: move |e| {
+                        Select {
+                            value: selected_account_id().to_string(),
+                            onchange: move |e: FormEvent| {
                                 if let Ok(id) = e.value().parse::<u64>() {
                                     selected_account_id.set(id);
                                 }
                             },
                             option { value: "0",
-                                selected: selected_account_id() == 0,
                                 if filtered_accounts.is_empty() {
-                                    "– Keine Ergebnisse –"
+                                    "{tid!(\"general-no-results\") }"
                                 } else {
-                                    "– Mitglied wählen –"
+                                    "{tid!(\"subscriber-select-member\") }"
                                 }
                             }
                             for acc in filtered_accounts.clone() {
-                                {
-                                    let val = acc.id.to_string();
-                                    let option_label = format!("{} ({})", acc.name, acc.email);
-                                    let is_selected = acc.id == selected_account_id();
-                                    rsx! {
-                                        option {
-                                            key: "{acc.id}",
-                                            value: "{val}",
-                                            selected: is_selected,
-                                            "{option_label}"
-                                        }
-                                    }
+                                option {
+                                    key: "{acc.id}",
+                                    value: "{acc.id}",
+                                    "{acc.name} ({acc.email})"
                                 }
                             }
                         }
                         if !filter_lower.is_empty() {
-                            div { class: "form-text",
-                                "{filtered_accounts.len()} von {available_accounts.len()} Mitgliedern"
+                            FormText {
+                                "{filter_count_text}"
                             }
                         }
                     }
 
-                    div { class: "mb-3",
-                        label { class: "form-label", "Status" }
-                        select {
-                            class: "form-select",
-                            onchange: move |e| {
+                    FormGroup { label: tid!("subscriber-status-label"),
+                        Select {
+                            value: status_key(&selected_status()).to_string(),
+                            onchange: move |e: FormEvent| {
                                 if let Some(s) = parse_status(&e.value()) {
                                     selected_status.set(s);
                                 }
                             },
                             for s in ALL_STATUSES {
-                                {
-                                    let key = status_key(s);
-                                    let label = status_label(s);
-                                    let is_selected = *s == selected_status();
-                                    rsx! {
-                                        option {
-                                            key: "{key}",
-                                            value: "{key}",
-                                            selected: is_selected,
-                                            "{label}"
-                                        }
-                                    }
+                                option {
+                                    key: "{status_key(s)}",
+                                    value: "{status_key(s)}",
+                                    "{status_label(s)}"
                                 }
                             }
                         }
@@ -173,7 +157,7 @@ pub fn AddSubscriberModal(
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| show.set(false),
-                    "Abbrechen"
+                    "{tid!(\"subscriber-cancel\") }"
                 }
                 Button {
                     color: Color::Primary,
@@ -184,7 +168,7 @@ pub fn AddSubscriberModal(
                             return;
                         }
                         let Some(acc) = available_accounts.iter().find(|a| a.id == acc_id) else {
-                            add_sub_error.set(Some("Mitglied nicht gefunden.".to_string()));
+                            add_sub_error.set(Some(tid!("subscriber-member-not-found")));
                             return;
                         };
                         let status = selected_status();
@@ -197,12 +181,12 @@ pub fn AddSubscriberModal(
                             }
                             Err(e) => {
                                 error!("admin_add_subscription failed: {e:?}");
-                                add_sub_error.set(Some(format!("Fehler: {e:?}")));
+                                add_sub_error.set(Some(format!("{}: {e:?}", tid!("subscriber-error-prefix"))));
                             }
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "Hinzufügen"
+                    "{tid!(\"subscriber-add\") }"
                 }
             },
         }
@@ -242,53 +226,40 @@ pub fn EditSubscriptionModal(
     rsx! {
         Modal {
             show,
-            title: "Abonnement bearbeiten",
+            title: tid!("subscriber-edit-title"),
             body: rsx! {
                 if let Some(err) = edit_sub_error.read().clone() {
                     Alert { color: Color::Danger, class: "mb-3", "{err}" }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "Mitglied" }
-                    input {
-                        class: "form-control",
+                FormGroup { label: tid!("subscriber-member-label"),
+                    Input {
                         r#type: "text",
                         value: "{account_name}",
                         disabled: true,
                         readonly: true,
                     }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "E-Mail" }
-                    input {
-                        class: "form-control",
+                FormGroup { label: tid!("subscriber-email-label"),
+                    Input {
                         r#type: "text",
                         value: "{account_email}",
                         disabled: true,
                         readonly: true,
                     }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "Status" }
-                    select {
-                        class: "form-select",
-                        onchange: move |e| {
+                FormGroup { label: tid!("subscriber-status-label"),
+                    Select {
+                        value: status_key(&edit_status()).to_string(),
+                        onchange: move |e: FormEvent| {
                             if let Some(s) = parse_status(&e.value()) {
                                 edit_status.set(s);
                             }
                         },
                         for s in ALL_STATUSES {
-                            {
-                                let key = status_key(s);
-                                let label = status_label(s);
-                                let is_selected = *s == edit_status();
-                                rsx! {
-                                    option {
-                                        key: "{key}",
-                                        value: "{key}",
-                                        selected: is_selected,
-                                        "{label}"
-                                    }
-                                }
+                            option {
+                                key: "{status_key(s)}",
+                                value: "{status_key(s)}",
+                                "{status_label(s)}"
                             }
                         }
                     }
@@ -298,7 +269,7 @@ pub fn EditSubscriptionModal(
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| show.set(false),
-                    "Abbrechen"
+                    "{tid!(\"subscriber-cancel\") }"
                 }
                 Button {
                     color: Color::Primary,
@@ -315,12 +286,12 @@ pub fn EditSubscriptionModal(
                             }
                             Err(e) => {
                                 error!("admin_add_subscription (edit) failed: {e:?}");
-                                edit_sub_error.set(Some(format!("Fehler: {e:?}")));
+                                edit_sub_error.set(Some(format!("{}: {e:?}", tid!("subscriber-error-prefix"))));
                             }
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "Speichern"
+                    "{tid!(\"subscriber-save\") }"
                 }
             },
         }

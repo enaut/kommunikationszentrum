@@ -5,6 +5,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::SubscriptionStatus;
 use crate::module_bindings::{
@@ -103,16 +104,18 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "envelope-check", class: "me-2" }
-                        "Meine Themen"
+                        "{tid!(\"subscriptions-page-title\") }"
                     }
                     p { class: "text-muted mt-1",
-                        "Wähle die Themen aus, über die du E-Mails empfangen möchtest."
+                        "{tid!(\"subscriptions-page-description\") }"
                     }
                 }
             }
 
             if !topic_ids.is_empty() || show_sonstige {
-                ul { class: "nav nav-tabs mb-3",
+                Nav {
+                    tabs: true,
+                    class: "mb-3",
                     for topic_id in topic_ids.iter().copied() {
                         TopicTabButton {
                             key: "{topic_id}",
@@ -125,15 +128,15 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                         }
                     }
                     if show_sonstige {
-                        li { class: "nav-item",
-                            button {
-                                class: if current == TopicTab::Sonstige { "nav-link active" } else { "nav-link" },
-                                r#type: "button",
+                        NavItem {
+                            NavLink {
+                                active: current == TopicTab::Sonstige,
+                                prevent_default: true,
                                 onclick: move |_| {
                                     user_picked_tab.set(true);
                                     active_tab.set(TopicTab::Sonstige);
                                 },
-                                "Sonstige"
+                                "{tid!(\"subscriptions-tab-other\") }"
                             }
                         }
                     }
@@ -144,9 +147,9 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
                     if topic_ids.is_empty() && sonstige_cats.is_empty() {
-                        "Keine Themen vorhanden."
+                        "{tid!(\"subscriptions-empty\") }"
                     } else {
-                        "Keine Mailinglisten in diesem Bereich."
+                        "{tid!(\"subscriptions-empty-category\") }"
                     }
                 }
             } else {
@@ -174,13 +177,13 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                         header: rsx! {
                                             h5 { class: "card-title mb-0", "{cat.name}" }
                                             if sub_id.is_some() {
-                                                Badge { color: Color::Success, class: "ms-2", "Abonniert" }
+                                                Badge { color: Color::Success, class: "ms-2", "{tid!(\"subscriptions-subscribed\")}" }
                                             }
 
                                             if cat.visibility == CategoryVisibility::Public {
-                                                Badge { color: Color::Info, class: "ms-2 align-middle", "Öffentlich" }
+                                                Badge { color: Color::Info, class: "ms-2 align-middle", "{tid!(\"subscriptions-public\")}" }
                                             } else {
-                                                Badge { color: Color::Warning, class: "ms-2 align-middle", "Privat" }
+                                                Badge { color: Color::Warning, class: "ms-2 align-middle", "{tid!(\"subscriptions-private\")}" }
                                             }
                                         },
                                         body: rsx! {
@@ -194,7 +197,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                             if is_required {
                                                 Alert { color: Color::Info, class: "mt-auto mb-0 small",
                                                     Icon { name: "info-circle", class: "me-2" }
-                                                    "Dieses Thema ist unbedingt notwendig für das Teilnehmen an der SoLaWiS-Gemeinschaft"
+                                                    "{tid!(\"subscriptions-required\") }"
                                                 }
                                             } else if let Some(id) = sub_id {
                                                 Button {
@@ -208,7 +211,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                         }
                                                     },
                                                     Icon { name: "dash-circle", class: "me-1" }
-                                                    "Abbestellen"
+                                                    "{tid!(\"subscriptions-unsubscribe\") }"
                                                 }
                                             } else {
                                                 Button {
@@ -224,7 +227,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                         }
                                                     },
                                                     Icon { name: "plus-circle", class: "me-1" }
-                                                    "Abonnieren"
+                                                    "{tid!(\"subscriptions-subscribe\") }"
                                                 }
                                             }
                                         },
@@ -256,10 +259,10 @@ fn TopicTabButton(topic_id: u64, active: bool, on_select: EventHandler<()>) -> E
     }
 
     rsx! {
-        li { class: "nav-item",
-            button {
-                class: if active { "nav-link active" } else { "nav-link" },
-                r#type: "button",
+        NavItem {
+            NavLink {
+                active,
+                prevent_default: true,
                 onclick: move |_| on_select.call(()),
                 "{label}"
             }

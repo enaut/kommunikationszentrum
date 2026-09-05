@@ -1,0 +1,224 @@
+navbar-brand = Kommunikationszentrum
+navbar-my-topics = Meine Themen
+navbar-messages = Nachrichten
+navbar-topics = Themen
+navbar-members = Mitglieder
+navbar-management = Verwaltung
+navbar-settings = Einstellungen
+navbar-status = Status
+navbar-logout = Abmelden
+navbar-language = Sprache
+language-switcher-de = Deutsch (DE)
+language-switcher-en = English (EN)
+members-filter-count = { $filtered } von { $total } Mitgliedern
+
+# App shell
+app-login-title = Kommunikationszentrum
+app-login-subtitle = SoLaWi-Nachrichtenverwaltung
+app-login-button = Mit SoLaWi-Account anmelden
+app-loading = Laden…
+app-authenticating = Anmeldung wird verarbeitet…
+app-authentication-error = Authentifizierungsfehler
+app-retry = Erneut versuchen
+app-connection-loading = Verbindung zu SpacetimeDB wird hergestellt…
+app-connection-lost = Verbindung zu SpacetimeDB getrennt oder fehlgeschlagen.
+
+# General UI
+general-filter = Filtern:
+general-all = Alle
+general-no-results = – Keine Ergebnisse –
+general-select-member = – Mitglied wählen –
+general-no-topic-selected = – Kein Thema gewählt –
+general-none = –
+
+# Members
+members-page-title = Mitglieder
+members-summary = registrierte Mitglieder
+members-empty = Keine Mitglieder gefunden.
+members-table-id = ID
+members-table-name = Name
+members-table-email = E-Mail
+members-table-status = Status
+members-table-subscriptions = Abonnements
+members-table-action = Aktion
+members-status-active = Aktiv
+members-status-inactive = Inaktiv
+members-remove-subscription = Abonnement entfernen
+members-add-topic = Thema hinzufügen
+
+# Messages
+messages-page-title = Nachrichten
+messages-summary = empfangene Nachrichten
+messages-filter = Filtern:
+messages-filter-all = Alle
+messages-empty = Keine Nachrichten vorhanden.
+messages-empty-category = Keine Nachrichten für diese Kategorie.
+messages-no-subject = (kein Betreff)
+messages-select-placeholder = Nachricht aus der Liste auswählen
+messages-header-from = Von
+messages-header-to = An
+messages-header-cc = CC
+messages-header-date = Datum
+messages-header-message-id = Message-ID
+messages-header-reply-to = Reply-To
+messages-body-empty = Nachrichteninhalt nicht gespeichert (Nachricht zu groß).
+
+# Subscriptions
+subscriptions-page-title = Meine Themen
+subscriptions-page-description = Wähle die Themen aus, über die du E-Mails empfangen möchtest.
+subscriptions-tab-other = Sonstige
+subscriptions-empty = Keine Themen vorhanden.
+subscriptions-empty-category = Keine Mailinglisten in diesem Bereich.
+subscriptions-subscribed = Abonniert
+subscriptions-public = Öffentlich
+subscriptions-private = Privat
+subscriptions-required = Dieses Thema ist unbedingt notwendig für das Teilnehmen an der SoLaWiS-Gemeinschaft
+subscriptions-unsubscribe = Abbestellen
+subscriptions-subscribe = Abonnieren
+
+# Category list page
+category-page-title = Themen
+category-add-title = Neues Thema hinzufügen
+category-add-success = Neues Thema erfolgreich erstellt!
+category-form-name = Thema
+category-form-name-placeholder = Thema Name
+category-form-email = E-Mail-Adresse
+category-form-mailbox-placeholder = postfach
+category-form-domain-select = Domain…
+category-form-description = Beschreibung
+category-form-description-placeholder = Kurze Beschreibung
+category-form-visibility = Sichtbar
+category-visibility-public = Öffentlich
+category-visibility-private = Privat
+category-table-title = Vorhandene Themen
+category-table-empty = Keine Themen vorhanden.
+category-table-th-name = Name
+category-table-th-email = E-Mail-Adresse
+category-table-th-description = Beschreibung
+category-table-th-status = Status
+category-table-th-visibility = Sichtbarkeit
+category-table-th-subscribers = Abonnenten
+category-table-th-actions = Aktionen
+category-status-active = Aktiv
+category-status-inactive = Inaktiv
+category-action-details = Details
+category-action-delete = Löschen
+category-detail-title = Details bearbeiten
+category-detail-name = Name
+category-detail-description = Beschreibung
+category-detail-visibility = Sichtbarkeit
+category-detail-visibility-help = Öffentliche Themen sind für alle Mitglieder sichtbar. Private Themen sind nur für Administratoren und abonnierte Mitglieder sichtbar.
+category-detail-email = E-Mail-Adresse
+category-detail-email-help = Die E-Mail-Adresse ist fest mit dem Thema verknüpft und kann nicht geändert werden.
+category-detail-save = Speichern
+category-detail-saved = Änderungen gespeichert.
+category-detail-save-error = Fehler beim Speichern
+category-detail-back = Zurück zur Übersicht
+category-detail-not-found = Thema nicht gefunden (evtl. gelöscht).
+
+# Category topics
+category-topics-title = Schlagwörter
+category-topics-description = Schlagwörter gruppieren Mailinglisten auf der Mitglieder-Startseite in Tabs.
+category-topics-empty = Noch keine Schlagwörter vorhanden.
+category-topics-placeholder = Neues Schlagwort …
+category-topic-name-empty = Name darf nicht leer sein.
+category-topic-renamed = Schlagwort umbenannt.
+category-topic-added = Schlagwort hinzugefügt.
+category-topic-error = Fehler
+
+# Category subscribers
+subscriber-add-title = Abonnent hinzufügen
+subscriber-add-all-claimed = Alle Mitglieder sind bereits abonniert.
+subscriber-member-label = Mitglied
+subscriber-search-placeholder = Name oder E-Mail filtern …
+subscriber-status-label = Status
+subscriber-cancel = Abbrechen
+subscriber-member-not-found = Mitglied nicht gefunden.
+subscriber-add = Hinzufügen
+subscriber-edit-title = Abonnement bearbeiten
+subscriber-email-label = E-Mail
+subscriber-error-prefix = Fehler
+subscriber-select-member = – Mitglied wählen –
+subscriber-remove = Entfernen
+subscriber-save = Speichern
+
+# Subscription statuses
+subscription-status-manually-subscribed = Manuell abonniert
+subscription-status-automatically-subscribed = Automatisch abonniert
+subscription-status-manually-unsubscribed = Manuell abgemeldet
+subscription-status-automatically-unsubscribed = Automatisch abgemeldet
+subscription-status-link-unsubscribed = Per Link abgemeldet
+subscription-status-required-subscribed = Diese Mitgliedschaft ist erforderlich
+
+# Management pages
+management-config-title = Verwaltung · Einstellungen
+management-config-admin-identities = Admin-Identitäten
+management-config-admin-identity-placeholder = Identity Hex (64 Zeichen)
+management-config-admin-no-identities = Keine Admin-Identitäten registriert.
+management-config-admin-add = Hinzufügen
+management-config-webhook-title = Webhook Tokens
+management-config-webhook-label = Label
+management-config-webhook-permissions = Berechtigungen (durch Kommas getrennt, z. B. mta-hook,sync-user)
+management-config-token-generate = Token generieren
+management-config-token-copy = Kopieren
+management-config-token-copied = Kopiert!
+management-config-token-copy-failed = Kopieren fehlgeschlagen!
+management-config-token-create = Token erstellen
+management-config-token-empty = Keine Webhook Tokens erstellt.
+management-config-token-security = Der Klartext des Tokens wird nur einmal im Browser angezeigt und nicht an den Server gesendet. Der Server speichert nur einen BLAKE3-Hash.
+management-config-domains-title = Domains
+management-config-domains-sync = Jetzt synchronisieren
+management-config-domains-empty = Keine Domains vorhanden. Bitte synchronisieren.
+management-config-sync-success = Synchronisierung abgeschlossen
+management-config-sync-found = gefunden
+management-config-sync-added = hinzugefügt
+management-config-sync-updated = aktualisiert
+management-config-sync-removed = entfernt
+management-config-table-id = ID
+management-config-table-name = Name
+management-config-table-description = Beschreibung
+
+management-status-title = Verwaltung · Status
+status-connection-title = SpacetimeDB Verbindung
+status-identity = Identity
+status-member-number = Mitgliedsnummer
+status-email = E-Mail
+status-email-empty = –
+status-connection-connecting = Verbindung wird hergestellt…
+status-connection-reconnecting = Wiederverbinden
+status-connection-error = Verbindungsfehler
+status-connection-disconnected = Nicht verbunden
+status-error-label = Fehler
+status-temporary-failed-title = mail_delivery_temporary_failed
+status-temporary-failed-empty = Keine temporär fehlgeschlagenen Mail-Deliveries.
+status-temporary-failed-delivery-id = Delivery ID
+status-temporary-failed-recipient = Empfänger
+status-temporary-failed-retry-at = Wiederholungszeitpunkt
+status-temporary-failed-reason = Grund
+status-temporary-failed-action = Aktion
+status-temporary-failed-cancel = Abbrechen
+status-delivery-events-title = mail_delivery_events
+status-delivery-events-empty = Keine Mail-Delivery-Events.
+status-delivery-events-id = ID
+status-delivery-events-type = Typ
+status-delivery-events-attempt = Versuch
+status-delivery-events-details = Details
+status-pending-title = mail_delivery_pending
+status-pending-empty = Keine offenen Deliveries.
+status-pending-id = ID
+status-pending-recipient = Empfänger
+status-pending-ingress = Eingang
+status-claimed-title = mail_delivery_claimed
+status-claimed-empty = Keine geclaimten Deliveries.
+status-claimed-id = ID
+status-claimed-worker = Worker
+status-claimed-lease = Lease
+status-claimed-recipient = Empfänger
+status-done-title = mail_delivery_done
+status-done-empty = Keine abgeschlossenen Deliveries.
+status-done-id = ID
+status-done-status = Status
+status-done-recipient = Empfänger
+status-done-reason = Grund
+status-done-sent = gesendet
+status-done-failed = fehlgeschlagen

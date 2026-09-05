@@ -1,6 +1,11 @@
 use ::dioxus::prelude::*;
-use dioxus_bootstrap_css::prelude::{NavbarCollapse, NavbarToggler, Theme, ThemeToggle};
+use dioxus_bootstrap_css::prelude::{
+    Color, Dropdown, DropdownItem, Icon, NavItem, NavLink, Navbar as BsNavbar, NavbarCollapse,
+    NavbarExpand, NavbarNav, NavbarToggler, Theme, ThemeToggle,
+};
+use dioxus_i18n::tid;
 
+use crate::components::language_switcher::LanguageSwitcher;
 use crate::oauth::UserInfo;
 use crate::router::{use_is_admin, ActiveView};
 
@@ -13,132 +18,87 @@ pub fn Navbar(
 ) -> Element {
     let is_admin = use_is_admin();
     let collapsed = use_signal(|| true);
-    let mut user_dropdown_open = use_signal(|| false);
-    let mut management_dropdown_open = use_signal(|| false);
-
+    let user_dropdown_open = use_signal(|| false);
+    let management_dropdown_open = use_signal(|| false);
     rsx! {
-        nav { class: "navbar navbar-expand-lg bg-primary navbar-dark",
-            div { class: "container-fluid",
-                span { class: "navbar-brand",
-                    i { class: "bi bi-envelope-fill me-2" }
-                    "Kommunikationszentrum"
-                }
-                NavbarToggler { collapsed }
-                NavbarCollapse { collapsed,
-                    ul { class: "navbar-nav me-auto",
-                        NavLink {
-                            label: "Meine Themen",
-                            icon: "bi-envelope-check",
-                            view: ActiveView::MySubscriptions,
+        BsNavbar {
+            expand: NavbarExpand::Lg,
+            color: Color::Primary,
+            class: "navbar-dark",
+            brand: rsx! {
+                Icon { name: "envelope-fill", class: "me-2 text-white" }
+                span { class: "text-white", "{tid!(\"navbar-brand\")}" }
+            },
+            NavbarToggler { collapsed }
+            NavbarCollapse { collapsed,
+                NavbarNav { class: "me-auto",
+                    AppNavLink {
+                        label: tid!("navbar-my-topics"),
+                        icon: "envelope-check",
+                        view: ActiveView::MySubscriptions,
+                        active_view,
+                    }
+                    AppNavLink {
+                        label: tid!("navbar-messages"),
+                        icon: "envelope",
+                        view: ActiveView::Messages,
+                        active_view,
+                    }
+                    if is_admin {
+                        AppNavLink {
+                            label: tid!("navbar-topics"),
+                            icon: "tags-fill",
+                            view: ActiveView::Categories,
                             active_view,
-                            theme: theme.clone(),
                         }
-                        NavLink {
-                            label: "Nachrichten",
-                            icon: "bi-envelope",
-                            view: ActiveView::Messages,
+                        AppNavLink {
+                            label: tid!("navbar-members"),
+                            icon: "people-fill",
+                            view: ActiveView::Members,
                             active_view,
-                            theme: theme.clone(),
                         }
-                        if is_admin {
-                            NavLink {
-                                label: "Themen",
-                                icon: "bi-tags-fill",
-                                view: ActiveView::Categories,
-                                active_view,
-                                theme: theme.clone(),
-                            }
-                            NavLink {
-                                label: "Mitglieder",
-                                icon: "bi-people-fill",
-                                view: ActiveView::Members,
-                                active_view,
-                                theme: theme.clone(),
-                            }
-                            li { class: "nav-item dropdown",
-                                if management_dropdown_open() {
-                                    div {
-                                        style: "position: fixed; inset: 0; z-index: 990;",
-                                        onclick: move |_| management_dropdown_open.set(false),
-                                    }
-                                }
-                                div { style: if management_dropdown_open() { "position: relative; z-index: 991;" } else { "" },
-                                    button {
-                                        class: "nav-link btn btn-link text-white",
-                                        r#type: "button",
-                                        aria_expanded: if management_dropdown_open() { "true" } else { "false" },
-                                        onclick: move |evt| {
-                                            evt.stop_propagation();
-                                            management_dropdown_open.set(!management_dropdown_open());
-                                        },
-                                        i { class: "bi bi-sliders me-1" }
-                                        "Verwaltung"
-                                    }
-                                    ul {
-                                        class: if management_dropdown_open() { "dropdown-menu show" } else { "dropdown-menu" },
-                                        onclick: move |_| management_dropdown_open.set(false),
-                                        li {
-                                            button {
-                                                class: "dropdown-item",
-                                                onclick: move |_| active_view.set(ActiveView::ManagementConfiguration),
-                                                "Einstellungen"
-                                            }
-                                        }
-                                        li {
-                                            button {
-                                                class: "dropdown-item",
-                                                onclick: move |_| active_view.set(ActiveView::ManagementStatus),
-                                                "Status"
-                                            }
-                                        }
-                                    }
-                                }
+                        NavItem {
+                            Dropdown {
+                                open: management_dropdown_open,
+                                toggle_class: "btn-link nav-link text-white",
+                                toggle: rsx! {
+                                    Icon { name: "sliders", class: "me-1" }
+                                    "{tid!(\"navbar-management\")}"
+                                },
+                                menu: rsx! {
+                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementConfiguration), "{tid!(\"navbar-settings\")}" }
+                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementStatus), "{tid!(\"navbar-status\")}" }
+                                },
                             }
                         }
                     }
-                    ul { class: "navbar-nav ms-auto",
-                        // Theme toggle (from dioxus-bootstrap)
-                        li { class: "nav-item",
-                            ThemeToggle { theme }
-                        }
-                        li { class: "nav-item dropdown",
-                            // Invisible overlay to close on outside click
-                            if user_dropdown_open() {
-                                div {
-                                    style: "position: fixed; inset: 0; z-index: 990;",
-                                    onclick: move |_| user_dropdown_open.set(false),
+                }
+                NavbarNav { class: "ms-auto",
+                    NavItem {
+                        LanguageSwitcher {}
+                    }
+                    NavItem {
+                        ThemeToggle { theme }
+                    }
+                    NavItem {
+                        Dropdown {
+                            open: user_dropdown_open,
+                            align_end: true,
+                            toggle_class: "btn-link nav-link text-white",
+                            toggle: rsx! {
+                                Icon { name: "person-circle", class: "me-2" }
+                                if let Some(name) = &user_info.name {
+                                    "{name}"
+                                } else {
+                                    "{user_info.username}"
                                 }
-                            }
-                            div { style: if user_dropdown_open() { "position: relative; z-index: 991;" } else { "" },
-                                a {
-                                    class: "nav-link dropdown-toggle",
-                                    href: "#",
-                                    role: "button",
-                                    "aria-expanded": if user_dropdown_open() { "true" } else { "false" },
-                                    onclick: move |evt| {
-                                        evt.stop_propagation();
-                                        user_dropdown_open.set(!user_dropdown_open());
-                                    },
-                                    i { class: "bi bi-person-circle me-2" }
-                                    if let Some(name) = &user_info.name {
-                                        "{name}"
-                                    } else {
-                                        "{user_info.username}"
-                                    }
+                            },
+                            menu: rsx! {
+                                DropdownItem { onclick: move |_| on_logout.call(()),
+                                    Icon { name: "box-arrow-right", class: "me-2" }
+                                    "{tid!(\"navbar-logout\")}"
                                 }
-                                ul {
-                                    class: if user_dropdown_open() { "dropdown-menu dropdown-menu-end show" } else { "dropdown-menu dropdown-menu-end" },
-                                    onclick: move |_| user_dropdown_open.set(false),
-                                    li {
-                                        button {
-                                            class: "dropdown-item",
-                                            onclick: move |_| on_logout.call(()),
-                                            i { class: "bi bi-box-arrow-right me-2" }
-                                            "Abmelden"
-                                        }
-                                    }
-                                }
-                            }
+                            },
                         }
                     }
                 }
@@ -148,35 +108,21 @@ pub fn Navbar(
 }
 
 #[component]
-fn NavLink(
-    label: &'static str,
+fn AppNavLink(
+    label: String,
     icon: &'static str,
     view: ActiveView,
-    active_view: Signal<ActiveView>,
-    theme: Signal<Theme>,
+    mut active_view: Signal<ActiveView>,
 ) -> Element {
     let is_active = *active_view.read() == view;
     let view_for_click = view.clone();
-    let theme_dark = *theme.read() == Theme::Dark;
-    let text_classes = if is_active {
-        if theme_dark {
-            "text-white fw-bold"
-        } else {
-            "text-white fw-bold"
-        }
-    } else {
-        if theme_dark {
-            "text-white-50"
-        } else {
-            "text-white-70"
-        }
-    };
     rsx! {
-        li { class: "nav-item",
-            button {
-                class: format!("nav-link btn btn-link {text_classes}"),
+        NavItem {
+            NavLink {
+                active: is_active,
+                prevent_default: true,
                 onclick: move |_| active_view.set(view_for_click.clone()),
-                i { class: "bi {icon} me-1" }
+                Icon { name: icon, class: "me-1" }
                 "{label}"
             }
         }

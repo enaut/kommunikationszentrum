@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_subscription, use_table_sender_mail_messages, use_table_visible_message_categories,
@@ -63,48 +64,6 @@ impl MessageWithContent {
 // ---------------------------------------------------------------------------
 // Visual helpers
 // ---------------------------------------------------------------------------
-
-/// Map a category ID to a rotating Bootstrap colour class pair
-/// (filled variant for selected, outline variant for unselected).
-fn cat_btn_class(category_id: u64, selected: bool) -> &'static str {
-    match category_id % 5 {
-        0 => {
-            if selected {
-                "btn btn-sm btn-primary"
-            } else {
-                "btn btn-sm btn-outline-primary"
-            }
-        }
-        1 => {
-            if selected {
-                "btn btn-sm btn-success"
-            } else {
-                "btn btn-sm btn-outline-success"
-            }
-        }
-        2 => {
-            if selected {
-                "btn btn-sm btn-info"
-            } else {
-                "btn btn-sm btn-outline-info"
-            }
-        }
-        3 => {
-            if selected {
-                "btn btn-sm btn-warning"
-            } else {
-                "btn btn-sm btn-outline-warning"
-            }
-        }
-        _ => {
-            if selected {
-                "btn btn-sm btn-secondary"
-            } else {
-                "btn btn-sm btn-outline-secondary"
-            }
-        }
-    }
-}
 
 fn cat_badge_color(category_id: u64) -> Color {
     match category_id % 5 {
@@ -192,11 +151,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "envelope-fill", class: "me-2" }
-                        "Nachrichten"
+                        "{tid!(\"messages-page-title\") }"
                     }
                     p { class: "text-muted mt-1",
                         Badge { color: Color::Primary, class: "me-2", "{messages_with_content.len()}" }
-                        "empfangene Nachrichten"
+                        "{tid!(\"messages-summary\") }"
                     }
                 }
             }
@@ -205,14 +164,16 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             Row { class: "mb-3",
                 Col {
                     div { class: "d-flex flex-wrap gap-2 align-items-center",
-                        span { class: "text-muted small me-1", "Filtern:" }
-                        button {
-                            class: if filter_category().is_none() { "btn btn-sm btn-primary" } else { "btn btn-sm btn-outline-secondary" },
+                        span { class: "text-muted small me-1", "{tid!(\"messages-filter\")}" }
+                        Button {
+                            color: if filter_category().is_none() { Color::Primary } else { Color::Secondary },
+                            outline: filter_category().is_some(),
+                            size: Size::Sm,
                             onclick: move |_| {
                                 filter_category.set(None);
                                 selected_id.set(None);
                             },
-                            "Alle"
+                            "{tid!(\"messages-filter-all\") }"
                         }
                         for cat in categories()
                             .into_iter()
@@ -222,8 +183,10 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 let cat_id = cat.id;
                                 let is_active = filter_category() == Some(cat_id);
                                 rsx! {
-                                    button {
-                                        class: cat_btn_class(cat_id, is_active),
+                                    Button {
+                                        color: cat_badge_color(cat_id),
+                                        outline: !is_active,
+                                        size: Size::Sm,
                                         onclick: move |_| {
                                             filter_category.set(Some(cat_id));
                                             selected_id.set(None);
@@ -242,9 +205,9 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                 Alert { color: Color::Info,
                     Icon { name: "inbox", class: "me-2" }
                     if filter_category().is_none() {
-                        "Keine Nachrichten vorhanden."
+                        "{tid!(\"messages-empty\") }"
                     } else {
-                        "Keine Nachrichten für diese Kategorie."
+                        "{tid!(\"messages-empty-category\") }"
                     }
                 }
             } else {
@@ -257,13 +220,13 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                             class: "shadow-sm",
                             body_class: "p-0",
                             body: rsx! {
-                                div { class: "list-group list-group-flush",
+                                ListGroup { flush: true,
                                     for msg in filtered.clone() {
                                         {
                                             let msg_id = msg.received_message.id;
                                             let is_sel = selected_id() == Some(msg_id);
                                             let subject = if msg.subject().is_empty() {
-                                                "(kein Betreff)".to_string()
+                                                tid!("messages-no-subject")
                                             } else {
                                                 msg.subject()
                                             };
@@ -273,8 +236,9 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                 msg.received_at().to_string();
                                             let badge_color = cat_badge_color(msg.category_id());
                                             rsx! {
-                                                button {
-                                                    class: if is_sel { "list-group-item list-group-item-action active px-3 py-2" } else { "list-group-item list-group-item-action px-3 py-2" },
+                                                ListGroupItem {
+                                                    active: is_sel,
+                                                    class: "px-3 py-2",
                                                     onclick: move |_| selected_id.set(Some(msg_id)),
                                                     div { class: "d-flex justify-content-between align-items-start mb-1",
                                                         Badge {
@@ -310,7 +274,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                         Badge { color: cat_badge_color(msg.category_id()), "{msg.category_email()}" }
                                         span { class: "fw-semibold",
                                             if msg.subject().is_empty() {
-                                                "(kein Betreff)"
+                                                "{tid!(\"messages-no-subject\") }"
                                             } else {
                                                 "{msg.subject()}"
                                             }
@@ -320,41 +284,44 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 },
                                 body: rsx! {
                                     // ── Parsed header fields ───────────────
-                                    table { class: "table table-sm table-borderless mb-0",
+                                    Table {
+                                    size: Size::Sm,
+                                    borderless: true,
+                                    class: "mb-0",
                                         tbody {
                                             tr {
                                                 th {
                                                     class: "text-muted small pe-3",
                                                     style: "width: 5.5rem; white-space: nowrap;",
-                                                    "Von"
+                                                    "{tid!(\"messages-header-from\") }"
                                                 }
                                                 td { class: "small", "{msg.from_header()}" }
                                             }
                                             tr {
-                                                th { class: "text-muted small pe-3", "An" }
+                                                th { class: "text-muted small pe-3", "{tid!(\"messages-header-to\") }" }
                                                 td { class: "small", "{msg.category_email()}" }
                                             }
                                             if let Some(cc) = msg.cc_header() {
                                                 tr {
-                                                    th { class: "text-muted small pe-3", "CC" }
+                                                    th { class: "text-muted small pe-3", "{tid!(\"messages-header-cc\") }" }
                                                     td { class: "small", "{cc}" }
                                                 }
                                             }
                                             if let Some(date) = msg.date_header() {
                                                 tr {
-                                                    th { class: "text-muted small pe-3", "Datum" }
+                                                    th { class: "text-muted small pe-3", "{tid!(\"messages-header-date\") }" }
                                                     td { class: "small", "{date}" }
                                                 }
                                             }
                                             if let Some(mid) = msg.message_id() {
                                                 tr {
-                                                    th { class: "text-muted small pe-3", "Message-ID" }
+                                                    th { class: "text-muted small pe-3", "{tid!(\"messages-header-message-id\") }" }
                                                     td { class: "small font-monospace text-break", "{mid}" }
                                                 }
                                             }
                                             if let Some(rt) = msg.reply_to() {
                                                 tr {
-                                                    th { class: "text-muted small pe-3", "Reply-To" }
+                                                    th { class: "text-muted small pe-3", "{tid!(\"messages-header-reply-to\") }" }
                                                     td { class: "small", "{rt}" }
                                                 }
                                             }
@@ -365,7 +332,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     if msg.body_raw().is_empty() {
                                         Alert { color: Color::Warning, class: "small mb-0",
                                             Icon { name: "exclamation-triangle", class: "me-1" }
-                                            "Nachrichteninhalt nicht gespeichert (Nachricht zu groß)."
+                                            "{tid!(\"messages-body-empty\") }"
                                         }
                                     } else {
                                         pre {
@@ -383,7 +350,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 body: rsx! {
                                     div { class: "d-flex flex-column align-items-center justify-content-center py-5 text-muted",
                                         Icon { name: "envelope-open", class: "display-6 mb-3" }
-                                        p { class: "mb-0", "Nachricht aus der Liste auswählen" }
+                                        p { class: "mb-0", "{tid!(\"messages-select-placeholder\") }" }
                                     }
                                 },
                             }

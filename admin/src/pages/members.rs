@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::{
     module_bindings::dioxus::{
@@ -39,11 +40,11 @@ pub fn MembersPage() -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "people-fill", class: "me-2" }
-                        "Mitglieder"
+                        "{tid!(\"members-page-title\") }"
                     }
                     p { class: "text-muted mt-1",
                         Badge { color: Color::Primary, class: "me-2", "{accounts().len()}" }
-                        "registrierte Mitglieder"
+                        "{tid!(\"members-summary\") }"
                     }
                 }
             }
@@ -51,158 +52,159 @@ pub fn MembersPage() -> Element {
             if accounts().is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
-                    "Keine Mitglieder gefunden."
+                    "{tid!(\"members-empty\") }"
                 }
             } else {
                 Card {
                     class: "shadow-sm",
                     body_class: "p-0",
                     body: rsx! {
-                        div { class: "table-responsive",
-                            table { class: "table table-hover mb-0",
-                                thead { class: "table-light",
-                                    tr {
-                                        th { "ID" }
-                                        th { "Name" }
-                                        th { "E-Mail" }
-                                        th { "Status" }
-                                        th { "Abonnements" }
-                                        th { "Aktion" }
-                                    }
+                        Table { hover: true, responsive: true, class: "mb-0",
+                            thead { class: "table-light",
+                                tr {
+                                    th { "{tid!(\"members-table-id\")}" }
+                                    th { "{tid!(\"members-table-name\")}" }
+                                    th { "{tid!(\"members-table-email\")}" }
+                                    th { "{tid!(\"members-table-status\")}" }
+                                    th { "{tid!(\"members-table-subscriptions\")}" }
+                                    th { "{tid!(\"members-table-action\")}" }
                                 }
-                                tbody {
-                                    for account in accounts() {
-                                        {
-                                            let acct_id = account.id;
-                                            let acct_email = account.email.clone();
-                                            let member_subs: Vec<_> = subscriptions()
-                                                .into_iter()
-                                                .filter(|s| { s.subscriber_account_id == acct_id && crate::pages::is_active_subscription(&s.status) })
-                                                .collect();
-                                            let is_form_open = add_form_account() == Some(acct_id);
-                                            rsx! {
-                                                tr {
-                                                    td {
-                                                        code { "{account.id}" }
+                            }
+                            tbody {
+                                for account in accounts() {
+                                    {
+                                        let acct_id = account.id;
+                                        let acct_email = account.email.clone();
+                                        let member_subs: Vec<_> = subscriptions()
+                                            .into_iter()
+                                            .filter(|s| {
+                                                s.subscriber_account_id == acct_id
+                                                    && crate::pages::is_active_subscription(&s.status)
+                                            })
+                                            .collect();
+                                        let is_form_open = add_form_account() == Some(acct_id);
+                                        rsx! {
+                                            tr {
+                                                td {
+                                                    code { "{account.id}" }
+                                                }
+                                                td { "{account.name}" }
+                                                td {
+                                                    small { class: "text-muted", "{account.email}" }
+                                                }
+                                                td {
+                                                    if account.is_active {
+                                                        Badge { color: Color::Success, "{tid!(\"members-status-active\")}" }
+                                                    } else {
+                                                        Badge { color: Color::Danger, "{tid!(\"members-status-inactive\")}" }
                                                     }
-                                                    td { "{account.name}" }
-                                                    td {
-                                                        small { class: "text-muted", "{account.email}" }
-                                                    }
-                                                    td {
-                                                        if account.is_active {
-                                                            Badge { color: Color::Success, "Aktiv" }
-                                                        } else {
-                                                            Badge { color: Color::Danger, "Inaktiv" }
-                                                        }
-                                                    }
-                                                    td {
-                                                        for sub in &member_subs {
-                                                            {
-                                                                let sub_id = sub.id;
-                                                                let cat_color =  status_color(&sub.status);
-                                                                let cat = categories()
-                                                                    .into_iter()
-                                                                    .find(|c| c.id == sub.category_id);
-                                                                let cat_name = cat
-                                                                    .map(|c| c.name)
-                                                                    .unwrap_or_else(|| { format!("#{}", sub.category_id) });
-                                                                let remove = remove_subscription.clone();
-                                                                rsx! {
-                                                                    Badge {
-                                                                        color: cat_color,
-                                                                        class: "me-1 mb-1 d-inline-flex align-items-center gap-1",
-                                                                        "{cat_name}"
-                                                                        button {
-                                                                            class: "btn-close btn-close-white",
-                                                                            style: "font-size: 0.5rem;",
-                                                                            "aria-label": "Abonnement entfernen",
-                                                                            onclick: move |_| {
-                                                                                info!("Removing subscription {sub_id}");
-                                                                                if let Err(e) = remove(sub_id) {
-                                                                                    error!("remove_subscription failed: {e:?}");
-                                                                                }
-                                                                            },
-                                                                        }
+                                                }
+                                                td {
+                                                    for sub in &member_subs {
+                                                        {
+                                                            let sub_id = sub.id;
+                                                            let cat_color = status_color(&sub.status);
+                                                            let cat = categories()
+                                                                .into_iter()
+                                                                .find(|c| c.id == sub.category_id);
+                                                            let cat_name = cat
+                                                                .map(|c| c.name)
+                                                                .unwrap_or_else(|| { format!("#{}", sub.category_id) });
+                                                            let remove = remove_subscription.clone();
+                                                            rsx! {
+                                                                Badge {
+                                                                    color: cat_color,
+                                                                    class: "me-1 mb-1 d-inline-flex align-items-center gap-1",
+                                                                    "{cat_name}"
+                                                                    button {
+                                                                        class: "btn-close btn-close-white",
+                                                                        style: "font-size: 0.5rem;",
+                                                                        "aria-label": tid!("members-remove-subscription"),
+                                                                        onclick: move |_| {
+                                                                            info!("Removing subscription {sub_id}");
+                                                                            if let Err(e) = remove(sub_id) {
+                                                                                error!("remove_subscription failed: {e:?}");
+                                                                            }
+                                                                        },
                                                                     }
                                                                 }
                                                             }
                                                         }
                                                     }
-                                                    td {
-                                                        if is_form_open {
-                                                            div { class: "d-flex gap-2 align-items-center",
-                                                                select {
-                                                                    class: "form-select form-select-sm",
-                                                                    style: "width: auto; min-width: 10rem;",
-                                                                    onchange: move |e| {
-                                                                        if let Ok(id) = e.value().parse::<u64>() {
-                                                                            add_form_category.set(id);
-                                                                        }
-                                                                    },
-                                                                    option { value: "0", "– Kein Thema gewählt –" }
-                                                                    for cat in categories().into_iter().filter(|c| c.active) {
-                                                                        {
-                                                                            let already = member_subs
-                                                                                .iter()
-                                                                                .any(|s| s.category_id == cat.id);
-                                                                            if !already {
-                                                                                let val = cat.id.to_string();
-                                                                                rsx! {
-                                                                                    option { value: "{val}", "{cat.name}" }
-                                                                                }
-                                                                            } else {
-                                                                                rsx! {}
+                                                }
+                                                td {
+                                                    if is_form_open {
+                                                        div { class: "d-flex gap-2 align-items-center",
+                                                            Select {
+                                                                size: Size::Sm,
+                                                                style: "width: auto; min-width: 10rem;",
+                                                                onchange: move |e: FormEvent| {
+                                                                    if let Ok(id) = e.value().parse::<u64>() {
+                                                                        add_form_category.set(id);
+                                                                    }
+                                                                },
+                                                                option { value: "0", "{tid!(\"general-no-topic-selected\")}" }
+                                                                for cat in categories().into_iter().filter(|c| c.active) {
+                                                                    {
+                                                                        let already = member_subs
+                                                                            .iter()
+                                                                            .any(|s| s.category_id == cat.id);
+                                                                        if !already {
+                                                                            let val = cat.id.to_string();
+                                                                            rsx! {
+                                                                                option { value: "{val}", "{cat.name}" }
                                                                             }
+                                                                        } else {
+                                                                            rsx! {}
                                                                         }
                                                                     }
                                                                 }
-                                                                {
-                                                                    let add = add_subscription.clone();
-                                                                    let email_for_add = acct_email.clone();
-                                                                    rsx! {
-                                                                        Button {
-                                                                            color: Color::Success,
-                                                                            size: Size::Sm,
-                                                                            disabled: add_form_category() == 0,
-                                                                            onclick: move |_| {
-                                                                                let cat_id = add_form_category();
-                                                                                if cat_id == 0 {
-                                                                                    return;
-                                                                                }
-                                                                                info!("Adding subscription: account={acct_id}, category={cat_id}");
-                                                                                if let Err(e) = add(acct_id, email_for_add.clone(), cat_id) {
-                                                                                    error!("add_subscription failed: {e:?}");
-                                                                                } else {
-                                                                                    add_form_account.set(None);
-                                                                                    add_form_category.set(0);
-                                                                                }
-                                                                            },
-                                                                            Icon { name: "check-lg" }
-                                                                        }
-                                                                        Button {
-                                                                            color: Color::Secondary,
-                                                                            size: Size::Sm,
-                                                                            onclick: move |_| {
+                                                            }
+                                                            {
+                                                                let add = add_subscription.clone();
+                                                                let email_for_add = acct_email.clone();
+                                                                rsx! {
+                                                                    Button {
+                                                                        color: Color::Success,
+                                                                        size: Size::Sm,
+                                                                        disabled: add_form_category() == 0,
+                                                                        onclick: move |_| {
+                                                                            let cat_id = add_form_category();
+                                                                            if cat_id == 0 {
+                                                                                return;
+                                                                            }
+                                                                            info!("Adding subscription: account={acct_id}, category={cat_id}");
+                                                                            if let Err(e) = add(acct_id, email_for_add.clone(), cat_id) {
+                                                                                error!("add_subscription failed: {e:?}");
+                                                                            } else {
                                                                                 add_form_account.set(None);
                                                                                 add_form_category.set(0);
-                                                                            },
-                                                                            Icon { name: "x-lg" }
-                                                                        }
+                                                                            }
+                                                                        },
+                                                                        Icon { name: "check-lg" }
+                                                                    }
+                                                                    Button {
+                                                                        color: Color::Secondary,
+                                                                        size: Size::Sm,
+                                                                        onclick: move |_| {
+                                                                            add_form_account.set(None);
+                                                                            add_form_category.set(0);
+                                                                        },
+                                                                        Icon { name: "x-lg" }
                                                                     }
                                                                 }
                                                             }
-                                                        } else {
-                                                            Button {
-                                                                color: Color::Primary,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    add_form_account.set(Some(acct_id));
-                                                                    add_form_category.set(0);
-                                                                },
-                                                                Icon { name: "plus-lg", class: "me-1" }
-                                                                "Thema hinzufügen"
-                                                            }
+                                                        }
+                                                    } else {
+                                                        Button {
+                                                            color: Color::Primary,
+                                                            size: Size::Sm,
+                                                            onclick: move |_| {
+                                                                add_form_account.set(Some(acct_id));
+                                                                add_form_category.set(0);
+                                                            },
+                                                            Icon { name: "plus-lg", class: "me-1" }
+                                                            "{tid!(\"members-add-topic\") }"
                                                         }
                                                     }
                                                 }

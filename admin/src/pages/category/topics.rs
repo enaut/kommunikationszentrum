@@ -5,6 +5,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_rename_topic, use_reducer_set_category_topics,
@@ -63,7 +64,9 @@ pub fn TopicCheckRow(
     let is_renaming = renaming_topic_id() == Some(topic_id);
 
     rsx! {
-        div { class: "list-group-item d-flex align-items-center gap-2 position-relative",
+        ListGroupItem {
+            tag: "div",
+            class: "d-flex align-items-center gap-2 position-relative",
             if is_renaming {
                 input {
                     class: "form-control",
@@ -84,10 +87,8 @@ pub fn TopicCheckRow(
                         }
                         let new_name = rename_draft.read().trim().to_string();
                         if new_name.is_empty() {
-                            topics_message.set(Some((
-                                "Name darf nicht leer sein.".to_string(),
-                                Color::Danger,
-                            )));
+                            topics_message
+                                .set(Some((tid!("category-topic-name-empty"), Color::Danger)));
                             return;
                         }
                         if new_name == topic_name() {
@@ -97,17 +98,12 @@ pub fn TopicCheckRow(
                         match rename_topic_key(topic_id, new_name) {
                             Ok(()) => {
                                 renaming_topic_id.set(None);
-                                topics_message.set(Some((
-                                    "Schlagwort umbenannt.".to_string(),
-                                    Color::Success,
-                                )));
+                                topics_message
+                                    .set(Some((tid!("category-topic-renamed"), Color::Success)));
                             }
                             Err(e) => {
                                 error!("rename_topic failed: {e:?}");
-                                topics_message.set(Some((
-                                    format!("Fehler: {e:?}"),
-                                    Color::Danger,
-                                )));
+                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                             }
                         }
                     },
@@ -123,60 +119,45 @@ pub fn TopicCheckRow(
                         match rename_topic_blur(topic_id, new_name) {
                             Ok(()) => {
                                 renaming_topic_id.set(None);
-                                topics_message.set(Some((
-                                    "Schlagwort umbenannt.".to_string(),
-                                    Color::Success,
-                                )));
+                                topics_message
+                                    .set(Some((tid!("category-topic-renamed"), Color::Success)));
                             }
                             Err(e) => {
                                 error!("rename_topic failed: {e:?}");
-                                topics_message.set(Some((
-                                    format!("Fehler: {e:?}"),
-                                    Color::Danger,
-                                )));
+                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                             }
                         }
                     },
                 }
             } else {
-                div { class: "form-check mb-0 flex-grow-1",
-                    input {
-                        class: "form-check-input",
-                        r#type: "checkbox",
-                        id: "topic-check-{topic_id}",
-                        checked: is_checked,
-                        onchange: move |_| {
-                            let mut next = current_assigned_topic_names(
-                                category_id,
-                                &topics(),
-                                &category_topics(),
-                            );
-                            let current_name = topic_name();
-                            if is_checked {
-                                next.retain(|n| n != &current_name);
-                            } else if !current_name.is_empty() {
-                                next.push(current_name);
+                Checkbox {
+                    input_id: "topic-check-{topic_id}",
+                    class: "mb-0 flex-grow-1",
+                    checked: is_checked,
+                    label: name.clone(),
+                    onchange: move |_| {
+                        let mut next = current_assigned_topic_names(
+                            category_id,
+                            &topics(),
+                            &category_topics(),
+                        );
+                        let current_name = topic_name();
+                        if is_checked {
+                            next.retain(|n| n != &current_name);
+                        } else if !current_name.is_empty() {
+                            next.push(current_name);
+                        }
+                        next.sort();
+                        next.dedup();
+                        info!("Setting topics for category {category_id}: {next:?}");
+                        match set_category_topics(category_id, next) {
+                            Ok(()) => topics_message.set(None),
+                            Err(e) => {
+                                error!("set_category_topics failed: {e:?}");
+                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                             }
-                            next.sort();
-                            next.dedup();
-                            info!("Setting topics for category {category_id}: {next:?}");
-                            match set_category_topics(category_id, next) {
-                                Ok(()) => topics_message.set(None),
-                                Err(e) => {
-                                    error!("set_category_topics failed: {e:?}");
-                                    topics_message.set(Some((
-                                        format!("Fehler: {e:?}"),
-                                        Color::Danger,
-                                    )));
-                                }
-                            }
-                        },
-                    }
-                    label {
-                        class: "form-check-label",
-                        r#for: "topic-check-{topic_id}",
-                        "{name}"
-                    }
+                        }
+                    },
                 }
                 Button {
                     color: Color::Success,
@@ -216,7 +197,7 @@ pub fn CategoryTopicsCard(
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "bookmark-star", class: "me-2" }
-                    "Schlagwörter"
+                    "{tid!(\"category-topics-title\")}"
                 }
             },
             body: rsx! {
@@ -224,15 +205,15 @@ pub fn CategoryTopicsCard(
                     Alert { color, class: "mb-3", "{msg}" }
                 }
                 p { class: "text-muted small mb-3",
-                    "Schlagwörter gruppieren Mailinglisten auf der Mitglieder-Startseite in Tabs."
+                    "{tid!(\"category-topics-description\")}"
                 }
                 if topic_ids.is_empty() {
                     div { class: "text-muted mb-3",
                         Icon { name: "inbox", class: "me-2" }
-                        "Noch keine Schlagwörter vorhanden."
+                        "{tid!(\"category-topics-empty\")}"
                     }
                 } else {
-                    div { class: "list-group mb-3",
+                    ListGroup { tag: "div", class: "mb-3",
                         for topic_id in topic_ids.iter().copied() {
                             TopicCheckRow {
                                 key: "{topic_id}",
@@ -246,27 +227,26 @@ pub fn CategoryTopicsCard(
                         }
                     }
                 }
-                div { class: "input-group",
+                InputGroup {
                     {
                         let set_topics_enter = set_category_topics.clone();
                         let set_topics_click = set_category_topics.clone();
                         rsx! {
-                            input {
-                                class: "form-control",
+                            Input {
                                 r#type: "text",
-                                placeholder: "Neues Schlagwort …",
+                                placeholder: tid!("category-topics-placeholder"),
                                 value: "{new_topic_name}",
-                                oninput: move |e| new_topic_name.set(e.value()),
-                                onkeydown: move |e| {
+                                oninput: move |e: FormEvent| new_topic_name.set(e.value()),
+                                onkeydown: move |e: KeyboardEvent| {
                                     if e.key() == Key::Enter {
                                         let name = new_topic_name.read().trim().to_string();
                                         if name.is_empty() {
                                             return;
                                         }
                                         let mut next = current_assigned_topic_names(
-                                            category_id,
-                                            &topics(),
-                                            &category_topics(),
+                                             category_id,
+                                             &topics(),
+                                             &category_topics(),
                                         );
                                         next.push(name);
                                         next.sort();
@@ -274,17 +254,17 @@ pub fn CategoryTopicsCard(
                                         match set_topics_enter(category_id, next) {
                                             Ok(()) => {
                                                 new_topic_name.set(String::new());
-                                                topics_message.set(Some((
-                                                    "Schlagwort hinzugefügt.".to_string(),
-                                                    Color::Success,
-                                                )));
+                                                topics_message
+                                                    .set(
+                                                        Some((
+                                                            tid!("category-topic-added"),
+                                                            Color::Success,
+                                                        )),
+                                                    );
                                             }
                                             Err(e) => {
                                                 error!("set_category_topics (add) failed: {e:?}");
-                                                topics_message.set(Some((
-                                                    format!("Fehler: {e:?}"),
-                                                    Color::Danger,
-                                                )));
+                                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                                             }
                                         }
                                     }
@@ -309,17 +289,12 @@ pub fn CategoryTopicsCard(
                                     match set_topics_click(category_id, next) {
                                         Ok(()) => {
                                             new_topic_name.set(String::new());
-                                            topics_message.set(Some((
-                                                "Schlagwort hinzugefügt.".to_string(),
-                                                Color::Success,
-                                            )));
+                                            topics_message
+                                                .set(Some((tid!("category-topic-added"), Color::Success)));
                                         }
                                         Err(e) => {
                                             error!("set_category_topics (add) failed: {e:?}");
-                                            topics_message.set(Some((
-                                                format!("Fehler: {e:?}"),
-                                                Color::Danger,
-                                            )));
+                                            topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
                                         }
                                     }
                                 },

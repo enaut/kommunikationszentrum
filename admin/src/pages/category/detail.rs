@@ -1,10 +1,8 @@
 use std::collections::HashSet;
 
-use ::dioxus::{
-    logger::tracing::error,
-    prelude::*,
-};
+use ::dioxus::{logger::tracing::error, prelude::*};
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_update_message_category, use_subscription, use_table_visible_accounts,
@@ -29,6 +27,10 @@ pub fn CategoryDetailsCard(
 ) -> Element {
     let update_category = use_reducer_update_message_category();
     let category_id = category.id;
+    let visibility_value = match visibility() {
+        CategoryVisibility::Public => "Public",
+        CategoryVisibility::Private => "Private",
+    };
 
     rsx! {
         Card {
@@ -37,69 +39,52 @@ pub fn CategoryDetailsCard(
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "pencil-square", class: "me-2" }
-                    "Details bearbeiten"
+                    "{tid!(\"category-detail-title\") }"
                 }
             },
             body: rsx! {
                 if let Some((msg, color)) = save_message.read().clone() {
                     Alert { color, class: "mb-3", "{msg}" }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "Name" }
-                    input {
-                        class: "form-control",
+                FormGroup { label: tid!("category-detail-name"),
+                    Input {
                         r#type: "text",
                         value: "{name}",
-                        oninput: move |e| name.set(e.value()),
+                        oninput: move |e: FormEvent| name.set(e.value()),
                     }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "Beschreibung" }
-                    textarea {
-                        class: "form-control",
-                        rows: "3",
+                FormGroup { label: tid!("category-detail-description"),
+                    Textarea {
+                        rows: 3,
                         value: "{description}",
-                        oninput: move |e| description.set(e.value()),
+                        oninput: move |e: FormEvent| description.set(e.value()),
                     }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "Sichtbarkeit" }
-                    select {
-                        class: "form-select",
-                        onchange: move |e| {
+                FormGroup { label: tid!("category-detail-visibility"),
+                    Select {
+                        value: visibility_value,
+                        onchange: move |e: FormEvent| {
                             match e.value().as_str() {
                                 "Public" => visibility.set(CategoryVisibility::Public),
                                 "Private" => visibility.set(CategoryVisibility::Private),
                                 _ => {}
                             }
                         },
-                        option {
-                            value: "Public",
-                            selected: *visibility.read() == CategoryVisibility::Public,
-                            "Öffentlich"
-                        }
-                        option {
-                            value: "Private",
-                            selected: *visibility.read() == CategoryVisibility::Private,
-                            "Privat"
-                        }
+                        option { value: "Public", "{tid!(\"category-visibility-public\")}" }
+                        option { value: "Private", "{tid!(\"category-visibility-private\")}" }
                     }
-                    div { class: "form-text",
-                        "Öffentliche Themen sind für alle Mitglieder sichtbar. Private Themen sind nur für Administratoren und abonnierte Mitglieder sichtbar."
+                    FormText {
+                        "{tid!(\"category-detail-visibility-help\") }"
                     }
                 }
-                div { class: "mb-3",
-                    label { class: "form-label", "E-Mail-Adresse" }
-                    input {
-                        class: "form-control",
+                FormGroup { label: tid!("category-detail-email"),
+                    Input {
                         r#type: "text",
                         value: "{category.email_address}",
                         disabled: true,
                         readonly: true,
                     }
-                    div { class: "form-text",
-                        "Die E-Mail-Adresse ist fest mit dem Thema verknüpft und kann nicht geändert werden."
-                    }
+                    FormText { "{tid!(\"category-detail-email-help\") }" }
                 }
                 Button {
                     color: Color::Primary,
@@ -111,19 +96,17 @@ pub fn CategoryDetailsCard(
                         match update_category(category_id, n, d, Some(v)) {
                             Ok(()) => {
                                 save_message
-                                    .set(
-                                        Some(("Änderungen gespeichert.".to_string(), Color::Success)),
-                                    );
+                                    .set(Some((tid!("category-detail-saved"), Color::Success)));
                             }
                             Err(e) => {
                                 error!("update_message_category failed: {e:?}");
                                 save_message
-                                    .set(Some((format!("Fehler beim Speichern: {e:?}"), Color::Danger)));
+                                    .set(Some((format!("{}: {e:?}", tid!("category-detail-save-error")), Color::Danger)));
                             }
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "Speichern"
+                    "{tid!(\"category-detail-save\") }"
                 }
             },
         }
@@ -180,13 +163,13 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
             Container { fluid: true, class: "mt-4",
                 Alert { color: Color::Warning, class: "d-flex align-items-center",
                     Icon { name: "exclamation-triangle", class: "me-2" }
-                    "Thema nicht gefunden (evtl. gelöscht)."
+                    "{tid!(\"category-detail-not-found\") }"
                 }
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| on_back.call(()),
                     Icon { name: "arrow-left", class: "me-2" }
-                    "Zurück zur Übersicht"
+                    "{tid!(\"category-detail-back\") }"
                 }
             }
         };
@@ -230,20 +213,36 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                         class: "mb-2",
                         onclick: move |_| on_back.call(()),
                         Icon { name: "arrow-left", class: "me-2" }
-                        "Zurück zur Übersicht"
+                        "{tid!(\"category-detail-back\") }"
                     }
                     h2 { class: "mb-0",
                         Icon { name: "tag-fill", class: "me-2" }
                         "{cat.name}"
                         if cat.active {
-                            Badge { color: Color::Success, class: "ms-2 align-middle", "Aktiv" }
+                            Badge {
+                                color: Color::Success,
+                                class: "ms-2 align-middle",
+                                "{tid!(\"category-status-active\") }"
+                            }
                         } else {
-                            Badge { color: Color::Secondary, class: "ms-2 align-middle", "Inaktiv" }
+                            Badge {
+                                color: Color::Secondary,
+                                class: "ms-2 align-middle",
+                                "{tid!(\"category-status-inactive\") }"
+                            }
                         }
                         if cat.visibility == CategoryVisibility::Public {
-                            Badge { color: Color::Info, class: "ms-2 align-middle", "Öffentlich" }
+                            Badge {
+                                color: Color::Info,
+                                class: "ms-2 align-middle",
+                                "{tid!(\"category-visibility-public\") }"
+                            }
                         } else {
-                            Badge { color: Color::Warning, class: "ms-2 align-middle", "Privat" }
+                            Badge {
+                                color: Color::Warning,
+                                class: "ms-2 align-middle",
+                                "{tid!(\"category-visibility-private\") }"
+                            }
                         }
                     }
                 }
@@ -289,11 +288,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                 available_accounts,
             }
 
-            EditSubscriptionModal {
-                show: show_edit_modal,
-                category_id,
-                target: edit_target,
-            }
+            EditSubscriptionModal { show: show_edit_modal, category_id, target: edit_target }
         }
     }
 }
