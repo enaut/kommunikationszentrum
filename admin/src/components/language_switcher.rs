@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::{Dropdown, DropdownItem, Icon};
 
+use dioxus_i18n::tid;
 use unic_langid::langid;
 
 use crate::i18n::{switch_language, use_i18n};
@@ -33,14 +34,14 @@ pub fn LanguageSwitcher() -> Element {
                     onclick: move |_| {
                         switch_language(i18n, langid!("de"));
                     },
-                    "Deutsch (DE)"
+                    "{tid!(\"language-switcher-de\") }"
                 }
                 DropdownItem {
                     active: current_code == "en",
                     onclick: move |_| {
                         switch_language(i18n, langid!("en"));
                     },
-                    "English (EN)"
+                    "{tid!(\"language-switcher-en\") }"
                 }
             }
         }

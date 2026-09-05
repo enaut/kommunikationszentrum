@@ -200,7 +200,7 @@ pub fn CategorySubscribersCard(
                                                         }
                                                     },
                                                     Icon { name: "trash", class: "me-1" }
-                                                    "{tid!(\"subscriber-cancel\") }"
+                                                    "{tid!(\"subscriber-remove\") }"
                                                 }
                                             }
                                         }

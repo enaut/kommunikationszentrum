@@ -8,6 +8,9 @@ navbar-settings = Settings
 navbar-status = Status
 navbar-logout = Log out
 navbar-language = Language
+language-switcher-de = Deutsch (DE)
+language-switcher-en = English (EN)
+members-filter-count = { $filtered } of { $total } members
 
 # App shell
 app-login-title = Communication Center
@@ -136,6 +139,7 @@ subscriber-edit-title = Edit subscription
 subscriber-email-label = E-Mail
 subscriber-error-prefix = Error
 subscriber-select-member = – Select member –
+subscriber-remove = Remove
 subscriber-save = Save
 
 # Subscription statuses

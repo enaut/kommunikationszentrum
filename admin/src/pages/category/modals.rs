@@ -58,6 +58,11 @@ pub fn AddSubscriberModal(
         .collect();
 
     let available_for_filter = available_accounts.clone();
+    let filter_count_text = tid!(
+        "members-filter-count",
+        filtered: filtered_accounts.len(),
+        total: available_accounts.len()
+    );
 
     rsx! {
         Modal {
@@ -124,7 +129,7 @@ pub fn AddSubscriberModal(
                         }
                         if !filter_lower.is_empty() {
                             FormText {
-                                "{filtered_accounts.len()} {tid!(\"general-filter\")} {available_accounts.len()}"
+                                "{filter_count_text}"
                             }
                         }
                     }
