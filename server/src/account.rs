@@ -85,7 +85,7 @@ pub struct UserSyncData {
     // Categories (e.g. Verteilpunkt mailing lists) the user should currently be
     // subscribed to. Categories are created if missing and never modified or
     // removed by this sync path.
-    pub categories: Option<Vec<crate::mailing::CategorySyncData>>,
+    pub categories: Option<Vec<crate::categories::CategorySyncData>>,
     // Email addresses of categories the user should be unsubscribed from as
     // part of this sync (e.g. their previous Verteilpunkt, after a change).
     // Only the subscription is deactivated; the category itself is untouched.
@@ -311,7 +311,7 @@ pub(crate) fn do_sync_user(
                 // skipped so they don't block the rest of the account sync.
                 for category in data.categories.unwrap_or_default() {
                     let category_email = category.email_address.clone();
-                    if let Err(e) = crate::mailing::do_add_and_subscribe_category(
+                    if let Err(e) = crate::categories::do_add_and_subscribe_category(
                         ctx,
                         data.mitgliedsnr,
                         subscriber_email.clone(),
@@ -335,7 +335,7 @@ pub(crate) fn do_sync_user(
                 // change) only ever deactivate a subscription; the category row itself is
                 // never touched.
                 for category_email in data.unsubscribe_category_emails.unwrap_or_default() {
-                    if let Err(e) = crate::mailing::do_remove_subscription_for_category_email(
+                    if let Err(e) = crate::categories::do_remove_subscription_for_category_email(
                         ctx,
                         data.mitgliedsnr,
                         &category_email,

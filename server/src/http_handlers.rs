@@ -1,6 +1,6 @@
 use crate::account::webhook_tokens;
 use crate::account::UserSyncData;
-use crate::mailing::{message_categories, unsubscribe_subscription_by_token};
+use crate::categories::{message_categories, unsubscribe_subscription_by_token};
 use crate::mta::MtaConnectionLog;
 use crate::mta::{blocked_ips, mta_connection_log};
 use log::info;

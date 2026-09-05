@@ -2,9 +2,9 @@ use spacetimedb::{ReducerContext, Table, Timestamp, ViewContext};
 use stalwart_mta_hook_types::Request as MtaHookRequest;
 
 use crate::account::{account, account__view, admin_identities, is_admin_user};
+use crate::categories::{message_categories, subscriptions, subscriptions__view};
 use crate::delivery;
 use crate::mail_message;
-use crate::mailing::{message_categories, subscriptions, subscriptions__view};
 
 #[spacetimedb::table(accessor = mta_connection_log)]
 pub struct MtaConnectionLog {
@@ -289,7 +289,6 @@ pub(crate) fn handle_data_stage(
         }
     }
 }
-
 
 /// Find the first header whose name (case-insensitive) matches `name` and return its trimmed value.
 fn extract_header(headers: &[(String, String)], name: &str) -> Option<String> {

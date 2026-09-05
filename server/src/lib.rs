@@ -9,11 +9,11 @@ use delivery::ExpireStaleDeliveryClaimsSchedule;
 use delivery::RequeueTemporaryFailedMailsSchedule;
 
 mod account;
+mod categories;
 mod delivery;
 mod domain;
 mod http_handlers;
 mod mail_message;
-mod mailing;
 mod mta;
 
 #[spacetimedb::reducer(init)]
