@@ -278,7 +278,7 @@ async fn connect_to_spacetimedb(
     // Wait until we are connected and have our token/identity
     let mut attempts = 0;
     while connection_token.lock().unwrap().is_none() {
-        if attempts >= 30 {
+        if attempts >= 300 {
             return Err("Failed to connect to SpacetimeDB after 15 seconds".into());
         }
         attempts += 1;
