@@ -9,24 +9,88 @@ navbar-status = Status
 navbar-logout = Log out
 navbar-language = Language
 
+# App shell
+app-login-title = Communication Center
+app-login-subtitle = SoLaWi message management
+app-login-button = Sign in with SoLaWi account
+app-loading = Loading…
+app-authenticating = Authentication is being processed…
+app-authentication-error = Authentication error
+app-retry = Try again
+app-connection-loading = Connecting to SpacetimeDB…
+app-connection-lost = Connection to SpacetimeDB is disconnected or failed.
+
+# General UI
+general-filter = Filter:
+general-all = All
+general-no-results = – No results –
+general-select-member = – Select member –
+general-no-topic-selected = – No topic selected –
+general-none = –
+
+# Members
+members-page-title = Members
+members-summary = registered members
+members-empty = No members found.
+members-table-id = ID
+members-table-name = Name
+members-table-email = E-Mail
+members-table-status = Status
+members-table-subscriptions = Subscriptions
+members-table-action = Action
+members-status-active = Active
+members-status-inactive = Inactive
+members-remove-subscription = Remove subscription
+members-add-topic = Add topic
+
+# Messages
+messages-page-title = Messages
+messages-summary = received messages
+messages-filter = Filter:
+messages-filter-all = All
+messages-empty = No messages available.
+messages-empty-category = No messages in this category.
+messages-no-subject = (no subject)
+messages-select-placeholder = Select a message from the list
+messages-header-from = From
+messages-header-to = To
+messages-header-cc = CC
+messages-header-date = Date
+messages-header-message-id = Message-ID
+messages-header-reply-to = Reply-To
+messages-body-empty = Message content was not saved (message too large).
+
+# Subscriptions
+subscriptions-page-title = My Topics
+subscriptions-page-description = Choose the topics you want to receive emails about.
+subscriptions-tab-other = Other
+subscriptions-empty = No topics available.
+subscriptions-empty-category = No mailing lists in this area.
+subscriptions-subscribed = Subscribed
+subscriptions-public = Public
+subscriptions-private = Private
+subscriptions-required = This topic is required to participate in the SoLaWiS community
+subscriptions-unsubscribe = Unsubscribe
+subscriptions-subscribe = Subscribe
+
 # Category list page
 category-page-title = Topics
 category-add-title = Add New Topic
-category-add-success = New topic successfully created!
+category-add-success = New topic created successfully!
 category-form-name = Topic
-category-form-name-placeholder = Topic Name
-category-form-email = Email Address
+category-form-name-placeholder = Topic name
+category-form-email = Email address
 category-form-mailbox-placeholder = mailbox
 category-form-domain-select = Domain…
 category-form-description = Description
 category-form-description-placeholder = Short description
-category-form-visibility = Visibility
+category-form-visibility = Visible
 category-visibility-public = Public
 category-visibility-private = Private
 category-table-title = Existing Topics
 category-table-empty = No topics found.
 category-table-th-name = Name
-category-table-th-email = Email Address
+category-table-th-email = Email address
 category-table-th-description = Description
 category-table-th-status = Status
 category-table-th-visibility = Visibility
@@ -36,6 +100,18 @@ category-status-active = Active
 category-status-inactive = Inactive
 category-action-details = Details
 category-action-delete = Delete
+category-detail-title = Edit details
+category-detail-name = Name
+category-detail-description = Description
+category-detail-visibility = Visibility
+category-detail-visibility-help = Public topics are visible to all members. Private topics are visible only to administrators and subscribed members.
+category-detail-email = Email address
+category-detail-email-help = The email address is fixed to the topic and cannot be changed.
+category-detail-save = Save
+category-detail-saved = Changes saved.
+category-detail-save-error = Save failed
+category-detail-back = Back to overview
+category-detail-not-found = Topic not found (may have been deleted).
 
 # Category topics
 category-topics-title = Tags
@@ -46,3 +122,99 @@ category-topic-name-empty = Name cannot be empty.
 category-topic-renamed = Tag renamed.
 category-topic-added = Tag added.
 category-topic-error = Error
+
+# Category subscribers
+subscriber-add-title = Add subscriber
+subscriber-add-all-claimed = All members are already subscribed.
+subscriber-member-label = Member
+subscriber-search-placeholder = Filter by name or email …
+subscriber-status-label = Status
+subscriber-cancel = Cancel
+subscriber-member-not-found = Member not found.
+subscriber-add = Add
+subscriber-edit-title = Edit subscription
+subscriber-email-label = E-Mail
+subscriber-error-prefix = Error
+subscriber-select-member = – Select member –
+subscriber-save = Save
+
+# Subscription statuses
+subscription-status-manually-subscribed = Manually subscribed
+subscription-status-automatically-subscribed = Automatically subscribed
+subscription-status-manually-unsubscribed = Manually unsubscribed
+subscription-status-automatically-unsubscribed = Automatically unsubscribed
+subscription-status-link-unsubscribed = Unsubscribed via link
+subscription-status-required-subscribed = Membership required
+
+# Management pages
+management-config-title = Management · Settings
+management-config-admin-identities = Admin identities
+management-config-admin-identity-placeholder = Identity hex (64 characters)
+management-config-admin-no-identities = No admin identities registered.
+management-config-admin-add = Add
+management-config-webhook-title = Webhook Tokens
+management-config-webhook-label = Label
+management-config-webhook-permissions = Permissions (comma-separated, e.g. mta-hook,sync-user)
+management-config-token-generate = Generate token
+management-config-token-copy = Copy
+management-config-token-copied = Copied!
+management-config-token-copy-failed = Copy failed!
+management-config-token-create = Create token
+management-config-token-empty = No webhook tokens created.
+management-config-token-security = The plaintext token is shown only once in the browser and is not sent to the server. The server stores only a BLAKE3 hash.
+management-config-domains-title = Domains
+management-config-domains-sync = Synchronize now
+management-config-domains-empty = No domains available. Please synchronize.
+management-config-sync-success = Synchronization completed
+management-config-sync-found = found
+management-config-sync-added = added
+management-config-sync-updated = updated
+management-config-sync-removed = removed
+management-config-table-id = ID
+management-config-table-name = Name
+management-config-table-description = Description
+
+management-status-title = Management · Status
+status-connection-title = SpacetimeDB connection
+status-identity = Identity
+status-member-number = Member number
+status-email = E-Mail
+status-email-empty = –
+status-connection-connecting = Connecting…
+status-connection-reconnecting = Reconnecting
+status-connection-error = Connection error
+status-connection-disconnected = Not connected
+status-error-label = Error
+status-temporary-failed-title = mail_delivery_temporary_failed
+status-temporary-failed-empty = No temporarily failed mail deliveries.
+status-temporary-failed-delivery-id = Delivery ID
+status-temporary-failed-recipient = Recipient
+status-temporary-failed-retry-at = Retry at
+status-temporary-failed-reason = Reason
+status-temporary-failed-action = Action
+status-temporary-failed-cancel = Cancel
+status-delivery-events-title = mail_delivery_events
+status-delivery-events-empty = No mail delivery events.
+status-delivery-events-id = ID
+status-delivery-events-type = Type
+status-delivery-events-attempt = Attempt
+status-delivery-events-details = Details
+status-pending-title = mail_delivery_pending
+status-pending-empty = No open deliveries.
+status-pending-id = ID
+status-pending-recipient = Recipient
+status-pending-ingress = Ingress
+status-claimed-title = mail_delivery_claimed
+status-claimed-empty = No claimed deliveries.
+status-claimed-id = ID
+status-claimed-worker = Worker
+status-claimed-lease = Lease
+status-claimed-recipient = Recipient
+status-done-title = mail_delivery_done
+status-done-empty = No completed deliveries.
+status-done-id = ID
+status-done-status = Status
+status-done-recipient = Recipient
+status-done-reason = Reason
+status-done-sent = sent
+status-done-failed = failed

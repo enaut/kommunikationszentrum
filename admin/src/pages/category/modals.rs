@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::use_reducer_admin_add_subscription;
 use crate::module_bindings::{Account, SubscriptionStatus};
@@ -61,20 +62,20 @@ pub fn AddSubscriberModal(
     rsx! {
         Modal {
             show,
-            title: "Abonnent hinzufügen",
+            title: tid!("subscriber-add-title"),
             body: rsx! {
                 if let Some(err) = add_sub_error.read().clone() {
                     Alert { color: Color::Danger, class: "mb-3", "{err}" }
                 }
                 if available_accounts.is_empty() {
-                    p { class: "text-muted mb-0", "Alle Mitglieder sind bereits abonniert." }
+                    p { class: "text-muted mb-0", "{tid!(\"subscriber-add-all-claimed\") }" }
                 } else {
-                    FormGroup { label: "Mitglied",
+                    FormGroup { label: tid!("subscriber-member-label"),
                         InputGroup { class: "mb-2",
                             InputGroupText { Icon { name: "search" } }
                             Input {
                                 r#type: "search",
-                                placeholder: "Name oder E-Mail filtern …",
+                                placeholder: tid!("subscriber-search-placeholder"),
                                 value: "{account_filter}",
                                 oninput: move |e: FormEvent| {
                                     let new_val = e.value();
@@ -108,9 +109,9 @@ pub fn AddSubscriberModal(
                             },
                             option { value: "0",
                                 if filtered_accounts.is_empty() {
-                                    "– Keine Ergebnisse –"
+                                    "{tid!(\"general-no-results\") }"
                                 } else {
-                                    "– Mitglied wählen –"
+                                    "{tid!(\"subscriber-select-member\") }"
                                 }
                             }
                             for acc in filtered_accounts.clone() {
@@ -123,12 +124,12 @@ pub fn AddSubscriberModal(
                         }
                         if !filter_lower.is_empty() {
                             FormText {
-                                "{filtered_accounts.len()} von {available_accounts.len()} Mitgliedern"
+                                "{filtered_accounts.len()} {tid!(\"general-filter\")} {available_accounts.len()}"
                             }
                         }
                     }
 
-                    FormGroup { label: "Status",
+                    FormGroup { label: tid!("subscriber-status-label"),
                         Select {
                             value: status_key(&selected_status()).to_string(),
                             onchange: move |e: FormEvent| {
@@ -151,7 +152,7 @@ pub fn AddSubscriberModal(
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| show.set(false),
-                    "Abbrechen"
+                    "{tid!(\"subscriber-cancel\") }"
                 }
                 Button {
                     color: Color::Primary,
@@ -162,7 +163,7 @@ pub fn AddSubscriberModal(
                             return;
                         }
                         let Some(acc) = available_accounts.iter().find(|a| a.id == acc_id) else {
-                            add_sub_error.set(Some("Mitglied nicht gefunden.".to_string()));
+                            add_sub_error.set(Some(tid!("subscriber-member-not-found")));
                             return;
                         };
                         let status = selected_status();
@@ -175,12 +176,12 @@ pub fn AddSubscriberModal(
                             }
                             Err(e) => {
                                 error!("admin_add_subscription failed: {e:?}");
-                                add_sub_error.set(Some(format!("Fehler: {e:?}")));
+                                add_sub_error.set(Some(format!("{}: {e:?}", tid!("subscriber-error-prefix"))));
                             }
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "Hinzufügen"
+                    "{tid!(\"subscriber-add\") }"
                 }
             },
         }
@@ -220,12 +221,12 @@ pub fn EditSubscriptionModal(
     rsx! {
         Modal {
             show,
-            title: "Abonnement bearbeiten",
+            title: tid!("subscriber-edit-title"),
             body: rsx! {
                 if let Some(err) = edit_sub_error.read().clone() {
                     Alert { color: Color::Danger, class: "mb-3", "{err}" }
                 }
-                FormGroup { label: "Mitglied",
+                FormGroup { label: tid!("subscriber-member-label"),
                     Input {
                         r#type: "text",
                         value: "{account_name}",
@@ -233,7 +234,7 @@ pub fn EditSubscriptionModal(
                         readonly: true,
                     }
                 }
-                FormGroup { label: "E-Mail",
+                FormGroup { label: tid!("subscriber-email-label"),
                     Input {
                         r#type: "text",
                         value: "{account_email}",
@@ -241,7 +242,7 @@ pub fn EditSubscriptionModal(
                         readonly: true,
                     }
                 }
-                FormGroup { label: "Status",
+                FormGroup { label: tid!("subscriber-status-label"),
                     Select {
                         value: status_key(&edit_status()).to_string(),
                         onchange: move |e: FormEvent| {
@@ -263,7 +264,7 @@ pub fn EditSubscriptionModal(
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| show.set(false),
-                    "Abbrechen"
+                    "{tid!(\"subscriber-cancel\") }"
                 }
                 Button {
                     color: Color::Primary,
@@ -280,12 +281,12 @@ pub fn EditSubscriptionModal(
                             }
                             Err(e) => {
                                 error!("admin_add_subscription (edit) failed: {e:?}");
-                                edit_sub_error.set(Some(format!("Fehler: {e:?}")));
+                                edit_sub_error.set(Some(format!("{}: {e:?}", tid!("subscriber-error-prefix"))));
                             }
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "Speichern"
+                    "{tid!(\"subscriber-save\") }"
                 }
             },
         }

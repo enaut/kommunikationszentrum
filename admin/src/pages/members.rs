@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::{
     module_bindings::dioxus::{
@@ -39,11 +40,11 @@ pub fn MembersPage() -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "people-fill", class: "me-2" }
-                        "Mitglieder"
+                        "{tid!(\"members-page-title\") }"
                     }
                     p { class: "text-muted mt-1",
                         Badge { color: Color::Primary, class: "me-2", "{accounts().len()}" }
-                        "registrierte Mitglieder"
+                        "{tid!(\"members-summary\") }"
                     }
                 }
             }
@@ -51,7 +52,7 @@ pub fn MembersPage() -> Element {
             if accounts().is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
-                    "Keine Mitglieder gefunden."
+                    "{tid!(\"members-empty\") }"
                 }
             } else {
                 Card {
@@ -61,12 +62,12 @@ pub fn MembersPage() -> Element {
                         Table { hover: true, responsive: true, class: "mb-0",
                             thead { class: "table-light",
                                 tr {
-                                    th { "ID" }
-                                    th { "Name" }
-                                    th { "E-Mail" }
-                                    th { "Status" }
-                                    th { "Abonnements" }
-                                    th { "Aktion" }
+                                    th { "{tid!(\"members-table-id\")}" }
+                                    th { "{tid!(\"members-table-name\")}" }
+                                    th { "{tid!(\"members-table-email\")}" }
+                                    th { "{tid!(\"members-table-status\")}" }
+                                    th { "{tid!(\"members-table-subscriptions\")}" }
+                                    th { "{tid!(\"members-table-action\")}" }
                                 }
                             }
                             tbody {
@@ -93,9 +94,9 @@ pub fn MembersPage() -> Element {
                                                 }
                                                 td {
                                                     if account.is_active {
-                                                        Badge { color: Color::Success, "Aktiv" }
+                                                        Badge { color: Color::Success, "{tid!(\"members-status-active\")}" }
                                                     } else {
-                                                        Badge { color: Color::Danger, "Inaktiv" }
+                                                        Badge { color: Color::Danger, "{tid!(\"members-status-inactive\")}" }
                                                     }
                                                 }
                                                 td {
@@ -118,7 +119,7 @@ pub fn MembersPage() -> Element {
                                                                     button {
                                                                         class: "btn-close btn-close-white",
                                                                         style: "font-size: 0.5rem;",
-                                                                        "aria-label": "Abonnement entfernen",
+                                                                        "aria-label": tid!("members-remove-subscription"),
                                                                         onclick: move |_| {
                                                                             info!("Removing subscription {sub_id}");
                                                                             if let Err(e) = remove(sub_id) {
@@ -142,7 +143,7 @@ pub fn MembersPage() -> Element {
                                                                         add_form_category.set(id);
                                                                     }
                                                                 },
-                                                                option { value: "0", "– Kein Thema gewählt –" }
+                                                                option { value: "0", "{tid!(\"general-no-topic-selected\")}" }
                                                                 for cat in categories().into_iter().filter(|c| c.active) {
                                                                     {
                                                                         let already = member_subs
@@ -203,7 +204,7 @@ pub fn MembersPage() -> Element {
                                                                 add_form_category.set(0);
                                                             },
                                                             Icon { name: "plus-lg", class: "me-1" }
-                                                            "Thema hinzufügen"
+                                                            "{tid!(\"members-add-topic\") }"
                                                         }
                                                     }
                                                 }

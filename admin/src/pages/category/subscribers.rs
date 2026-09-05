@@ -3,6 +3,7 @@ use ::dioxus::{
     prelude::*,
 };
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_remove_subscription, use_table_visible_accounts, use_table_visible_subscriptions,
@@ -10,15 +11,21 @@ use crate::module_bindings::dioxus::{
 use crate::module_bindings::SubscriptionStatus;
 use crate::pages::category::modals::EditSubscriptionTarget;
 
-/// German display label for each subscription status.
-pub fn status_label(status: &SubscriptionStatus) -> &'static str {
+/// Localized display label for each subscription status.
+pub fn status_label(status: &SubscriptionStatus) -> String {
     match status {
-        SubscriptionStatus::ManuallySubscribed => "Manuell abonniert",
-        SubscriptionStatus::AutomaticallySubscribed => "Automatisch abonniert",
-        SubscriptionStatus::ManuallyUnsubscribed => "Manuell abgemeldet",
-        SubscriptionStatus::AutomaticallyUnsubscribed => "Automatisch abgemeldet",
-        SubscriptionStatus::LinkUnsubscribed => "Per Link abgemeldet",
-        SubscriptionStatus::RequiredSubscribed => "Diese Mitgliedschaft ist erforderlich",
+        SubscriptionStatus::ManuallySubscribed => tid!("subscription-status-manually-subscribed"),
+        SubscriptionStatus::AutomaticallySubscribed => {
+            tid!("subscription-status-automatically-subscribed")
+        }
+        SubscriptionStatus::ManuallyUnsubscribed => {
+            tid!("subscription-status-manually-unsubscribed")
+        }
+        SubscriptionStatus::AutomaticallyUnsubscribed => {
+            tid!("subscription-status-automatically-unsubscribed")
+        }
+        SubscriptionStatus::LinkUnsubscribed => tid!("subscription-status-link-unsubscribed"),
+        SubscriptionStatus::RequiredSubscribed => tid!("subscription-status-required-subscribed"),
     }
 }
 
@@ -112,7 +119,7 @@ pub fn CategorySubscribersCard(
                 div { class: "d-flex justify-content-between align-items-center",
                     h5 { class: "card-title mb-0",
                         Icon { name: "people-fill", class: "me-2" }
-                        "Abonnenten"
+                        "{tid!(\"category-table-th-subscribers\") }"
                         span { class: "badge bg-white text-primary ms-2", "{active_subscriber_count}" }
                     }
                     Button {
@@ -122,7 +129,7 @@ pub fn CategorySubscribersCard(
                             show_add_modal.set(true);
                         },
                         Icon { name: "plus-lg", class: "me-1" }
-                        "Hinzufügen"
+                        "{tid!(\"subscriber-add\") }"
                     }
                 }
             },
@@ -130,16 +137,16 @@ pub fn CategorySubscribersCard(
                 if subscriber_rows.is_empty() {
                     div { class: "p-4 text-muted",
                         Icon { name: "inbox", class: "me-2" }
-                        "Keine Abonnenten."
+                        "{tid!(\"category-table-empty\") }"
                     }
                 } else {
                     Table { hover: true, responsive: true, class: "mb-0",
                         thead { class: "table-light",
                             tr {
-                                th { "Name" }
-                                th { "E-Mail" }
-                                th { "Status" }
-                                th { class: "text-end", "Aktionen" }
+                                th { "{tid!(\"members-table-name\")}" }
+                                th { "{tid!(\"members-table-email\")}" }
+                                th { "{tid!(\"members-table-status\")}" }
+                                th { class: "text-end", "{tid!(\"members-table-action\")}" }
                             }
                         }
                         tbody {
@@ -153,7 +160,7 @@ pub fn CategorySubscribersCard(
                                         Some(a) => (a.name.clone(), a.email.clone()),
                                         None => {
                                             (
-                                                format!("Mitglied #{}", sub.subscriber_account_id),
+                                                format!("{} #{}", tid!("subscriber-member-label"), sub.subscriber_account_id),
                                                 sub.subscriber_email.clone(),
                                             )
                                         }
@@ -193,7 +200,7 @@ pub fn CategorySubscribersCard(
                                                         }
                                                     },
                                                     Icon { name: "trash", class: "me-1" }
-                                                    "Entfernen"
+                                                    "{tid!(\"subscriber-cancel\") }"
                                                 }
                                             }
                                         }

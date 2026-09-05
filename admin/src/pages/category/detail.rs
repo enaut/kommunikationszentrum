@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use ::dioxus::{logger::tracing::error, prelude::*};
 use dioxus_bootstrap_css::prelude::*;
+use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_update_message_category, use_subscription, use_table_visible_accounts,
@@ -38,28 +39,28 @@ pub fn CategoryDetailsCard(
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "pencil-square", class: "me-2" }
-                    "Details bearbeiten"
+                    "{tid!(\"category-detail-title\") }"
                 }
             },
             body: rsx! {
                 if let Some((msg, color)) = save_message.read().clone() {
                     Alert { color, class: "mb-3", "{msg}" }
                 }
-                FormGroup { label: "Name",
+                FormGroup { label: tid!("category-detail-name"),
                     Input {
                         r#type: "text",
                         value: "{name}",
                         oninput: move |e: FormEvent| name.set(e.value()),
                     }
                 }
-                FormGroup { label: "Beschreibung",
+                FormGroup { label: tid!("category-detail-description"),
                     Textarea {
                         rows: 3,
                         value: "{description}",
                         oninput: move |e: FormEvent| description.set(e.value()),
                     }
                 }
-                FormGroup { label: "Sichtbarkeit",
+                FormGroup { label: tid!("category-detail-visibility"),
                     Select {
                         value: visibility_value,
                         onchange: move |e: FormEvent| {
@@ -69,21 +70,21 @@ pub fn CategoryDetailsCard(
                                 _ => {}
                             }
                         },
-                        option { value: "Public", "Öffentlich" }
-                        option { value: "Private", "Privat" }
+                        option { value: "Public", "{tid!(\"category-visibility-public\")}" }
+                        option { value: "Private", "{tid!(\"category-visibility-private\")}" }
                     }
                     FormText {
-                        "Öffentliche Themen sind für alle Mitglieder sichtbar. Private Themen sind nur für Administratoren und abonnierte Mitglieder sichtbar."
+                        "{tid!(\"category-detail-visibility-help\") }"
                     }
                 }
-                FormGroup { label: "E-Mail-Adresse",
+                FormGroup { label: tid!("category-detail-email"),
                     Input {
                         r#type: "text",
                         value: "{category.email_address}",
                         disabled: true,
                         readonly: true,
                     }
-                    FormText { "Die E-Mail-Adresse ist fest mit dem Thema verknüpft und kann nicht geändert werden." }
+                    FormText { "{tid!(\"category-detail-email-help\") }" }
                 }
                 Button {
                     color: Color::Primary,
@@ -95,17 +96,17 @@ pub fn CategoryDetailsCard(
                         match update_category(category_id, n, d, Some(v)) {
                             Ok(()) => {
                                 save_message
-                                    .set(Some(("Änderungen gespeichert.".to_string(), Color::Success)));
+                                    .set(Some((tid!("category-detail-saved"), Color::Success)));
                             }
                             Err(e) => {
                                 error!("update_message_category failed: {e:?}");
                                 save_message
-                                    .set(Some((format!("Fehler beim Speichern: {e:?}"), Color::Danger)));
+                                    .set(Some((format!("{}: {e:?}", tid!("category-detail-save-error")), Color::Danger)));
                             }
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "Speichern"
+                    "{tid!(\"category-detail-save\") }"
                 }
             },
         }
@@ -162,13 +163,13 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
             Container { fluid: true, class: "mt-4",
                 Alert { color: Color::Warning, class: "d-flex align-items-center",
                     Icon { name: "exclamation-triangle", class: "me-2" }
-                    "Thema nicht gefunden (evtl. gelöscht)."
+                    "{tid!(\"category-detail-not-found\") }"
                 }
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| on_back.call(()),
                     Icon { name: "arrow-left", class: "me-2" }
-                    "Zurück zur Übersicht"
+                    "{tid!(\"category-detail-back\") }"
                 }
             }
         };
@@ -212,7 +213,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                         class: "mb-2",
                         onclick: move |_| on_back.call(()),
                         Icon { name: "arrow-left", class: "me-2" }
-                        "Zurück zur Übersicht"
+                        "{tid!(\"category-detail-back\") }"
                     }
                     h2 { class: "mb-0",
                         Icon { name: "tag-fill", class: "me-2" }
@@ -221,26 +222,26 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                             Badge {
                                 color: Color::Success,
                                 class: "ms-2 align-middle",
-                                "Aktiv"
+                                "{tid!(\"category-status-active\") }"
                             }
                         } else {
                             Badge {
                                 color: Color::Secondary,
                                 class: "ms-2 align-middle",
-                                "Inaktiv"
+                                "{tid!(\"category-status-inactive\") }"
                             }
                         }
                         if cat.visibility == CategoryVisibility::Public {
                             Badge {
                                 color: Color::Info,
                                 class: "ms-2 align-middle",
-                                "Öffentlich"
+                                "{tid!(\"category-visibility-public\") }"
                             }
                         } else {
                             Badge {
                                 color: Color::Warning,
                                 class: "ms-2 align-middle",
-                                "Privat"
+                                "{tid!(\"category-visibility-private\") }"
                             }
                         }
                     }
