@@ -62,7 +62,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let config = Arc::new(SenderConfig::from_env());
 
     init_tracing(&config)?;
-    info!("Starting sender with config: {:?}", config);
 
     let instance_id = Uuid::new_v4().to_string();
     info!("Sender instance_id: {}", instance_id);
