@@ -23,16 +23,22 @@ FanOut: {
   label: "Fan-out engine\n(sender daemon)"
 }
 
+DeliveryMessage: {
+  shape: page
+  label: "mail_delivery_message [Private]"
+  purpose: "RFC 5322 payload per recipient"
+}
+
 Pending: {
   shape: class
   label: "mail_delivery_pending [Private]"
-  key: "one row per recipient delivery"
+  key: "outbound queue item"
 }
 
 TemporaryRetry: {
   shape: queue
   label: "mail_delivery_temporary_failed [Private]"
-  backoff: "next_attempt_at + fail_reason"
+  backoff: "next_attempt_at + last_error"
 }
 
 Claimed: {
@@ -44,7 +50,7 @@ Claimed: {
 Done: {
   shape: class
   label: "mail_delivery_done [Private]"
-  state: "sent | failed | bounced"
+  state: "sent | failed | bounced | cancelled"
 }
 
 Events: {
@@ -65,12 +71,15 @@ RetrySchedule: {
 
 MTA -> MailMessage: "mail hook"
 MailMessage -> Ingress: "upsert_mail_ingress()"
-Ingress -> FanOut: "claim next ingress"
-FanOut -> Pending: "enqueue delivery rows"
+Ingress -> FanOut: "claim_next_mail_ingress()"
+FanOut -> DeliveryMessage: "store payload"
+FanOut -> Pending: "enqueue_mail_delivery()"
 Pending -> Claimed: "claim_next_mail_delivery()"
 Claimed -> Done: "sent / failed / bounced"
-Claimed -> TemporaryRetry: "temporary SMTP failure" { style.stroke: "#f97316" }
+Claimed -> TemporaryRetry: "schedule_mail_delivery_retry()" { style.stroke: "#f97316" }
 TemporaryRetry -> Pending: "requeue_temporary_failed_mails()" { style.stroke: "#f97316"; style.stroke-dash: 5 }
+TemporaryRetry -> Done: "cancel_mail_delivery_retry()" { style.stroke: "#ef4444"; style.stroke-dash: 5 }
 Claimed -> Events: "log SMTP outcome"
 ExpireSchedule -> Claimed: "lease recovery" { style.stroke-dash: 5 }
+ExpireSchedule -> Ingress: "lease recovery" { style.stroke-dash: 5 }
 RetrySchedule -> TemporaryRetry: "retry sweep" { style.stroke-dash: 5 }

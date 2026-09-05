@@ -9,6 +9,10 @@ direction: right
     shape: cloud
     label: "Django Backend\n(User Sync)"
   }
+  EmailClient: {
+    shape: cloud
+    label: "Email Client\n(List-Unsubscribe)"
+  }
 }
 
 "SpacetimeDB Module": {
@@ -31,6 +35,11 @@ direction: right
       shape: rectangle
       label: "user-sync handler\nPOST …/route/user-sync\nperm: \"sync-user\""
     }
+
+    UnsubscribeHandler: {
+      shape: rectangle
+      label: "unsubscribe handler\nPOST …/route/mailing-list/unsubscribe\ntoken in query"
+    }
   }
 
   TokenAuth: {
@@ -43,12 +52,17 @@ direction: right
 
     MtaLogic: {
       shape: rectangle
-      label: "mta.rs\nStage Dispatch\n(connect/ehlo/mail\nrcpt/data/auth)"
+      label: "MTA Service\nStage Dispatch\n(connect/ehlo/mail\nrcpt/data/auth)"
     }
 
     SyncLogic: {
       shape: rectangle
       label: "Upsert / Delete\nAccount & Subscriptions"
+    }
+
+    UnsubscribeLogic: {
+      shape: rectangle
+      label: "Validate Token &\nDeactivate Subscription"
     }
   }
 }
@@ -72,13 +86,19 @@ direction: right
     shape: cylinder
     label: "account\nsubscriptions\nmessage_categories"
   }
+  tokens: {
+    shape: cylinder
+    label: "subscription_unsubscribe_tokens"
+  }
 }
 
 # Ingress routing
 "External Callers".Stalwart -> "SpacetimeDB Module".Router: "POST /route/mta-hook\nAuthorization: Bearer <token>"
 "External Callers".Django -> "SpacetimeDB Module".Router: "POST /route/user-sync\nAuthorization: Bearer <token>"
+"External Callers".EmailClient -> "SpacetimeDB Module".Router: "POST /route/mailing-list/unsubscribe?token=…"
 
-"SpacetimeDB Module".Router -> "SpacetimeDB Module".TokenAuth: "Dispatch by path"
+"SpacetimeDB Module".Router -> "SpacetimeDB Module".TokenAuth: "mta-hook & user-sync"
+"SpacetimeDB Module".Router -> "SpacetimeDB Module"."HTTP Handlers".UnsubscribeHandler: "mailing-list/unsubscribe"
 
 # Auth gate
 "SpacetimeDB Module".TokenAuth -> "SpacetimeDB Module"."HTTP Handlers".MtaHandler: "perm ok"
@@ -88,8 +108,11 @@ direction: right
 # Handler → logic
 "SpacetimeDB Module"."HTTP Handlers".MtaHandler -> "SpacetimeDB Module"."Transactional Context".MtaLogic: "ctx.with_tx(...)"
 "SpacetimeDB Module"."HTTP Handlers".UserSyncHandler -> "SpacetimeDB Module"."Transactional Context".SyncLogic: "ctx.with_tx(...)"
+"SpacetimeDB Module"."HTTP Handlers".UnsubscribeHandler -> "SpacetimeDB Module"."Transactional Context".UnsubscribeLogic: "ctx.with_tx(...)"
 
 # Logic → DB writes
 "SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mta_logs: "Audit log"
 "SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mail_ingress: "Persist message"
 "SpacetimeDB Module"."Transactional Context".SyncLogic -> "Database Tables".accounts: "Upsert / delete"
+"SpacetimeDB Module"."Transactional Context".UnsubscribeLogic -> "Database Tables".tokens: "Check & revoke token"
+"SpacetimeDB Module"."Transactional Context".UnsubscribeLogic -> "Database Tables".accounts: "Deactivate subscription"

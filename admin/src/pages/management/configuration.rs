@@ -9,8 +9,9 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 use crate::module_bindings::dioxus::{
     use_procedure_sync_stalwart_domains, use_reducer_create_webhook_token,
     use_reducer_register_admin_identity, use_reducer_revoke_webhook_token,
-    use_reducer_unregister_admin_identity, use_subscription, use_table_visible_admin_identities,
-    use_table_visible_domains, use_table_visible_webhook_tokens,
+    use_reducer_set_stalwart_config_then, use_reducer_unregister_admin_identity, use_subscription,
+    use_table_admin_stalwart_config, use_table_visible_admin_identities, use_table_visible_domains,
+    use_table_visible_webhook_tokens,
 };
 
 #[component]
@@ -27,6 +28,7 @@ pub fn ManagementConfigurationPage() -> Element {
             }
             AdminIdentityCard {}
             WebhookTokenCard {}
+            StalwartConfigCard {}
             DomainsCard {}
         }
     }
@@ -298,13 +300,221 @@ fn WebhookTokenCard() -> Element {
 }
 
 #[component]
+fn StalwartConfigCard() -> Element {
+    use_subscription(&["SELECT * FROM admin_stalwart_config"]);
+    let stalwart_configs = use_table_admin_stalwart_config();
+    let (set_stalwart_config, save_result) = use_reducer_set_stalwart_config_then();
+
+    let mut jmap_url = use_signal(String::new);
+    let mut admin_token = use_signal(String::new);
+    let mut show_token = use_signal(|| false);
+    let mut is_saving = use_signal(|| false);
+
+    // Synchronize form values whenever received from SpacetimeDB
+    use_effect(move || {
+        let configs = stalwart_configs();
+        if let Some(config) = configs.first() {
+            jmap_url.set(config.jmap_url.clone());
+            admin_token.set(config.admin_token.clone());
+        }
+    });
+
+    // Reset is_saving when reducer returns a result
+    use_effect(move || {
+        if save_result().is_some() {
+            is_saving.set(false);
+        }
+    });
+
+    let current_config = stalwart_configs().first().cloned();
+    let is_configured = current_config
+        .as_ref()
+        .map(|c| !c.jmap_url.trim().is_empty())
+        .unwrap_or(false);
+
+    let is_dirty = use_memo(move || {
+        let configs = stalwart_configs();
+        let server_cfg = configs.first();
+        let server_url = server_cfg.map(|c| c.jmap_url.as_str()).unwrap_or("");
+        let server_token = server_cfg.map(|c| c.admin_token.as_str()).unwrap_or("");
+        jmap_url.read().trim().trim_end_matches('/') != server_url.trim_end_matches('/')
+            || admin_token.read().trim() != server_token
+    });
+
+    rsx! {
+        Row { class: "mb-4",
+            Col { xs: ColumnSize::Span(12),
+                Card {
+                    class: "shadow-sm",
+                    header_class: "bg-primary text-white",
+                    header: rsx! {
+                        h5 { class: "card-title mb-0 d-flex justify-content-between align-items-center",
+                            span {
+                                Icon { name: "server", class: "me-2" }
+                                "{tid!(\"management-config-stalwart-title\") }"
+                                if is_configured {
+                                    Badge {
+                                        color: Color::Light,
+                                        fill: BadgeFill::Bg,
+                                        class: "text-success ms-2",
+                                        Icon { name: "check-circle-fill", class: "me-1" }
+                                        "{tid!(\"management-config-stalwart-status-configured\") }"
+                                    }
+                                } else {
+                                    Badge {
+                                        color: Color::Light,
+                                        fill: BadgeFill::Bg,
+                                        class: "text-warning ms-2",
+                                        Icon { name: "exclamation-triangle-fill", class: "me-1" }
+                                        "{tid!(\"management-config-stalwart-status-not-configured\") }"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    body: rsx! {
+                        p { class: "text-muted mb-3",
+                            Icon { name: "info-circle", class: "me-2" }
+                            "{tid!(\"management-config-stalwart-help\") }"
+                        }
+
+                        if let Some(result) = save_result() {
+                            match result {
+                                Ok(()) => rsx! {
+                                    Alert {
+                                        color: Color::Success,
+                                        class: "mb-3 d-flex align-items-center",
+                                        Icon { name: "check-circle", class: "me-2 flex-shrink-0" }
+                                        span { "{tid!(\"management-config-stalwart-saved\") }" }
+                                    }
+                                },
+                                Err(ref err) => rsx! {
+                                    Alert {
+                                        color: Color::Danger,
+                                        class: "mb-3 d-flex align-items-center",
+                                        Icon { name: "exclamation-circle", class: "me-2 flex-shrink-0" }
+                                        span { "{err}" }
+                                    }
+                                },
+                            }
+                        }
+
+                        Row { class: "g-3 mb-3",
+                            Col { md: ColumnSize::Span(6),
+                                FormGroup {
+                                    label: tid!("management-config-stalwart-jmap-url"),
+                                    InputGroup {
+                                        InputGroupText { Icon { name: "globe" } }
+                                        Input {
+                                            r#type: "url",
+                                            placeholder: tid!("management-config-stalwart-jmap-url-placeholder"),
+                                            value: "{jmap_url}",
+                                            oninput: move |e: FormEvent| jmap_url.set(e.value()),
+                                        }
+                                    }
+                                    div { class: "form-text text-muted",
+                                        "{tid!(\"management-config-stalwart-jmap-url-help\") }"
+                                    }
+                                }
+                            }
+                            Col { md: ColumnSize::Span(6),
+                                FormGroup {
+                                    label: tid!("management-config-stalwart-admin-token"),
+                                    InputGroup {
+                                        InputGroupText { Icon { name: "key" } }
+                                        Input {
+                                            r#type: if show_token() { "text" } else { "password" },
+                                            class: "font-monospace",
+                                            placeholder: tid!("management-config-stalwart-admin-token-placeholder"),
+                                            value: "{admin_token}",
+                                            oninput: move |e: FormEvent| admin_token.set(e.value()),
+                                        }
+                                        Button {
+                                            color: Color::Secondary,
+                                            outline: true,
+                                            title: tid!("management-config-stalwart-toggle-token-visibility"),
+                                            onclick: move |_| show_token.set(!show_token()),
+                                            Icon { name: if show_token() { "eye-slash" } else { "eye" } }
+                                        }
+                                    }
+                                    div { class: "form-text text-muted",
+                                        "{tid!(\"management-config-stalwart-admin-token-help\") }"
+                                    }
+                                }
+                            }
+                        }
+
+                        div { class: "d-flex justify-content-between align-items-center flex-wrap gap-2",
+                            div { class: "d-flex gap-2",
+                                Button {
+                                    color: Color::Primary,
+                                    size: Size::Sm,
+                                    disabled: is_saving()
+                                        || jmap_url.read().trim().is_empty()
+                                        || admin_token.read().trim().is_empty(),
+                                    onclick: {
+                                        let save = set_stalwart_config.clone();
+                                        move |_| {
+                                            let url = jmap_url.read().trim().to_string();
+                                            let token = admin_token.read().trim().to_string();
+                                            info!("Saving Stalwart config: url={url}");
+                                            is_saving.set(true);
+                                            save(url, token);
+                                        }
+                                    },
+                                    if is_saving() {
+                                        Spinner { size: Size::Sm, class: "me-1" }
+                                        "{tid!(\"management-config-stalwart-saving\") }"
+                                    } else {
+                                        Icon { name: "check-lg", class: "me-1" }
+                                        "{tid!(\"management-config-stalwart-save\") }"
+                                    }
+                                }
+                                if is_dirty() {
+                                    Button {
+                                        color: Color::Secondary,
+                                        outline: true,
+                                        size: Size::Sm,
+                                        onclick: {
+                                            let configs = stalwart_configs;
+                                            move |_| {
+                                                if let Some(config) = configs().first() {
+                                                    jmap_url.set(config.jmap_url.clone());
+                                                    admin_token.set(config.admin_token.clone());
+                                                } else {
+                                                    jmap_url.set(String::new());
+                                                    admin_token.set(String::new());
+                                                }
+                                            }
+                                        },
+                                        Icon { name: "arrow-counterclockwise", class: "me-1" }
+                                        "{tid!(\"management-config-stalwart-reset\") }"
+                                    }
+                                }
+                            }
+                            if let Some(ref config) = current_config {
+                                span { class: "text-muted small",
+                                    Icon { name: "clock-history", class: "me-1" }
+                                    "{tid!(\"management-config-stalwart-last-updated\") }: "
+                                    code { "{config.updated_at.to_string()}" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
 fn DomainsCard() -> Element {
     use_subscription(&["SELECT * FROM visible_domains"]);
     let domains = use_table_visible_domains();
     let (sync_domains_invoke, sync_domains_result) = use_procedure_sync_stalwart_domains();
 
     rsx! {
-        Row { class: "mt-4",
+        Row { class: "mb-4",
             Col { xs: ColumnSize::Span(12),
                 Card {
                     class: "shadow-sm",

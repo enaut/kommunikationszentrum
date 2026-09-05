@@ -5,6 +5,7 @@ direction: right
   account
   admin_identities
   webhook_tokens
+  stalwart_config
   message_categories
   topics
   message_category_topics
@@ -15,6 +16,7 @@ direction: right
   received_message
   mail_message
   mail_ingress
+  mail_delivery_message
   mail_delivery_pending
   mail_delivery_temporary_failed
   mail_delivery_claimed
@@ -45,6 +47,14 @@ direction: right
   visible_webhook_tokens: |md
     ### visible_webhook_tokens
     * Admin-only token management view.
+  | {
+    shape: rectangle
+    style.fill: "#e3f2fd"
+  }
+
+  admin_stalwart_config: |md
+    ### admin_stalwart_config
+    * Admin-only Stalwart JMAP URL and credential configuration view.
   | {
     shape: rectangle
     style.fill: "#e3f2fd"
@@ -145,6 +155,14 @@ direction: right
     style.fill: "#f3e5f5"
   }
 
+  sender_mail_delivery_messages: |md
+    ### sender_mail_delivery_messages
+    * Admin-only outbound per-recipient message bodies & envelopes.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+
   sender_mail_delivery_pending: |md
     ### sender_mail_delivery_pending
     * Current outbound work queue.
@@ -189,6 +207,7 @@ direction: right
 "Private Tables".account -> "Member / Admin Views".visible_accounts
 "Private Tables".admin_identities -> "Member / Admin Views".visible_admin_identities
 "Private Tables".webhook_tokens -> "Member / Admin Views".visible_webhook_tokens
+"Private Tables".stalwart_config -> "Member / Admin Views".admin_stalwart_config
 "Private Tables".domains -> "Member / Admin Views".visible_domains
 "Private Tables".message_categories -> "Member / Admin Views".visible_message_categories
 "Private Tables".topics -> "Member / Admin Views".visible_topics
@@ -200,6 +219,7 @@ direction: right
 "Private Tables".received_message -> "Member / Admin Views".visible_messages
 "Private Tables".mail_message -> "Sender Worker Views".sender_mail_messages
 "Private Tables".mail_ingress -> "Sender Worker Views".sender_mail_ingress
+"Private Tables".mail_delivery_message -> "Sender Worker Views".sender_mail_delivery_messages
 "Private Tables".mail_delivery_pending -> "Sender Worker Views".sender_mail_delivery_pending
 "Private Tables".mail_delivery_claimed -> "Sender Worker Views".sender_mail_delivery_claimed
 "Private Tables".mail_delivery_done -> "Sender Worker Views".sender_mail_delivery_done

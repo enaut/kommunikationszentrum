@@ -3,7 +3,6 @@
 
 #![allow(unused, clippy::all)]
 use super::mail_delivery_pending_type::MailDeliveryPending;
-use super::mail_delivery_row_type::MailDeliveryRow;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 /// Table handle for the table `sender_mail_delivery_pending`.
@@ -167,30 +166,30 @@ impl<'ctx> __sdk::WithUpdate for SenderMailDeliveryPendingTableHandle<'ctx> {
     }
 }
 
-/// Access to the `id` unique index on the table `sender_mail_delivery_pending`,
+/// Access to the `delivery_id` unique index on the table `sender_mail_delivery_pending`,
 /// which allows point queries on the field of the same name
-/// via the [`SenderMailDeliveryPendingIdUnique::find`] method.
+/// via the [`SenderMailDeliveryPendingDeliveryIdUnique::find`] method.
 ///
 /// Users are encouraged not to explicitly reference this type,
 /// but to directly chain method calls,
-/// like `ctx.db.sender_mail_delivery_pending().id().find(...)`.
-pub struct SenderMailDeliveryPendingIdUnique<'ctx> {
+/// like `ctx.db.sender_mail_delivery_pending().delivery_id().find(...)`.
+pub struct SenderMailDeliveryPendingDeliveryIdUnique<'ctx> {
     imp: __sdk::UniqueConstraintHandle<MailDeliveryPending, String>,
     phantom: std::marker::PhantomData<&'ctx super::RemoteTables>,
 }
 
 impl<'ctx> SenderMailDeliveryPendingTableHandle<'ctx> {
-    /// Get a handle on the `id` unique index on the table `sender_mail_delivery_pending`.
-    pub fn id(&self) -> SenderMailDeliveryPendingIdUnique<'ctx> {
-        SenderMailDeliveryPendingIdUnique {
-            imp: self.imp.get_unique_constraint::<String>("id"),
+    /// Get a handle on the `delivery_id` unique index on the table `sender_mail_delivery_pending`.
+    pub fn delivery_id(&self) -> SenderMailDeliveryPendingDeliveryIdUnique<'ctx> {
+        SenderMailDeliveryPendingDeliveryIdUnique {
+            imp: self.imp.get_unique_constraint::<String>("delivery_id"),
             phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'ctx> SenderMailDeliveryPendingIdUnique<'ctx> {
-    /// Find the subscribed row whose `id` column value is equal to `col_val`,
+impl<'ctx> SenderMailDeliveryPendingDeliveryIdUnique<'ctx> {
+    /// Find the subscribed row whose `delivery_id` column value is equal to `col_val`,
     /// if such a row is present in the client cache.
     pub fn find(&self, col_val: &String) -> Option<MailDeliveryPending> {
         self.imp.find(col_val)
@@ -201,7 +200,7 @@ impl<'ctx> SenderMailDeliveryPendingIdUnique<'ctx> {
 pub(super) fn register_table(client_cache: &mut __sdk::ClientCache<super::RemoteModule>) {
     let _table =
         client_cache.get_or_make_table::<MailDeliveryPending>("sender_mail_delivery_pending");
-    _table.add_unique_constraint::<String>("id", |row| &row.id);
+    _table.add_unique_constraint::<String>("delivery_id", |row| &row.delivery_id);
 }
 
 #[doc(hidden)]

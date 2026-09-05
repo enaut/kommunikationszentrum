@@ -190,7 +190,8 @@ fn AuthenticatedApp(
         }
         {
             match state() {
-                ConnectionState::Connected(_, _) => {
+                ConnectionState::Connected(id, _) => {
+                    info!("Connected to SpacetimeDB as: {}", id);
                     match active_view() {
                         ActiveView::MySubscriptions => rsx! {
                             pages::subscriptions::SubscriptionsPage { user_info: user_info.clone() }

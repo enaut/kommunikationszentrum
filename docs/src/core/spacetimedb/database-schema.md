@@ -1,10 +1,10 @@
 # Database Schema
 
-The SpacetimeDB module for Kommunikationszentrum is the canonical state for user identity, category subscriptions, domain metadata, MTA audit records, and the outbound delivery pipeline. The schema is intentionally private to the module; client access is restricted to scoped public views.
+The SpacetimeDB module for Kommunikationszentrum is the canonical state for user identity, category subscriptions, domain metadata, MTA audit records, Stalwart JMAP configuration, and the outbound delivery pipeline. The schema is intentionally private to the module; client access is restricted to scoped public views.
 
 ## Full Entity-Relationship Schema
 
-The module stores identity, category, and delivery state in private tables, while admin/member visibility is enforced by public views such as `visible_accounts`, `visible_message_categories`, and `visible_domains`.
+The module stores identity, category, Stalwart configuration, and delivery state in private tables, while admin/member/sender visibility is enforced by scoped public views such as `visible_accounts`, `visible_message_categories`, `visible_domains`, `admin_stalwart_config`, and `sender_mail_delivery_messages`.
 
 ```d2
 {{#include database-schema-er.d2}}
@@ -14,7 +14,11 @@ The module stores identity, category, and delivery state in private tables, whil
 
 ## Delivery Pipeline Architecture
 
-The delivery pipeline separates inbound message ingestion from outbound SMTP work. A `mail_ingress` row is created once per category and message, then one `mail_delivery_pending` row is generated per recipient subscription. Transient SMTP failures move the delivery row into `mail_delivery_temporary_failed`, where a scheduled reducer requeues rows after their `next_attempt_at` deadline.
+The delivery pipeline separates inbound message ingestion from outbound SMTP work and isolates delivery payloads:
+1. An inbound email creates a canonical `mail_message` row and a corresponding `mail_ingress` fan-out job.
+2. The sender worker claims the ingress job and prepares outbound messages: each recipient receives an immutable `mail_delivery_message` row containing the rendered RFC 5322 payload, and a tracking row in `mail_delivery_pending`.
+3. Workers claim pending items (`mail_delivery_claimed`) under short leases.
+4. Sent, failed, bounced, or cancelled items terminate in `mail_delivery_done` with a `DeliveryFinalState`. Transient SMTP errors transition to `mail_delivery_temporary_failed`, where the scheduled `requeue_temporary_failed_mails` reducer moves them back to `mail_delivery_pending` once their `next_attempt_at` expires.
 
 ```d2
 {{#include database-schema-delivery-pipeline.d2}}

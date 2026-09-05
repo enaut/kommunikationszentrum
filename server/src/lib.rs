@@ -2,19 +2,20 @@ use std::time::Duration;
 
 use spacetimedb::{ReducerContext, ScheduleAt, Table};
 
-use account::{admin_identities, AdminIdentity};
-use delivery::expire_stale_delivery_claims_schedule;
-use delivery::requeue_temporary_failed_mails_schedule;
-use delivery::ExpireStaleDeliveryClaimsSchedule;
-use delivery::RequeueTemporaryFailedMailsSchedule;
+use crate::models::{
+    account::{admin_identities, AdminIdentity},
+    delivery::{
+        expire_stale_delivery_claims_schedule, requeue_temporary_failed_mails_schedule,
+        ExpireStaleDeliveryClaimsSchedule, RequeueTemporaryFailedMailsSchedule,
+    },
+};
 
-mod account;
-mod delivery;
-mod domain;
-mod http_handlers;
-mod mail_message;
-mod mailing;
-mod mta;
+pub mod common;
+pub mod http_handlers;
+pub mod models;
+pub mod reducers;
+pub mod services;
+pub mod views;
 
 #[spacetimedb::reducer(init)]
 pub fn init(ctx: &ReducerContext) {

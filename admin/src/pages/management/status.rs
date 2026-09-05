@@ -1,17 +1,15 @@
-use ::dioxus::{
-    logger::tracing::{error, info},
-    prelude::*,
-};
+use ::dioxus::{logger::tracing::error, prelude::*};
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_connection_error, use_connection_state, use_subscription,
     use_table_sender_mail_delivery_claimed, use_table_sender_mail_delivery_done,
-    use_table_sender_mail_delivery_events, use_table_sender_mail_delivery_pending,
-    use_table_sender_mail_delivery_temporary_failed, use_table_visible_admin_identities,
+    use_table_sender_mail_delivery_events, use_table_sender_mail_delivery_messages,
+    use_table_sender_mail_delivery_pending, use_table_sender_mail_delivery_temporary_failed,
     ConnectionState,
 };
+use crate::module_bindings::DeliveryFinalState;
 use crate::oauth::UserInfo;
 
 #[component]
@@ -120,12 +118,17 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
 
 #[component]
 fn TemporaryFailedCard() -> Element {
-    use_subscription(&["SELECT * FROM sender_mail_delivery_temporary_failed"]);
+    use_subscription(&[
+        "SELECT * FROM sender_mail_delivery_temporary_failed",
+        "SELECT * FROM sender_mail_delivery_messages",
+    ]);
     let temporary_failed = use_table_sender_mail_delivery_temporary_failed();
+    let messages = use_table_sender_mail_delivery_messages();
     let cancel_retry = crate::module_bindings::dioxus::use_reducer_cancel_mail_delivery_retry();
 
     let mut rows = temporary_failed();
-    rows.sort_by(|a, b| a.id.cmp(&b.id));
+    rows.sort_by(|a, b| a.delivery_id.cmp(&b.delivery_id));
+    let msg_list = messages();
 
     rsx! {
         Row { class: "mt-4",
@@ -157,6 +160,7 @@ fn TemporaryFailedCard() -> Element {
                                         th { "{tid!(\"status-temporary-failed-delivery-id\")}" }
                                         th { "{tid!(\"status-temporary-failed-recipient\")}" }
                                         th { "{tid!(\"status-temporary-failed-retry-at\")}" }
+                                        th { "{tid!(\"status-last-updated\")}" }
                                         th { "{tid!(\"status-temporary-failed-reason\")}" }
                                         th { class: "text-end", "{tid!(\"status-temporary-failed-action\")}" }
                                     }
@@ -164,21 +168,29 @@ fn TemporaryFailedCard() -> Element {
                                 tbody {
                                     for failed in rows {
                                         {
-                                            let delivery_id = failed.id.clone();
+                                            let delivery_id = failed.delivery_id.clone();
                                             let cancel = cancel_retry.clone();
+                                            let recipient = msg_list
+                                                .iter()
+                                                .find(|m| m.delivery_id == failed.delivery_id)
+                                                .map(|m| m.recipient_email.as_str())
+                                                .unwrap_or("–");
                                             rsx! {
                                                 tr {
                                                     td {
-                                                        code { class: "small text-break", "{failed.id}" }
+                                                        code { class: "small text-break", "{failed.delivery_id}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{failed.row.recipient_email}" }
+                                                        small { class: "text-muted", "{recipient}" }
                                                     }
                                                     td {
                                                         small { class: "text-muted", "{failed.next_attempt_at}" }
                                                     }
                                                     td {
-                                                        div { class: "small text-break", "{failed.fail_reason}" }
+                                                        small { class: "text-muted", "{failed.last_updated}" }
+                                                    }
+                                                    td {
+                                                        div { class: "small text-break", "{failed.last_error}" }
                                                     }
                                                     td { class: "text-end",
                                                         Button {
@@ -241,6 +253,7 @@ fn DeliveryEventsCard() -> Element {
                                 thead { class: "table-light",
                                     tr {
                                         th { "{tid!(\"status-delivery-events-id\")}" }
+                                        th { "{tid!(\"status-delivery-events-delivery-id\")}" }
                                         th { "{tid!(\"status-delivery-events-type\")}" }
                                         th { "{tid!(\"status-delivery-events-attempt\")}" }
                                         th { "{tid!(\"status-delivery-events-details\")}" }
@@ -251,6 +264,9 @@ fn DeliveryEventsCard() -> Element {
                                         tr {
                                             td {
                                                 code { class: "small text-break", "{event.id}" }
+                                            }
+                                            td {
+                                                code { class: "small text-break", "{event.delivery_id}" }
                                             }
                                             td {
                                                 small { class: "text-muted", "{event.event_type}" }
@@ -275,11 +291,16 @@ fn DeliveryEventsCard() -> Element {
 
 #[component]
 fn PendingCard() -> Element {
-    use_subscription(&["SELECT * FROM sender_mail_delivery_pending"]);
+    use_subscription(&[
+        "SELECT * FROM sender_mail_delivery_pending",
+        "SELECT * FROM sender_mail_delivery_messages",
+    ]);
     let pending_deliveries = use_table_sender_mail_delivery_pending();
+    let messages = use_table_sender_mail_delivery_messages();
 
     let mut rows = pending_deliveries();
-    rows.sort_by(|a, b| a.id.cmp(&b.id));
+    rows.sort_by(|a, b| a.delivery_id.cmp(&b.delivery_id));
+    let msg_list = messages();
 
     rsx! {
         Row { class: "mt-4",
@@ -308,19 +329,32 @@ fn PendingCard() -> Element {
                                         th { "{tid!(\"status-pending-id\")}" }
                                         th { "{tid!(\"status-pending-recipient\")}" }
                                         th { "{tid!(\"status-pending-ingress\")}" }
+                                        th { "{tid!(\"status-last-updated\")}" }
                                     }
                                 }
                                 tbody {
                                     for row in rows {
-                                        tr {
-                                            td {
-                                                code { class: "small text-break", "{row.id}" }
-                                            }
-                                            td {
-                                                small { class: "text-muted", "{row.row.recipient_email}" }
-                                            }
-                                            td {
-                                                small { class: "text-muted", "{row.ingress_id}" }
+                                        {
+                                            let recipient = msg_list
+                                                .iter()
+                                                .find(|m| m.delivery_id == row.delivery_id)
+                                                .map(|m| m.recipient_email.as_str())
+                                                .unwrap_or("–");
+                                            rsx! {
+                                                tr {
+                                                    td {
+                                                        code { class: "small text-break", "{row.delivery_id}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{recipient}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{row.ingress_id}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{row.last_updated}" }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -336,11 +370,16 @@ fn PendingCard() -> Element {
 
 #[component]
 fn ClaimedCard() -> Element {
-    use_subscription(&["SELECT * FROM sender_mail_delivery_claimed"]);
+    use_subscription(&[
+        "SELECT * FROM sender_mail_delivery_claimed",
+        "SELECT * FROM sender_mail_delivery_messages",
+    ]);
     let claimed_deliveries = use_table_sender_mail_delivery_claimed();
+    let messages = use_table_sender_mail_delivery_messages();
 
     let mut rows = claimed_deliveries();
-    rows.sort_by(|a, b| a.id.cmp(&b.id));
+    rows.sort_by(|a, b| a.delivery_id.cmp(&b.delivery_id));
+    let msg_list = messages();
 
     rsx! {
         Row { class: "mt-4",
@@ -370,22 +409,35 @@ fn ClaimedCard() -> Element {
                                         th { "{tid!(\"status-claimed-worker\")}" }
                                         th { "{tid!(\"status-claimed-lease\")}" }
                                         th { "{tid!(\"status-claimed-recipient\")}" }
+                                        th { "{tid!(\"status-last-updated\")}" }
                                     }
                                 }
                                 tbody {
                                     for row in rows {
-                                        tr {
-                                            td {
-                                                code { class: "small text-break", "{row.id}" }
-                                            }
-                                            td {
-                                                small { class: "text-muted", "{row.worker}" }
-                                            }
-                                            td {
-                                                small { class: "text-muted", "{row.lease_expires_at}" }
-                                            }
-                                            td {
-                                                small { class: "text-muted", "{row.row.recipient_email}" }
+                                        {
+                                            let recipient = msg_list
+                                                .iter()
+                                                .find(|m| m.delivery_id == row.delivery_id)
+                                                .map(|m| m.recipient_email.as_str())
+                                                .unwrap_or("–");
+                                            rsx! {
+                                                tr {
+                                                    td {
+                                                        code { class: "small text-break", "{row.delivery_id}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{row.worker}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{row.lease_expires_at}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{recipient}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{row.last_updated}" }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -401,11 +453,16 @@ fn ClaimedCard() -> Element {
 
 #[component]
 fn DoneCard() -> Element {
-    use_subscription(&["SELECT * FROM sender_mail_delivery_done"]);
+    use_subscription(&[
+        "SELECT * FROM sender_mail_delivery_done",
+        "SELECT * FROM sender_mail_delivery_messages",
+    ]);
     let done_deliveries = use_table_sender_mail_delivery_done();
+    let messages = use_table_sender_mail_delivery_messages();
 
     let mut rows = done_deliveries();
-    rows.sort_by(|a, b| a.id.cmp(&b.id));
+    rows.sort_by(|a, b| a.delivery_id.cmp(&b.delivery_id));
+    let msg_list = messages();
 
     rsx! {
         Row { class: "mt-4",
@@ -435,16 +492,24 @@ fn DoneCard() -> Element {
                                         th { "{tid!(\"status-done-status\")}" }
                                         th { "{tid!(\"status-done-recipient\")}" }
                                         th { "{tid!(\"status-done-reason\")}" }
+                                        th { "{tid!(\"status-last-updated\")}" }
                                     }
                                 }
                                 tbody {
                                     for row in rows {
                                         {
-                                            let is_failed = row.final_state == "failed";
-                                            let status_icon = if is_failed { "x-circle-fill" } else { "check-circle-fill" };
-                                            let status_color = if is_failed { "text-danger" } else { "text-success" };
-                                            let status_text = if is_failed { tid!("status-done-failed") } else { tid!("status-done-sent") };
-                                            let reason = if let Some(ref err) = row.row.last_error {
+                                            let (status_icon, status_color, status_text) = match row.final_state {
+                                                DeliveryFinalState::Sent => ("check-circle-fill", "text-success", tid!("status-done-sent")),
+                                                DeliveryFinalState::Failed => ("x-circle-fill", "text-danger", tid!("status-done-failed")),
+                                                DeliveryFinalState::Bounced => ("envelope-slash-fill", "text-warning", tid!("status-done-bounced")),
+                                                DeliveryFinalState::Cancelled => ("slash-circle", "text-secondary", tid!("status-done-cancelled")),
+                                            };
+                                            let recipient = msg_list
+                                                .iter()
+                                                .find(|m| m.delivery_id == row.delivery_id)
+                                                .map(|m| m.recipient_email.as_str())
+                                                .unwrap_or("–");
+                                            let reason = if let Some(ref err) = row.last_error {
                                                 err.clone()
                                             } else {
                                                 tid!("general-none")
@@ -452,7 +517,7 @@ fn DoneCard() -> Element {
                                             rsx! {
                                                 tr {
                                                     td {
-                                                        code { class: "small text-break", "{row.id}" }
+                                                        code { class: "small text-break", "{row.delivery_id}" }
                                                     }
                                                     td {
                                                         span { class: "d-inline-flex align-items-center gap-2",
@@ -461,10 +526,13 @@ fn DoneCard() -> Element {
                                                         }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{row.row.recipient_email}" }
+                                                        small { class: "text-muted", "{recipient}" }
                                                     }
                                                     td {
                                                         small { class: "text-break text-muted", "{reason}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{row.last_updated}" }
                                                     }
                                                 }
                                             }

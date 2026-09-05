@@ -4,16 +4,17 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
-use super::mail_delivery_row_type::MailDeliveryRow;
-
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub struct MailDeliveryClaimed {
-    pub id: String,
+    pub delivery_id: String,
+    pub ingress_id: String,
     pub worker: __sdk::Identity,
     pub instance_id: String,
     pub lease_expires_at: __sdk::Timestamp,
-    pub row: MailDeliveryRow,
+    pub attempt_count: u32,
+    pub last_error: Option<String>,
+    pub last_updated: __sdk::Timestamp,
 }
 
 impl __sdk::InModule for MailDeliveryClaimed {
@@ -24,22 +25,28 @@ impl __sdk::InModule for MailDeliveryClaimed {
 ///
 /// Provides typed access to columns for query building.
 pub struct MailDeliveryClaimedCols {
-    pub id: __sdk::__query_builder::Col<MailDeliveryClaimed, String>,
+    pub delivery_id: __sdk::__query_builder::Col<MailDeliveryClaimed, String>,
+    pub ingress_id: __sdk::__query_builder::Col<MailDeliveryClaimed, String>,
     pub worker: __sdk::__query_builder::Col<MailDeliveryClaimed, __sdk::Identity>,
     pub instance_id: __sdk::__query_builder::Col<MailDeliveryClaimed, String>,
     pub lease_expires_at: __sdk::__query_builder::Col<MailDeliveryClaimed, __sdk::Timestamp>,
-    pub row: __sdk::__query_builder::Col<MailDeliveryClaimed, MailDeliveryRow>,
+    pub attempt_count: __sdk::__query_builder::Col<MailDeliveryClaimed, u32>,
+    pub last_error: __sdk::__query_builder::Col<MailDeliveryClaimed, Option<String>>,
+    pub last_updated: __sdk::__query_builder::Col<MailDeliveryClaimed, __sdk::Timestamp>,
 }
 
 impl __sdk::__query_builder::HasCols for MailDeliveryClaimed {
     type Cols = MailDeliveryClaimedCols;
     fn cols(table_name: &'static str) -> Self::Cols {
         MailDeliveryClaimedCols {
-            id: __sdk::__query_builder::Col::new(table_name, "id"),
+            delivery_id: __sdk::__query_builder::Col::new(table_name, "delivery_id"),
+            ingress_id: __sdk::__query_builder::Col::new(table_name, "ingress_id"),
             worker: __sdk::__query_builder::Col::new(table_name, "worker"),
             instance_id: __sdk::__query_builder::Col::new(table_name, "instance_id"),
             lease_expires_at: __sdk::__query_builder::Col::new(table_name, "lease_expires_at"),
-            row: __sdk::__query_builder::Col::new(table_name, "row"),
+            attempt_count: __sdk::__query_builder::Col::new(table_name, "attempt_count"),
+            last_error: __sdk::__query_builder::Col::new(table_name, "last_error"),
+            last_updated: __sdk::__query_builder::Col::new(table_name, "last_updated"),
         }
     }
 }
@@ -48,7 +55,8 @@ impl __sdk::__query_builder::HasCols for MailDeliveryClaimed {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct MailDeliveryClaimedIxCols {
-    pub id: __sdk::__query_builder::IxCol<MailDeliveryClaimed, String>,
+    pub delivery_id: __sdk::__query_builder::IxCol<MailDeliveryClaimed, String>,
+    pub ingress_id: __sdk::__query_builder::IxCol<MailDeliveryClaimed, String>,
     pub lease_expires_at: __sdk::__query_builder::IxCol<MailDeliveryClaimed, __sdk::Timestamp>,
 }
 
@@ -56,7 +64,8 @@ impl __sdk::__query_builder::HasIxCols for MailDeliveryClaimed {
     type IxCols = MailDeliveryClaimedIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         MailDeliveryClaimedIxCols {
-            id: __sdk::__query_builder::IxCol::new(table_name, "id"),
+            delivery_id: __sdk::__query_builder::IxCol::new(table_name, "delivery_id"),
+            ingress_id: __sdk::__query_builder::IxCol::new(table_name, "ingress_id"),
             lease_expires_at: __sdk::__query_builder::IxCol::new(table_name, "lease_expires_at"),
         }
     }

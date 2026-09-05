@@ -4,14 +4,14 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
-use super::mail_delivery_row_type::MailDeliveryRow;
-
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub struct MailDeliveryPending {
-    pub id: String,
+    pub delivery_id: String,
     pub ingress_id: String,
-    pub row: MailDeliveryRow,
+    pub attempt_count: u32,
+    pub last_error: Option<String>,
+    pub last_updated: __sdk::Timestamp,
 }
 
 impl __sdk::InModule for MailDeliveryPending {
@@ -22,18 +22,22 @@ impl __sdk::InModule for MailDeliveryPending {
 ///
 /// Provides typed access to columns for query building.
 pub struct MailDeliveryPendingCols {
-    pub id: __sdk::__query_builder::Col<MailDeliveryPending, String>,
+    pub delivery_id: __sdk::__query_builder::Col<MailDeliveryPending, String>,
     pub ingress_id: __sdk::__query_builder::Col<MailDeliveryPending, String>,
-    pub row: __sdk::__query_builder::Col<MailDeliveryPending, MailDeliveryRow>,
+    pub attempt_count: __sdk::__query_builder::Col<MailDeliveryPending, u32>,
+    pub last_error: __sdk::__query_builder::Col<MailDeliveryPending, Option<String>>,
+    pub last_updated: __sdk::__query_builder::Col<MailDeliveryPending, __sdk::Timestamp>,
 }
 
 impl __sdk::__query_builder::HasCols for MailDeliveryPending {
     type Cols = MailDeliveryPendingCols;
     fn cols(table_name: &'static str) -> Self::Cols {
         MailDeliveryPendingCols {
-            id: __sdk::__query_builder::Col::new(table_name, "id"),
+            delivery_id: __sdk::__query_builder::Col::new(table_name, "delivery_id"),
             ingress_id: __sdk::__query_builder::Col::new(table_name, "ingress_id"),
-            row: __sdk::__query_builder::Col::new(table_name, "row"),
+            attempt_count: __sdk::__query_builder::Col::new(table_name, "attempt_count"),
+            last_error: __sdk::__query_builder::Col::new(table_name, "last_error"),
+            last_updated: __sdk::__query_builder::Col::new(table_name, "last_updated"),
         }
     }
 }
@@ -42,7 +46,7 @@ impl __sdk::__query_builder::HasCols for MailDeliveryPending {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct MailDeliveryPendingIxCols {
-    pub id: __sdk::__query_builder::IxCol<MailDeliveryPending, String>,
+    pub delivery_id: __sdk::__query_builder::IxCol<MailDeliveryPending, String>,
     pub ingress_id: __sdk::__query_builder::IxCol<MailDeliveryPending, String>,
 }
 
@@ -50,7 +54,7 @@ impl __sdk::__query_builder::HasIxCols for MailDeliveryPending {
     type IxCols = MailDeliveryPendingIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         MailDeliveryPendingIxCols {
-            id: __sdk::__query_builder::IxCol::new(table_name, "id"),
+            delivery_id: __sdk::__query_builder::IxCol::new(table_name, "delivery_id"),
             ingress_id: __sdk::__query_builder::IxCol::new(table_name, "ingress_id"),
         }
     }

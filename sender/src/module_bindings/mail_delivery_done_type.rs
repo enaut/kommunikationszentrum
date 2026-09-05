@@ -4,15 +4,20 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
-use super::mail_delivery_row_type::MailDeliveryRow;
+use super::delivery_final_state_type::DeliveryFinalState;
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub struct MailDeliveryDone {
-    pub id: String,
+    pub delivery_id: String,
     pub ingress_id: String,
-    pub final_state: String,
-    pub row: MailDeliveryRow,
+    pub final_state: DeliveryFinalState,
+    pub attempt_count: u32,
+    pub last_error: Option<String>,
+    pub smtp_status_code: Option<u16>,
+    pub smtp_response: Option<String>,
+    pub finalized_at: __sdk::Timestamp,
+    pub last_updated: __sdk::Timestamp,
 }
 
 impl __sdk::InModule for MailDeliveryDone {
@@ -23,20 +28,30 @@ impl __sdk::InModule for MailDeliveryDone {
 ///
 /// Provides typed access to columns for query building.
 pub struct MailDeliveryDoneCols {
-    pub id: __sdk::__query_builder::Col<MailDeliveryDone, String>,
+    pub delivery_id: __sdk::__query_builder::Col<MailDeliveryDone, String>,
     pub ingress_id: __sdk::__query_builder::Col<MailDeliveryDone, String>,
-    pub final_state: __sdk::__query_builder::Col<MailDeliveryDone, String>,
-    pub row: __sdk::__query_builder::Col<MailDeliveryDone, MailDeliveryRow>,
+    pub final_state: __sdk::__query_builder::Col<MailDeliveryDone, DeliveryFinalState>,
+    pub attempt_count: __sdk::__query_builder::Col<MailDeliveryDone, u32>,
+    pub last_error: __sdk::__query_builder::Col<MailDeliveryDone, Option<String>>,
+    pub smtp_status_code: __sdk::__query_builder::Col<MailDeliveryDone, Option<u16>>,
+    pub smtp_response: __sdk::__query_builder::Col<MailDeliveryDone, Option<String>>,
+    pub finalized_at: __sdk::__query_builder::Col<MailDeliveryDone, __sdk::Timestamp>,
+    pub last_updated: __sdk::__query_builder::Col<MailDeliveryDone, __sdk::Timestamp>,
 }
 
 impl __sdk::__query_builder::HasCols for MailDeliveryDone {
     type Cols = MailDeliveryDoneCols;
     fn cols(table_name: &'static str) -> Self::Cols {
         MailDeliveryDoneCols {
-            id: __sdk::__query_builder::Col::new(table_name, "id"),
+            delivery_id: __sdk::__query_builder::Col::new(table_name, "delivery_id"),
             ingress_id: __sdk::__query_builder::Col::new(table_name, "ingress_id"),
             final_state: __sdk::__query_builder::Col::new(table_name, "final_state"),
-            row: __sdk::__query_builder::Col::new(table_name, "row"),
+            attempt_count: __sdk::__query_builder::Col::new(table_name, "attempt_count"),
+            last_error: __sdk::__query_builder::Col::new(table_name, "last_error"),
+            smtp_status_code: __sdk::__query_builder::Col::new(table_name, "smtp_status_code"),
+            smtp_response: __sdk::__query_builder::Col::new(table_name, "smtp_response"),
+            finalized_at: __sdk::__query_builder::Col::new(table_name, "finalized_at"),
+            last_updated: __sdk::__query_builder::Col::new(table_name, "last_updated"),
         }
     }
 }
@@ -45,7 +60,7 @@ impl __sdk::__query_builder::HasCols for MailDeliveryDone {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct MailDeliveryDoneIxCols {
-    pub id: __sdk::__query_builder::IxCol<MailDeliveryDone, String>,
+    pub delivery_id: __sdk::__query_builder::IxCol<MailDeliveryDone, String>,
     pub ingress_id: __sdk::__query_builder::IxCol<MailDeliveryDone, String>,
 }
 
@@ -53,7 +68,7 @@ impl __sdk::__query_builder::HasIxCols for MailDeliveryDone {
     type IxCols = MailDeliveryDoneIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         MailDeliveryDoneIxCols {
-            id: __sdk::__query_builder::IxCol::new(table_name, "id"),
+            delivery_id: __sdk::__query_builder::IxCol::new(table_name, "delivery_id"),
             ingress_id: __sdk::__query_builder::IxCol::new(table_name, "ingress_id"),
         }
     }

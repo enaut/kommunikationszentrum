@@ -2,19 +2,20 @@ direction: right
 
 IngressLifecycle: {
   pending -> processing: "claim_next_mail_ingress()"
-  processing -> processing: "lease refresh / heartbeat"
   processing -> completed: "complete_mail_ingress()"
-  processing -> retry_scheduled: "retry_mail_ingress() [retryable]"
+  processing -> retry_scheduled: "retry_mail_ingress() [transient]"
   processing -> failed: "fail_mail_ingress() [terminal]"
   retry_scheduled -> pending: "next_attempt_at reached"
+  processing -> pending: "expire_stale_delivery_claims() [lease expired]"
 }
 
 DeliveryLifecycle: {
-  queued -> sending: "claim_next_mail_delivery()"
-  sending -> sending: "heartbeat / state update"
-  sending -> sent: "record success"
-  sending -> retry_scheduled: "schedule_mail_delivery_retry() [transient]"
-  sending -> failed: "terminal failure"
-  sending -> bounced: "bounced outbound"
-  retry_scheduled -> queued: "requeue_temporary_failed_mails()"
+  pending -> claimed: "claim_next_mail_delivery()"
+  claimed -> sent: "mark_mail_delivery_sent()"
+  claimed -> temporary_failed: "schedule_mail_delivery_retry()"
+  temporary_failed -> pending: "requeue_temporary_failed_mails()"
+  temporary_failed -> cancelled: "cancel_mail_delivery_retry() [admin]"
+  claimed -> failed: "fail_mail_delivery() [permanent]"
+  claimed -> bounced: "mark_mail_delivery_bounced()"
+  claimed -> pending: "expire_stale_delivery_claims() [lease expired]"
 }

@@ -1,8 +1,7 @@
-use crate::account::webhook_tokens;
-use crate::account::UserSyncData;
-use crate::mailing::{message_categories, unsubscribe_subscription_by_token};
-use crate::mta::MtaConnectionLog;
-use crate::mta::{blocked_ips, mta_connection_log};
+use crate::models::account::webhook_tokens;
+use crate::models::category::message_categories;
+use crate::models::mta::{blocked_ips, mta_connection_log, MtaConnectionLog};
+use crate::reducers::{do_sync_user, unsubscribe_subscription_by_token, UserSyncData};
 use log::info;
 use serde::Deserialize;
 use serde_json::json;
@@ -88,7 +87,7 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
         Stage::Data => {
             // persist message using the existing module routines in a transaction
             let _ = ctx.with_tx(|tx| {
-                crate::mta::handle_data_stage(tx, &mta_req, tx.timestamp);
+                crate::services::mta::handle_data_stage(tx, &mta_req, tx.timestamp);
             });
 
             let resp =
@@ -355,9 +354,8 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
         Err(_) => return json_response(500, json!({"error":"serialization failed"})),
     };
 
-    let result: Result<(), String> = ctx.with_tx(|tx| {
-        crate::account::do_sync_user(tx, payload.action.clone(), user_data_str.clone())
-    });
+    let result: Result<(), String> =
+        ctx.with_tx(|tx| do_sync_user(tx, payload.action.clone(), user_data_str.clone()));
 
     match result {
         Ok(()) => json_response(
