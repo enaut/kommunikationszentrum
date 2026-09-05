@@ -305,21 +305,17 @@ fn StalwartConfigCard() -> Element {
     let stalwart_configs = use_table_admin_stalwart_config();
     let (set_stalwart_config, save_result) = use_reducer_set_stalwart_config_then();
 
-    let mut initialized = use_signal(|| false);
     let mut jmap_url = use_signal(String::new);
     let mut admin_token = use_signal(String::new);
     let mut show_token = use_signal(|| false);
     let mut is_saving = use_signal(|| false);
 
-    // Populate initial values once received from SpacetimeDB
+    // Synchronize form values whenever received from SpacetimeDB
     use_effect(move || {
         let configs = stalwart_configs();
         if let Some(config) = configs.first() {
-            if !initialized() {
-                jmap_url.set(config.jmap_url.clone());
-                admin_token.set(config.admin_token.clone());
-                initialized.set(true);
-            }
+            jmap_url.set(config.jmap_url.clone());
+            admin_token.set(config.admin_token.clone());
         }
     });
 
@@ -341,7 +337,8 @@ fn StalwartConfigCard() -> Element {
         let server_cfg = configs.first();
         let server_url = server_cfg.map(|c| c.jmap_url.as_str()).unwrap_or("");
         let server_token = server_cfg.map(|c| c.admin_token.as_str()).unwrap_or("");
-        jmap_url.read().trim() != server_url || admin_token.read().trim() != server_token
+        jmap_url.read().trim().trim_end_matches('/') != server_url.trim_end_matches('/')
+            || admin_token.read().trim() != server_token
     });
 
     rsx! {
