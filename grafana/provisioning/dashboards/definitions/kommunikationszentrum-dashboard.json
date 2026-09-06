@@ -681,56 +681,6 @@
               { "id": "displayName", "value": "Queue-ID" },
               { "id": "custom.width", "value": 150 }
             ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "attributes_stalwart_trace_id" },
-            "properties": [
-              { "id": "displayName", "value": "TraceID → Tempo" },
-              { "id": "custom.width", "value": 280 },
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "title": "Trace in Tempo öffnen",
-                    "url": "/explore?schemaVersion=1&panes=%7B%22a%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22tempo%22%7D,%22queryType%22:%22traceql%22,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1",
-                    "targetBlank": false
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": { "type": "color-text" }
-              },
-              {
-                "id": "color",
-                "value": { "fixedColor": "blue", "mode": "fixed" }
-              }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "TraceID → Tempo" },
-            "properties": [
-              { "id": "displayName", "value": "TraceID → Tempo" },
-              { "id": "custom.width", "value": 280 },
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "title": "Trace in Tempo öffnen",
-                    "url": "/explore?schemaVersion=1&panes=%7B%22a%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22tempo%22%7D,%22queryType%22:%22traceql%22,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1",
-                    "targetBlank": false
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": { "type": "color-text" }
-              },
-              {
-                "id": "color",
-                "value": { "fixedColor": "blue", "mode": "fixed" }
-              }
-            ]
           }
         ]
       },
@@ -794,10 +744,11 @@
               "level": true,
               "resources_service_name": true,
               "resources_service_version": true,
+              "attributes_stalwart_trace_id": true,
+              "traceid": true,
               "service_name": true,
               "severity": true,
               "spanid": true,
-              "traceid": true,
               "traceparent": true,
               "tsNs": true
             },
@@ -806,13 +757,11 @@
               "attributes_from": 1,
               "attributes_to_list": 2,
               "attributes_subject": 3,
-              "attributes_queue_id": 4,
-              "attributes_stalwart_trace_id": 5
+              "attributes_queue_id": 4
             },
             "renameByName": {
               "attributes_from": "Absender",
               "attributes_queue_id": "Queue-ID",
-              "attributes_stalwart_trace_id": "TraceID → Tempo",
               "attributes_subject": "Betreff",
               "attributes_to_list": "Verteiler / Liste"
             }
@@ -963,6 +912,6 @@
   "timezone": "browser",
   "title": "Stalwart Mail & Sender Monitor",
   "uid": "stalwart-sender-monitor",
-  "version": 5,
+  "version": 6,
   "weekStart": ""
 }
