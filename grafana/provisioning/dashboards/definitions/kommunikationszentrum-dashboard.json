@@ -593,6 +593,242 @@
         "x": 0,
         "y": 21
       },
+      "id": 11,
+      "title": "Eingegangene Mails — Trace-Navigator",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "Jede Zeile entspricht einer empfangenen Mail. Klick auf die TraceID öffnet direkt den zugehörigen Tempo-Trace, der den gesamten Weg vom Stalwart-SMTP-Eingang bis zu den versendeten Empfänger-Mails zeigt.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Time" },
+            "properties": [
+              { "id": "displayName", "value": "Empfangen" },
+              { "id": "custom.width", "value": 170 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "attributes_from" },
+            "properties": [
+              { "id": "displayName", "value": "Absender" },
+              { "id": "custom.width", "value": 220 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Absender" },
+            "properties": [
+              { "id": "displayName", "value": "Absender" },
+              { "id": "custom.width", "value": 220 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "attributes_to_list" },
+            "properties": [
+              { "id": "displayName", "value": "Verteiler / Liste" },
+              { "id": "custom.width", "value": 220 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Verteiler / Liste" },
+            "properties": [
+              { "id": "displayName", "value": "Verteiler / Liste" },
+              { "id": "custom.width", "value": 220 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "attributes_subject" },
+            "properties": [
+              { "id": "displayName", "value": "Betreff" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Betreff" },
+            "properties": [
+              { "id": "displayName", "value": "Betreff" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "attributes_queue_id" },
+            "properties": [
+              { "id": "displayName", "value": "Queue-ID" },
+              { "id": "custom.width", "value": 150 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Queue-ID" },
+            "properties": [
+              { "id": "displayName", "value": "Queue-ID" },
+              { "id": "custom.width", "value": 150 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "attributes_stalwart_trace_id" },
+            "properties": [
+              { "id": "displayName", "value": "TraceID → Tempo" },
+              { "id": "custom.width", "value": 280 },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Trace in Tempo öffnen",
+                    "url": "/explore?schemaVersion=1&panes=%7B%22a%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22tempo%22%7D,%22queryType%22:%22traceql%22,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1",
+                    "targetBlank": false
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-text" }
+              },
+              {
+                "id": "color",
+                "value": { "fixedColor": "blue", "mode": "fixed" }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "TraceID → Tempo" },
+            "properties": [
+              { "id": "displayName", "value": "TraceID → Tempo" },
+              { "id": "custom.width", "value": 280 },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Trace in Tempo öffnen",
+                    "url": "/explore?schemaVersion=1&panes=%7B%22a%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22tempo%22%7D,%22queryType%22:%22traceql%22,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1",
+                    "targetBlank": false
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-text" }
+              },
+              {
+                "id": "color",
+                "value": { "fixedColor": "blue", "mode": "fixed" }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Empfangen" }]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{job=\"sender\"} |= \"Attaching to Stalwart trace context\" | json",
+          "legendFormat": "",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Eingegangene Mails (klick auf TraceID → Tempo)",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "auto",
+            "replace": false,
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "attributes_ingress_id": true,
+              "attributes_traceparent": true,
+              "body": true,
+              "detected_level": true,
+              "exporter": true,
+              "flags": true,
+              "id": true,
+              "instrumentation_scope_name": true,
+              "job": true,
+              "labelTypes": true,
+              "labels": true,
+              "level": true,
+              "resources_service_name": true,
+              "resources_service_version": true,
+              "service_name": true,
+              "severity": true,
+              "spanid": true,
+              "traceid": true,
+              "traceparent": true,
+              "tsNs": true
+            },
+            "indexByName": {
+              "Time": 0,
+              "attributes_from": 1,
+              "attributes_to_list": 2,
+              "attributes_subject": 3,
+              "attributes_queue_id": 4,
+              "attributes_stalwart_trace_id": 5
+            },
+            "renameByName": {
+              "attributes_from": "Absender",
+              "attributes_queue_id": "Queue-ID",
+              "attributes_stalwart_trace_id": "TraceID → Tempo",
+              "attributes_subject": "Betreff",
+              "attributes_to_list": "Verteiler / Liste"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
       "id": 9,
       "title": "End-to-End Log Stream & Tracing-Anbindung",
       "type": "row"
@@ -606,7 +842,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 35
       },
       "id": 10,
       "options": {
@@ -727,6 +963,6 @@
   "timezone": "browser",
   "title": "Stalwart Mail & Sender Monitor",
   "uid": "stalwart-sender-monitor",
-  "version": 1,
+  "version": 5,
   "weekStart": ""
 }
