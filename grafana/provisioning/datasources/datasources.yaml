@@ -7,6 +7,12 @@ datasources:
     access: proxy
     url: http://loki:3100
     isDefault: false
+    jsonData:
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: '"(?:traceid|trace_id)":"([a-f0-9]+)"'
+          name: TraceID
+          url: '$${__value.raw}'
 
   - name: Tempo
     type: tempo
@@ -31,3 +37,13 @@ datasources:
         hide: false
       lokiSearch:
         datasourceUid: loki
+
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    jsonData:
+      httpMethod: POST
+
