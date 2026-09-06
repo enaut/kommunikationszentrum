@@ -13,7 +13,7 @@
   },
   {
     "label": "Start Grafana",
-    "command": "podman-compose down -v && podman-compose up",
+    "command": "podman-compose down && podman-compose up",
     "cwd": "$ZED_WORKTREE_ROOT/grafana",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
