@@ -6,7 +6,7 @@ use lettre::{AsyncSmtpTransport, Message, Tokio1Executor};
 use regex::Regex;
 use spacetimedb_sdk::Table as _;
 use std::error::Error;
-use tracing::trace;
+use tracing::{trace, warn};
 
 use crate::config::SenderConfig;
 use crate::module_bindings::{
@@ -162,29 +162,94 @@ pub fn compose_delivery(
 
     trace!("Building list-mail for {list_email} to {recipient_email}");
 
-    let email = Message::builder()
-        .from(list_email.parse()?)
-        .to(recipient_email.parse()?)
-        .reply_to(reply_to.parse()?)
-        .subject(subject)
-        .message_id(Some(msg_id))
-        .header(ListId(format!("{list_name} <{list_email}>")))
-        .header(ListPost(format!("<mailto:{list_email}>")))
-        .header(ListUnsubscribe(format!(
-            "<mailto:{list_email}?subject=unsubscribe>, <{unsubscribe_url}>"
-        )))
-        .header(ListUnsubscribePost(
-            "List-Unsubscribe=One-Click".to_string(),
-        ))
-        .header(PrecedenceHeader("list".to_string()))
-        .header(SenderHeader(list_email.clone()))
-        .header(XMailingList(list_name))
-        .header(XBeenThere(list_email.clone()))
-        .body(message.body_raw.clone())?;
+    let to_addr_res: Result<lettre::Address, _> = recipient_email.parse();
+    let from_addr_res: Result<lettre::Address, _> = list_email.parse();
+    let reply_to_res: Result<lettre::Address, _> = reply_to.parse();
 
-    let raw_message = String::from_utf8(email.formatted().to_vec())?;
+    let raw_message = match (from_addr_res, to_addr_res, reply_to_res) {
+        (Ok(from_addr), Ok(to_addr), Ok(reply_to_addr)) => {
+            let email = Message::builder()
+                .from(from_addr.into())
+                .to(to_addr.into())
+                .reply_to(reply_to_addr.into())
+                .subject(subject)
+                .message_id(Some(msg_id))
+                .header(ListId(format!("{list_name} <{list_email}>")))
+                .header(ListPost(format!("<mailto:{list_email}>")))
+                .header(ListUnsubscribe(format!(
+                    "<mailto:{list_email}?subject=unsubscribe>, <{unsubscribe_url}>"
+                )))
+                .header(ListUnsubscribePost(
+                    "List-Unsubscribe=One-Click".to_string(),
+                ))
+                .header(PrecedenceHeader("list".to_string()))
+                .header(SenderHeader(list_email.clone()))
+                .header(XMailingList(list_name))
+                .header(XBeenThere(list_email.clone()))
+                .body(message.body_raw.clone())?;
+
+            String::from_utf8(email.formatted().to_vec())?
+        }
+        _ => {
+            warn!(
+                "Recipient or sender email is not a valid RFC 5322 address (recipient: '{recipient_email}', list: '{list_email}', reply-to: '{reply_to}'). Falling back to raw headers."
+            );
+            render_fallback_raw_message(
+                list_email,
+                recipient_email,
+                reply_to,
+                &subject,
+                &msg_id,
+                &list_name,
+                &unsubscribe_url,
+                &message.body_raw,
+            )
+        }
+    };
+
     trace!("Composed message ({} bytes)", raw_message.len());
     Ok(raw_message)
+}
+
+fn sanitize_header_value(value: &str) -> String {
+    value.replace(['\r', '\n'], "")
+}
+
+fn render_fallback_raw_message(
+    from: &str,
+    to: &str,
+    reply_to: &str,
+    subject: &str,
+    msg_id: &str,
+    list_name: &str,
+    unsubscribe_url: &str,
+    body: &str,
+) -> String {
+    let from_clean = sanitize_header_value(from);
+    let to_clean = sanitize_header_value(to);
+    let reply_to_clean = sanitize_header_value(reply_to);
+    let subject_clean = sanitize_header_value(subject);
+    let msg_id_clean = sanitize_header_value(msg_id);
+    let list_name_clean = sanitize_header_value(list_name);
+    let unsubscribe_url_clean = sanitize_header_value(unsubscribe_url);
+
+    format!(
+        "From: {from_clean}\r\n\
+         To: {to_clean}\r\n\
+         Reply-To: {reply_to_clean}\r\n\
+         Subject: {subject_clean}\r\n\
+         Message-ID: {msg_id_clean}\r\n\
+         List-Id: {list_name_clean} <{from_clean}>\r\n\
+         List-Post: <mailto:{from_clean}>\r\n\
+         List-Unsubscribe: <mailto:{from_clean}?subject=unsubscribe>, <{unsubscribe_url_clean}>\r\n\
+         List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n\
+         Precedence: list\r\n\
+         Sender: {from_clean}\r\n\
+         X-Mailing-List: {list_name_clean}\r\n\
+         X-BeenThere: {from_clean}\r\n\
+         \r\n\
+         {body}"
+    )
 }
 
 // ---------------------------------------------------------------------------

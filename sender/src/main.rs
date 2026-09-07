@@ -74,8 +74,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Entering main processing loop");
 
+    let mut in_flight_deliveries: std::collections::HashSet<String> = std::collections::HashSet::new();
+
     loop {
         trace!("Main loop running: checking all work...");
+
+        // Prune in-flight deliveries that SpacetimeDB has confirmed resolved (deleted from claimed table)
+        in_flight_deliveries.retain(|id| {
+            connection
+                .db
+                .sender_mail_delivery_claimed()
+                .delivery_id()
+                .find(id)
+                .is_some()
+        });
 
         let mut work_done = false;
 
@@ -91,14 +103,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         // Process claimed delivery jobs (send emails)
-        match send_delivery_jobs(&connection, &config, &instance_id).await {
-            Ok(did_work) => {
-                trace!("send_delivery_jobs returned: did_work={did_work}");
-                work_done |= did_work;
-            }
-            Err(e) => {
-                warn!("Error during send_delivery_jobs: {e}");
-            }
+        if let Err(e) = send_delivery_jobs(&connection, &config, &instance_id, &mut in_flight_deliveries).await {
+            warn!("Error during send_delivery_jobs: {e}");
         }
 
         // Claim next pending delivery job
@@ -471,10 +477,13 @@ fn process_fanout_jobs(
         // Return false: no work was done on this tick
         Ok(false)
     } else {
+        let mut did_work = false;
         for job in owned_jobs {
             info!("Processing ingress job: {}", job.id);
             match process_ingress_job(connection, config, job.clone(), instance_id) {
-                Ok(()) => {}
+                Ok(()) => {
+                    did_work = true;
+                }
                 Err(IngressJobError::AwaitingToken) => {
                     // Tokens not ready yet — leave the ingress claimed and retry
                     // on the next wakeup.  Do NOT call retry_mail_ingress here:
@@ -482,6 +491,8 @@ fn process_fanout_jobs(
                     // could permanently fail a valid message just because the
                     // token reducer hadn't run yet.
                     trace!("Ingress {}: awaiting token, will retry without incrementing attempt count", job.id);
+                    // Crucially: do NOT set did_work = true, so the main loop does not
+                    // spin in a tight loop and instead waits for the token insert notification!
                 }
                 Err(IngressJobError::Real(error)) => {
                     warn!("Ingress {}: failed with error: {}", job.id, error);
@@ -490,11 +501,11 @@ fn process_fanout_jobs(
                         instance_id.to_string(),
                         error.to_string(),
                     );
+                    did_work = true;
                 }
             }
         }
-        // Return true: work was done, notify main loop to check again immediately
-        Ok(true)
+        Ok(did_work)
     }
 }
 
@@ -720,6 +731,8 @@ fn process_ingress_job(
             subscription.id,
             subscription.subscriber_email
         );
+        let sub_id = subscription.id;
+        let sub_email = subscription.subscriber_email.clone();
         match process_subscription_job(
             connection,
             config,
@@ -727,19 +740,25 @@ fn process_ingress_job(
             &message,
             &category,
             subscription,
-        )? {
-            SubscriptionJobOutcome::DeliveryQueued => {
+        ) {
+            Ok(SubscriptionJobOutcome::DeliveryQueued) => {
                 let _ = connection.reducers().increment_mail_ingress_delivery_count(
                     ingress.id.clone(),
                     instance_id.to_string(),
                 );
                 queued_deliveries += 1;
             }
-            SubscriptionJobOutcome::AlreadyQueued => {
+            Ok(SubscriptionJobOutcome::AlreadyQueued) => {
                 queued_deliveries += 1;
             }
-            SubscriptionJobOutcome::AwaitingToken => {
+            Ok(SubscriptionJobOutcome::AwaitingToken) => {
                 awaiting_tokens += 1;
+            }
+            Err(e) => {
+                warn!(
+                    "Error processing subscription {sub_id} ({sub_email}) for ingress {}: {e}",
+                    ingress.id
+                );
             }
         }
     }
@@ -770,7 +789,8 @@ async fn send_delivery_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
     instance_id: &str,
-) -> Result<bool, Box<dyn Error>> {
+    in_flight_deliveries: &mut std::collections::HashSet<String>,
+) -> Result<(), Box<dyn Error>> {
     use std::collections::HashMap;
 
     let owner = match connection.try_identity() {
@@ -783,10 +803,10 @@ async fn send_delivery_jobs(
             return Err("No identity set".into());
         }
     };
-    let owned_jobs = self_owned_delivery_jobs(connection, owner, instance_id);
+    let owned_jobs = self_owned_delivery_jobs(connection, owner, instance_id, in_flight_deliveries);
 
     if owned_jobs.is_empty() {
-        return Ok(false);
+        return Ok(());
     }
 
     // One transport per category — reuses the underlying connection pool across
@@ -805,7 +825,7 @@ async fn send_delivery_jobs(
         let transport = match category_id {
             None => {
                 warn!(
-                    "delivery {}: ingress {} not in local cache, skipping",
+                    "delivery {}: ingress {} not in local cache, skipping until cache updates",
                     delivery.delivery_id, delivery.ingress_id
                 );
                 continue;
@@ -829,6 +849,7 @@ async fn send_delivery_jobs(
                                 format!("Pre-SMTP error: {e}"),
                                 "smtp-transport-build".to_string(),
                             );
+                            in_flight_deliveries.insert(delivery.delivery_id.clone());
                             continue;
                         }
                     }
@@ -840,13 +861,21 @@ async fn send_delivery_jobs(
         trace!("processing delivery: {}", delivery.delivery_id);
         let delivery_id = delivery.delivery_id.clone();
         match send_delivery(connection, transport, delivery, instance_id).await {
-            Err(error) => warn!("delivery failure: {}", error),
-            Ok(()) => trace!("Delivered Mail {}", delivery_id),
+            Err(error) => {
+                warn!("delivery failure: {}", error);
+                if !error.to_string().contains("not in local cache") {
+                    in_flight_deliveries.insert(delivery_id);
+                }
+            }
+            Ok(()) => {
+                trace!("Delivered Mail {}", delivery_id);
+                in_flight_deliveries.insert(delivery_id);
+            }
         }
     }
     trace!("processed all claimed delivery jobs");
 
-    Ok(true)
+    Ok(())
 }
 
 #[instrument(skip_all)]
@@ -854,13 +883,18 @@ fn self_owned_delivery_jobs(
     connection: &DbConnection,
     owner: spacetimedb_sdk::Identity,
     instance_id: &str,
+    in_flight_deliveries: &std::collections::HashSet<String>,
 ) -> Vec<MailDeliveryClaimed> {
     trace!("fetching self-owned delivery jobs");
     connection
         .db
         .sender_mail_delivery_claimed()
         .iter()
-        .filter(|row| row.worker == owner && row.instance_id == instance_id)
+        .filter(|row| {
+            row.worker == owner
+                && row.instance_id == instance_id
+                && !in_flight_deliveries.contains(&row.delivery_id)
+        })
         .collect()
 }
 
