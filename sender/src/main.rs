@@ -1,6 +1,7 @@
 mod config;
 mod mail;
 mod module_bindings;
+mod tracing_util;
 
 use config::SenderConfig;
 use lettre::Transport;
@@ -37,6 +38,7 @@ use opentelemetry_sdk::Resource;
 use tracing::{error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use tracing_util::{context_from_traceparent, trace_id_from_traceparent, traceparent_from_queue_id};
 
 /// Whether a subscription with this status should currently receive mail.
 /// Mirrors `SubscriptionStatus::is_active` on the server.
@@ -589,7 +591,8 @@ fn process_subscription_job(
     Ok(SubscriptionJobOutcome::DeliveryQueued)
 }
 
-#[instrument(skip(connection, config), fields(ingress_id = %ingress.id))]
+
+#[instrument(skip(connection, config), fields(ingress_id = %ingress.id, queue_id = tracing::field::Empty))]
 fn process_ingress_job(
     connection: &DbConnection,
     config: &SenderConfig,
@@ -597,13 +600,50 @@ fn process_ingress_job(
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
     trace!("processing ingress job for ingress_id: {}", ingress.id);
-    // Lookup the mail message
+
+    // Lookup the mail message — we need it both for content and for the
+    // queue_id that lets us re-attach to the originating Stalwart trace.
     let message = connection
         .db
         .sender_mail_messages()
         .id()
         .find(&ingress.mail_message_id)
         .ok_or_else(|| format!("MailMessage {} not in local cache", ingress.mail_message_id))?;
+
+    // Re-attach this span (and all children) to the Stalwart SMTP trace.
+    //
+    // Stalwart stores a queue-id for every message it accepts. We derive a
+    // deterministic W3C traceparent from that id so every span produced while
+    // processing this ingress job shares the same trace-id as the Stalwart
+    // session — enabling a single Tempo trace to cover the full mail journey.
+    let _otel_guard = if let Some(queue_id) = &message.queue_id {
+        tracing::Span::current().record("queue_id", queue_id.as_str());
+        let traceparent = traceparent_from_queue_id(queue_id);
+        let stalwart_trace_id = trace_id_from_traceparent(&traceparent).to_string();
+
+        // Attach FIRST so the OTel bridge picks up the remote context when
+        // it reads trace_id/span_id from the current OTel context for the
+        // log record below.
+        let parent_cx = context_from_traceparent(&traceparent);
+        let guard = parent_cx.attach();
+        info!(
+            ingress_id = %ingress.id,
+            queue_id = queue_id.as_str(),
+            from = message.sender_email.as_str(),
+            to_list = ingress.category_email.as_str(),
+            subject = message.subject.as_str(),
+            // Explicit field so it lands in Loki structured metadata with the
+            // Stalwart-derived value regardless of bridge auto-injection.
+            stalwart_trace_id = stalwart_trace_id.as_str(),
+            traceparent = traceparent.as_str(),
+            "Attaching to Stalwart trace context"
+        );
+        Some(guard)
+    } else {
+        trace!("No queue_id on MailMessage {}, using local trace context", ingress.mail_message_id);
+        None
+    };
+
     // Lookup the category
     let category = match connection
         .db
@@ -695,6 +735,7 @@ fn process_ingress_job(
 
     Ok(())
 }
+
 
 fn send_delivery_jobs(
     connection: &DbConnection,
