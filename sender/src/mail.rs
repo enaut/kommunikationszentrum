@@ -1,10 +1,9 @@
-use chrono::Utc;
+use lettre::message::header::{Header, HeaderName, HeaderValue};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::transport::smtp::Error as SmtpError;
-use lettre::SmtpTransport;
+use lettre::{AsyncSmtpTransport, Message, Tokio1Executor};
 use regex::Regex;
-use serde_json::to_string;
 use spacetimedb_sdk::Table as _;
 use std::error::Error;
 use tracing::trace;
@@ -15,11 +14,52 @@ use crate::module_bindings::{
     VisibleCategoryAppPasswordsTableAccess as _, VisibleMessageCategoriesTableAccess as _,
 };
 
+// ---------------------------------------------------------------------------
+// Custom mailing-list header types for the lettre `Message` builder
+// ---------------------------------------------------------------------------
+
+macro_rules! custom_header {
+    ($type_name:ident, $header_str:literal) => {
+        #[derive(Debug, Clone)]
+        struct $type_name(String);
+
+        impl Header for $type_name {
+            fn name() -> HeaderName {
+                HeaderName::new_from_ascii_str($header_str)
+            }
+
+            fn parse(s: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+                Ok(Self(s.to_string()))
+            }
+
+            fn display(&self) -> HeaderValue {
+                HeaderValue::new(
+                    HeaderName::new_from_ascii_str($header_str),
+                    self.0.clone(),
+                )
+            }
+        }
+    };
+}
+
+custom_header!(ListId, "List-Id");
+custom_header!(ListPost, "List-Post");
+custom_header!(ListUnsubscribe, "List-Unsubscribe");
+custom_header!(ListUnsubscribePost, "List-Unsubscribe-Post");
+custom_header!(PrecedenceHeader, "Precedence");
+custom_header!(SenderHeader, "Sender");
+custom_header!(XMailingList, "X-Mailing-List");
+custom_header!(XBeenThere, "X-BeenThere");
+
+// ---------------------------------------------------------------------------
+// SMTP transport (async with connection pooling)
+// ---------------------------------------------------------------------------
+
 pub fn build_transport(
     config: &SenderConfig,
     username: &str,
     password: &str,
-) -> Result<SmtpTransport, Box<dyn Error>> {
+) -> Result<AsyncSmtpTransport<Tokio1Executor>, Box<dyn Error>> {
     let mut builder = if config.smtp_use_tls {
         let tls = if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
             let mut tls_builder = TlsParameters::builder(config.smtp_host.clone());
@@ -38,9 +78,9 @@ pub fn build_transport(
             Tls::Required(tls_parameters)
         };
 
-        SmtpTransport::relay(&config.smtp_host)?.tls(tls)
+        AsyncSmtpTransport::<Tokio1Executor>::relay(&config.smtp_host)?.tls(tls)
     } else {
-        SmtpTransport::builder_dangerous(&config.smtp_host)
+        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.smtp_host)
     };
 
     builder = builder.port(config.smtp_port);
@@ -75,14 +115,17 @@ pub fn resolve_category_smtp_credentials(
     Ok((category.email_address, app_password.secret))
 }
 
-pub fn is_transient_error(error: &SmtpError) -> bool {
-    error.is_transient() || error.is_timeout()
-}
-
 pub fn is_permanent_error(error: &SmtpError) -> bool {
     error.is_permanent()
 }
 
+// ---------------------------------------------------------------------------
+// Message composition (lettre builder pattern)
+// ---------------------------------------------------------------------------
+
+/// Compose a per-recipient mailing-list delivery using the lettre `Message`
+/// builder.  Returns the fully formatted RFC 5322 message as a `String`,
+/// ready for storage in SpacetimeDB and later SMTP submission.
 pub fn compose_delivery(
     config: &SenderConfig,
     ingress_id: &str,
@@ -90,10 +133,10 @@ pub fn compose_delivery(
     subscription: &Subscription,
     category: &MessageCategory,
     token: &SubscriptionUnsubscribeToken,
-) -> Result<(String, String), Box<dyn Error>> {
+) -> Result<String, Box<dyn Error>> {
     trace!("Composing delivery for {ingress_id}");
 
-    let list_email = category.email_address.clone();
+    let list_email = &category.email_address;
     let list_name = if category.name.trim().is_empty() {
         category
             .email_address
@@ -105,57 +148,48 @@ pub fn compose_delivery(
         category.name.clone()
     };
     trace!("List email: {list_email}, list name: {list_name}");
-    let recipient_email = subscription.subscriber_email.clone();
+
+    let recipient_email = &subscription.subscriber_email;
     let subject = rewrite_subject(&list_name, &message.subject);
-    let reply_to = message.sender_email.clone();
-    let message_id = format!(
+    let reply_to = &message.sender_email;
+    let msg_id = format!(
         "<{}@{}>",
-        message_id_seed(ingress_id, &recipient_email),
+        message_id_seed(ingress_id, recipient_email),
         config.message_id_domain
     );
-    let date = Utc::now().to_rfc2822();
     let unsubscribe_url = format!("{}?token={}", config.unsubscribe_base_url, token.token);
     trace!("Unsubscribe url {unsubscribe_url}");
 
-    trace!("Writing list-mail for {list_email} to {recipient_email}");
+    trace!("Building list-mail for {list_email} to {recipient_email}");
 
-    let headers = vec![
-        ("From".to_string(), list_email.clone()),
-        ("To".to_string(), recipient_email.clone()),
-        ("Reply-To".to_string(), reply_to),
-        ("Subject".to_string(), subject),
-        ("Message-ID".to_string(), message_id),
-        ("Date".to_string(), date),
-        (
-            "List-Id".to_string(),
-            format!("{} <{}>", list_name, list_email),
-        ),
-        ("List-Post".to_string(), format!("<mailto:{}>", list_email)),
-        (
-            "List-Unsubscribe".to_string(),
-            format!(
-                "<mailto:{}?subject=unsubscribe>, <{}>",
-                list_email, unsubscribe_url
-            ),
-        ),
-        (
-            "List-Unsubscribe-Post".to_string(),
+    let email = Message::builder()
+        .from(list_email.parse()?)
+        .to(recipient_email.parse()?)
+        .reply_to(reply_to.parse()?)
+        .subject(subject)
+        .message_id(Some(msg_id))
+        .header(ListId(format!("{list_name} <{list_email}>")))
+        .header(ListPost(format!("<mailto:{list_email}>")))
+        .header(ListUnsubscribe(format!(
+            "<mailto:{list_email}?subject=unsubscribe>, <{unsubscribe_url}>"
+        )))
+        .header(ListUnsubscribePost(
             "List-Unsubscribe=One-Click".to_string(),
-        ),
-        ("Precedence".to_string(), "list".to_string()),
-        ("Sender".to_string(), list_email.clone()),
-        ("X-Mailing-List".to_string(), list_name.clone()),
-        ("X-BeenThere".to_string(), list_email),
-    ];
+        ))
+        .header(PrecedenceHeader("list".to_string()))
+        .header(SenderHeader(list_email.clone()))
+        .header(XMailingList(list_name))
+        .header(XBeenThere(list_email.clone()))
+        .body(message.body_raw.clone())?;
 
-    let headers_raw = to_string(&headers)?;
-    let raw_message = render_raw_message(&headers, &message.body_raw);
-    Ok((headers_raw, raw_message))
+    let raw_message = String::from_utf8(email.formatted().to_vec())?;
+    trace!("Composed message ({} bytes)", raw_message.len());
+    Ok(raw_message)
 }
 
-fn sanitize_header_value(value: &str) -> String {
-    value.replace(['\r', '\n'], "")
-}
+// ---------------------------------------------------------------------------
+// Subject rewriting
+// ---------------------------------------------------------------------------
 
 /// Regex matching a single leading reply/forward tag, with optional
 /// bracketed/parenthesized counter like "RE[2]:" or "FW(3):", and optional
@@ -234,19 +268,6 @@ fn rewrite_subject(list_name: &str, subject: &str) -> String {
     }
     trace!("New subject: {new_subject}");
     new_subject
-}
-
-fn render_raw_message(headers: &[(String, String)], body: &str) -> String {
-    let mut raw = String::new();
-    for (name, value) in headers {
-        raw.push_str(&sanitize_header_value(name));
-        raw.push_str(": ");
-        raw.push_str(&sanitize_header_value(value));
-        raw.push_str("\r\n");
-    }
-    raw.push_str("\r\n");
-    raw.push_str(body);
-    raw
 }
 
 fn message_id_seed(ingress_id: &str, recipient_email: &str) -> String {
