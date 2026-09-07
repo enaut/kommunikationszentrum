@@ -74,36 +74,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Entering main processing loop");
 
-    let mut in_flight_deliveries: std::collections::HashSet<String> = std::collections::HashSet::new();
-
     loop {
         trace!("Main loop running: checking all work...");
 
-        // Prune in-flight deliveries that SpacetimeDB has confirmed resolved (deleted from claimed table)
-        in_flight_deliveries.retain(|id| {
-            connection
-                .db
-                .sender_mail_delivery_claimed()
-                .delivery_id()
-                .find(id)
-                .is_some()
-        });
-
-        let mut work_done = false;
-
         // Process ingress jobs
-        match process_fanout_jobs(&connection, &config, &instance_id) {
-            Ok(did_work) => {
-                trace!("process_fanout_jobs returned: did_work={did_work}");
-                work_done |= did_work;
-            }
-            Err(e) => {
-                warn!("Error during process_fanout_jobs: {e}");
-            }
+        if let Err(e) = process_fanout_jobs(&connection, &config, &instance_id) {
+            warn!("Error during process_fanout_jobs: {e}");
         }
 
         // Process claimed delivery jobs (send emails)
-        if let Err(e) = send_delivery_jobs(&connection, &config, &instance_id, &mut in_flight_deliveries).await {
+        if let Err(e) = send_delivery_jobs(&connection, &config, &instance_id).await {
             warn!("Error during send_delivery_jobs: {e}");
         }
 
@@ -116,16 +96,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             warn!("claim_next_mail_delivery failed: {:?}", error);
         }
 
-        // If any work was completed in this cycle, loop immediately
-        // without waiting for an event, so we drain the queue quickly.
-        if work_done {
-            trace!("Work was done this cycle, immediately checking for more...");
-            tokio::task::yield_now().await;
-            continue;
-        }
-
-        // No work was done: wait for a change event or the periodic fallback timeout.
-        trace!("No immediate work done, awaiting next event or tick...");
+        // Wait for a change event or the periodic fallback timeout.
+        trace!("Awaiting next event or tick...");
         tokio::select! {
             event = rx.recv() => {
                 match event {
@@ -456,7 +428,7 @@ fn process_fanout_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
     instance_id: &str,
-) -> Result<bool, Box<dyn Error>> {
+) -> Result<(), Box<dyn Error>> {
     trace!("process_fanout_jobs checking for work");
 
     let owner = connection.try_identity().ok_or_else(|| {
@@ -474,16 +446,11 @@ fn process_fanout_jobs(
         {
             warn!("claim_next_mail_ingress failed: {:?}", error);
         }
-        // Return false: no work was done on this tick
-        Ok(false)
     } else {
-        let mut did_work = false;
         for job in owned_jobs {
             info!("Processing ingress job: {}", job.id);
             match process_ingress_job(connection, config, job.clone(), instance_id) {
-                Ok(()) => {
-                    did_work = true;
-                }
+                Ok(()) => {}
                 Err(IngressJobError::AwaitingToken) => {
                     // Tokens not ready yet — leave the ingress claimed and retry
                     // on the next wakeup.  Do NOT call retry_mail_ingress here:
@@ -491,8 +458,6 @@ fn process_fanout_jobs(
                     // could permanently fail a valid message just because the
                     // token reducer hadn't run yet.
                     trace!("Ingress {}: awaiting token, will retry without incrementing attempt count", job.id);
-                    // Crucially: do NOT set did_work = true, so the main loop does not
-                    // spin in a tight loop and instead waits for the token insert notification!
                 }
                 Err(IngressJobError::Real(error)) => {
                     warn!("Ingress {}: failed with error: {}", job.id, error);
@@ -501,12 +466,11 @@ fn process_fanout_jobs(
                         instance_id.to_string(),
                         error.to_string(),
                     );
-                    did_work = true;
                 }
             }
         }
-        Ok(did_work)
     }
+    Ok(())
 }
 
 #[instrument(skip(connection))]
@@ -789,7 +753,6 @@ async fn send_delivery_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
     instance_id: &str,
-    in_flight_deliveries: &mut std::collections::HashSet<String>,
 ) -> Result<(), Box<dyn Error>> {
     use std::collections::HashMap;
 
@@ -803,7 +766,7 @@ async fn send_delivery_jobs(
             return Err("No identity set".into());
         }
     };
-    let owned_jobs = self_owned_delivery_jobs(connection, owner, instance_id, in_flight_deliveries);
+    let owned_jobs = self_owned_delivery_jobs(connection, owner, instance_id);
 
     if owned_jobs.is_empty() {
         return Ok(());
@@ -849,7 +812,6 @@ async fn send_delivery_jobs(
                                 format!("Pre-SMTP error: {e}"),
                                 "smtp-transport-build".to_string(),
                             );
-                            in_flight_deliveries.insert(delivery.delivery_id.clone());
                             continue;
                         }
                     }
@@ -861,16 +823,8 @@ async fn send_delivery_jobs(
         trace!("processing delivery: {}", delivery.delivery_id);
         let delivery_id = delivery.delivery_id.clone();
         match send_delivery(connection, transport, delivery, instance_id).await {
-            Err(error) => {
-                warn!("delivery failure: {}", error);
-                if !error.to_string().contains("not in local cache") {
-                    in_flight_deliveries.insert(delivery_id);
-                }
-            }
-            Ok(()) => {
-                trace!("Delivered Mail {}", delivery_id);
-                in_flight_deliveries.insert(delivery_id);
-            }
+            Err(error) => warn!("delivery failure: {}", error),
+            Ok(()) => trace!("Delivered Mail {}", delivery_id),
         }
     }
     trace!("processed all claimed delivery jobs");
@@ -883,18 +837,13 @@ fn self_owned_delivery_jobs(
     connection: &DbConnection,
     owner: spacetimedb_sdk::Identity,
     instance_id: &str,
-    in_flight_deliveries: &std::collections::HashSet<String>,
 ) -> Vec<MailDeliveryClaimed> {
     trace!("fetching self-owned delivery jobs");
     connection
         .db
         .sender_mail_delivery_claimed()
         .iter()
-        .filter(|row| {
-            row.worker == owner
-                && row.instance_id == instance_id
-                && !in_flight_deliveries.contains(&row.delivery_id)
-        })
+        .filter(|row| row.worker == owner && row.instance_id == instance_id)
         .collect()
 }
 
