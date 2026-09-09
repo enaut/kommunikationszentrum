@@ -50,10 +50,11 @@ cd server
 # Standard debug build (used by `spacetime publish`)
 cargo build --target wasm32-unknown-unknown
 
-# With Stalwart provisioning enabled (required for provision_message_category)
+# Optional: build with environment variable fallback for Stalwart
 STALWART_JMAP_URL="https://mail.example.org" \
 STALWART_ADMIN_TOKEN="secret" \
 cargo build --target wasm32-unknown-unknown
+# Alternatively, configure Stalwart credentials post-publish via the Admin UI or set_stalwart_config reducer
 ```
 
 The SpacetimeDB CLI handles the WASM build and packaging automatically during `spacetime publish`.
@@ -229,9 +230,9 @@ handle empty bodies gracefully.
 Clients **must** subscribe to views (e.g. `visible_accounts`), not raw table names. Raw tables
 either have a client visibility filter that limits rows, or are not declared `public`.
 
-### Compile-time Environment Variables
-`STALWART_JMAP_URL` and `STALWART_ADMIN_TOKEN` are injected at **compile time** using `env!()`.
-They are baked into the WASM binary. Changing them requires a rebuild and republish.
+### Environment Variables & Stalwart Configuration
+`DJANGO_BASE_URL` is set at **compile time** using `option_env!()` (defaulting to `http://127.0.0.1:8000`).
+Stalwart credentials (`STALWART_JMAP_URL` and `STALWART_ADMIN_TOKEN`) can be set dynamically at runtime via the `set_stalwart_config` reducer (stored in the `stalwart_config` database table) or passed as runtime environment variables fallback (`std::env::var`).
 
 ### Subscription Check in DATA Stage
 External senders (not present in `account`) are always rejected at the DATA stage, even if the
