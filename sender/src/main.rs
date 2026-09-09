@@ -4,10 +4,9 @@ mod module_bindings;
 mod tracing_util;
 
 use config::SenderConfig;
-use lettre::Transport;
+use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use mail::{
-    build_transport, compose_delivery, is_permanent_error, is_transient_error,
-    resolve_category_smtp_credentials,
+    build_transport, compose_delivery, is_permanent_error, resolve_category_smtp_credentials,
 };
 use module_bindings::{
     claim_next_mail_delivery, claim_next_mail_ingress, complete_mail_ingress,
@@ -78,25 +77,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         trace!("Main loop running: checking all work...");
 
-        let mut work_done = false;
-
         // Process ingress jobs
-        match process_fanout_jobs(&connection, &config, &instance_id) {
-            Ok(did_work) => {
-                trace!("process_fanout_jobs returned: did_work={did_work}");
-                work_done |= did_work;
-            }
-            Err(e) => {
-                warn!("Error during process_fanout_jobs: {e}");
-            }
+        if let Err(e) = process_fanout_jobs(&connection, &config, &instance_id) {
+            warn!("Error during process_fanout_jobs: {e}");
         }
 
         // Process claimed delivery jobs (send emails)
-        match send_delivery_jobs(&connection, &config, &instance_id) {
-            Ok(()) => {}
-            Err(e) => {
-                warn!("Error during send_delivery_jobs: {e}");
-            }
+        if let Err(e) = send_delivery_jobs(&connection, &config, &instance_id).await {
+            warn!("Error during send_delivery_jobs: {e}");
         }
 
         // Claim next pending delivery job
@@ -108,16 +96,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             warn!("claim_next_mail_delivery failed: {:?}", error);
         }
 
-        // If any work was completed in this cycle, loop immediately
-        // without waiting for an event, so we drain the queue quickly.
-        if work_done {
-            trace!("Work was done this cycle, immediately checking for more...");
-            tokio::task::yield_now().await;
-            continue;
-        }
-
-        // No work was done: wait for a change event or the periodic fallback timeout.
-        trace!("No immediate work done, awaiting next event or tick...");
+        // Wait for a change event or the periodic fallback timeout.
+        trace!("Awaiting next event or tick...");
         tokio::select! {
             event = rx.recv() => {
                 match event {
@@ -448,7 +428,7 @@ fn process_fanout_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
     instance_id: &str,
-) -> Result<bool, Box<dyn Error>> {
+) -> Result<(), Box<dyn Error>> {
     trace!("process_fanout_jobs checking for work");
 
     let owner = connection.try_identity().ok_or_else(|| {
@@ -466,22 +446,31 @@ fn process_fanout_jobs(
         {
             warn!("claim_next_mail_ingress failed: {:?}", error);
         }
-        // Return false: no work was done on this tick
-        Ok(false)
     } else {
         for job in owned_jobs {
             info!("Processing ingress job: {}", job.id);
-            if let Err(error) = process_ingress_job(connection, config, job.clone(), instance_id) {
-                let _ = connection.reducers().retry_mail_ingress(
-                    job.id.clone(),
-                    instance_id.to_string(),
-                    error.to_string(),
-                );
+            match process_ingress_job(connection, config, job.clone(), instance_id) {
+                Ok(()) => {}
+                Err(IngressJobError::AwaitingToken) => {
+                    // Tokens not ready yet — leave the ingress claimed and retry
+                    // on the next wakeup.  Do NOT call retry_mail_ingress here:
+                    // that would burn one of the MAX_INGRESS_ATTEMPTS slots and
+                    // could permanently fail a valid message just because the
+                    // token reducer hadn't run yet.
+                    trace!("Ingress {}: awaiting token, will retry without incrementing attempt count", job.id);
+                }
+                Err(IngressJobError::Real(error)) => {
+                    warn!("Ingress {}: failed with error: {}", job.id, error);
+                    let _ = connection.reducers().retry_mail_ingress(
+                        job.id.clone(),
+                        instance_id.to_string(),
+                        error.to_string(),
+                    );
+                }
             }
         }
-        // Return true: work was done, notify main loop to check again immediately
-        Ok(true)
     }
+    Ok(())
 }
 
 #[instrument(skip(connection))]
@@ -502,10 +491,31 @@ fn self_owned_ingress_jobs(
         .collect()
 }
 
+/// Outcome of a single ingress fan-out job.
+///
+/// `AwaitingToken` means the job should be left in its current state (no
+/// attempt counter incremented).  `Real` wraps genuine failures that should
+/// increment the retry counter via `retry_mail_ingress`.
+enum IngressJobError {
+    AwaitingToken,
+    Real(Box<dyn Error>),
+}
+
+impl<E: Into<Box<dyn Error>>> From<E> for IngressJobError {
+    fn from(e: E) -> Self {
+        IngressJobError::Real(e.into())
+    }
+}
+
 enum SubscriptionJobOutcome {
     DeliveryQueued,
     AlreadyQueued,
     AwaitingToken,
+}
+
+enum SubscriptionJobError {
+    Transient(Box<dyn Error>),
+    Permanent(Box<dyn Error>),
 }
 
 /// Process a single subscription job for a given mail ingress and message. Do not reprocess when already queued or sent. If the subscription does not have an unsubscribe token, request one and return `AwaitingToken`.
@@ -517,7 +527,7 @@ fn process_subscription_job(
     message: &MailMessage,
     category: &MessageCategory,
     subscription: Subscription,
-) -> Result<SubscriptionJobOutcome, Box<dyn Error>> {
+) -> Result<SubscriptionJobOutcome, SubscriptionJobError> {
     let delivery_id = format!(
         "{}:{}:{}",
         ingress.id, subscription.id, subscription.subscriber_email
@@ -562,31 +572,36 @@ fn process_subscription_job(
             info!("Requesting token for {}", subscription.subscriber_email);
             connection
                 .reducers()
-                .ensure_subscription_unsubscribe_token(subscription.id)?;
+                .ensure_subscription_unsubscribe_token(subscription.id)
+                .map_err(|e| SubscriptionJobError::Transient(e.into()))?;
             return Ok(SubscriptionJobOutcome::AwaitingToken);
         }
     };
 
     trace!("composing delivery for subscription: {}", subscription.id);
-    let (_headers_raw, raw_message) = compose_delivery(
+    let raw_message = compose_delivery(
         config,
         &ingress.id,
         message,
         &subscription,
         category,
         &token_row,
-    )?;
+    )
+    .map_err(|e| SubscriptionJobError::Permanent(e.into()))?;
 
     trace!("enqueueing delivery for subscription: {}", subscription.id);
-    connection.reducers().enqueue_mail_delivery(
-        ingress.id.clone(),
-        subscription.id,
-        subscription.subscriber_email.clone(),
-        Some(subscription.subscriber_account_id),
-        category.email_address.clone(),
-        message.sender_email.clone(),
-        raw_message,
-    )?;
+    connection
+        .reducers()
+        .enqueue_mail_delivery(
+            ingress.id.clone(),
+            subscription.id,
+            subscription.subscriber_email.clone(),
+            Some(subscription.subscriber_account_id),
+            category.email_address.clone(),
+            message.sender_email.clone(),
+            raw_message,
+        )
+        .map_err(|e| SubscriptionJobError::Transient(e.into()))?;
 
     Ok(SubscriptionJobOutcome::DeliveryQueued)
 }
@@ -598,7 +613,7 @@ fn process_ingress_job(
     config: &SenderConfig,
     ingress: MailIngress,
     instance_id: &str,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), IngressJobError> {
     trace!("processing ingress job for ingress_id: {}", ingress.id);
 
     // Lookup the mail message — we need it both for content and for the
@@ -690,6 +705,8 @@ fn process_ingress_job(
             subscription.id,
             subscription.subscriber_email
         );
+        let sub_id = subscription.id;
+        let sub_email = subscription.subscriber_email.clone();
         match process_subscription_job(
             connection,
             config,
@@ -697,19 +714,34 @@ fn process_ingress_job(
             &message,
             &category,
             subscription,
-        )? {
-            SubscriptionJobOutcome::DeliveryQueued => {
+        ) {
+            Ok(SubscriptionJobOutcome::DeliveryQueued) => {
                 let _ = connection.reducers().increment_mail_ingress_delivery_count(
                     ingress.id.clone(),
                     instance_id.to_string(),
                 );
                 queued_deliveries += 1;
             }
-            SubscriptionJobOutcome::AlreadyQueued => {
+            Ok(SubscriptionJobOutcome::AlreadyQueued) => {
                 queued_deliveries += 1;
             }
-            SubscriptionJobOutcome::AwaitingToken => {
+            Ok(SubscriptionJobOutcome::AwaitingToken) => {
                 awaiting_tokens += 1;
+            }
+            Err(SubscriptionJobError::Transient(e)) => {
+                warn!(
+                    "Transient error processing subscription {sub_id} ({sub_email}) for ingress {}: {e}",
+                    ingress.id
+                );
+                // Bubble up the transient error to trigger ingress retry
+                return Err(e.into());
+            }
+            Err(SubscriptionJobError::Permanent(e)) => {
+                warn!(
+                    "Permanent error processing subscription {sub_id} ({sub_email}) for ingress {}: {e}",
+                    ingress.id
+                );
+                // Continue with other subscriptions; this recipient is omitted
             }
         }
     }
@@ -719,10 +751,9 @@ fn process_ingress_job(
             "Ingress {}: waiting for {} unsubscribe tokens to be generated ({} deliveries already queued)",
             ingress.id, awaiting_tokens, queued_deliveries
         );
-        // Do NOT fail the ingress - return an error so the caller leaves it in `processing`
-        // status. The main loop will retry it on the next tick, or when an `active_unsubscribe_tokens`
-        // insert notification wakes the loop.
-        return Err("Waiting for unsubscribe token to be generated".into());
+        // Signal to the caller that we are blocked on token generation, not
+        // that something went wrong.  The caller will not call retry_mail_ingress.
+        return Err(IngressJobError::AwaitingToken);
     }
 
     info!(
@@ -737,11 +768,13 @@ fn process_ingress_job(
 }
 
 
-fn send_delivery_jobs(
+async fn send_delivery_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
+    use std::collections::HashMap;
+
     let owner = match connection.try_identity() {
         Some(identity) => {
             trace!("Succeeded Identity check");
@@ -754,14 +787,63 @@ fn send_delivery_jobs(
     };
     let owned_jobs = self_owned_delivery_jobs(connection, owner, instance_id);
 
+    if owned_jobs.is_empty() {
+        return Ok(());
+    }
+
+    // One transport per category — reuses the underlying connection pool across
+    // all deliveries that share the same SMTP credentials.
+    let mut transports: HashMap<u64, AsyncSmtpTransport<Tokio1Executor>> = HashMap::new();
+
     for delivery in owned_jobs {
+        // Look up the category for this delivery so we can get/build a transport.
+        let category_id = connection
+            .db
+            .sender_mail_ingress()
+            .id()
+            .find(&delivery.ingress_id)
+            .map(|i| i.category_id);
+
+        let transport = match category_id {
+            None => {
+                warn!(
+                    "delivery {}: ingress {} not in local cache, skipping until cache updates",
+                    delivery.delivery_id, delivery.ingress_id
+                );
+                continue;
+            }
+            Some(cid) => {
+                if !transports.contains_key(&cid) {
+                    match resolve_category_smtp_credentials(connection, cid)
+                        .and_then(|(u, p)| build_transport(config, &u, &p))
+                    {
+                        Ok(t) => {
+                            transports.insert(cid, t);
+                        }
+                        Err(e) => {
+                            warn!("Failed to build transport for category {cid}: {e}");
+                            // Mark this delivery as permanently failed — bad SMTP config
+                            // will not self-heal, so no point retrying.
+                            let _ = connection.reducers().fail_mail_delivery(
+                                delivery.delivery_id.clone(),
+                                instance_id.to_string(),
+                                Some(0),
+                                format!("Pre-SMTP error: {e}"),
+                                "smtp-transport-build".to_string(),
+                            );
+                            continue;
+                        }
+                    }
+                }
+                transports.get(&cid).unwrap()
+            }
+        };
+
         trace!("processing delivery: {}", delivery.delivery_id);
         let delivery_id = delivery.delivery_id.clone();
-        match send_delivery(connection, config, delivery, instance_id) {
-            Err(error) => {
-                warn!("delivery failure: {}", error);
-            }
-            Ok(_) => trace!("Delivered Mail {}", delivery_id),
+        match send_delivery(connection, transport, delivery, instance_id).await {
+            Err(error) => warn!("delivery failure: {}", error),
+            Ok(()) => trace!("Delivered Mail {}", delivery_id),
         }
     }
     trace!("processed all claimed delivery jobs");
@@ -784,15 +866,16 @@ fn self_owned_delivery_jobs(
         .collect()
 }
 
-#[instrument(skip(connection, config), fields(delivery_id = %claimed.delivery_id))]
-fn send_delivery(
+#[instrument(skip(connection, transport), fields(delivery_id = %claimed.delivery_id))]
+async fn send_delivery(
     connection: &DbConnection,
-    config: &SenderConfig,
+    transport: &AsyncSmtpTransport<Tokio1Executor>,
     claimed: MailDeliveryClaimed,
     instance_id: &str,
 ) -> Result<(), Box<dyn Error>> {
-    trace!("sending delivery: {}", claimed.delivery_id);
     use lettre::address::Envelope;
+
+    trace!("sending delivery: {}", claimed.delivery_id);
 
     let delivery_message = connection
         .db
@@ -813,63 +896,48 @@ fn send_delivery(
         .find(&claimed.ingress_id)
         .ok_or_else(|| format!("MailIngress {} not in local cache", claimed.ingress_id))?;
 
-    let (smtp_username, smtp_password) =
-        match resolve_category_smtp_credentials(connection, ingress.category_id) {
-            Ok(credentials) => credentials,
-            Err(error) => {
-                let response = format!("Pre-SMTP error: {error}");
-                connection.reducers().fail_mail_delivery(
-                    claimed.delivery_id.clone(),
-                    instance_id.to_string(),
-                    Some(0),
-                    response,
-                    "missing-category-smtp-credentials".to_string(),
-                )?;
-                return Err(error);
-            }
-        };
-
-    let transport = match build_transport(config, &smtp_username, &smtp_password) {
-        Ok(transport) => transport,
-        Err(error) => {
-            let response = format!("Pre-SMTP error: {error}");
-            connection.reducers().fail_mail_delivery(
-                claimed.delivery_id.clone(),
-                instance_id.to_string(),
-                Some(0),
-                response,
-                "smtp-transport-build".to_string(),
-            )?;
-            return Err(error);
-        }
+    // Helper: report a pre-SMTP failure to SpacetimeDB.
+    let fail_pre_smtp = |reason: &str, detail: String| {
+        let response = format!("Pre-SMTP error: {detail}");
+        let _ = connection.reducers().fail_mail_delivery(
+            claimed.delivery_id.clone(),
+            instance_id.to_string(),
+            Some(0),
+            response,
+            reason.to_string(),
+        );
     };
 
-    let envelope_result = {
-        let from = ingress.category_email.parse()?;
-        let to = vec![delivery_message.recipient_email.parse()?];
-        Ok(Envelope::new(Some(from), to)?)
-    };
-
-    let envelope = match envelope_result {
-        Ok(e) => {
-            trace!("envelope: {e:?}");
-            e
-        }
-        Err(error) => {
-            trace!("envelope error: {error}");
-            let response = format!("Pre-SMTP error: {error}");
-            connection.reducers().fail_mail_delivery(
-                claimed.delivery_id.clone(),
-                instance_id.to_string(),
-                Some(0),
-                response,
-                "pre-smtp".to_string(),
-            )?;
-            return Err(error);
+    let from = match ingress.category_email.parse() {
+        Ok(a) => a,
+        Err(e) => {
+            let msg = format!("{e}");
+            fail_pre_smtp("pre-smtp", msg.clone());
+            return Err(msg.into());
         }
     };
+    let to = match delivery_message.recipient_email.parse() {
+        Ok(a) => vec![a],
+        Err(e) => {
+            let msg = format!("{e}");
+            fail_pre_smtp("pre-smtp", msg.clone());
+            return Err(msg.into());
+        }
+    };
+    let envelope = match Envelope::new(Some(from), to) {
+        Ok(e) => e,
+        Err(e) => {
+            let msg = format!("{e}");
+            fail_pre_smtp("pre-smtp", msg.clone());
+            return Err(msg.into());
+        }
+    };
+    trace!("envelope: {envelope:?}");
 
-    match transport.send_raw(&envelope, delivery_message.raw_message.as_bytes()) {
+    match transport
+        .send_raw(&envelope, delivery_message.raw_message.as_bytes())
+        .await
+    {
         Ok(response) => {
             let code = response.code().to_string().parse::<u16>().ok();
             info!(
@@ -885,7 +953,6 @@ fn send_delivery(
             Ok(())
         }
         Err(error) => {
-            trace!("send_raw error: {error}");
             let code = error
                 .status()
                 .map(|status| status.to_string().parse::<u16>().unwrap_or(0));
@@ -902,26 +969,19 @@ fn send_delivery(
                     response,
                     "smtp-permanent".to_string(),
                 )?;
-            } else if is_transient_error(&error) {
-                trace!("transient error: {error}. Moving to temporary failed table.");
-                let delay_micros = 5 * 60 * 1_000_000;
-                connection.reducers().schedule_mail_delivery_retry(
-                    claimed.delivery_id.clone(),
-                    instance_id.to_string(),
-                    response,
-                    delay_micros,
-                )?;
             } else {
-                trace!("unknown error: {error}. Moving to temporary failed table.");
-                let delay_micros = 5 * 60 * 1_000_000;
+                // Both transient and unknown errors get a retry.
+                trace!("transient/unknown SMTP error — scheduling retry: {error}");
+                const RETRY_DELAY_MICROS: i64 = 5 * 60 * 1_000_000;
                 connection.reducers().schedule_mail_delivery_retry(
                     claimed.delivery_id.clone(),
                     instance_id.to_string(),
                     response,
-                    delay_micros,
+                    RETRY_DELAY_MICROS,
                 )?;
             }
             Err(error.into())
         }
     }
 }
+
