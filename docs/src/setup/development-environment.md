@@ -69,9 +69,3 @@ dx serve --package admin --platform web
 sh -lc '. .env/.env.sender.example && cargo run --package sender'
 ```
 
----
-
-## Next Steps
-
-- Consult the [Configuration Reference](configuration.md) for detailed descriptions of all options.
-- Review [Environment Variables Reference](../reference/environment-variables.md) for the complete variable catalog.

@@ -165,7 +165,3 @@ fi
 echo
 print_status $BLUE "=== Test Summary ==="
 print_status $GREEN "User synchronization endpoint testing complete!"
-print_status $YELLOW "Next steps:"
-print_status $YELLOW "1. Test the Django signals by creating/updating users"
-print_status $YELLOW "2. Run initial sync: python manage.py sync_users_to_spacetimedb --dry-run"
-print_status $YELLOW "3. Check SpacetimeDB logs for sync events"
