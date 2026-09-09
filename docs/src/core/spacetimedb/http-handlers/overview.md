@@ -32,7 +32,7 @@ The host delegates `Authorization` handling entirely to module handlers. As a re
 |---|---|
 | Token storage | Only a BLAKE3 cryptographic hash of the plaintext token is stored in the `webhook_tokens` table. |
 | Token permissions | Each token carries a `permissions: Vec<String>` column; the handler checks the required permission for the route before proceeding. |
-| Token management | Create and revoke tokens via admin-only reducers (`create_webhook_token`, `revoke_webhook_token`). The Admin Web UI can generate and hash tokens client-side without CLI access. |
+| Token management | Create and revoke tokens via admin-only reducers (`create_webhook_token`, `revoke_webhook_token`) or the Admin Web UI. See [Managing Webhook Tokens / Token Generation](../module-publishing.md#managing-webhook-tokens). |
 | One-click unsubscribe | Uses unique per-subscription tokens in the query string (`?token=...`), validated against the `subscription_unsubscribe_tokens` table. |
 
 ---

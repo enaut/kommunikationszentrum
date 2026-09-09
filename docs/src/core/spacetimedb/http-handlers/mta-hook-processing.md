@@ -4,6 +4,14 @@ The module handles Stalwart MTA webhook requests for each SMTP stage. Handlers r
 
 ---
 
+## Authentication
+
+All calls to `POST /v1/database/kommunikation/route/mta-hook` require an `Authorization: Bearer <token>` header with a webhook token that has the `mta-hook` permission.
+
+For instructions on generating a token, hashing it with BLAKE3, and registering it with the module, see [Managing Webhook Tokens / Token Generation](../module-publishing.md#managing-webhook-tokens).
+
+---
+
 ## Stage Processing
 
 | Stage | Purpose | Implementation |

@@ -26,7 +26,7 @@ Protected endpoints (`mta-hook`, `user-sync`) require a bearer token in the `Aut
 Authorization: Bearer <token>
 ```
 
-Tokens are created via the admin-only `create_webhook_token` reducer and stored as a BLAKE3 hash in the `webhook_tokens` table. Each token carries a `permissions` list; the handler rejects requests whose token lacks the required permission for the route.
+Tokens are created via the admin-only `create_webhook_token` reducer and stored as a BLAKE3 hash in the `webhook_tokens` table (see [Managing Webhook Tokens / Token Generation](../module-publishing.md#managing-webhook-tokens) for step-by-step instructions on generating and registering tokens). Each token carries a `permissions` list; the handler rejects requests whose token lacks the required permission for the route.
 
 The one-click unsubscribe endpoint authenticates the subscriber via the `token` query parameter, validated against `subscription_unsubscribe_tokens`.
 

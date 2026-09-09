@@ -168,7 +168,7 @@ SMTP_HOST=localhost SMTP_PORT=1025 SMTP_USE_TLS=false cargo run
 ### Manual Triggering
 
 To test without a real Stalwart MTA, post a crafted DATA-stage payload directly to the
-module's `/mta-hook` HTTP endpoint:
+module's `/mta-hook` HTTP endpoint (requires a token with `mta-hook` permission; see [Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens)):
 
 ```bash
 curl -X POST \

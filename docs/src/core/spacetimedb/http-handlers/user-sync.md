@@ -1,6 +1,25 @@
 # User Synchronisation
 
-The user-sync endpoint allows the Django `solawispielplatz` backend to keep SpacetimeDB account data in sync with the canonical user store. Requests are authenticated with a bearer token carrying the `sync-user` permission.
+The user-sync endpoint allows the Django `solawispielplatz` backend to keep SpacetimeDB account data in sync with the canonical user store. Requests are authenticated with a bearer token carrying the `sync-user` permission (see [Managing Webhook Tokens / Token Generation](../module-publishing.md#managing-webhook-tokens)).
+
+---
+
+## Authentication
+
+Requests must include a bearer token in the `Authorization` header:
+
+```http
+Authorization: Bearer <token>
+```
+
+The token must carry the `sync-user` permission. For step-by-step instructions on generating a token, hashing it with BLAKE3, and registering it with SpacetimeDB, see [Managing Webhook Tokens / Token Generation](../module-publishing.md#managing-webhook-tokens).
+
+In the Django backend, configure the plaintext token in `settings_local.py`:
+
+```python
+SPACETIME_WEBHOOK_TOKEN = "<plaintext-token>"
+SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user-sync"
+```
 
 ---
 

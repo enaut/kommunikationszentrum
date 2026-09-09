@@ -24,7 +24,7 @@ git clone git@github.com:enaut/kommunikationszentrum.git
 
 * change listener port to 8093
 * create users
-* setup mta-webhook
+* setup mta-webhook (see [MTA Hook Configuration](../email/mta-hook-config.md) and [Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens))
 
 # tasks
 

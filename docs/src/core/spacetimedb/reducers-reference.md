@@ -31,7 +31,7 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `identity_disconnected` | System | `_ctx: &ReducerContext` | Triggered on WebSocket disconnect. No-op. |
 | `register_admin_identity` | Admin | `identity_hex: String` | Grants admin privileges to identity hex string. |
 | `unregister_admin_identity` | Admin | `identity_hex: String` | Revokes admin privileges from identity hex string. |
-| `create_webhook_token` | Admin | `token_hash: String, label: String, permissions: Vec<String>` | Registers a BLAKE3 hashed bearer token for external webhooks. |
+| `create_webhook_token` | Admin | `token_hash: String, label: String, permissions: Vec<String>` | Registers a BLAKE3 hashed bearer token for external webhooks (see [Managing Webhook Tokens](./module-publishing.md#managing-webhook-tokens)). |
 | `revoke_webhook_token` | Admin | `token_hash: String` | Deactivates a bearer webhook token by token hash. |
 | `sync_user` | Admin/Webhook | `action: String, user_data: String` | Upserts/deletes user account & syncs category subscriptions from Django. |
 | `set_stalwart_config` | Admin | `jmap_url: String, admin_token: String` | Configures or updates Stalwart MTA JMAP REST API endpoint URL and admin bearer token in `stalwart_config`. |

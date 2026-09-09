@@ -44,7 +44,7 @@ All persistence is executed inside `ctx.with_tx(...)` transactions to keep opera
 
 - External callers must present `Authorization: Bearer <token>` headers with a token that has the `mta-hook` permission.
 
-- Tokens are created via the web admin interface or via the `spacetime call` CLI.
+- Tokens are created via the web admin interface or via the `spacetime call` CLI. For step-by-step instructions on generating, BLAKE3 hashing, and registering a webhook token with the `mta-hook` permission, see [Managing Webhook Tokens / Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens).
 
 ## Error handling
 
@@ -56,7 +56,7 @@ Errors fall into the following categories:
 
 ## Testing
 
-- Use `docs/testscripts/test-mta-hooks.sh` to exercise the MTA stages. The script posts to the module route and includes the required bearer token via the `WEBHOOK_TOKEN` environment variable.
+- Use `docs/testscripts/test-mta-hooks.sh` to exercise the MTA stages. The script posts to the module route and includes the required bearer token via the `WEBHOOK_TOKEN` environment variable (generated as described in [Managing Webhook Tokens](../core/spacetimedb/module-publishing.md#managing-webhook-tokens)).
 
 ## Database integration
 

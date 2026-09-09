@@ -24,7 +24,7 @@ This page describes how to configure external systems (Stalwart MTA, Django) to 
   $spacetimedb_call create_webhook_token "$HASH" "django-sync" '["sync-user"]'
   ```
 
-- Keep the plaintext token secret; the module stores only a BLAKE3 hash of the token.
+- Keep the plaintext token secret; the module stores only a BLAKE3 hash of the token. For detailed token generation steps and CLI commands for `mta-hook` and `sync-user`, see [Managing Webhook Tokens / Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens).
 
 3) Configure external systems
 

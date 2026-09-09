@@ -46,7 +46,7 @@ retry.max = 3
 retry.delay = "1s"
 ```
 
-You must also ensure Stalwart sends an `Authorization: Bearer <token>` header. Configure Stalwart's hook client appropriately or place a proxy in front of SpacetimeDB that injects the header.
+You must also ensure Stalwart sends an `Authorization: Bearer <token>` header carrying the `mta-hook` permission. See [Managing Webhook Tokens / Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens) to generate, hash, and register this token. Configure Stalwart's hook client appropriately or place a proxy in front of SpacetimeDB that injects the header.
 
 Hook Stages:
 
@@ -102,7 +102,7 @@ stalwart-mail --config /etc/stalwart-mail/config.toml --dry-run
 
 ### 2. Hook Connectivity Test
 
-Verify that Stalwart can reach the module route (use the token the module expects):
+Verify that Stalwart can reach the module route (use a token with `mta-hook` permission; see [Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens)):
 
 ```bash
 curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook"   -H "Content-Type: application/json"   -H "Authorization: Bearer <token>"   -d '{
