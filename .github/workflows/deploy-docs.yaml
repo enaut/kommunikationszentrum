@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'docs/**'
+      - '.github/workflows/deploy-docs.yaml'
   workflow_dispatch:
 
 permissions:
@@ -52,7 +53,7 @@ jobs:
       # ------------------------------------------------------------
       - name: Install D2 and TALA
         run: |
-          curl -fsSL https://d2lang.com/install.sh | sh -s -- --tala
+          curl -fsSL https://d2lang.com/install.sh | sh -s
 
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "/usr/local/bin" >> "$GITHUB_PATH"
