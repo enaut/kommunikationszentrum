@@ -513,6 +513,11 @@ enum SubscriptionJobOutcome {
     AwaitingToken,
 }
 
+enum SubscriptionJobError {
+    Transient(Box<dyn Error>),
+    Permanent(Box<dyn Error>),
+}
+
 /// Process a single subscription job for a given mail ingress and message. Do not reprocess when already queued or sent. If the subscription does not have an unsubscribe token, request one and return `AwaitingToken`.
 #[instrument(skip(connection, config, ingress, message, category), fields(subscription_id = %subscription.id, subscription_job = true))]
 fn process_subscription_job(
@@ -522,7 +527,7 @@ fn process_subscription_job(
     message: &MailMessage,
     category: &MessageCategory,
     subscription: Subscription,
-) -> Result<SubscriptionJobOutcome, Box<dyn Error>> {
+) -> Result<SubscriptionJobOutcome, SubscriptionJobError> {
     let delivery_id = format!(
         "{}:{}:{}",
         ingress.id, subscription.id, subscription.subscriber_email
@@ -567,7 +572,8 @@ fn process_subscription_job(
             info!("Requesting token for {}", subscription.subscriber_email);
             connection
                 .reducers()
-                .ensure_subscription_unsubscribe_token(subscription.id)?;
+                .ensure_subscription_unsubscribe_token(subscription.id)
+                .map_err(|e| SubscriptionJobError::Transient(e.into()))?;
             return Ok(SubscriptionJobOutcome::AwaitingToken);
         }
     };
@@ -580,18 +586,22 @@ fn process_subscription_job(
         &subscription,
         category,
         &token_row,
-    )?;
+    )
+    .map_err(|e| SubscriptionJobError::Permanent(e.into()))?;
 
     trace!("enqueueing delivery for subscription: {}", subscription.id);
-    connection.reducers().enqueue_mail_delivery(
-        ingress.id.clone(),
-        subscription.id,
-        subscription.subscriber_email.clone(),
-        Some(subscription.subscriber_account_id),
-        category.email_address.clone(),
-        message.sender_email.clone(),
-        raw_message,
-    )?;
+    connection
+        .reducers()
+        .enqueue_mail_delivery(
+            ingress.id.clone(),
+            subscription.id,
+            subscription.subscriber_email.clone(),
+            Some(subscription.subscriber_account_id),
+            category.email_address.clone(),
+            message.sender_email.clone(),
+            raw_message,
+        )
+        .map_err(|e| SubscriptionJobError::Transient(e.into()))?;
 
     Ok(SubscriptionJobOutcome::DeliveryQueued)
 }
@@ -718,11 +728,20 @@ fn process_ingress_job(
             Ok(SubscriptionJobOutcome::AwaitingToken) => {
                 awaiting_tokens += 1;
             }
-            Err(e) => {
+            Err(SubscriptionJobError::Transient(e)) => {
                 warn!(
-                    "Error processing subscription {sub_id} ({sub_email}) for ingress {}: {e}",
+                    "Transient error processing subscription {sub_id} ({sub_email}) for ingress {}: {e}",
                     ingress.id
                 );
+                // Bubble up the transient error to trigger ingress retry
+                return Err(e.into());
+            }
+            Err(SubscriptionJobError::Permanent(e)) => {
+                warn!(
+                    "Permanent error processing subscription {sub_id} ({sub_email}) for ingress {}: {e}",
+                    ingress.id
+                );
+                // Continue with other subscriptions; this recipient is omitted
             }
         }
     }
