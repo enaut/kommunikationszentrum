@@ -65,7 +65,7 @@
 
 - [Operations](./operations/overview.md)
   - [Deployment]()
-  - [Monitoring]()
+  - [Monitoring](./operations/monitoring.md)
   - [Backup & Recovery]()
   - [Troubleshooting]()
 

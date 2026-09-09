@@ -72,7 +72,7 @@ Category email addresses must follow these rules:
 
 1. **Valid email format**: `name@domain.tld`
 2. **Unique addresses**: No two categories can share the same email
-3. **Domain consistency**: Typically use the same domain (e.g., `@solawis.de`). The domain must be configured in stalwart.
+3. **Domain consistency**: Typically use the same domain (e.g., `@solawis.de`). The domain must be configured in Stalwart and synchronized into SpacetimeDB (see [Domain Synchronization](./stalwart-setup.md#domain-synchronization)).
 4. **Descriptive names**: Use meaningful prefixes (`news@`, `events@`, etc.)
 
 ### Domain Configuration

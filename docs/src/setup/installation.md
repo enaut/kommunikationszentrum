@@ -16,15 +16,17 @@ git clone git@github.com:enaut/kommunikationszentrum.git
 ```
 
 ```bash
-926  curl --proto '=https' --tlsv1.2 -sSf https://get.stalw.art/install.sh -o install.sh
-927  sudo sh install.sh  # install stalwart
-928  journalctl -u stalwart # get initial password
-929  systemctl restart stalwart # restart stalwart after initial setup
+curl --proto '=https' --tlsv1.2 -sSf https://get.stalw.art/install.sh -o install.sh
+sudo sh install.sh         # install Stalwart MTA
+journalctl -u stalwart     # retrieve initial admin credentials
+systemctl restart stalwart # restart stalwart after initial setup
 ```
 
-* change listener port to 8093
-* create users
-* setup mta-webhook (see [MTA Hook Configuration](../email/mta-hook-config.md) and [Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens))
+Follow the complete [Stalwart MTA Setup](../email/stalwart-setup.md) guide for configuration with screenshots:
+* **Listeners**: [Change HTTP listener port to 8093](../email/stalwart-setup.md#listeners-configuration-port-8093) (avoids port collisions; targets Prometheus scraping).
+* **Admin API Key**: [Create `webportal admin` API key](../email/stalwart-setup.md#admin-api-key-configuration-stalwart_admin_token) (provides `STALWART_ADMIN_TOKEN` for SpacetimeDB JMAP domain and category sync).
+* **MTA Webhook**: [Configure MTA Hook in Stalwart UI](../email/stalwart-setup.md#mta-hook-configuration) (using a bearer token generated via [Managing Webhook Tokens](../core/spacetimedb/module-publishing.md#managing-webhook-tokens)).
+* **Telemetry**: [Enable Prometheus metrics & OpenTelemetry tracing](../email/stalwart-setup.md#monitoring--telemetry).
 
 # tasks
 

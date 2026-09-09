@@ -13,7 +13,9 @@ This page describes how to configure external systems (Stalwart MTA, Django) to 
 
 2) Create a webhook token
 
-- You can create and manage webhook tokens from the Admin Web UI (Debug → Webhook Tokens). The UI generates a secure token in the browser, displays it once for copying, computes the BLAKE3 hex hash client-side, and sends only the hash to the module. Using the UI means you do not need the CLI for token creation.
+- You can create and manage webhook tokens from the Admin Web UI (Debug → Webhook Tokens). The UI generates a secure token in the browser, displays it once for copying, computes the BLAKE3 hex hash client-side, and sends only the hash to the module. Using the UI means you do not need the CLI for token creation:
+
+  ![Admin UI Webhook Token Creation](../email/img/admin-mta-token-creation.png)
 
 - If you prefer to use the CLI, compute the BLAKE3 hex hash locally and pass the hash (not the plaintext) to the reducer. For example (pseudo):
 
@@ -35,6 +37,8 @@ This page describes how to configure external systems (Stalwart MTA, Django) to 
   Include the Authorization header:
 
   `Authorization: Bearer <token>`
+
+  For step-by-step Web Admin UI instructions and screenshots, see [Stalwart MTA Setup — MTA Hook Configuration](../email/stalwart-setup.md#mta-hook-configuration).
 
 - Django (user sync): set the token in `settings_local.py`:
 

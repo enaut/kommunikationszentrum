@@ -23,48 +23,34 @@ Handlers return a `stalwart_mta_hook_types::Response` JSON object with fields si
 }
 ```
 
-## Stage-specific handling
+## Deployment and Configuration
 
-The module implements stage-specific logic inside the handler. Highlights:
+In Stalwart MTA, configure the hook to POST to the SpacetimeDB module HTTP route:
 
-- CONNECT: checks `blocked_ips` and logs connection attempts. Returns `reject` if the IP is actively blocked.
-- EHLO/HELO: basic validation of the HELO argument; rejects empty values.
-- MAIL FROM: basic sender address validation (syntax checks).
-- RCPT TO: fast indexed lookup on `message_categories.email_address` to determine whether to accept the recipient for delivery to a mailing list.
-- DATA: extracts headers/body, determines matching categories, checks sender subscriptions, and persists `received_message` rows for each accepted delivery. If no matching deliveries are found, the message is quarantined.
-- AUTH: currently a pass-through that logs the authentication attempt.
+```
+POST http://localhost:3000/v1/database/kommunikation/route/mta-hook
+```
 
-All persistence is executed inside `ctx.with_tx(...)` transactions to keep operations atomic.
+For complete step-by-step setup in Stalwart, see [Stalwart MTA Setup — MTA Hook Configuration](./stalwart-setup.md#mta-hook-configuration).
 
-## Deployment and configuration
+![Stalwart MTA Hook Configuration](./img/stalwart-mta-hook-setup.png)
 
-- The module registers routes under the host path `/v1/database/:name/route/{*path}`. For example:
+- **Authentication**: External callers must provide `Authorization: Bearer <token>` carrying the `mta-hook` permission.
+- **Token Generation**: For step-by-step instructions on generating, BLAKE3 hashing, and registering a webhook token, see [Managing Webhook Tokens / Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens).
 
-  - `POST http://localhost:3000/v1/database/kommunikation/route/mta-hook`
+---
 
-- External callers must present `Authorization: Bearer <token>` headers with a token that has the `mta-hook` permission.
+## Stage-Specific Handling
 
-- Tokens are created via the web admin interface or via the `spacetime call` CLI. For step-by-step instructions on generating, BLAKE3 hashing, and registering a webhook token with the `mta-hook` permission, see [Managing Webhook Tokens / Token Generation](../core/spacetimedb/module-publishing.md#managing-webhook-tokens).
+The SpacetimeDB handler executes validation and persistence logic for each SMTP stage inside atomic `ctx.with_tx(...)` transactions:
 
-## Error handling
+| Stage | Purpose | Detailed Documentation |
+|---|---|---|
+| `CONNECT` | IP blocklist check against `blocked_ips` table | [Processing Flow — CONNECT](./processing-flow.md#1-connect-stage) |
+| `EHLO` | HELO/EHLO argument syntax validation | [Processing Flow — EHLO](./processing-flow.md#2-ehlohelo-stage) |
+| `MAIL FROM` | Sender address syntax validation | [Processing Flow — MAIL FROM](./processing-flow.md#3-mail-from-stage) |
+| `RCPT TO` | Category recipient check against `message_categories.email_address` | [Processing Flow — RCPT TO](./processing-flow.md#4-rcpt-to-stage) |
+| `DATA` | Content extraction, subscriber verification, `received_message` & `mail_ingress` persistence | [Processing Flow — DATA](./processing-flow.md#5-data-stage) |
+| `AUTH` | Connection audit logging (pass-through) | [Processing Flow — AUTH](./processing-flow.md#6-auth-stage) |
 
-Errors fall into the following categories:
-
-- Validation errors (invalid envelope, malformed headers) → typically `reject(550, ...)`.
-- Temporary server or IO errors → handlers may respond with a temporary failure and the caller should retry. Logged and queued failures can be inspected and retried by operator tooling.
-- Unknown conditions → quarantined or rejected depending on severity.
-
-## Testing
-
-- Use `docs/testscripts/test-mta-hooks.sh` to exercise the MTA stages. The script posts to the module route and includes the required bearer token via the `WEBHOOK_TOKEN` environment variable (generated as described in [Managing Webhook Tokens](../core/spacetimedb/module-publishing.md#managing-webhook-tokens)).
-
-## Database integration
-
-- The handler uses indexed lookups and B-Tree filters for efficient category and subscription checks.
-- Message and connection logs are written to `mta_message_log` and `mta_connection_log` tables for operational visibility.
-
-## Operational notes
-
-- If running SpacetimeDB in production, place a TLS-terminating reverse proxy in front of the host to protect the HTTP routes.
-- Use labeled tokens and rotate them regularly. Revoke tokens you no longer need.
-- Monitor the `mta_*` log tables to detect processing anomalies.
+For SpacetimeDB internal implementation details, table schemas, and reducer/transaction behavior, see [MTA Hook Processing (SpacetimeDB API)](../core/spacetimedb/http-handlers/mta-hook-processing.md).
