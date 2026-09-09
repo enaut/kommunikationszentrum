@@ -66,6 +66,5 @@ spacetime publish --project-path server kommunikation
 dx serve --package admin --platform web
 
 # 4. Run the Sender Daemon
-sh -lc '. .env/.env.sender.example && cargo run --package sender'
+sh -lc '. .env/.env.sender && cargo run --package sender'
 ```
-
