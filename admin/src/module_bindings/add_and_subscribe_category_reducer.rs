@@ -12,7 +12,7 @@ use super::category_visibility_type::CategoryVisibility;
 #[sats(crate = __lib)]
 pub(super) struct AddAndSubscribeCategoryArgs {
     pub subscriber_account_id: u64,
-    pub subscriber_email: String,
+    pub account_email_id: u64,
     pub name: String,
     pub email_address: String,
     pub description: String,
@@ -23,7 +23,7 @@ impl From<AddAndSubscribeCategoryArgs> for super::Reducer {
     fn from(args: AddAndSubscribeCategoryArgs) -> Self {
         Self::AddAndSubscribeCategory {
             subscriber_account_id: args.subscriber_account_id,
-            subscriber_email: args.subscriber_email,
+            account_email_id: args.account_email_id,
             name: args.name,
             email_address: args.email_address,
             description: args.description,
@@ -51,7 +51,7 @@ pub trait add_and_subscribe_category {
     fn add_and_subscribe_category(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         name: String,
         email_address: String,
         description: String,
@@ -59,7 +59,7 @@ pub trait add_and_subscribe_category {
     ) -> __sdk::Result<()> {
         self.add_and_subscribe_category_then(
             subscriber_account_id,
-            subscriber_email,
+            account_email_id,
             name,
             email_address,
             description,
@@ -77,7 +77,7 @@ pub trait add_and_subscribe_category {
     fn add_and_subscribe_category_then(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         name: String,
         email_address: String,
         description: String,
@@ -92,7 +92,7 @@ impl add_and_subscribe_category for super::RemoteReducers {
     fn add_and_subscribe_category_then(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         name: String,
         email_address: String,
         description: String,
@@ -104,7 +104,7 @@ impl add_and_subscribe_category for super::RemoteReducers {
         self.imp.invoke_reducer_with_callback(
             AddAndSubscribeCategoryArgs {
                 subscriber_account_id,
-                subscriber_email,
+                account_email_id,
                 name,
                 email_address,
                 description,

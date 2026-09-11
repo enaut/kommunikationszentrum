@@ -5,25 +5,24 @@ owned: "self_owned_ingress_jobs()\nFilter local cache for rows where:\nclaim.cla
   shape: diamond
   style.fill: "#ffffff"
 }
-claim: "claim_next_mail_ingress(instance_id)\n(Server atomically leases 1 pending/expired ingress)" { style.fill: "#bbdefb" }
-wait50: "sleep 50 ms\n(Yield to allow background pump\nto receive updated row)" { style.fill: "#fff9c4" }
-recheck: "Re-check self_owned_ingress_jobs()" {
-  shape: diamond
-  style.fill: "#ffffff"
-}
-none: "No ingress jobs available\nBreak fanout loop" { style.fill: "#ffcdd2" }
+
+claim: "claim_next_mail_ingress(instance_id)\n(Asynchronous server claim request)" { style.fill: "#bbdefb" }
+ret_idle: "Return Ok(())\n(Table update callback wakes loop when leased)" { style.fill: "#c8e6c9" }
+
 proc: "process_ingress_job(job)" { style.fill: "#bbdefb" }
-err: "retry_mail_ingress(error)\n(Increments attempt count & schedules back-off)" { style.fill: "#ffe0b2" }
-cont: "Continue loop to process next job\n(did_work = true)" { style.fill: "#c8e6c9" }
+token: "AwaitingToken?\n(Wait for token generation reducer)" { shape: diamond; style.fill: "#ffe0b2" }
+no_burn: "Leave ingress claimed\n(Do NOT call retry_mail_ingress,\npreserves retry attempt slots)" { style.fill: "#c8e6c9" }
+err: "retry_mail_ingress(error)\n(Increments attempt count & schedules back-off)" { style.fill: "#ffcdd2" }
+done_job: "Ingress job completed / handled" { style.fill: "#c8e6c9" }
 
 entry -> owned
-owned -> claim: "None owned yet"
-owned -> proc: "Owned job found"
-claim -> wait50
-wait50 -> recheck
-recheck -> none: "Still empty"
-recheck -> proc: "Leased job confirmed"
-proc -> err: "Err(e)"
-proc -> cont: "Ok(())"
-err -> cont
-cont -> owned
+owned -> claim: "No owned jobs"
+claim -> ret_idle
+owned -> proc: "Owned job(s) found"
+
+proc -> done_job: "Ok(())"
+proc -> token: "Err(e)"
+token -> no_burn: "AwaitingToken"
+token -> err: "Real error"
+no_burn -> done_job
+err -> done_job

@@ -31,6 +31,29 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
     }
 }
 
+#[spacetimedb::view(accessor = visible_account_emails, public)]
+pub fn visible_account_emails(ctx: &ViewContext) -> Vec<AccountEmail> {
+    let sender = ctx.sender();
+    let is_admin = is_admin_user(ctx);
+    if is_admin {
+        ctx.db
+            .account_emails()
+            .added_at()
+            .filter(Timestamp::UNIX_EPOCH..)
+            .collect()
+    } else {
+        match ctx.db.account().identity().find(&sender) {
+            Some(acc) => ctx
+                .db
+                .account_emails()
+                .account_id()
+                .filter(&acc.id)
+                .collect(),
+            None => vec![],
+        }
+    }
+}
+
 #[spacetimedb::view(accessor = visible_subscriptions, public)]
 pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
     let sender = ctx.sender();

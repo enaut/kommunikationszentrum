@@ -4,18 +4,25 @@ Schema: {
   account: "Account" {
     shape: sql_table
     id: u64
-    email: String
+    primary_email_id: u64
     name: String
     is_active: bool
+  }
+  account_emails: "AccountEmail" {
+    shape: sql_table
+    id: u64 (PK)
+    account_id: u64 (FK)
+    email: String
   }
   subscriptions: "Subscription" {
     shape: sql_table
     id: u64 (PK)
     subscriber_account_id: u64 (FK)
-    subscriber_email: String
+    account_email_id: u64 (FK)
     category_id: u64 (FK)
     subscribed_at: i64
-    active: bool
+    status: SubscriptionStatus
+    permission: SubscriptionPermission
   }
   categories: "MessageCategory" {
     shape: sql_table
@@ -24,9 +31,16 @@ Schema: {
     email_address: String
     description: String
     active: bool
+    default_permission: SubscriptionPermission
   }
 
+  account_emails.account_id -> account.id: "account_id → id" {
+    style.stroke: blue
+  }
   subscriptions.subscriber_account_id -> account.id: "subscriber_account_id → id" {
+    style.stroke: blue
+  }
+  subscriptions.account_email_id -> account_emails.id: "account_email_id → id" {
     style.stroke: blue
   }
   subscriptions.category_id -> categories.id: "category_id → id" {
@@ -40,19 +54,27 @@ example_data: "Example Data" {
     shape: sql_table
     style.fill: lightblue
     id: 1
-    email: "user@example.com"
+    primary_email_id: 10
     name: "John Doe"
     is_active: true"
+  }
+  account_email_example: "AccountEmail (Example)" {
+    shape: sql_table
+    style.fill: lightblue
+    id: 10
+    account_id: 1
+    email: "user@example.com"
   }
   subscription_example: "Subscription (Example)" {
     style.fill: lightgreen
     shape: sql_table
     id: 101
     subscriber_account_id: 1
-    subscriber_email: \"user@example.com\"
+    account_email_id: 10
     category_id: 1
     subscribed_at: 1672531200
-    active: true
+    status: ActiveSubscribed
+    permission: Read
   }
   category_example: "MessageCategory (Example)" {
     shape: sql_table
@@ -62,9 +84,18 @@ example_data: "Example Data" {
     email_address: \"news@solawis.de\"
     description: \"Newsletter\"
     active: true
+    default_permission: Read
   }
 
+  account_email_example.account_id -> account_example.id: "references" {
+    style.stroke: blue
+    style.stroke-dash: 5
+  }
   subscription_example.subscriber_account_id -> account_example.id: "references" {
+    style.stroke: blue
+    style.stroke-dash: 5
+  }
+  subscription_example.account_email_id -> account_email_example.id: "references" {
     style.stroke: blue
     style.stroke-dash: 5
   }

@@ -181,6 +181,35 @@ fn AuthenticatedApp(
     let state = use_connection_state();
     let active_view = use_signal(|| ActiveView::MySubscriptions);
 
+    let verify_email = crate::module_bindings::dioxus::use_reducer_user_verify_email();
+    
+    use_effect(move || {
+        if matches!(state(), ConnectionState::Connected(_, _)) {
+            #[cfg(target_arch = "wasm32")]
+            if let Some(window) = web_sys::window() {
+                if let Ok(search) = window.location().search() {
+                    let search = search.trim_start_matches('?');
+                    for pair in search.split('&') {
+                        let mut kv = pair.split('=');
+                        if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
+                            if k == "token" {
+                                info!("Found verification token in URL, submitting...");
+                                if let Err(e) = verify_email(v.to_string()) {
+                                    error!("Verification failed: {:?}", e);
+                                } else {
+                                    info!("Verification requested successfully.");
+                                }
+                                // Optionally clear it from URL
+                                let _ = window.history().and_then(|h| h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/")));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
     rsx! {
         components::navbar::Navbar {
             user_info: user_info.clone(),

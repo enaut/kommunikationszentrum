@@ -1,7 +1,7 @@
 use spacetimedb::{ReducerContext, Table, Timestamp};
 use stalwart_mta_hook_types::Request as MtaHookRequest;
 
-use crate::models::account::{account, admin_identities};
+use crate::models::account::{account, admin_identities, account_emails};
 use crate::models::category::{message_categories, subscriptions};
 use crate::models::mail_message::{mail_message, MailMessage};
 use crate::models::mta::*;
@@ -139,13 +139,16 @@ pub fn handle_data_stage(
     // Persist the full message for each accepted category delivery
     if !valid_categories.is_empty() {
         if let Some(message) = &request.message {
-            let sender_account_id = ctx
+            let sender_account_email_id = ctx
                 .db
-                .account()
+                .account_emails()
                 .email()
-                .filter(&from_address.to_string())
-                .next()
-                .map(|a| a.id);
+                .find(&from_address.to_string())
+                .map(|ae| ae.id);
+
+            let sender_account_id = sender_account_email_id
+                .and_then(|id| ctx.db.account_emails().id().find(&id))
+                .map(|ae| ae.account_id);
 
             let sender_is_admin = sender_account_id
                 .and_then(|id| ctx.db.account().id().find(&id))
@@ -167,10 +170,14 @@ pub fn handle_data_stage(
                         .subscriptions()
                         .subscriber_account_id()
                         .filter(&acc_id)
-                        .any(|s| s.category_id == *cat_id && s.status.is_active());
+                        .any(|s| {
+                            s.category_id == *cat_id 
+                            && s.status.is_active() 
+                            && matches!(s.permission, crate::models::category::SubscriptionPermission::Write)
+                        });
                     if !has_sub {
                         log::warn!(
-                            "Sender {} (acc {}) is NOT subscribed to category {} ({})",
+                            "Sender {} (acc {}) is NOT authorized to write to category {} ({})",
                             from_address,
                             acc_id,
                             cat_id,

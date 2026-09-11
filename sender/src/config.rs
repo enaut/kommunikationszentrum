@@ -13,6 +13,8 @@ pub struct SenderConfig {
     pub message_id_domain: String,
     pub unsubscribe_base_url: String,
     pub otlp_endpoint: String,
+    pub smtp_system_username: Option<String>,
+    pub smtp_system_password: Option<String>,
 }
 
 impl SenderConfig {
@@ -71,6 +73,8 @@ impl SenderConfig {
             message_id_domain,
             unsubscribe_base_url,
             otlp_endpoint,
+            smtp_system_username: env::var("SMTP_SYSTEM_USERNAME").ok(),
+            smtp_system_password: env::var("SMTP_SYSTEM_PASSWORD").ok(),
         }
     }
 }

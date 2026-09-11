@@ -47,9 +47,9 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `rename_topic` | Admin | `topic_id: u64, new_name: String` | Renames an existing topic. |
 | `provision_message_category` **`[Procedure]`** | Admin | `name: String, base: String, domain_id: String, description: String, visibility: CategoryVisibility` | Inserts category into DB **and** calls Stalwart JMAP REST API to create mailbox and app password credential. |
 | `sync_stalwart_domains` **`[Procedure]`** | Admin/Owner | _(none)_ | Queries Stalwart JMAP REST API (`x:Domain/query`, `x:Domain/get`) and synchronizes domains into the `domains` table. |
-| `add_subscription` | User/Admin | `subscriber_account_id: u64, subscriber_email: String, category_id: u64` | Subscribes account to a category (`ManuallySubscribed`). |
-| `admin_add_subscription` | Admin | `subscriber_account_id: u64, subscriber_email: String, category_id: u64, status: SubscriptionStatus` | Adds or updates a subscription with an explicit status override (`force = true`). |
-| `add_and_subscribe_category` | Admin | `subscriber_account_id: u64, subscriber_email: String, name: String, email_address: String, description: String, visibility: CategoryVisibility` | Idempotently creates category if not present and subscribes the specified account. |
+| `add_subscription` | User/Admin | `subscriber_account_id: u64, account_email_id: u64, category_id: u64` | Subscribes account to a category (`ManuallySubscribed`). |
+| `admin_add_subscription` | Admin | `subscriber_account_id: u64, account_email_id: u64, category_id: u64, status: SubscriptionStatus, permission: SubscriptionPermission` | Adds or updates a subscription with an explicit status and permission override. |
+| `add_and_subscribe_category` | Admin | `subscriber_account_id: u64, account_email_id: u64, name: String, email_address: String, description: String, visibility: CategoryVisibility, default_permission: SubscriptionPermission` | Idempotently creates category if not present and subscribes the specified account. |
 | `remove_subscription` | User/Admin | `subscription_id: u64` | Unsubscribes account (`ManuallyUnsubscribed`). Non-admins cannot remove `RequiredSubscribed`. |
 | `ensure_subscription_unsubscribe_token` | Admin/System | `subscription_id: u64` | Ensures an active unsubscribe token exists for the given subscription, reactivating or generating a new one. |
 

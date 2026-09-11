@@ -5,8 +5,8 @@ use ::dioxus::{
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
-use crate::module_bindings::dioxus::use_reducer_admin_add_subscription;
-use crate::module_bindings::{Account, SubscriptionStatus};
+use crate::module_bindings::dioxus::{use_reducer_admin_add_subscription, use_reducer_update_subscription_permission};
+use crate::module_bindings::{Account, AccountEmail, SubscriptionStatus, SubscriptionPermission};
 use crate::pages::category::subscribers::{parse_status, status_key, status_label, ALL_STATUSES};
 
 /// Auto-select threshold: if the filtered list has fewer than this many entries,
@@ -16,10 +16,13 @@ const AUTO_SELECT_THRESHOLD: usize = 20;
 /// Target data for editing a subscriber's status in the edit modal.
 #[derive(Clone, PartialEq, Debug)]
 pub struct EditSubscriptionTarget {
+    pub subscription_id: u64,
     pub account_id: u64,
+    pub account_email_id: u64,
     pub name: String,
     pub email: String,
     pub status: SubscriptionStatus,
+    pub permission: crate::module_bindings::SubscriptionPermission,
 }
 
 /// Modal for adding a new subscriber to the category.
@@ -28,10 +31,12 @@ pub fn AddSubscriberModal(
     mut show: Signal<bool>,
     category_id: u64,
     available_accounts: Vec<Account>,
+    available_emails: Vec<AccountEmail>,
 ) -> Element {
     let admin_add_subscription = use_reducer_admin_add_subscription();
 
     let mut selected_account_id = use_signal(|| 0u64);
+    let mut selected_email_id = use_signal(|| 0u64);
     let mut account_filter = use_signal(String::new);
     let mut selected_status = use_signal(|| SubscriptionStatus::ManuallySubscribed);
     let mut add_sub_error: Signal<Option<String>> = use_signal(|| None);
@@ -40,6 +45,7 @@ pub fn AddSubscriberModal(
     use_effect(move || {
         if show() {
             selected_account_id.set(0);
+            selected_email_id.set(0);
             account_filter.set(String::new());
             selected_status.set(SubscriptionStatus::ManuallySubscribed);
             add_sub_error.set(None);
@@ -52,7 +58,6 @@ pub fn AddSubscriberModal(
         .filter(|a| {
             filter_lower.is_empty()
                 || a.name.to_lowercase().contains(&filter_lower)
-                || a.email.to_lowercase().contains(&filter_lower)
         })
         .cloned()
         .collect();
@@ -63,6 +68,8 @@ pub fn AddSubscriberModal(
         filtered: filtered_accounts.len(),
         total: available_accounts.len()
     );
+
+    let account_emails: Vec<_> = available_emails.iter().filter(|e| e.account_id == selected_account_id()).cloned().collect();
 
     rsx! {
         Modal {
@@ -92,7 +99,6 @@ pub fn AddSubscriberModal(
                                         .filter(|a| {
                                             new_filter.is_empty()
                                                 || a.name.to_lowercase().contains(&new_filter)
-                                                || a.email.to_lowercase().contains(&new_filter)
                                         })
                                         .collect();
 
@@ -110,6 +116,7 @@ pub fn AddSubscriberModal(
                             onchange: move |e: FormEvent| {
                                 if let Ok(id) = e.value().parse::<u64>() {
                                     selected_account_id.set(id);
+                                    selected_email_id.set(0);
                                 }
                             },
                             option { value: "0",
@@ -123,13 +130,34 @@ pub fn AddSubscriberModal(
                                 option {
                                     key: "{acc.id}",
                                     value: "{acc.id}",
-                                    "{acc.name} ({acc.email})"
+                                    "{acc.name}"
                                 }
                             }
                         }
                         if !filter_lower.is_empty() {
                             FormText {
                                 "{filter_count_text}"
+                            }
+                        }
+                    }
+
+                    if selected_account_id() != 0 {
+                        FormGroup { label: tid!("subscriber-email-label"),
+                            Select {
+                                value: selected_email_id().to_string(),
+                                onchange: move |e: FormEvent| {
+                                    if let Ok(id) = e.value().parse::<u64>() {
+                                        selected_email_id.set(id);
+                                    }
+                                },
+                                option { value: "0", "Select Email..." }
+                                for email in account_emails {
+                                    option {
+                                        key: "{email.id}",
+                                        value: "{email.id}",
+                                        "{email.email}"
+                                    }
+                                }
                             }
                         }
                     }
@@ -161,21 +189,18 @@ pub fn AddSubscriberModal(
                 }
                 Button {
                     color: Color::Primary,
-                    disabled: selected_account_id() == 0,
+                    disabled: selected_account_id() == 0 || selected_email_id() == 0,
                     onclick: move |_| {
                         let acc_id = selected_account_id();
-                        if acc_id == 0 {
+                        let email_id = selected_email_id();
+                        if acc_id == 0 || email_id == 0 {
                             return;
                         }
-                        let Some(acc) = available_accounts.iter().find(|a| a.id == acc_id) else {
-                            add_sub_error.set(Some(tid!("subscriber-member-not-found")));
-                            return;
-                        };
                         let status = selected_status();
                         info!(
-                            "Admin adding subscription: account={acc_id}, category={category_id}, status={status:?}"
+                            "Admin adding subscription: account={acc_id}, email_id={email_id}, category={category_id}, status={status:?}"
                         );
-                        match admin_add_subscription(acc_id, acc.email.clone(), category_id, status) {
+                        match admin_add_subscription(acc_id, email_id, category_id, status) {
                             Ok(()) => {
                                 show.set(false);
                             }
@@ -201,14 +226,17 @@ pub fn EditSubscriptionModal(
     target: Signal<Option<EditSubscriptionTarget>>,
 ) -> Element {
     let admin_add_subscription = use_reducer_admin_add_subscription();
+    let update_permission = use_reducer_update_subscription_permission();
 
     let mut edit_status = use_signal(|| SubscriptionStatus::ManuallySubscribed);
+    let mut edit_permission = use_signal(|| SubscriptionPermission::Read);
     let mut edit_sub_error: Signal<Option<String>> = use_signal(|| None);
 
     // Sync state when target changes
     use_effect(move || {
         if let Some(t) = target() {
             edit_status.set(t.status);
+            edit_permission.set(t.permission);
             edit_sub_error.set(None);
         }
     });
@@ -264,6 +292,23 @@ pub fn EditSubscriptionModal(
                         }
                     }
                 }
+                FormGroup { label: "Permission",
+                    Select {
+                        value: match edit_permission() {
+                            SubscriptionPermission::Read => "read",
+                            SubscriptionPermission::Write => "write",
+                        },
+                        onchange: move |e: FormEvent| {
+                            match e.value().as_str() {
+                                "read" => edit_permission.set(SubscriptionPermission::Read),
+                                "write" => edit_permission.set(SubscriptionPermission::Write),
+                                _ => {}
+                            }
+                        },
+                        option { value: "read", "Read-Only" }
+                        option { value: "write", "Read & Write" }
+                    }
+                }
             },
             footer: rsx! {
                 Button {
@@ -276,18 +321,20 @@ pub fn EditSubscriptionModal(
                     onclick: move |_| {
                         let Some(t) = target() else { return };
                         let status = edit_status();
+                        let permission = edit_permission();
                         info!(
-                            "Admin updating subscription: account={}, category={category_id}, status={status:?}",
+                            "Admin updating subscription: account={}, category={category_id}, status={status:?}, permission={permission:?}",
                             t.account_id
                         );
-                        match admin_add_subscription(t.account_id, t.email, category_id, status) {
-                            Ok(()) => {
-                                show.set(false);
-                            }
-                            Err(e) => {
-                                error!("admin_add_subscription (edit) failed: {e:?}");
-                                edit_sub_error.set(Some(format!("{}: {e:?}", tid!("subscriber-error-prefix"))));
-                            }
+                        
+                        let res1 = admin_add_subscription(t.account_id, t.account_email_id, category_id, status);
+                        let res2 = update_permission(t.subscription_id, permission);
+                        
+                        if res1.is_err() || res2.is_err() {
+                            error!("admin_add_subscription or update_permission failed");
+                            edit_sub_error.set(Some(format!("{}: {:?}", tid!("subscriber-error-prefix"), res1.err().or(res2.err()))));
+                        } else {
+                            show.set(false);
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }

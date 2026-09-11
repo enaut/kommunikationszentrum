@@ -1,17 +1,20 @@
 direction: right
 
 start: "send_delivery(claimed)" { style.fill: "#fff9c4" }
-env: "Parse RFC 5321 Envelope\nFrom: original_sender_email\nTo: recipient_email" { shape: diamond }
+lookup: "Query Cache:\n• sender_mail_delivery_messages\n  (raw_message, recipient_email)\n• sender_mail_ingress (category_email)" { style.fill: "#bbdefb" }
+
+env: "Parse RFC 5321 Envelope:\nFrom: ingress.category_email (return path)\nTo: message.recipient_email" { shape: diamond }
 pre_err: "fail_mail_delivery()\nerror_kind='pre-smtp'" { style.fill: "#ffcdd2" }
-smtp: "transport.send_raw(\nenvelope,\nclaimed.raw_message.as_bytes())" { style.fill: "#bbdefb" }
+smtp: "transport.send_raw(\n&envelope,\nraw_message.as_bytes()).await" { style.fill: "#bbdefb" }
 
-ok: "mark_mail_delivery_sent()\n• Move: claimed → done ('sent')\n• Log event ('sent')" { style.fill: "#c8e6c9" }
-perm: "fail_mail_delivery()\n• Move: claimed → done ('failed')\n• Log event ('failed')" { style.fill: "#ffcdd2" }
-trans: "schedule_mail_delivery_retry()\n• Move: claimed → pending (backoff)\n• If attempts >= 5 → done ('failed')" { style.fill: "#ffe0b2" }
+ok: "mark_mail_delivery_sent()\n• Move: claimed → done ('sent')\n• Log event in mail_delivery_events" { style.fill: "#c8e6c9" }
+perm: "fail_mail_delivery()\n• error_kind='smtp-permanent'\n• Move: claimed → done ('failed')" { style.fill: "#ffcdd2" }
+trans: "schedule_mail_delivery_retry()\n• Move: claimed → temporary_failed\n• 5-minute backoff delay" { style.fill: "#ffe0b2" }
 
-start -> env
-env -> pre_err: "Invalid address"
+start -> lookup -> env
+env -> pre_err: "Invalid address syntax"
 env -> smtp: "Valid envelope"
+
 smtp -> ok: "2xx (Success)"
-smtp -> perm: "5xx (Permanent failure)"
+smtp -> perm: "5xx (Permanent error)"
 smtp -> trans: "4xx / Timeout / Transient"

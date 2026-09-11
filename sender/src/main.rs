@@ -3,6 +3,7 @@ mod mail;
 mod module_bindings;
 mod tracing_util;
 
+use crate::module_bindings::complete_system_mail_reducer::complete_system_mail;
 use config::SenderConfig;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use mail::{
@@ -24,7 +25,8 @@ use crate::module_bindings::{
     ActiveUnsubscribeTokensTableAccess as _, SenderMailDeliveryClaimedTableAccess as _,
     SenderMailDeliveryDoneTableAccess as _, SenderMailDeliveryMessagesTableAccess as _,
     SenderMailDeliveryPendingTableAccess as _, SenderMailIngressTableAccess as _,
-    SenderMailMessagesTableAccess as _, VisibleAdminIdentitiesTableAccess as _,
+    SenderMailMessagesTableAccess as _, SenderSystemMailPendingTableAccess as _,
+    VisibleAccountEmailsTableAccess as _, VisibleAdminIdentitiesTableAccess as _,
     VisibleMessageCategoriesTableAccess as _,
 };
 use opentelemetry::global;
@@ -37,7 +39,9 @@ use opentelemetry_sdk::Resource;
 use tracing::{error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_util::{context_from_traceparent, trace_id_from_traceparent, traceparent_from_queue_id};
+use tracing_util::{
+    context_from_traceparent, trace_id_from_traceparent, traceparent_from_queue_id,
+};
 
 /// Whether a subscription with this status should currently receive mail.
 /// Mirrors `SubscriptionStatus::is_active` on the server.
@@ -80,6 +84,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Process ingress jobs
         if let Err(e) = process_fanout_jobs(&connection, &config, &instance_id) {
             warn!("Error during process_fanout_jobs: {e}");
+        }
+
+        // Process system emails queued for verification/notification flows.
+        if let Err(e) = send_system_mail_jobs(&connection, &config).await {
+            warn!("Error during send_system_mail_jobs: {e}");
         }
 
         // Process claimed delivery jobs (send emails)
@@ -328,7 +337,9 @@ fn subscribe_to_spacetime_tables(
             "SELECT * FROM sender_mail_delivery_claimed",
             "SELECT * FROM sender_mail_delivery_messages",
             "SELECT * FROM sender_mail_messages",
+            "SELECT * FROM sender_system_mail_pending",
             "SELECT * FROM active_subscriptions",
+            "SELECT * FROM visible_account_emails",
             "SELECT * FROM visible_message_categories",
             "SELECT * FROM visible_category_app_passwords",
             "SELECT * FROM active_unsubscribe_tokens",
@@ -421,6 +432,28 @@ fn setup_update_notifications(
                 let _ = tx.send(Event::Wakeup);
             });
     }
+
+    // Wake the loop when a system email enters the pending queue.
+    {
+        let tx = tx.clone();
+        connection
+            .db
+            .sender_system_mail_pending()
+            .on_insert(move |_ctx, _row| {
+                trace!("System mail queued");
+                let _ = tx.send(Event::Wakeup);
+            });
+    }
+    {
+        let tx = tx.clone();
+        connection
+            .db
+            .sender_system_mail_pending()
+            .on_delete(move |_ctx, _row| {
+                trace!("System mail completed or removed");
+                let _ = tx.send(Event::Wakeup);
+            });
+    }
 }
 
 #[instrument(skip(connection, config), fields(ingress_id = tracing::field::Empty, ingress_job = tracing::field::Empty))]
@@ -457,7 +490,10 @@ fn process_fanout_jobs(
                     // that would burn one of the MAX_INGRESS_ATTEMPTS slots and
                     // could permanently fail a valid message just because the
                     // token reducer hadn't run yet.
-                    trace!("Ingress {}: awaiting token, will retry without incrementing attempt count", job.id);
+                    trace!(
+                        "Ingress {}: awaiting token, will retry without incrementing attempt count",
+                        job.id
+                    );
                 }
                 Err(IngressJobError::Real(error)) => {
                     warn!("Ingress {}: failed with error: {}", job.id, error);
@@ -527,11 +563,9 @@ fn process_subscription_job(
     message: &MailMessage,
     category: &MessageCategory,
     subscription: Subscription,
+    subscriber_email: String,
 ) -> Result<SubscriptionJobOutcome, SubscriptionJobError> {
-    let delivery_id = format!(
-        "{}:{}:{}",
-        ingress.id, subscription.id, subscription.subscriber_email
-    );
+    let delivery_id = format!("{}:{}:{}", ingress.id, subscription.id, subscriber_email);
     trace!(
         "processing subscription job for delivery_id: {}",
         delivery_id
@@ -569,7 +603,7 @@ fn process_subscription_job(
     let token_row = match token_row {
         Some(row) => row,
         None => {
-            info!("Requesting token for {}", subscription.subscriber_email);
+            info!("Requesting token for {}", subscriber_email);
             connection
                 .reducers()
                 .ensure_subscription_unsubscribe_token(subscription.id)
@@ -586,6 +620,7 @@ fn process_subscription_job(
         &subscription,
         category,
         &token_row,
+        &subscriber_email,
     )
     .map_err(|e| SubscriptionJobError::Permanent(e.into()))?;
 
@@ -595,7 +630,7 @@ fn process_subscription_job(
         .enqueue_mail_delivery(
             ingress.id.clone(),
             subscription.id,
-            subscription.subscriber_email.clone(),
+            subscriber_email.clone(),
             Some(subscription.subscriber_account_id),
             category.email_address.clone(),
             message.sender_email.clone(),
@@ -605,7 +640,6 @@ fn process_subscription_job(
 
     Ok(SubscriptionJobOutcome::DeliveryQueued)
 }
-
 
 #[instrument(skip(connection, config), fields(ingress_id = %ingress.id, queue_id = tracing::field::Empty))]
 fn process_ingress_job(
@@ -655,7 +689,10 @@ fn process_ingress_job(
         );
         Some(guard)
     } else {
-        trace!("No queue_id on MailMessage {}, using local trace context", ingress.mail_message_id);
+        trace!(
+            "No queue_id on MailMessage {}, using local trace context",
+            ingress.mail_message_id
+        );
         None
     };
 
@@ -684,29 +721,34 @@ fn process_ingress_job(
         }
     };
 
-    // Find all subscriptions for the category
-    let mut subscribers: Vec<Subscription> = connection
+    // Find all subscriptions for the category and resolve each to the
+    // currently active email address tied to the account_email_id.
+    let mut subscribers: Vec<(String, Subscription)> = connection
         .db
         .active_subscriptions()
         .iter()
         .filter(|row| row.category_id == ingress.category_id && is_active_subscription(&row.status))
+        .filter_map(|subscription| {
+            let subscriber_email = connection
+                .db
+                .visible_account_emails()
+                .iter()
+                .find(|row| row.id == subscription.account_email_id)
+                .map(|row| row.email.clone())?;
+            Some((subscriber_email, subscription))
+        })
         .collect();
 
     trace!("Subscribers found {}", subscribers.len());
-    subscribers.sort_by(|left, right| left.subscriber_email.cmp(&right.subscriber_email));
-    subscribers.dedup_by(|left, right| left.subscriber_email == right.subscriber_email);
+    subscribers.sort_by(|(left_email, _), (right_email, _)| left_email.cmp(right_email));
+    subscribers.dedup_by(|(left_email, _), (right_email, _)| left_email == right_email);
 
     let mut queued_deliveries = 0;
     let mut awaiting_tokens = 0;
 
-    for subscription in subscribers {
-        trace!(
-            "processing subscription: {} {}",
-            subscription.id,
-            subscription.subscriber_email
-        );
+    for (sub_email, subscription) in subscribers {
+        trace!("processing subscription: {} {}", subscription.id, sub_email);
         let sub_id = subscription.id;
-        let sub_email = subscription.subscriber_email.clone();
         match process_subscription_job(
             connection,
             config,
@@ -714,6 +756,7 @@ fn process_ingress_job(
             &message,
             &category,
             subscription,
+            sub_email.clone(),
         ) {
             Ok(SubscriptionJobOutcome::DeliveryQueued) => {
                 let _ = connection.reducers().increment_mail_ingress_delivery_count(
@@ -767,6 +810,99 @@ fn process_ingress_job(
     Ok(())
 }
 
+async fn send_system_mail_jobs(
+    connection: &DbConnection,
+    config: &SenderConfig,
+) -> Result<(), Box<dyn Error>> {
+    let Some(username) = config.smtp_system_username.as_deref() else {
+        trace!("SMTP_SYSTEM_USERNAME not configured; skipping system mail dispatch");
+        return Ok(());
+    };
+    let Some(password) = config.smtp_system_password.as_deref() else {
+        trace!("SMTP_SYSTEM_PASSWORD not configured; skipping system mail dispatch");
+        return Ok(());
+    };
+
+    let transport = build_transport(config, username, password)?;
+    let pending = connection
+        .db
+        .sender_system_mail_pending()
+        .iter()
+        .collect::<Vec<_>>();
+    if pending.is_empty() {
+        return Ok(());
+    }
+
+    let from = config
+        .smtp_system_username
+        .as_deref()
+        .filter(|value| value.contains('@'))
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| format!("no-reply@{}", config.message_id_domain));
+
+    for mail in pending {
+        let Ok(to_addr) = mail.recipient.parse::<lettre::Address>() else {
+            warn!(
+                "Skipping system email {}: invalid recipient '{}'",
+                mail.id, mail.recipient
+            );
+            continue;
+        };
+        let Ok(from_addr) = from.parse::<lettre::Address>() else {
+            warn!(
+                "Skipping system email {}: invalid sender '{}'",
+                mail.id, from
+            );
+            continue;
+        };
+
+        let Ok(envelope) =
+            lettre::address::Envelope::new(Some(from_addr.clone()), vec![to_addr.clone()])
+        else {
+            warn!(
+                "Skipping system email {}: invalid envelope for '{}'",
+                mail.id, mail.recipient
+            );
+            continue;
+        };
+
+        let message = match lettre::Message::builder()
+            .from(from_addr.into())
+            .to(to_addr.into())
+            .subject(mail.subject.clone())
+            .body(mail.body_text.clone())
+        {
+            Ok(message) => message,
+            Err(error) => {
+                warn!("Failed to build system email {}: {error}", mail.id);
+                continue;
+            }
+        };
+
+        match transport
+            .send_raw(&envelope, message.formatted().as_slice())
+            .await
+        {
+            Ok(response) => {
+                info!(
+                    "Successfully sent system email {} to {}: {:?}",
+                    mail.id, mail.recipient, response
+                );
+                if let Err(error) = connection.reducers().complete_system_mail(mail.id) {
+                    warn!("Failed to complete system email {}: {error}", mail.id);
+                }
+            }
+            Err(error) => {
+                warn!(
+                    "Failed to send system email {} to {}: {error}",
+                    mail.id, mail.recipient
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
 
 async fn send_delivery_jobs(
     connection: &DbConnection,
@@ -984,4 +1120,3 @@ async fn send_delivery(
         }
     }
 }
-

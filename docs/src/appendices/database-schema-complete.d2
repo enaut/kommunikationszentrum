@@ -1,7 +1,11 @@
 direction: down
 
 account: {
-  label: "Account\nid: u64 (PK)\nidentity: Option<Identity>\nname: String\nemail: String\nis_active: bool\nlast_synced: i64"
+  label: "Account\nid: u64 (PK)\nidentity: Option<Identity>\nname: String\nprimary_email_id: u64\nis_active: bool\nlast_synced: i64"
+}
+
+account_emails: {
+  label: "AccountEmail\nid: u64 (PK, auto_inc)\naccount_id: u64\nemail: String"
 }
 
 mta_connection_log: {
@@ -17,11 +21,11 @@ blocked_ips: {
 }
 
 message_categories: {
-  label: "MessageCategory\nid: u64 (PK, auto_inc)\nname: String\nemail_address: String\ndescription: String\nactive: bool"
+  label: "MessageCategory\nid: u64 (PK, auto_inc)\nname: String\nemail_address: String\ndescription: String\nactive: bool\ndefault_permission: SubscriptionPermission"
 }
 
 subscriptions: {
-  label: "Subscription\nid: u64 (PK, auto_inc)\nsubscriber_account_id: u64\nsubscriber_email: String\ncategory_id: u64 (FK)\nsubscribed_at: i64\nactive: bool"
+  label: "Subscription\nid: u64 (PK, auto_inc)\nsubscriber_account_id: u64\naccount_email_id: u64 (FK)\ncategory_id: u64 (FK)\nsubscribed_at: i64\nstatus: SubscriptionStatus\npermission: SubscriptionPermission"
 }
 
 subscriptions -> message_categories: "category_id → id" {
@@ -30,6 +34,12 @@ subscriptions -> message_categories: "category_id → id" {
 subscriptions -> account: "subscriber_account_id → id" {
   style.stroke: blue
   style.stroke-dash: 5
+}
+account_emails -> account: "account_id → id" {
+  style.stroke: blue
+}
+subscriptions -> account_emails: "account_email_id → id" {
+  style.stroke: blue
 }
 
 mta_connection_log -> blocked_ips: "checks IP blocking" {
@@ -61,4 +71,5 @@ category_mgmt: "Category Management" {
 user_mgmt: "User Management" {
   style.fill: "#fffde7"
   account
+  account_emails
 }

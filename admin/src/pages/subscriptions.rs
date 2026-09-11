@@ -10,11 +10,13 @@ use dioxus_i18n::tid;
 use crate::module_bindings::SubscriptionStatus;
 use crate::module_bindings::{
     dioxus::{
-        use_reducer_add_subscription, use_reducer_remove_subscription, use_subscription,
-        use_table_visible_message_categories, use_table_visible_message_category_topics,
-        use_table_visible_subscriptions, use_table_visible_topics,
+        use_reducer_add_subscription, use_reducer_remove_account_email,
+        use_reducer_remove_subscription, use_reducer_user_request_email_verification,
+        use_subscription, use_table_visible_message_categories,
+        use_table_visible_message_category_topics, use_table_visible_subscriptions,
+        use_table_visible_topics,
     },
-    CategoryVisibility, MessageCategory,
+    CategoryVisibility, EmailSource, MessageCategory,
 };
 use crate::oauth::UserInfo;
 
@@ -31,11 +33,15 @@ enum TopicTab {
 #[component]
 pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
     use_subscription(&[
+        "SELECT * FROM visible_accounts",
+        "SELECT * FROM visible_account_emails",
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_topics",
         "SELECT * FROM visible_message_category_topics",
     ]);
+    let accounts = crate::module_bindings::dioxus::use_table_visible_accounts();
+    let account_emails = crate::module_bindings::dioxus::use_table_visible_account_emails();
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     let topics = use_table_visible_topics();
@@ -43,8 +49,19 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
     let add_subscription = use_reducer_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
 
+    let add_email = use_reducer_user_request_email_verification();
+    let remove_email = use_reducer_remove_account_email();
+    let mut show_add_email = use_signal(|| false);
+    let mut add_email_input = use_signal(|| String::new());
+
     let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
-    let email = user_info.email.clone().unwrap_or_default();
+    let my_account = accounts().into_iter().find(|a| a.id == account_id);
+    let my_primary_email_id = my_account.map(|a| a.primary_email_id).unwrap_or(0);
+    let mut selected_email_ids = use_signal(|| std::collections::HashMap::<u64, u64>::new());
+    let my_emails: Vec<_> = account_emails()
+        .into_iter()
+        .filter(|e| e.account_id == account_id)
+        .collect();
 
     let mut active_tab = use_signal(|| TopicTab::Sonstige);
     let mut user_picked_tab = use_signal(|| false);
@@ -112,6 +129,102 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 }
             }
 
+            Card { class: "mb-4 shadow-sm",
+                header: rsx! {
+                    h5 { class: "mb-0", "Linked Email Addresses" }
+                },
+                body: rsx! {
+                    ul { class: "list-group list-group-flush mb-3",
+                        for email in &my_emails {
+                            {
+                                let email_id = email.id;
+                                let remove_email_for_row = remove_email.clone();
+                                rsx! {
+                                    li { class: "list-group-item d-flex justify-content-between align-items-center px-0",
+                                        div {
+                                            if email.id == my_primary_email_id {
+                                                strong { "{email.email} (Primary)" }
+                                            } else {
+                                                span { "{email.email}" }
+                                            }
+                                            if !email.is_verified {
+                                                Badge { color: Color::Warning, class: "ms-2", "Pending Verification" }
+                                            }
+                                        }
+                                        if email.source != EmailSource::DjangoSync && email.id != my_primary_email_id {
+                                            Button {
+                                                color: Color::Danger,
+                                                size: Size::Sm,
+                                                onclick: move |_| {
+                                                    if let Err(e) = remove_email_for_row(email_id) {
+                                                        error!("remove_account_email failed: {e:?}");
+                                                    }
+                                                },
+                                                Icon { name: "trash" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if show_add_email() {
+                        div { class: "d-flex gap-2 align-items-center",
+                            input {
+                                class: "form-control form-control-sm",
+                                r#type: "email",
+                                placeholder: "New email address",
+                                style: "max-width: 300px;",
+                                value: "{add_email_input}",
+                                oninput: move |e: FormEvent| add_email_input.set(e.value()),
+                            }
+                            {
+                                let add_email_for_submit = add_email.clone();
+                                rsx! {
+                                    Button {
+                                        color: Color::Success,
+                                        size: Size::Sm,
+                                        onclick: move |_| {
+                                            let email_str = add_email_input();
+                                            if !email_str.is_empty() {
+                                                if let Err(e) = add_email_for_submit(email_str) {
+                                                    error!("Failed to request email verification: {e:?}");
+                                                } else {
+                                                    show_add_email.set(false);
+                                                    add_email_input.set(String::new());
+                                                }
+                                            }
+                                        },
+                                        "Send Verification Link"
+                                    }
+                                }
+                            }
+                            Button {
+                                color: Color::Secondary,
+                                size: Size::Sm,
+                                onclick: move |_| {
+                                    show_add_email.set(false);
+                                    add_email_input.set(String::new());
+                                },
+                                "Cancel"
+                            }
+                        }
+                    } else {
+                        Button {
+                            color: Color::Primary,
+                            size: Size::Sm,
+                            onclick: move |_| {
+                                show_add_email.set(true);
+                                add_email_input.set(String::new());
+                            },
+                            Icon { name: "plus-lg", class: "me-2" }
+                            "Add Email Address"
+                        }
+                    }
+                },
+            }
+
             if !topic_ids.is_empty() || show_sonstige {
                 Nav {
                     tabs: true,
@@ -162,13 +275,17 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                     && crate::pages::is_active_subscription(&s.status)
                             });
                             let sub_id = subscription.as_ref().map(|s| s.id);
+                            let sub_email_id = subscription.as_ref().map(|s| s.account_email_id);
                             let is_required = subscription
                                 .as_ref()
                                 .is_some_and(|s| matches!(s.status, SubscriptionStatus::RequiredSubscribed));
                             let cat_id = cat.id;
-                            let email_for_sub = email.clone();
                             let add = add_subscription.clone();
                             let remove = remove_subscription.clone();
+                            let my_emails_clone = my_emails.clone();
+
+                            let current_selected_email = *selected_email_ids().get(&cat_id).unwrap_or(&my_primary_email_id);
+
                             rsx! {
                                 Col { md: ColumnSize::Span(6), lg: ColumnSize::Span(4), class: "mb-3",
                                     Card {
@@ -200,34 +317,63 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                     "{tid!(\"subscriptions-required\") }"
                                                 }
                                             } else if let Some(id) = sub_id {
-                                                Button {
-                                                    color: Color::Danger,
-                                                    size: Size::Sm,
-                                                    class: "mt-auto",
-                                                    onclick: move |_| {
-                                                        info!("Unsubscribing from category {cat_id}");
-                                                        if let Err(e) = remove(id) {
-                                                            error!("remove_subscription failed: {e:?}");
+                                                div { class: "mt-auto",
+                                                    div { class: "mb-2",
+                                                        small { class: "text-muted", "Subscribed with:" }
+                                                        br {}
+                                                        strong {
+                                                            "{my_emails_clone.iter().find(|e| e.id == sub_email_id.unwrap_or(0)).map(|e| e.email.as_str()).unwrap_or(\"Unknown\")}"
                                                         }
-                                                    },
-                                                    Icon { name: "dash-circle", class: "me-1" }
-                                                    "{tid!(\"subscriptions-unsubscribe\") }"
+                                                    }
+                                                    Button {
+                                                        color: Color::Danger,
+                                                        size: Size::Sm,
+                                                        class: "w-100",
+                                                        onclick: move |_| {
+                                                            info!("Unsubscribing from category {cat_id}");
+                                                            if let Err(e) = remove(id) {
+                                                                error!("remove_subscription failed: {e:?}");
+                                                            }
+                                                        },
+                                                        Icon { name: "dash-circle", class: "me-1" }
+                                                        "{tid!(\"subscriptions-unsubscribe\") }"
+                                                    }
                                                 }
                                             } else {
-                                                Button {
-                                                    color: Color::Success,
-                                                    size: Size::Sm,
-                                                    class: "mt-auto ",
-                                                    onclick: move |_| {
-                                                        info!("Subscribing to category {cat_id}");
-                                                        if let Err(e) =
-                                                            add(account_id, email_for_sub.clone(), cat_id)
-                                                        {
-                                                            error!("add_subscription failed: {e:?}");
+                                                div { class: "mt-auto",
+                                                    Select {
+                                                        class: "mb-2",
+                                                        size: Size::Sm,
+                                                        value: current_selected_email.to_string(),
+                                                        onchange: move |e: FormEvent| {
+                                                            if let Ok(id) = e.value().parse::<u64>() {
+                                                                selected_email_ids.write().insert(cat_id, id);
+                                                            }
+                                                        },
+                                                        for email in my_emails_clone {
+                                                            option {
+                                                                key: "{email.id}",
+                                                                value: "{email.id}",
+                                                                "{email.email}"
+                                                            }
                                                         }
-                                                    },
-                                                    Icon { name: "plus-circle", class: "me-1" }
-                                                    "{tid!(\"subscriptions-subscribe\") }"
+                                                    }
+                                                    Button {
+                                                        color: Color::Success,
+                                                        size: Size::Sm,
+                                                        class: "w-100",
+                                                        disabled: current_selected_email == 0,
+                                                        onclick: move |_| {
+                                                            info!("Subscribing to category {cat_id}");
+                                                            if let Err(e) =
+                                                                add(account_id, current_selected_email, cat_id)
+                                                            {
+                                                                error!("add_subscription failed: {e:?}");
+                                                            }
+                                                        },
+                                                        Icon { name: "plus-circle", class: "me-1" }
+                                                        "{tid!(\"subscriptions-subscribe\") }"
+                                                    }
                                                 }
                                             }
                                         },

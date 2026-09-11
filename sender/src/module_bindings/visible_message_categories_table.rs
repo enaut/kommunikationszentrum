@@ -4,6 +4,7 @@
 #![allow(unused, clippy::all)]
 use super::category_visibility_type::CategoryVisibility;
 use super::message_category_type::MessageCategory;
+use super::subscription_permission_type::SubscriptionPermission;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 /// Table handle for the table `visible_message_categories`.

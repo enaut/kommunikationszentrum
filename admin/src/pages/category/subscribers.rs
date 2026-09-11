@@ -6,7 +6,7 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_reducer_remove_subscription, use_table_visible_accounts, use_table_visible_subscriptions,
+    use_reducer_remove_subscription, use_table_visible_accounts, use_table_visible_subscriptions, use_table_visible_account_emails,
 };
 use crate::module_bindings::SubscriptionStatus;
 use crate::pages::category::modals::EditSubscriptionTarget;
@@ -86,6 +86,7 @@ pub fn CategorySubscribersCard(
 ) -> Element {
     let subscriptions = use_table_visible_subscriptions();
     let accounts = use_table_visible_accounts();
+    let account_emails = use_table_visible_account_emails();
     let remove_subscription = use_reducer_remove_subscription();
 
     let category_subscriptions: Vec<_> = subscriptions()
@@ -94,6 +95,7 @@ pub fn CategorySubscribersCard(
         .collect();
 
     let all_accounts = accounts();
+    let all_emails = account_emails();
     let subscriber_rows: Vec<_> = category_subscriptions
         .iter()
         .map(|sub| {
@@ -101,7 +103,12 @@ pub fn CategorySubscribersCard(
                 .iter()
                 .find(|a| a.id == sub.subscriber_account_id)
                 .cloned();
-            (sub.clone(), account)
+            let email = all_emails
+                .iter()
+                .find(|e| e.id == sub.account_email_id)
+                .map(|e| e.email.clone())
+                .unwrap_or_else(|| "Unknown".to_string());
+            (sub.clone(), account, email)
         })
         .collect();
 
@@ -146,32 +153,33 @@ pub fn CategorySubscribersCard(
                                 th { "{tid!(\"members-table-name\")}" }
                                 th { "{tid!(\"members-table-email\")}" }
                                 th { "{tid!(\"members-table-status\")}" }
+                                th { "Permission" }
                                 th { class: "text-end", "{tid!(\"members-table-action\")}" }
                             }
                         }
                         tbody {
-                            for (sub, account) in subscriber_rows {
+                            for (sub, account, email_disp) in subscriber_rows {
                                 {
                                     let sub_id = sub.id;
                                     let sub_account_id = sub.subscriber_account_id;
-                                    let sub_status = sub.status;
+                                    let account_email_id = sub.account_email_id;
+                                    let sub_status = sub.status.clone();
+                                    let permission = sub.permission.clone();
                                     let remove = remove_subscription.clone();
-                                    let (name_disp, email_disp) = match &account {
-                                        Some(a) => (a.name.clone(), a.email.clone()),
-                                        None => {
-                                            (
-                                                format!("{} #{}", tid!("subscriber-member-label"), sub.subscriber_account_id),
-                                                sub.subscriber_email.clone(),
-                                            )
-                                        }
+                                    let name_disp = match &account {
+                                        Some(a) => a.name.clone(),
+                                        None => format!("{} #{}", tid!("subscriber-member-label"), sub.subscriber_account_id),
                                     };
                                     let badge_color = status_color(&sub.status);
                                     let badge_label = status_label(&sub.status);
                                     let row_target = EditSubscriptionTarget {
+                                        subscription_id: sub_id,
                                         account_id: sub_account_id,
+                                        account_email_id,
                                         name: name_disp.clone(),
                                         email: email_disp.clone(),
                                         status: sub_status,
+                                        permission: permission.clone(),
                                     };
                                     rsx! {
                                         tr {
@@ -187,6 +195,12 @@ pub fn CategorySubscribersCard(
                                             }
                                             td {
                                                 Badge { color: badge_color, "{badge_label}" }
+                                            }
+                                            td {
+                                                match permission {
+                                                    crate::module_bindings::SubscriptionPermission::Read => rsx! { Badge { color: Color::Secondary, "Read" } },
+                                                    crate::module_bindings::SubscriptionPermission::Write => rsx! { Badge { color: Color::Primary, "Write" } },
+                                                }
                                             }
                                             td { class: "text-end",
                                                 Button {

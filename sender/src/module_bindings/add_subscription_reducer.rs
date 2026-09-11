@@ -8,7 +8,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub(super) struct AddSubscriptionArgs {
     pub subscriber_account_id: u64,
-    pub subscriber_email: String,
+    pub account_email_id: u64,
     pub category_id: u64,
 }
 
@@ -16,7 +16,7 @@ impl From<AddSubscriptionArgs> for super::Reducer {
     fn from(args: AddSubscriptionArgs) -> Self {
         Self::AddSubscription {
             subscriber_account_id: args.subscriber_account_id,
-            subscriber_email: args.subscriber_email,
+            account_email_id: args.account_email_id,
             category_id: args.category_id,
         }
     }
@@ -40,12 +40,12 @@ pub trait add_subscription {
     fn add_subscription(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         category_id: u64,
     ) -> __sdk::Result<()> {
         self.add_subscription_then(
             subscriber_account_id,
-            subscriber_email,
+            account_email_id,
             category_id,
             |_, _| {},
         )
@@ -60,7 +60,7 @@ pub trait add_subscription {
     fn add_subscription_then(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         category_id: u64,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -73,7 +73,7 @@ impl add_subscription for super::RemoteReducers {
     fn add_subscription_then(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         category_id: u64,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -83,7 +83,7 @@ impl add_subscription for super::RemoteReducers {
         self.imp.invoke_reducer_with_callback(
             AddSubscriptionArgs {
                 subscriber_account_id,
-                subscriber_email,
+                account_email_id,
                 category_id,
             },
             callback,

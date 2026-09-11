@@ -7,10 +7,12 @@ use dioxus_i18n::tid;
 
 use crate::{
     module_bindings::dioxus::{
-        use_reducer_add_subscription, use_reducer_remove_subscription, use_subscription,
-        use_table_visible_accounts, use_table_visible_message_categories,
-        use_table_visible_subscriptions,
+        use_reducer_admin_add_account_email, use_reducer_admin_add_subscription,
+        use_reducer_remove_account_email, use_reducer_remove_subscription, use_subscription,
+        use_table_visible_account_emails, use_table_visible_accounts,
+        use_table_visible_message_categories, use_table_visible_subscriptions,
     },
+    module_bindings::{EmailSource, SubscriptionStatus},
     pages::category::status_color,
 };
 
@@ -20,19 +22,28 @@ use crate::{
 pub fn MembersPage() -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
+        "SELECT * FROM visible_account_emails",
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
     ]);
     let accounts = use_table_visible_accounts();
+    let account_emails = use_table_visible_account_emails();
     let subscriptions = use_table_visible_subscriptions();
     let categories = use_table_visible_message_categories();
-    let add_subscription = use_reducer_add_subscription();
+    let add_subscription = use_reducer_admin_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
 
     // Which account's inline add-subscription form is currently open.
     let mut add_form_account: Signal<Option<u64>> = use_signal(|| None);
     // Selected category id in that form (0 = nothing selected).
     let mut add_form_category: Signal<u64> = use_signal(|| 0);
+    // Selected account_email_id in that form.
+    let mut add_form_email_id: Signal<u64> = use_signal(|| 0);
+
+    let admin_add_email = use_reducer_admin_add_account_email();
+    let remove_email = use_reducer_remove_account_email();
+    let mut add_email_account: Signal<Option<u64>> = use_signal(|| None);
+    let mut add_email_input: Signal<String> = use_signal(|| String::new());
 
     rsx! {
         Container { fluid: true, class: "mt-4",
@@ -74,7 +85,11 @@ pub fn MembersPage() -> Element {
                                 for account in accounts() {
                                     {
                                         let acct_id = account.id;
-                                        let acct_email = account.email.clone();
+                                        let primary_email_id = account.primary_email_id;
+                                        let emails: Vec<_> = account_emails()
+                                            .into_iter()
+                                            .filter(|e| e.account_id == acct_id)
+                                            .collect();
                                         let member_subs: Vec<_> = subscriptions()
                                             .into_iter()
                                             .filter(|s| {
@@ -90,7 +105,88 @@ pub fn MembersPage() -> Element {
                                                 }
                                                 td { "{account.name}" }
                                                 td {
-                                                    small { class: "text-muted", "{account.email}" }
+                                                    div { class: "d-flex flex-column gap-1",
+                                                        for email in &emails {
+                                                            {
+                                                                let email_id = email.id;
+                                                                let remove_email_for_row = remove_email.clone();
+                                                                rsx! {
+                                                                    div { class: "d-flex align-items-center gap-1",
+                                                                        small { class: "text-muted",
+                                                                            if email.id == primary_email_id {
+                                                                                strong { "{email.email}" }
+                                                                            } else {
+                                                                                "{email.email}"
+                                                                            }
+                                                                        }
+                                                                        if email.source != EmailSource::DjangoSync && email.id != primary_email_id {
+                                                                            button {
+                                                                                class: "btn-close text-danger ms-auto",
+                                                                                style: "font-size: 0.5rem;",
+                                                                                "aria-label": "Remove email",
+                                                                                onclick: move |_| {
+                                                                                    if let Err(e) = remove_email_for_row(email_id) {
+                                                                                        error!("Failed to remove email: {e:?}");
+                                                                                    }
+                                                                                },
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        if add_email_account() == Some(acct_id) {
+                                                            div { class: "d-flex gap-1 mt-1",
+                                                                input {
+                                                                    class: "form-control form-control-sm",
+                                                                    r#type: "email",
+                                                                    placeholder: "New email",
+                                                                    value: "{add_email_input}",
+                                                                    oninput: move |e: FormEvent| add_email_input.set(e.value()),
+                                                                }
+                                                                {
+                                                                    let admin_add_email_for_row = admin_add_email.clone();
+                                                                    rsx! {
+                                                                        Button {
+                                                                            color: Color::Success,
+                                                                            size: Size::Sm,
+                                                                            onclick: move |_| {
+                                                                                let email_str = add_email_input();
+                                                                                if !email_str.is_empty() {
+                                                                                    if let Err(e) = admin_add_email_for_row(acct_id, email_str) {
+                                                                                        error!("Failed to add email: {e:?}");
+                                                                                    } else {
+                                                                                        add_email_account.set(None);
+                                                                                        add_email_input.set(String::new());
+                                                                                    }
+                                                                                }
+                                                                            },
+                                                                            Icon { name: "check-lg" }
+                                                                        }
+                                                                    }
+                                                                }
+                                                                Button {
+                                                                    color: Color::Secondary,
+                                                                    size: Size::Sm,
+                                                                    onclick: move |_| {
+                                                                        add_email_account.set(None);
+                                                                        add_email_input.set(String::new());
+                                                                    },
+                                                                    Icon { name: "x-lg" }
+                                                                }
+                                                            }
+                                                        } else {
+                                                            button {
+                                                                class: "btn btn-link btn-sm p-0 text-start mt-1",
+                                                                style: "font-size: 0.8rem;",
+                                                                onclick: move |_| {
+                                                                    add_email_account.set(Some(acct_id));
+                                                                    add_email_input.set(String::new());
+                                                                },
+                                                                "+ Add Email"
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                                 td {
                                                     if account.is_active {
@@ -110,12 +206,14 @@ pub fn MembersPage() -> Element {
                                                             let cat_name = cat
                                                                 .map(|c| c.name)
                                                                 .unwrap_or_else(|| { format!("#{}", sub.category_id) });
+                                                            let email = emails.iter().find(|e| e.id == sub.account_email_id).map(|e| e.email.clone()).unwrap_or_default();
+                                                            let display_name = format!("{} ({})", cat_name, email);
                                                             let remove = remove_subscription.clone();
                                                             rsx! {
                                                                 Badge {
                                                                     color: cat_color,
                                                                     class: "me-1 mb-1 d-inline-flex align-items-center gap-1",
-                                                                    "{cat_name}"
+                                                                    "{display_name}"
                                                                     button {
                                                                         class: "btn-close btn-close-white",
                                                                         style: "font-size: 0.5rem;",
@@ -134,7 +232,7 @@ pub fn MembersPage() -> Element {
                                                 }
                                                 td {
                                                     if is_form_open {
-                                                        div { class: "d-flex gap-2 align-items-center",
+                                                        div { class: "d-flex gap-2 align-items-center flex-wrap",
                                                             Select {
                                                                 size: Size::Sm,
                                                                 style: "width: auto; min-width: 10rem;",
@@ -146,23 +244,31 @@ pub fn MembersPage() -> Element {
                                                                 option { value: "0", "{tid!(\"general-no-topic-selected\")}" }
                                                                 for cat in categories().into_iter().filter(|c| c.active) {
                                                                     {
-                                                                        let already = member_subs
-                                                                            .iter()
-                                                                            .any(|s| s.category_id == cat.id);
-                                                                        if !already {
-                                                                            let val = cat.id.to_string();
-                                                                            rsx! {
-                                                                                option { value: "{val}", "{cat.name}" }
-                                                                            }
-                                                                        } else {
-                                                                            rsx! {}
+                                                                        let val = cat.id.to_string();
+                                                                        rsx! {
+                                                                            option { value: "{val}", "{cat.name}" }
                                                                         }
+                                                                    }
+                                                                }
+                                                            }
+                                                            Select {
+                                                                size: Size::Sm,
+                                                                style: "width: auto; min-width: 10rem;",
+                                                                onchange: move |e: FormEvent| {
+                                                                    if let Ok(id) = e.value().parse::<u64>() {
+                                                                        add_form_email_id.set(id);
+                                                                    }
+                                                                },
+                                                                for email in &emails {
+                                                                    option {
+                                                                        value: "{email.id}",
+                                                                        selected: email.id == primary_email_id,
+                                                                        "{email.email}"
                                                                     }
                                                                 }
                                                             }
                                                             {
                                                                 let add = add_subscription.clone();
-                                                                let email_for_add = acct_email.clone();
                                                                 rsx! {
                                                                     Button {
                                                                         color: Color::Success,
@@ -170,15 +276,20 @@ pub fn MembersPage() -> Element {
                                                                         disabled: add_form_category() == 0,
                                                                         onclick: move |_| {
                                                                             let cat_id = add_form_category();
+                                                                            let mut email_id = add_form_email_id();
+                                                                            if email_id == 0 {
+                                                                                email_id = primary_email_id;
+                                                                            }
                                                                             if cat_id == 0 {
                                                                                 return;
                                                                             }
-                                                                            info!("Adding subscription: account={acct_id}, category={cat_id}");
-                                                                            if let Err(e) = add(acct_id, email_for_add.clone(), cat_id) {
+                                                                            info!("Adding subscription: account={acct_id}, email_id={email_id}, category={cat_id}");
+                                                                            if let Err(e) = add(acct_id, email_id, cat_id, SubscriptionStatus::ManuallySubscribed) {
                                                                                 error!("add_subscription failed: {e:?}");
                                                                             } else {
                                                                                 add_form_account.set(None);
                                                                                 add_form_category.set(0);
+                                                                                add_form_email_id.set(0);
                                                                             }
                                                                         },
                                                                         Icon { name: "check-lg" }
@@ -189,6 +300,7 @@ pub fn MembersPage() -> Element {
                                                                         onclick: move |_| {
                                                                             add_form_account.set(None);
                                                                             add_form_category.set(0);
+                                                                            add_form_email_id.set(0);
                                                                         },
                                                                         Icon { name: "x-lg" }
                                                                     }
@@ -202,6 +314,7 @@ pub fn MembersPage() -> Element {
                                                             onclick: move |_| {
                                                                 add_form_account.set(Some(acct_id));
                                                                 add_form_category.set(0);
+                                                                add_form_email_id.set(0);
                                                             },
                                                             Icon { name: "plus-lg", class: "me-1" }
                                                             "{tid!(\"members-add-topic\") }"

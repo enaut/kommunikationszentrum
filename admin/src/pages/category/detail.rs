@@ -7,7 +7,7 @@ use dioxus_i18n::tid;
 use crate::module_bindings::dioxus::{
     use_reducer_update_message_category, use_subscription, use_table_visible_accounts,
     use_table_visible_message_categories, use_table_visible_message_category_topics,
-    use_table_visible_subscriptions, use_table_visible_topics,
+    use_table_visible_subscriptions, use_table_visible_topics, use_table_visible_account_emails,
 };
 use crate::module_bindings::{CategoryVisibility, MessageCategory};
 use crate::pages::category::modals::{
@@ -118,6 +118,7 @@ pub fn CategoryDetailsCard(
 pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
+        "SELECT * FROM visible_account_emails",
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_topics",
@@ -126,6 +127,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     let accounts = use_table_visible_accounts();
+    let account_emails = use_table_visible_account_emails();
     let topics = use_table_visible_topics();
     let category_topics = use_table_visible_message_category_topics();
 
@@ -286,6 +288,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                 show: show_add_modal,
                 category_id,
                 available_accounts,
+                available_emails: account_emails(),
             }
 
             EditSubscriptionModal { show: show_edit_modal, category_id, target: edit_target }

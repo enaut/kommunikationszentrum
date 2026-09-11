@@ -1,21 +1,20 @@
+direction: right
 
 classes: {
   config: { style.fill: "#fff9c4"; style.stroke: "#fbc02d" }
   otel: { style.fill: "#ffe0b2"; style.stroke: "#f57c00" }
   db: { style.fill: "#bbdefb"; style.stroke: "#1976d2" }
   cb: { style.fill: "#c8e6c9"; style.stroke: "#388e3c" }
-  smtp: { style.fill: "#e1bee7"; style.stroke: "#7b1fa2" }
   loop: { style.fill: "#ffcdd2"; style.stroke: "#d32f2f" }
 }
 
 env: "1. Load SenderConfig\n(Environment Variables)" { class: config }
 otel: "2. Initialize OpenTelemetry\n(OTLP Traces + Logs → Alloy)" { class: otel }
-conn: "3. Connect to SpacetimeDB\n(Wrap DbConnection in Arc)" { class: db }
-sub: "4. Subscribe to Views:\n• sender_mail_ingress\n• sender_mail_delivery_pending\n• sender_mail_delivery_claimed\n• sender_mail_messages\n• active_subscriptions\n• visible_message_categories\n• active_unsubscribe_tokens" { class: db }
-pump: "5. Spawn Background DB Pump\n(tokio::spawn(connection.run_async()))" { class: db }
-cb: "6. Register Callbacks → Notify Doorbell:\n• sender_mail_ingress (on_insert, on_update)\n• sender_mail_delivery_pending (on_insert, on_update)\n• sender_mail_delivery_claimed (on_insert, on_delete)\n• active_unsubscribe_tokens (on_insert)" { class: cb }
-smtp: "7. Build SmtpTransport\n(lettre client with TLS & auth)" { class: smtp }
-boot: "8. Bootstrap Trigger\n(notify.notify_one() for backlogged work)" { class: cb }
-loop_: "9. Enter tokio::select! Event Loop\n(Awaiting notify or shutdown)" { class: loop }
+conn: "3. Connect to SpacetimeDB\n(DbConnection::builder)" { class: db }
+pump: "4. Spawn Background Thread Pump\n(connection.run_threaded())\nAwait initial token & identity" { class: db }
+sub: "5. Subscribe to 10 Views:\n• sender_mail_ingress\n• sender_mail_delivery_pending\n• sender_mail_delivery_claimed\n• sender_mail_delivery_messages\n• sender_mail_messages\n• active_subscriptions\n• visible_message_categories\n• visible_category_app_passwords\n• active_unsubscribe_tokens\n• visible_admin_identities" { class: db }
+auth: "6. on_applied Callback:\nVerify admin identity in\nvisible_admin_identities\n(FatalError shutdown if missing)" { class: cb }
+cb: "7. Register Callbacks → mpsc Channel:\n• sender_mail_ingress (insert, update)\n• sender_mail_delivery_pending (insert, update)\n• sender_mail_delivery_claimed (insert, delete)\n• active_unsubscribe_tokens (insert)" { class: cb }
+loop_: "8. Enter tokio::select! Event Loop\n(Immediate work sweep, then awaits\nmpsc wakeups or 15s timer)" { class: loop }
 
-env -> otel -> conn -> sub -> pump -> cb -> smtp -> boot -> loop_
+env -> otel -> conn -> pump -> sub -> auth -> cb -> loop_

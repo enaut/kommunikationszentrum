@@ -4,35 +4,31 @@ pending: "MailIngress\n(state: pending)" { style.fill: lightyellow }
 claim_i: "sender daemon calls\nclaim_next_mail_ingress" { style.fill: lightblue }
 proc: "MailIngress\n(state: processing)" { style.fill: lightblue }
 
-fanout: "Daemon fans out:\n• Query subscriptions for category\n• For each subscriber:\n  call enqueue_mail_delivery" { style.fill: lightblue }
-queued: "MailDelivery rows\n(state: queued)" { style.fill: lightyellow }
-
-claim_d: "sender daemon calls\nclaim_next_mail_delivery" { style.fill: lightblue }
-sending: "MailDelivery\n(state: sending)" { style.fill: lightblue }
-
-smtp: "Daemon submits\nSMTP to Stalwart" { style.fill: lightgray }
-
-sent: "mark_mail_delivery_sent\n→ state: sent" { style.fill: lightgreen }
-retry: "schedule_mail_delivery_retry\n→ state: retry_scheduled" { style.fill: lightyellow }
-fail: "fail_mail_delivery\n→ state: failed" { style.fill: lightcoral }
-bounce: "mark_mail_delivery_bounced\n→ state: bounced" { style.fill: lightcoral }
-
+fanout: "Daemon fans out:\n• Query active subscriptions\n• For each subscriber:\n  enqueue_mail_delivery" { style.fill: lightblue }
 complete: "complete_mail_ingress\n→ state: completed" { style.fill: lightgreen }
 
-pending -> claim_i: "daemon poll"
+queued: "mail_delivery_pending\n(Active outbound queue)" { style.fill: lightyellow }
+
+claim_d: "sender daemon calls\nclaim_next_mail_delivery" { style.fill: lightblue }
+sending: "mail_delivery_claimed\n(Active 5-minute lease)" { style.fill: lightblue }
+
+smtp: "Daemon submits\nSMTP over TLS" { style.fill: lightgray }
+
+sent: "mark_mail_delivery_sent\n→ mail_delivery_done ('sent')" { style.fill: lightgreen }
+retry: "schedule_mail_delivery_retry\n→ mail_delivery_temporary_failed" { style.fill: lightyellow }
+fail: "fail_mail_delivery\n→ mail_delivery_done ('failed')" { style.fill: lightcoral }
+
+pending -> claim_i: "reactive wake"
 claim_i -> proc
 proc -> fanout
-fanout -> queued
-queued -> claim_d: "daemon poll"
+fanout -> complete: "all deliveries enqueued"
+fanout -> queued: "enqueue_mail_delivery()"
+queued -> claim_d: "reactive wake"
 claim_d -> sending
 sending -> smtp
 
-smtp -> sent: "2xx"
-smtp -> retry: "4xx / transient"
-smtp -> fail: "5+ attempts"
-smtp -> bounce: "5xx permanent"
+smtp -> sent: "2xx success"
+smtp -> retry: "4xx / transient (5 min backoff)"
+smtp -> fail: "5xx / pre-smtp failure"
 
-retry -> queued: "back-off timer\n(30s → 2m → 10m → 30m → 60m → 12h)" { style.stroke-dash: 5 }
-sent -> complete: "all deliveries done"
-fail -> complete: "all deliveries terminal"
-bounce -> complete: "all deliveries terminal"
+retry -> queued: "requeue_temporary_failed_mails (every 10s)" { style.stroke-dash: 5 }
