@@ -568,12 +568,15 @@ fn DomainsCard() -> Element {
                                         "{proc_err}"
                                     }
                                 },
-                                Err(internal_err) => rsx! {
-                                    Alert {
-                                        color: Color::Danger,
-                                        class: "mb-3 d-flex align-items-start",
-                                        Icon { name: "exclamation-circle", class: "me-2 mt-1 flex-shrink-0" }
-                                        "Interner Fehler: {internal_err}"
+                                Err(internal_err) => {
+                                    let err_msg = tid!("management-config-sync-internal-error", error: internal_err);
+                                    rsx! {
+                                        Alert {
+                                            color: Color::Danger,
+                                            class: "mb-3 d-flex align-items-start",
+                                            Icon { name: "exclamation-circle", class: "me-2 mt-1 flex-shrink-0" }
+                                            "{err_msg}"
+                                        }
                                     }
                                 },
                             }

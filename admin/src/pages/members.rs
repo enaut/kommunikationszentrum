@@ -159,7 +159,7 @@ pub fn MembersPage() -> Element {
                                                                             button {
                                                                                 class: "btn-close text-danger ms-auto",
                                                                                 style: "font-size: 0.5rem;",
-                                                                                "aria-label": "Remove email",
+                                                                                "aria-label": tid!("members-remove-email"),
                                                                                 onclick: move |_| {
                                                                                     if let Err(e) = remove_email_for_row(email_id) {
                                                                                         error!("Failed to remove email: {e:?}");
@@ -176,7 +176,7 @@ pub fn MembersPage() -> Element {
                                                                 input {
                                                                     class: "form-control form-control-sm",
                                                                     r#type: "email",
-                                                                    placeholder: "New email",
+                                                                    placeholder: tid!("members-add-email-placeholder"),
                                                                     value: "{add_email_input}",
                                                                     oninput: move |e: FormEvent| add_email_input.set(e.value()),
                                                                 }
@@ -219,7 +219,7 @@ pub fn MembersPage() -> Element {
                                                                     add_email_account.set(Some(acct_id));
                                                                     add_email_input.set(String::new());
                                                                 },
-                                                                "+ Add Email"
+                                                                "{tid!(\"members-add-email\")}"
                                                             }
                                                         }
                                                     }

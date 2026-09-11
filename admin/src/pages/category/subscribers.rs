@@ -107,7 +107,7 @@ pub fn CategorySubscribersCard(
                 .iter()
                 .find(|e| e.id == sub.account_email_id)
                 .map(|e| e.email.clone())
-                .unwrap_or_else(|| "Unknown".to_string());
+                .unwrap_or_else(|| tid!("general-unknown"));
             (sub.clone(), account, email)
         })
         .collect();
@@ -153,7 +153,7 @@ pub fn CategorySubscribersCard(
                                 th { "{tid!(\"members-table-name\")}" }
                                 th { "{tid!(\"members-table-email\")}" }
                                 th { "{tid!(\"members-table-status\")}" }
-                                th { "Permission" }
+                                th { "{tid!(\"subscriber-permission-label\")}" }
                                 th { class: "text-end", "{tid!(\"members-table-action\")}" }
                             }
                         }
@@ -198,8 +198,8 @@ pub fn CategorySubscribersCard(
                                             }
                                             td {
                                                 match permission {
-                                                    crate::module_bindings::SubscriptionPermission::Read => rsx! { Badge { color: Color::Secondary, "Read" } },
-                                                    crate::module_bindings::SubscriptionPermission::Write => rsx! { Badge { color: Color::Primary, "Write" } },
+                                                    crate::module_bindings::SubscriptionPermission::Read => rsx! { Badge { color: Color::Secondary, "{tid!(\"subscriber-permission-badge-read\")}" } },
+                                                    crate::module_bindings::SubscriptionPermission::Write => rsx! { Badge { color: Color::Primary, "{tid!(\"subscriber-permission-badge-write\")}" } },
                                                 }
                                             }
                                             td { class: "text-end",

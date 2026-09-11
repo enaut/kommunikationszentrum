@@ -156,7 +156,7 @@ pub fn AddSubscriberModal(
                                         selected_email_id.set(id);
                                     }
                                 },
-                                option { value: "0", "Select Email..." }
+                                option { value: "0", "{tid!(\"subscriber-select-email\")}" }
                                 for email in account_emails {
                                     option {
                                         key: "{email.id}",
@@ -298,7 +298,7 @@ pub fn EditSubscriptionModal(
                         }
                     }
                 }
-                FormGroup { label: "Permission",
+                FormGroup { label: tid!("subscriber-permission-label"),
                     Select {
                         value: match edit_permission() {
                             SubscriptionPermission::Read => "read",
@@ -311,8 +311,8 @@ pub fn EditSubscriptionModal(
                                 _ => {}
                             }
                         },
-                        option { value: "read", "Read-Only" }
-                        option { value: "write", "Read & Write" }
+                        option { value: "read", "{tid!(\"subscriber-permission-read\")}" }
+                        option { value: "write", "{tid!(\"subscriber-permission-write\")}" }
                     }
                 }
             },

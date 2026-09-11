@@ -30,6 +30,8 @@ general-no-results = – Keine Ergebnisse –
 general-select-member = – Mitglied wählen –
 general-no-topic-selected = – Kein Thema gewählt –
 general-none = –
+general-cancel = Abbrechen
+general-unknown = Unbekannt
 
 # Members
 members-page-title = Mitglieder
@@ -45,6 +47,9 @@ members-status-active = Aktiv
 members-status-inactive = Inaktiv
 members-remove-subscription = Abonnement entfernen
 members-add-topic = Thema hinzufügen
+members-remove-email = E-Mail entfernen
+members-add-email-placeholder = Neue E-Mail
+members-add-email = + E-Mail hinzufügen
 
 # Messages
 messages-page-title = Nachrichten
@@ -75,6 +80,14 @@ subscriptions-private = Privat
 subscriptions-required = Dieses Thema ist unbedingt notwendig für das Teilnehmen an der SoLaWiS-Gemeinschaft
 subscriptions-unsubscribe = Abbestellen
 subscriptions-subscribe = Abonnieren
+subscriptions-linked-emails-title = Verknüpfte E-Mail-Adressen
+subscriptions-primary-badge = (Hauptadresse)
+subscriptions-email-pending-verification = Verifizierung ausstehend
+subscriptions-email-unverified = Nicht verifiziert
+subscriptions-add-email-placeholder = Neue E-Mail-Adresse
+subscriptions-send-verification = Verifizierungslink senden
+subscriptions-add-email-button = E-Mail-Adresse hinzufügen
+subscriptions-card-email-subscriptions = E-Mail-Abonnements:
 
 # Category list page
 category-page-title = Themen
@@ -139,8 +152,14 @@ subscriber-edit-title = Abonnement bearbeiten
 subscriber-email-label = E-Mail
 subscriber-error-prefix = Fehler
 subscriber-select-member = – Mitglied wählen –
+subscriber-select-email = – E-Mail wählen –
 subscriber-remove = Entfernen
 subscriber-save = Speichern
+subscriber-permission-label = Berechtigung
+subscriber-permission-read = Nur Lesen
+subscriber-permission-write = Lesen & Schreiben
+subscriber-permission-badge-read = Lesen
+subscriber-permission-badge-write = Schreiben
 
 # Subscription statuses
 subscription-status-manually-subscribed = Manuell abonniert
@@ -174,6 +193,7 @@ management-config-sync-found = gefunden
 management-config-sync-added = hinzugefügt
 management-config-sync-updated = aktualisiert
 management-config-sync-removed = entfernt
+management-config-sync-internal-error = Interner Fehler: { $error }
 management-config-table-id = ID
 management-config-table-name = Name
 management-config-table-description = Beschreibung

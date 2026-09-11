@@ -130,7 +130,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
 
             Card { class: "mb-4 shadow-sm",
                 header: rsx! {
-                    h5 { class: "mb-0", "Linked Email Addresses" }
+                    h5 { class: "mb-0", "{tid!(\"subscriptions-linked-emails-title\")}" }
                 },
                 body: rsx! {
                     ul { class: "list-group list-group-flush mb-3",
@@ -142,12 +142,13 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                     li { class: "list-group-item d-flex justify-content-between align-items-center px-0",
                                         div {
                                             if email.id == my_primary_email_id {
-                                                strong { "{email.email} (Primary)" }
+                                                strong { "{email.email} " }
+                                                span { class: "text-muted", "{tid!(\"subscriptions-primary-badge\")}" }
                                             } else {
                                                 span { "{email.email}" }
                                             }
                                             if !email.is_verified {
-                                                Badge { color: Color::Warning, class: "ms-2", "Pending Verification" }
+                                                Badge { color: Color::Warning, class: "ms-2", "{tid!(\"subscriptions-email-pending-verification\")}" }
                                             }
                                         }
                                         if email.source != EmailSource::DjangoSync && email.id != my_primary_email_id {
@@ -173,7 +174,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                             input {
                                 class: "form-control form-control-sm",
                                 r#type: "email",
-                                placeholder: "New email address",
+                                placeholder: tid!("subscriptions-add-email-placeholder"),
                                 style: "max-width: 300px;",
                                 value: "{add_email_input}",
                                 oninput: move |e: FormEvent| add_email_input.set(e.value()),
@@ -195,7 +196,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                 }
                                             }
                                         },
-                                        "Send Verification Link"
+                                        "{tid!(\"subscriptions-send-verification\")}"
                                     }
                                 }
                             }
@@ -206,7 +207,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                     show_add_email.set(false);
                                     add_email_input.set(String::new());
                                 },
-                                "Cancel"
+                                "{tid!(\"general-cancel\")}"
                             }
                         }
                     } else {
@@ -218,7 +219,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                 add_email_input.set(String::new());
                             },
                             Icon { name: "plus-lg", class: "me-2" }
-                            "Add Email Address"
+                            "{tid!(\"subscriptions-add-email-button\")}"
                         }
                     }
                 },
@@ -305,7 +306,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                 }
                                             }
                                             div { class: "mt-auto pt-2 border-top",
-                                                small { class: "text-muted fw-bold d-block mb-2", "E-Mail Subscriptions:" }
+                                                small { class: "text-muted fw-bold d-block mb-2", "{tid!(\"subscriptions-card-email-subscriptions\")}" }
                                                 div { class: "d-flex flex-column gap-2",
                                                     for email in my_emails_clone {
                                                         {
@@ -346,13 +347,13 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                                         class: "form-check-label small d-flex align-items-center flex-wrap gap-1",
                                                                         r#for: "{input_id}",
                                                                         if email.id == my_primary_email_id {
-                                                                            strong { "{email.email}" }
-                                                                            span { class: "text-muted", "(Primary)" }
+                                                                            strong { "{email.email} " }
+                                                                            span { class: "text-muted", "{tid!(\"subscriptions-primary-badge\")}" }
                                                                         } else {
                                                                             span { "{email.email}" }
                                                                         }
                                                                         if !email.is_verified {
-                                                                            Badge { color: Color::Secondary, class: "ms-1", "Unverified" }
+                                                                            Badge { color: Color::Secondary, class: "ms-1", "{tid!(\"subscriptions-email-unverified\")}" }
                                                                         }
                                                                         if is_required {
                                                                             Badge { color: Color::Info, class: "ms-1", "{tid!(\"subscriptions-required\")}" }
