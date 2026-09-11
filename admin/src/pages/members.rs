@@ -44,26 +44,62 @@ pub fn MembersPage() -> Element {
     let remove_email = use_reducer_remove_account_email();
     let mut add_email_account: Signal<Option<u64>> = use_signal(|| None);
     let mut add_email_input: Signal<String> = use_signal(|| String::new());
+    let mut search_query = use_signal(String::new);
+
+    let all_accounts = accounts();
+    let all_emails = account_emails();
+    let query = search_query().trim().to_lowercase();
+    let filtered_accounts: Vec<_> = all_accounts
+        .iter()
+        .filter(|acc| {
+            if query.is_empty() {
+                return true;
+            }
+            if acc.id.to_string().contains(&query) || acc.name.to_lowercase().contains(&query) {
+                return true;
+            }
+            all_emails
+                .iter()
+                .any(|e| e.account_id == acc.id && e.email.to_lowercase().contains(&query))
+        })
+        .cloned()
+        .collect();
 
     rsx! {
         Container { fluid: true, class: "mt-4",
-            Row { class: "mb-3",
-                Col {
+            Row { class: "mb-3 align-items-center",
+                Col { md: ColumnSize::Span(6),
                     h2 { class: "mb-0",
                         Icon { name: "people-fill", class: "me-2" }
                         "{tid!(\"members-page-title\") }"
                     }
-                    p { class: "text-muted mt-1",
-                        Badge { color: Color::Primary, class: "me-2", "{accounts().len()}" }
+                    p { class: "text-muted mt-1 mb-0",
+                        Badge { color: Color::Primary, class: "me-2", "{filtered_accounts.len()} / {all_accounts.len()}" }
                         "{tid!(\"members-summary\") }"
+                    }
+                }
+                Col { md: ColumnSize::Span(6), class: "mt-2 mt-md-0",
+                    InputGroup {
+                        InputGroupText { Icon { name: "search" } }
+                        Input {
+                            r#type: "search",
+                            placeholder: tid!("subscriber-search-placeholder"),
+                            value: "{search_query}",
+                            oninput: move |e: FormEvent| search_query.set(e.value()),
+                        }
                     }
                 }
             }
 
-            if accounts().is_empty() {
+            if all_accounts.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
                     "{tid!(\"members-empty\") }"
+                }
+            } else if filtered_accounts.is_empty() {
+                Alert { color: Color::Info,
+                    Icon { name: "info-circle", class: "me-2" }
+                    "{tid!(\"general-no-results\") }"
                 }
             } else {
                 Card {
@@ -82,7 +118,7 @@ pub fn MembersPage() -> Element {
                                 }
                             }
                             tbody {
-                                for account in accounts() {
+                                for account in filtered_accounts {
                                     {
                                         let acct_id = account.id;
                                         let primary_email_id = account.primary_email_id;

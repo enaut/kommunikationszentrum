@@ -151,7 +151,7 @@ pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
     } else {
         match ctx.db.account().identity().find(&sender) {
             Some(acc) => {
-                let subscribed_category_ids: Vec<u64> = ctx
+                let mut subscribed_category_ids: Vec<u64> = ctx
                     .db
                     .subscriptions()
                     .subscriber_account_id()
@@ -159,6 +159,8 @@ pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
                     .filter(|s| s.status.is_active())
                     .map(|s| s.category_id)
                     .collect();
+                subscribed_category_ids.sort_unstable();
+                subscribed_category_ids.dedup();
                 subscribed_category_ids
                     .into_iter()
                     .flat_map(|cat_id| {

@@ -22,7 +22,7 @@ pub struct AccountEmail {
     pub id: u64,
     #[index(btree)]
     pub account_id: u64,
-    #[unique]
+    #[index(btree)]
     pub email: String,
     pub source: EmailSource,
     pub is_verified: bool,

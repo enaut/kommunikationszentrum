@@ -182,14 +182,22 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
         .filter(|s| s.category_id == category_id)
         .collect();
 
-    let subscribed_account_ids: HashSet<u64> = category_subscriptions
+    let category_subscribed_email_ids: HashSet<u64> = category_subscriptions
         .iter()
-        .map(|s| s.subscriber_account_id)
+        .filter(|s| crate::pages::is_active_subscription(&s.status))
+        .map(|s| s.account_email_id)
         .collect();
 
+    let all_account_emails = account_emails();
     let available_accounts: Vec<_> = accounts()
         .into_iter()
-        .filter(|a| !subscribed_account_ids.contains(&a.id))
+        .filter(|a| {
+            let acct_emails: Vec<_> = all_account_emails
+                .iter()
+                .filter(|e| e.account_id == a.id)
+                .collect();
+            acct_emails.iter().any(|e| !category_subscribed_email_ids.contains(&e.id))
+        })
         .collect();
 
     let assigned_topic_ids: HashSet<u64> = category_topics()

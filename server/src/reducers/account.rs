@@ -120,7 +120,13 @@ pub(crate) fn do_sync_user(
                 let is_admin = data.is_admin.unwrap_or(false);
                 let subscriber_email = data.email.clone().unwrap_or_default();
 
-                let primary_email_id = if let Some(existing_email) = ctx.db.account_emails().email().find(&subscriber_email) {
+                let primary_email_id = if let Some(existing_email) = ctx
+                    .db
+                    .account_emails()
+                    .account_id()
+                    .filter(&data.mitgliedsnr)
+                    .find(|e| e.email == subscriber_email)
+                {
                     if existing_email.source != EmailSource::DjangoSync {
                         let mut updated = existing_email.clone();
                         updated.source = EmailSource::DjangoSync;
@@ -206,7 +212,13 @@ pub(crate) fn do_sync_user(
                 
                 // 2. Add or update incoming emails
                 for incoming in incoming_emails {
-                    if let Some(existing) = ctx.db.account_emails().email().find(&incoming) {
+                    if let Some(existing) = ctx
+                        .db
+                        .account_emails()
+                        .account_id()
+                        .filter(&data.mitgliedsnr)
+                        .find(|e| e.email == incoming)
+                    {
                         if existing.source != EmailSource::DjangoSync {
                             let mut updated = existing;
                             updated.source = EmailSource::DjangoSync;
@@ -316,8 +328,8 @@ pub fn admin_add_account_email(ctx: &ReducerContext, account_id: u64, email: Str
         return Err("Unauthorized".into());
     }
 
-    if ctx.db.account_emails().email().find(&email).is_some() {
-        return Err("Email already registered".into());
+    if ctx.db.account_emails().account_id().filter(&account_id).any(|e| e.email == email) {
+        return Err("Email already registered for this account".into());
     }
 
     ctx.db.account_emails().insert(AccountEmail {
@@ -336,8 +348,8 @@ pub fn user_request_email_verification(ctx: &ReducerContext, email: String) -> R
     let account = ctx.db.account().identity().find(&ctx.sender())
         .ok_or_else(|| "Account not found for sender".to_string())?;
 
-    if ctx.db.account_emails().email().find(&email).is_some() {
-        return Err("Email already registered".into());
+    if ctx.db.account_emails().account_id().filter(&account.id).any(|e| e.email == email) {
+        return Err("Email already registered for this account".into());
     }
 
     // Generate token
@@ -380,8 +392,8 @@ pub fn user_verify_email(ctx: &ReducerContext, token: String) -> Result<(), Stri
         return Err("Token expired".into());
     }
 
-    // Insert the email
-    if ctx.db.account_emails().email().find(&verification.email).is_none() {
+    // Insert the email if not already present for this account
+    if !ctx.db.account_emails().account_id().filter(&verification.account_id).any(|e| e.email == verification.email) {
         ctx.db.account_emails().insert(AccountEmail {
             id: 0,
             account_id: verification.account_id,

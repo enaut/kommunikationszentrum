@@ -201,7 +201,7 @@ pub(crate) fn do_add_subscription(
         .subscriptions()
         .subscriber_account_id()
         .filter(&subscriber_account_id)
-        .find(|sub| sub.category_id == category_id);
+        .find(|sub| sub.category_id == category_id && sub.account_email_id == account_email_id);
 
     let subscription = if let Some(existing) = existing {
         // When not forced and the new status is automatic, protect manual/link-unsubscribed state.
@@ -231,7 +231,7 @@ pub(crate) fn do_add_subscription(
             .subscriptions()
             .subscriber_account_id()
             .filter(&subscriber_account_id)
-            .find(|sub| sub.category_id == category_id)
+            .find(|sub| sub.category_id == category_id && sub.account_email_id == account_email_id)
             .ok_or_else(|| "Subscription insert failed".to_string())?
     };
 
@@ -508,32 +508,32 @@ pub(crate) fn do_remove_subscription_for_category_email(
         return Ok(());
     };
 
-    let Some(sub) = ctx
+    let subs: Vec<_> = ctx
         .db
         .subscriptions()
         .subscriber_account_id()
         .filter(&subscriber_account_id)
-        .find(|s| s.category_id == category.id)
-    else {
-        return Ok(());
-    };
+        .filter(|s| s.category_id == category.id)
+        .collect();
 
-    if sub.status.is_active() {
-        let sub_id = sub.id;
-        if do_deactivate_subscription(ctx, sub, SubscriptionStatus::AutomaticallyUnsubscribed) {
-            log::info!(
-                "Deactivated subscription {} for account {} (category email: {})",
-                sub_id,
-                subscriber_account_id,
-                category_email_address
-            );
-        } else {
-            log::info!(
-                "Skipped sync-driven unsubscribe of subscription {} for account {} (category email: {}): manually managed",
-                sub_id,
-                subscriber_account_id,
-                category_email_address
-            );
+    for sub in subs {
+        if sub.status.is_active() {
+            let sub_id = sub.id;
+            if do_deactivate_subscription(ctx, sub, SubscriptionStatus::AutomaticallyUnsubscribed) {
+                log::info!(
+                    "Deactivated subscription {} for account {} (category email: {})",
+                    sub_id,
+                    subscriber_account_id,
+                    category_email_address
+                );
+            } else {
+                log::info!(
+                    "Skipped sync-driven unsubscribe of subscription {} for account {} (category email: {}): manually managed",
+                    sub_id,
+                    subscriber_account_id,
+                    category_email_address
+                );
+            }
         }
     }
     Ok(())

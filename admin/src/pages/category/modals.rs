@@ -58,11 +58,14 @@ pub fn AddSubscriberModal(
         .filter(|a| {
             filter_lower.is_empty()
                 || a.name.to_lowercase().contains(&filter_lower)
+                || a.id.to_string().contains(&filter_lower)
+                || available_emails.iter().any(|e| e.account_id == a.id && e.email.to_lowercase().contains(&filter_lower))
         })
         .cloned()
         .collect();
 
     let available_for_filter = available_accounts.clone();
+    let available_emails_for_filter = available_emails.clone();
     let filter_count_text = tid!(
         "members-filter-count",
         filtered: filtered_accounts.len(),
@@ -94,11 +97,14 @@ pub fn AddSubscriberModal(
                                     let new_filter = new_val.to_lowercase();
                                     account_filter.set(new_val);
 
+                                    let emails_ref = available_emails_for_filter.clone();
                                     let matched: Vec<_> = available_for_filter
                                         .iter()
                                         .filter(|a| {
                                             new_filter.is_empty()
                                                 || a.name.to_lowercase().contains(&new_filter)
+                                                || a.id.to_string().contains(&new_filter)
+                                                || emails_ref.iter().any(|e| e.account_id == a.id && e.email.to_lowercase().contains(&new_filter))
                                         })
                                         .collect();
 

@@ -57,7 +57,6 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
     let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
     let my_account = accounts().into_iter().find(|a| a.id == account_id);
     let my_primary_email_id = my_account.map(|a| a.primary_email_id).unwrap_or(0);
-    let mut selected_email_ids = use_signal(|| std::collections::HashMap::<u64, u64>::new());
     let my_emails: Vec<_> = account_emails()
         .into_iter()
         .filter(|e| e.account_id == account_id)
@@ -269,31 +268,25 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 Row {
                     for cat in visible_cats {
                         {
-                            let subscription = subscriptions().into_iter().find(|s| {
+                            let cat_subscriptions: Vec<_> = subscriptions().into_iter().filter(|s| {
                                 s.category_id == cat.id
                                     && s.subscriber_account_id == account_id
                                     && crate::pages::is_active_subscription(&s.status)
-                            });
-                            let sub_id = subscription.as_ref().map(|s| s.id);
-                            let sub_email_id = subscription.as_ref().map(|s| s.account_email_id);
-                            let is_required = subscription
-                                .as_ref()
-                                .is_some_and(|s| matches!(s.status, SubscriptionStatus::RequiredSubscribed));
+                            }).collect();
+                            let is_subscribed_any = !cat_subscriptions.is_empty();
                             let cat_id = cat.id;
                             let add = add_subscription.clone();
                             let remove = remove_subscription.clone();
                             let my_emails_clone = my_emails.clone();
 
-                            let current_selected_email = *selected_email_ids().get(&cat_id).unwrap_or(&my_primary_email_id);
-
                             rsx! {
                                 Col { md: ColumnSize::Span(6), lg: ColumnSize::Span(4), class: "mb-3",
                                     Card {
-                                        class: if sub_id.is_some() { "h-100 border-dark bg-light" } else { "h-100 border-light" },
+                                        class: if is_subscribed_any { "h-100 border-dark bg-light" } else { "h-100 border-light" },
                                         body_class: "d-flex flex-column",
                                         header: rsx! {
                                             h5 { class: "card-title mb-0", "{cat.name}" }
-                                            if sub_id.is_some() {
+                                            if is_subscribed_any {
                                                 Badge { color: Color::Success, class: "ms-2", "{tid!(\"subscriptions-subscribed\")}" }
                                             }
 
@@ -311,68 +304,63 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                     "{cat.email_address}"
                                                 }
                                             }
-                                            if is_required {
-                                                Alert { color: Color::Info, class: "mt-auto mb-0 small",
-                                                    Icon { name: "info-circle", class: "me-2" }
-                                                    "{tid!(\"subscriptions-required\") }"
-                                                }
-                                            } else if let Some(id) = sub_id {
-                                                div { class: "mt-auto",
-                                                    div { class: "mb-2",
-                                                        small { class: "text-muted", "Subscribed with:" }
-                                                        br {}
-                                                        strong {
-                                                            "{my_emails_clone.iter().find(|e| e.id == sub_email_id.unwrap_or(0)).map(|e| e.email.as_str()).unwrap_or(\"Unknown\")}"
+                                            div { class: "mt-auto pt-2 border-top",
+                                                small { class: "text-muted fw-bold d-block mb-2", "E-Mail Subscriptions:" }
+                                                div { class: "d-flex flex-column gap-2",
+                                                    for email in my_emails_clone {
+                                                        {
+                                                            let email_id = email.id;
+                                                            let sub_for_email = cat_subscriptions.iter().find(|s| s.account_email_id == email_id);
+                                                            let is_subbed = sub_for_email.is_some();
+                                                            let is_required = sub_for_email.is_some_and(|s| matches!(s.status, SubscriptionStatus::RequiredSubscribed));
+                                                            let sub_id = sub_for_email.map(|s| s.id);
+                                                            let add_fn = add.clone();
+                                                            let remove_fn = remove.clone();
+                                                            let input_id = format!("sub-check-{cat_id}-{email_id}");
+
+                                                            rsx! {
+                                                                div { class: "form-check",
+                                                                    input {
+                                                                        class: "form-check-input",
+                                                                        r#type: "checkbox",
+                                                                        id: "{input_id}",
+                                                                        checked: is_subbed,
+                                                                        disabled: is_required || !email.is_verified,
+                                                                        onchange: move |_| {
+                                                                            if is_subbed {
+                                                                                if let Some(id) = sub_id {
+                                                                                    info!("Unsubscribing {email_id} from category {cat_id}");
+                                                                                    if let Err(err) = remove_fn(id) {
+                                                                                        error!("remove_subscription failed: {err:?}");
+                                                                                    }
+                                                                                }
+                                                                            } else {
+                                                                                info!("Subscribing {email_id} to category {cat_id}");
+                                                                                if let Err(err) = add_fn(account_id, email_id, cat_id) {
+                                                                                    error!("add_subscription failed: {err:?}");
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    label {
+                                                                        class: "form-check-label small d-flex align-items-center flex-wrap gap-1",
+                                                                        r#for: "{input_id}",
+                                                                        if email.id == my_primary_email_id {
+                                                                            strong { "{email.email}" }
+                                                                            span { class: "text-muted", "(Primary)" }
+                                                                        } else {
+                                                                            span { "{email.email}" }
+                                                                        }
+                                                                        if !email.is_verified {
+                                                                            Badge { color: Color::Secondary, class: "ms-1", "Unverified" }
+                                                                        }
+                                                                        if is_required {
+                                                                            Badge { color: Color::Info, class: "ms-1", "{tid!(\"subscriptions-required\")}" }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
                                                         }
-                                                    }
-                                                    Button {
-                                                        color: Color::Danger,
-                                                        size: Size::Sm,
-                                                        class: "w-100",
-                                                        onclick: move |_| {
-                                                            info!("Unsubscribing from category {cat_id}");
-                                                            if let Err(e) = remove(id) {
-                                                                error!("remove_subscription failed: {e:?}");
-                                                            }
-                                                        },
-                                                        Icon { name: "dash-circle", class: "me-1" }
-                                                        "{tid!(\"subscriptions-unsubscribe\") }"
-                                                    }
-                                                }
-                                            } else {
-                                                div { class: "mt-auto",
-                                                    Select {
-                                                        class: "mb-2",
-                                                        size: Size::Sm,
-                                                        value: current_selected_email.to_string(),
-                                                        onchange: move |e: FormEvent| {
-                                                            if let Ok(id) = e.value().parse::<u64>() {
-                                                                selected_email_ids.write().insert(cat_id, id);
-                                                            }
-                                                        },
-                                                        for email in my_emails_clone {
-                                                            option {
-                                                                key: "{email.id}",
-                                                                value: "{email.id}",
-                                                                "{email.email}"
-                                                            }
-                                                        }
-                                                    }
-                                                    Button {
-                                                        color: Color::Success,
-                                                        size: Size::Sm,
-                                                        class: "w-100",
-                                                        disabled: current_selected_email == 0,
-                                                        onclick: move |_| {
-                                                            info!("Subscribing to category {cat_id}");
-                                                            if let Err(e) =
-                                                                add(account_id, current_selected_email, cat_id)
-                                                            {
-                                                                error!("add_subscription failed: {e:?}");
-                                                            }
-                                                        },
-                                                        Icon { name: "plus-circle", class: "me-1" }
-                                                        "{tid!(\"subscriptions-subscribe\") }"
                                                     }
                                                 }
                                             }
