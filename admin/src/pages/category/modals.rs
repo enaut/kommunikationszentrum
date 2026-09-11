@@ -83,7 +83,7 @@ pub fn AddSubscriberModal(
                     Alert { color: Color::Danger, class: "mb-3", "{err}" }
                 }
                 if available_accounts.is_empty() {
-                    p { class: "text-muted mb-0", "{tid!(\"subscriber-add-all-claimed\") }" }
+                    p { class: "text-muted mb-0", {tid!("subscriber-add-all-claimed")} }
                 } else {
                     FormGroup { label: tid!("subscriber-member-label"),
                         InputGroup { class: "mb-2",
@@ -127,9 +127,9 @@ pub fn AddSubscriberModal(
                             },
                             option { value: "0",
                                 if filtered_accounts.is_empty() {
-                                    "{tid!(\"general-no-results\") }"
+                                    {tid!("general-no-results")}
                                 } else {
-                                    "{tid!(\"subscriber-select-member\") }"
+                                    {tid!("subscriber-select-member")}
                                 }
                             }
                             for acc in filtered_accounts.clone() {
@@ -156,7 +156,7 @@ pub fn AddSubscriberModal(
                                         selected_email_id.set(id);
                                     }
                                 },
-                                option { value: "0", "Select Email..." }
+                                option { value: "0", {tid!("subscriber-select-email")} }
                                 for email in account_emails {
                                     option {
                                         key: "{email.id}",
@@ -191,7 +191,7 @@ pub fn AddSubscriberModal(
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| show.set(false),
-                    "{tid!(\"subscriber-cancel\") }"
+                    {tid!("subscriber-cancel")}
                 }
                 Button {
                     color: Color::Primary,
@@ -212,12 +212,12 @@ pub fn AddSubscriberModal(
                             }
                             Err(e) => {
                                 error!("admin_add_subscription failed: {e:?}");
-                                add_sub_error.set(Some(format!("{}: {e:?}", tid!("subscriber-error-prefix"))));
+                                add_sub_error.set(Some(tid!("subscriber-error", error: format!("{e:?}"))));
                             }
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "{tid!(\"subscriber-add\") }"
+                    {tid!("subscriber-add")}
                 }
             },
         }
@@ -298,7 +298,7 @@ pub fn EditSubscriptionModal(
                         }
                     }
                 }
-                FormGroup { label: "Permission",
+                FormGroup { label: tid!("subscriber-permission-label"),
                     Select {
                         value: match edit_permission() {
                             SubscriptionPermission::Read => "read",
@@ -311,8 +311,8 @@ pub fn EditSubscriptionModal(
                                 _ => {}
                             }
                         },
-                        option { value: "read", "Read-Only" }
-                        option { value: "write", "Read & Write" }
+                        option { value: "read", {tid!("subscriber-permission-read")} }
+                        option { value: "write", {tid!("subscriber-permission-write")} }
                     }
                 }
             },
@@ -320,7 +320,7 @@ pub fn EditSubscriptionModal(
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| show.set(false),
-                    "{tid!(\"subscriber-cancel\") }"
+                    {tid!("subscriber-cancel")}
                 }
                 Button {
                     color: Color::Primary,
@@ -338,13 +338,13 @@ pub fn EditSubscriptionModal(
                         
                         if res1.is_err() || res2.is_err() {
                             error!("admin_add_subscription or update_permission failed");
-                            edit_sub_error.set(Some(format!("{}: {:?}", tid!("subscriber-error-prefix"), res1.err().or(res2.err()))));
+                            edit_sub_error.set(Some(tid!("subscriber-error", error: format!("{:?}", res1.err().or(res2.err())))));
                         } else {
                             show.set(false);
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "{tid!(\"subscriber-save\") }"
+                    {tid!("subscriber-save")}
                 }
             },
         }

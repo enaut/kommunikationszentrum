@@ -34,14 +34,14 @@ pub fn LanguageSwitcher() -> Element {
                     onclick: move |_| {
                         switch_language(i18n, langid!("de"));
                     },
-                    "{tid!(\"language-switcher-de\") }"
+                    {tid!("language-switcher-de")}
                 }
                 DropdownItem {
                     active: current_code == "en",
                     onclick: move |_| {
                         switch_language(i18n, langid!("en"));
                     },
-                    "{tid!(\"language-switcher-en\") }"
+                    {tid!("language-switcher-en")}
                 }
             }
         }

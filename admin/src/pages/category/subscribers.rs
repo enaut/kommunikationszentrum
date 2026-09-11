@@ -107,7 +107,7 @@ pub fn CategorySubscribersCard(
                 .iter()
                 .find(|e| e.id == sub.account_email_id)
                 .map(|e| e.email.clone())
-                .unwrap_or_else(|| "Unknown".to_string());
+                .unwrap_or_else(|| tid!("general-unknown"));
             (sub.clone(), account, email)
         })
         .collect();
@@ -126,7 +126,7 @@ pub fn CategorySubscribersCard(
                 div { class: "d-flex justify-content-between align-items-center",
                     h5 { class: "card-title mb-0",
                         Icon { name: "people-fill", class: "me-2" }
-                        "{tid!(\"category-table-th-subscribers\") }"
+                        {tid!("category-table-th-subscribers")}
                         span { class: "badge bg-white text-primary ms-2", "{active_subscriber_count}" }
                     }
                     Button {
@@ -136,7 +136,7 @@ pub fn CategorySubscribersCard(
                             show_add_modal.set(true);
                         },
                         Icon { name: "plus-lg", class: "me-1" }
-                        "{tid!(\"subscriber-add\") }"
+                        {tid!("subscriber-add")}
                     }
                 }
             },
@@ -144,17 +144,17 @@ pub fn CategorySubscribersCard(
                 if subscriber_rows.is_empty() {
                     div { class: "p-4 text-muted",
                         Icon { name: "inbox", class: "me-2" }
-                        "{tid!(\"category-table-empty\") }"
+                        {tid!("category-table-empty")}
                     }
                 } else {
                     Table { hover: true, responsive: true, class: "mb-0",
                         thead { class: "table-light",
                             tr {
-                                th { "{tid!(\"members-table-name\")}" }
-                                th { "{tid!(\"members-table-email\")}" }
-                                th { "{tid!(\"members-table-status\")}" }
-                                th { "Permission" }
-                                th { class: "text-end", "{tid!(\"members-table-action\")}" }
+                                th { {tid!("members-table-name")} }
+                                th { {tid!("members-table-email")} }
+                                th { {tid!("members-table-status")} }
+                                th { {tid!("subscriber-permission-label")} }
+                                th { class: "text-end", {tid!("members-table-action")} }
                             }
                         }
                         tbody {
@@ -168,7 +168,7 @@ pub fn CategorySubscribersCard(
                                     let remove = remove_subscription.clone();
                                     let name_disp = match &account {
                                         Some(a) => a.name.clone(),
-                                        None => format!("{} #{}", tid!("subscriber-member-label"), sub.subscriber_account_id),
+                                        None => tid!("subscriber-member-id", id: sub.subscriber_account_id),
                                     };
                                     let badge_color = status_color(&sub.status);
                                     let badge_label = status_label(&sub.status);
@@ -198,8 +198,8 @@ pub fn CategorySubscribersCard(
                                             }
                                             td {
                                                 match permission {
-                                                    crate::module_bindings::SubscriptionPermission::Read => rsx! { Badge { color: Color::Secondary, "Read" } },
-                                                    crate::module_bindings::SubscriptionPermission::Write => rsx! { Badge { color: Color::Primary, "Write" } },
+                                                    crate::module_bindings::SubscriptionPermission::Read => rsx! { Badge { color: Color::Secondary, {tid!("subscriber-permission-badge-read")} } },
+                                                    crate::module_bindings::SubscriptionPermission::Write => rsx! { Badge { color: Color::Primary, {tid!("subscriber-permission-badge-write")} } },
                                                 }
                                             }
                                             td { class: "text-end",
@@ -214,7 +214,7 @@ pub fn CategorySubscribersCard(
                                                         }
                                                     },
                                                     Icon { name: "trash", class: "me-1" }
-                                                    "{tid!(\"subscriber-remove\") }"
+                                                    {tid!("subscriber-remove")}
                                                 }
                                             }
                                         }

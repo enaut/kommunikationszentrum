@@ -27,7 +27,7 @@ pub fn Navbar(
             class: "navbar-dark",
             brand: rsx! {
                 Icon { name: "envelope-fill", class: "me-2 text-white" }
-                span { class: "text-white", "{tid!(\"navbar-brand\")}" }
+                span { class: "text-white", {tid!("navbar-brand")} }
             },
             NavbarToggler { collapsed }
             NavbarCollapse { collapsed,
@@ -63,11 +63,11 @@ pub fn Navbar(
                                 toggle_class: "btn-link nav-link text-white",
                                 toggle: rsx! {
                                     Icon { name: "sliders", class: "me-1" }
-                                    "{tid!(\"navbar-management\")}"
+                                    {tid!("navbar-management")}
                                 },
                                 menu: rsx! {
-                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementConfiguration), "{tid!(\"navbar-settings\")}" }
-                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementStatus), "{tid!(\"navbar-status\")}" }
+                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementConfiguration), {tid!("navbar-settings")} }
+                                    DropdownItem { onclick: move |_| active_view.set(ActiveView::ManagementStatus), {tid!("navbar-status")} }
                                 },
                             }
                         }
@@ -96,7 +96,7 @@ pub fn Navbar(
                             menu: rsx! {
                                 DropdownItem { onclick: move |_| on_logout.call(()),
                                     Icon { name: "box-arrow-right", class: "me-2" }
-                                    "{tid!(\"navbar-logout\")}"
+                                    {tid!("navbar-logout")}
                                 }
                             },
                         }

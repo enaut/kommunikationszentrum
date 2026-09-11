@@ -103,7 +103,7 @@ pub fn TopicCheckRow(
                             }
                             Err(e) => {
                                 error!("rename_topic failed: {e:?}");
-                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
+                                topics_message.set(Some((tid!("category-topic-error", error: format!("{e:?}")), Color::Danger)));
                             }
                         }
                     },
@@ -124,7 +124,7 @@ pub fn TopicCheckRow(
                             }
                             Err(e) => {
                                 error!("rename_topic failed: {e:?}");
-                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
+                                topics_message.set(Some((tid!("category-topic-error", error: format!("{e:?}")), Color::Danger)));
                             }
                         }
                     },
@@ -154,7 +154,7 @@ pub fn TopicCheckRow(
                             Ok(()) => topics_message.set(None),
                             Err(e) => {
                                 error!("set_category_topics failed: {e:?}");
-                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
+                                topics_message.set(Some((tid!("category-topic-error", error: format!("{e:?}")), Color::Danger)));
                             }
                         }
                     },
@@ -197,7 +197,7 @@ pub fn CategoryTopicsCard(
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "bookmark-star", class: "me-2" }
-                    "{tid!(\"category-topics-title\")}"
+                    {tid!("category-topics-title")}
                 }
             },
             body: rsx! {
@@ -205,12 +205,12 @@ pub fn CategoryTopicsCard(
                     Alert { color, class: "mb-3", "{msg}" }
                 }
                 p { class: "text-muted small mb-3",
-                    "{tid!(\"category-topics-description\")}"
+                    {tid!("category-topics-description")}
                 }
                 if topic_ids.is_empty() {
                     div { class: "text-muted mb-3",
                         Icon { name: "inbox", class: "me-2" }
-                        "{tid!(\"category-topics-empty\")}"
+                        {tid!("category-topics-empty")}
                     }
                 } else {
                     ListGroup { tag: "div", class: "mb-3",
@@ -264,7 +264,7 @@ pub fn CategoryTopicsCard(
                                             }
                                             Err(e) => {
                                                 error!("set_category_topics (add) failed: {e:?}");
-                                                topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
+                                                topics_message.set(Some((tid!("category-topic-error", error: format!("{e:?}")), Color::Danger)));
                                             }
                                         }
                                     }
@@ -294,7 +294,7 @@ pub fn CategoryTopicsCard(
                                         }
                                         Err(e) => {
                                             error!("set_category_topics (add) failed: {e:?}");
-                                            topics_message.set(Some((format!("{}: {e:?}", tid!("category-topic-error")), Color::Danger)));
+                                            topics_message.set(Some((tid!("category-topic-error", error: format!("{e:?}")), Color::Danger)));
                                         }
                                     }
                                 },

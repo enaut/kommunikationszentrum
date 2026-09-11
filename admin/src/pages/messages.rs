@@ -151,11 +151,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "envelope-fill", class: "me-2" }
-                        "{tid!(\"messages-page-title\") }"
+                        {tid!("messages-page-title")}
                     }
                     p { class: "text-muted mt-1",
                         Badge { color: Color::Primary, class: "me-2", "{messages_with_content.len()}" }
-                        "{tid!(\"messages-summary\") }"
+                        {tid!("messages-summary")}
                     }
                 }
             }
@@ -164,7 +164,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             Row { class: "mb-3",
                 Col {
                     div { class: "d-flex flex-wrap gap-2 align-items-center",
-                        span { class: "text-muted small me-1", "{tid!(\"messages-filter\")}" }
+                        span { class: "text-muted small me-1", {tid!("messages-filter")} }
                         Button {
                             color: if filter_category().is_none() { Color::Primary } else { Color::Secondary },
                             outline: filter_category().is_some(),
@@ -173,7 +173,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 filter_category.set(None);
                                 selected_id.set(None);
                             },
-                            "{tid!(\"messages-filter-all\") }"
+                            {tid!("messages-filter-all")}
                         }
                         for cat in categories()
                             .into_iter()
@@ -205,9 +205,9 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                 Alert { color: Color::Info,
                     Icon { name: "inbox", class: "me-2" }
                     if filter_category().is_none() {
-                        "{tid!(\"messages-empty\") }"
+                        {tid!("messages-empty")}
                     } else {
-                        "{tid!(\"messages-empty-category\") }"
+                        {tid!("messages-empty-category")}
                     }
                 }
             } else {
@@ -274,7 +274,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                         Badge { color: cat_badge_color(msg.category_id()), "{msg.category_email()}" }
                                         span { class: "fw-semibold",
                                             if msg.subject().is_empty() {
-                                                "{tid!(\"messages-no-subject\") }"
+                                                {tid!("messages-no-subject")}
                                             } else {
                                                 "{msg.subject()}"
                                             }
@@ -293,35 +293,35 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                 th {
                                                     class: "text-muted small pe-3",
                                                     style: "width: 5.5rem; white-space: nowrap;",
-                                                    "{tid!(\"messages-header-from\") }"
+                                                    {tid!("messages-header-from")}
                                                 }
                                                 td { class: "small", "{msg.from_header()}" }
                                             }
                                             tr {
-                                                th { class: "text-muted small pe-3", "{tid!(\"messages-header-to\") }" }
+                                                th { class: "text-muted small pe-3", {tid!("messages-header-to")} }
                                                 td { class: "small", "{msg.category_email()}" }
                                             }
                                             if let Some(cc) = msg.cc_header() {
                                                 tr {
-                                                    th { class: "text-muted small pe-3", "{tid!(\"messages-header-cc\") }" }
+                                                    th { class: "text-muted small pe-3", {tid!("messages-header-cc")} }
                                                     td { class: "small", "{cc}" }
                                                 }
                                             }
                                             if let Some(date) = msg.date_header() {
                                                 tr {
-                                                    th { class: "text-muted small pe-3", "{tid!(\"messages-header-date\") }" }
+                                                    th { class: "text-muted small pe-3", {tid!("messages-header-date")} }
                                                     td { class: "small", "{date}" }
                                                 }
                                             }
                                             if let Some(mid) = msg.message_id() {
                                                 tr {
-                                                    th { class: "text-muted small pe-3", "{tid!(\"messages-header-message-id\") }" }
+                                                    th { class: "text-muted small pe-3", {tid!("messages-header-message-id")} }
                                                     td { class: "small font-monospace text-break", "{mid}" }
                                                 }
                                             }
                                             if let Some(rt) = msg.reply_to() {
                                                 tr {
-                                                    th { class: "text-muted small pe-3", "{tid!(\"messages-header-reply-to\") }" }
+                                                    th { class: "text-muted small pe-3", {tid!("messages-header-reply-to")} }
                                                     td { class: "small", "{rt}" }
                                                 }
                                             }
@@ -332,7 +332,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     if msg.body_raw().is_empty() {
                                         Alert { color: Color::Warning, class: "small mb-0",
                                             Icon { name: "exclamation-triangle", class: "me-1" }
-                                            "{tid!(\"messages-body-empty\") }"
+                                            {tid!("messages-body-empty")}
                                         }
                                     } else {
                                         pre {
@@ -350,7 +350,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 body: rsx! {
                                     div { class: "d-flex flex-column align-items-center justify-content-center py-5 text-muted",
                                         Icon { name: "envelope-open", class: "display-6 mb-3" }
-                                        p { class: "mb-0", "{tid!(\"messages-select-placeholder\") }" }
+                                        p { class: "mb-0", {tid!("messages-select-placeholder")} }
                                     }
                                 },
                             }

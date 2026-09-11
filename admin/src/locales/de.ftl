@@ -30,6 +30,8 @@ general-no-results = – Keine Ergebnisse –
 general-select-member = – Mitglied wählen –
 general-no-topic-selected = – Kein Thema gewählt –
 general-none = –
+general-cancel = Abbrechen
+general-unknown = Unbekannt
 
 # Members
 members-page-title = Mitglieder
@@ -45,6 +47,9 @@ members-status-active = Aktiv
 members-status-inactive = Inaktiv
 members-remove-subscription = Abonnement entfernen
 members-add-topic = Thema hinzufügen
+members-remove-email = E-Mail entfernen
+members-add-email-placeholder = Neue E-Mail
+members-add-email = + E-Mail hinzufügen
 
 # Messages
 messages-page-title = Nachrichten
@@ -75,6 +80,14 @@ subscriptions-private = Privat
 subscriptions-required = Dieses Thema ist unbedingt notwendig für das Teilnehmen an der SoLaWiS-Gemeinschaft
 subscriptions-unsubscribe = Abbestellen
 subscriptions-subscribe = Abonnieren
+subscriptions-linked-emails-title = Verknüpfte E-Mail-Adressen
+subscriptions-primary-badge = (Hauptadresse)
+subscriptions-email-pending-verification = Verifizierung ausstehend
+subscriptions-email-unverified = Nicht verifiziert
+subscriptions-add-email-placeholder = Neue E-Mail-Adresse
+subscriptions-send-verification = Verifizierungslink senden
+subscriptions-add-email-button = E-Mail-Adresse hinzufügen
+subscriptions-card-email-subscriptions = E-Mail-Abonnements:
 
 # Category list page
 category-page-title = Themen
@@ -112,7 +125,7 @@ category-detail-email = E-Mail-Adresse
 category-detail-email-help = Die E-Mail-Adresse ist fest mit dem Thema verknüpft und kann nicht geändert werden.
 category-detail-save = Speichern
 category-detail-saved = Änderungen gespeichert.
-category-detail-save-error = Fehler beim Speichern
+category-detail-save-error = Fehler beim Speichern: { $error }
 category-detail-back = Zurück zur Übersicht
 category-detail-not-found = Thema nicht gefunden (evtl. gelöscht).
 
@@ -124,12 +137,13 @@ category-topics-placeholder = Neues Schlagwort …
 category-topic-name-empty = Name darf nicht leer sein.
 category-topic-renamed = Schlagwort umbenannt.
 category-topic-added = Schlagwort hinzugefügt.
-category-topic-error = Fehler
+category-topic-error = Fehler: { $error }
 
 # Category subscribers
 subscriber-add-title = Abonnent hinzufügen
 subscriber-add-all-claimed = Alle Mitglieder sind bereits abonniert.
 subscriber-member-label = Mitglied
+subscriber-member-id = Mitglied #{ $id }
 subscriber-search-placeholder = Name oder E-Mail filtern …
 subscriber-status-label = Status
 subscriber-cancel = Abbrechen
@@ -137,10 +151,16 @@ subscriber-member-not-found = Mitglied nicht gefunden.
 subscriber-add = Hinzufügen
 subscriber-edit-title = Abonnement bearbeiten
 subscriber-email-label = E-Mail
-subscriber-error-prefix = Fehler
+subscriber-error = Fehler: { $error }
 subscriber-select-member = – Mitglied wählen –
+subscriber-select-email = – E-Mail wählen –
 subscriber-remove = Entfernen
 subscriber-save = Speichern
+subscriber-permission-label = Berechtigung
+subscriber-permission-read = Nur Lesen
+subscriber-permission-write = Lesen & Schreiben
+subscriber-permission-badge-read = Lesen
+subscriber-permission-badge-write = Schreiben
 
 # Subscription statuses
 subscription-status-manually-subscribed = Manuell abonniert
@@ -169,11 +189,8 @@ management-config-token-security = Der Klartext des Tokens wird nur einmal im Br
 management-config-domains-title = Domains
 management-config-domains-sync = Jetzt synchronisieren
 management-config-domains-empty = Keine Domains vorhanden. Bitte synchronisieren.
-management-config-sync-success = Synchronisierung abgeschlossen
-management-config-sync-found = gefunden
-management-config-sync-added = hinzugefügt
-management-config-sync-updated = aktualisiert
-management-config-sync-removed = entfernt
+management-config-sync-success = Synchronisierung abgeschlossen: { $found } gefunden, { $added } hinzugefügt, { $updated } aktualisiert, { $removed } entfernt.
+management-config-sync-internal-error = Interner Fehler: { $error }
 management-config-table-id = ID
 management-config-table-name = Name
 management-config-table-description = Beschreibung
@@ -201,10 +218,10 @@ status-member-number = Mitgliedsnummer
 status-email = E-Mail
 status-email-empty = –
 status-connection-connecting = Verbindung wird hergestellt…
-status-connection-reconnecting = Wiederverbinden
+status-connection-reconnecting = Wiederverbinden ({ $attempt }, { $delay_ms } ms)
 status-connection-error = Verbindungsfehler
 status-connection-disconnected = Nicht verbunden
-status-error-label = Fehler
+status-connection-error-details = Fehler: { $error }
 status-last-updated = Zuletzt aktualisiert
 status-temporary-failed-title = mail_delivery_temporary_failed
 status-temporary-failed-empty = Keine temporär fehlgeschlagenen Mail-Deliveries.

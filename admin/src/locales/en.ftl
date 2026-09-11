@@ -30,6 +30,8 @@ general-no-results = – No results –
 general-select-member = – Select member –
 general-no-topic-selected = – No topic selected –
 general-none = –
+general-cancel = Cancel
+general-unknown = Unknown
 
 # Members
 members-page-title = Members
@@ -45,6 +47,9 @@ members-status-active = Active
 members-status-inactive = Inactive
 members-remove-subscription = Remove subscription
 members-add-topic = Add topic
+members-remove-email = Remove email
+members-add-email-placeholder = New email
+members-add-email = + Add Email
 
 # Messages
 messages-page-title = Messages
@@ -75,6 +80,14 @@ subscriptions-private = Private
 subscriptions-required = This topic is required to participate in the SoLaWiS community
 subscriptions-unsubscribe = Unsubscribe
 subscriptions-subscribe = Subscribe
+subscriptions-linked-emails-title = Linked Email Addresses
+subscriptions-primary-badge = (Primary)
+subscriptions-email-pending-verification = Pending Verification
+subscriptions-email-unverified = Unverified
+subscriptions-add-email-placeholder = New email address
+subscriptions-send-verification = Send Verification Link
+subscriptions-add-email-button = Add Email Address
+subscriptions-card-email-subscriptions = E-Mail Subscriptions:
 
 # Category list page
 category-page-title = Topics
@@ -112,7 +125,7 @@ category-detail-email = Email address
 category-detail-email-help = The email address is fixed to the topic and cannot be changed.
 category-detail-save = Save
 category-detail-saved = Changes saved.
-category-detail-save-error = Save failed
+category-detail-save-error = Save failed: { $error }
 category-detail-back = Back to overview
 category-detail-not-found = Topic not found (may have been deleted).
 
@@ -124,12 +137,13 @@ category-topics-placeholder = New tag …
 category-topic-name-empty = Name cannot be empty.
 category-topic-renamed = Tag renamed.
 category-topic-added = Tag added.
-category-topic-error = Error
+category-topic-error = Error: { $error }
 
 # Category subscribers
 subscriber-add-title = Add subscriber
 subscriber-add-all-claimed = All members are already subscribed.
 subscriber-member-label = Member
+subscriber-member-id = Member #{ $id }
 subscriber-search-placeholder = Filter by name or email …
 subscriber-status-label = Status
 subscriber-cancel = Cancel
@@ -137,10 +151,16 @@ subscriber-member-not-found = Member not found.
 subscriber-add = Add
 subscriber-edit-title = Edit subscription
 subscriber-email-label = E-Mail
-subscriber-error-prefix = Error
+subscriber-error = Error: { $error }
 subscriber-select-member = – Select member –
+subscriber-select-email = – Select email –
 subscriber-remove = Remove
 subscriber-save = Save
+subscriber-permission-label = Permission
+subscriber-permission-read = Read-Only
+subscriber-permission-write = Read & Write
+subscriber-permission-badge-read = Read
+subscriber-permission-badge-write = Write
 
 # Subscription statuses
 subscription-status-manually-subscribed = Manually subscribed
@@ -169,11 +189,8 @@ management-config-token-security = The plaintext token is shown only once in the
 management-config-domains-title = Domains
 management-config-domains-sync = Synchronize now
 management-config-domains-empty = No domains available. Please synchronize.
-management-config-sync-success = Synchronization completed
-management-config-sync-found = found
-management-config-sync-added = added
-management-config-sync-updated = updated
-management-config-sync-removed = removed
+management-config-sync-success = Synchronization completed: { $found } found, { $added } added, { $updated } updated, { $removed } removed.
+management-config-sync-internal-error = Internal error: { $error }
 management-config-table-id = ID
 management-config-table-name = Name
 management-config-table-description = Description
@@ -201,10 +218,10 @@ status-member-number = Member number
 status-email = E-Mail
 status-email-empty = –
 status-connection-connecting = Connecting…
-status-connection-reconnecting = Reconnecting
+status-connection-reconnecting = Reconnecting ({ $attempt }, { $delay_ms } ms)
 status-connection-error = Connection error
 status-connection-disconnected = Not connected
-status-error-label = Error
+status-connection-error-details = Error: { $error }
 status-last-updated = Last updated
 status-temporary-failed-title = mail_delivery_temporary_failed
 status-temporary-failed-empty = No temporarily failed mail deliveries.
