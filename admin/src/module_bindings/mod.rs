@@ -26,6 +26,7 @@ pub mod category_visibility_type;
 pub mod claim_next_mail_delivery_reducer;
 pub mod claim_next_mail_ingress_reducer;
 pub mod claim_state_type;
+pub mod claim_system_mail_reducer;
 pub mod complete_mail_ingress_reducer;
 pub mod complete_system_mail_reducer;
 pub mod create_webhook_token_reducer;
@@ -60,6 +61,7 @@ pub mod mta_message_log_type;
 pub mod provision_message_category_procedure;
 pub mod received_message_type;
 pub mod register_admin_identity_reducer;
+pub mod release_system_mail_reducer;
 pub mod remove_account_email_reducer;
 pub mod remove_message_category_reducer;
 pub mod remove_subscription_reducer;
@@ -126,6 +128,7 @@ pub use category_visibility_type::CategoryVisibility;
 pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
 pub use claim_next_mail_ingress_reducer::claim_next_mail_ingress;
 pub use claim_state_type::ClaimState;
+pub use claim_system_mail_reducer::claim_system_mail;
 pub use complete_mail_ingress_reducer::complete_mail_ingress;
 pub use complete_system_mail_reducer::complete_system_mail;
 pub use create_webhook_token_reducer::create_webhook_token;
@@ -160,6 +163,7 @@ pub use mta_message_log_type::MtaMessageLog;
 pub use provision_message_category_procedure::provision_message_category;
 pub use received_message_type::ReceivedMessage;
 pub use register_admin_identity_reducer::register_admin_identity;
+pub use release_system_mail_reducer::release_system_mail;
 pub use remove_account_email_reducer::remove_account_email;
 pub use remove_message_category_reducer::remove_message_category;
 pub use remove_subscription_reducer::remove_subscription;
@@ -254,6 +258,10 @@ pub enum Reducer {
     ClaimNextMailIngress {
         instance_id: String,
     },
+    ClaimSystemMail {
+        mail_id: u64,
+        instance_id: String,
+    },
     CompleteMailIngress {
         ingress_id: String,
         instance_id: String,
@@ -314,6 +322,9 @@ pub enum Reducer {
     },
     RegisterAdminIdentity {
         identity_hex: String,
+    },
+    ReleaseSystemMail {
+        mail_id: u64,
     },
     RemoveAccountEmail {
         account_email_id: u64,
@@ -390,6 +401,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::CancelMailDeliveryRetry { .. } => "cancel_mail_delivery_retry",
             Reducer::ClaimNextMailDelivery { .. } => "claim_next_mail_delivery",
             Reducer::ClaimNextMailIngress { .. } => "claim_next_mail_ingress",
+            Reducer::ClaimSystemMail { .. } => "claim_system_mail",
             Reducer::CompleteMailIngress { .. } => "complete_mail_ingress",
             Reducer::CompleteSystemMail { .. } => "complete_system_mail",
             Reducer::CreateWebhookToken { .. } => "create_webhook_token",
@@ -409,6 +421,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::MarkMailDeliveryBounced { .. } => "mark_mail_delivery_bounced",
             Reducer::MarkMailDeliverySent { .. } => "mark_mail_delivery_sent",
             Reducer::RegisterAdminIdentity { .. } => "register_admin_identity",
+            Reducer::ReleaseSystemMail { .. } => "release_system_mail",
             Reducer::RemoveAccountEmail { .. } => "remove_account_email",
             Reducer::RemoveMessageCategory { .. } => "remove_message_category",
             Reducer::RemoveSubscription { .. } => "remove_subscription",
@@ -496,6 +509,13 @@ impl __sdk::Reducer for Reducer {
             Reducer::ClaimNextMailIngress{
                 instance_id,
 }             => __sats::bsatn::to_vec(&claim_next_mail_ingress_reducer::ClaimNextMailIngressArgs {
+                instance_id: instance_id.clone(),
+}),
+            Reducer::ClaimSystemMail{
+                mail_id,
+                instance_id,
+}             => __sats::bsatn::to_vec(&claim_system_mail_reducer::ClaimSystemMailArgs {
+                mail_id: mail_id.clone(),
                 instance_id: instance_id.clone(),
 }),
             Reducer::CompleteMailIngress{
@@ -607,6 +627,11 @@ Reducer::EnqueueMailDelivery{
                 identity_hex,
 }             => __sats::bsatn::to_vec(&register_admin_identity_reducer::RegisterAdminIdentityArgs {
                 identity_hex: identity_hex.clone(),
+}),
+            Reducer::ReleaseSystemMail{
+                mail_id,
+}             => __sats::bsatn::to_vec(&release_system_mail_reducer::ReleaseSystemMailArgs {
+                mail_id: mail_id.clone(),
 }),
             Reducer::RemoveAccountEmail{
                 account_email_id,

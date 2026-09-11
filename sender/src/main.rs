@@ -3,18 +3,17 @@ mod mail;
 mod module_bindings;
 mod tracing_util;
 
-use crate::module_bindings::complete_system_mail_reducer::complete_system_mail;
 use config::SenderConfig;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use mail::{
     build_transport, compose_delivery, is_permanent_error, resolve_category_smtp_credentials,
 };
 use module_bindings::{
-    claim_next_mail_delivery, claim_next_mail_ingress, complete_mail_ingress,
-    enqueue_mail_delivery, ensure_subscription_unsubscribe_token, fail_mail_delivery,
-    fail_mail_ingress, mark_mail_delivery_sent, retry_mail_ingress, schedule_mail_delivery_retry,
-    DbConnection, MailDeliveryClaimed, MailIngress, MailMessage, MessageCategory, Subscription,
-    SubscriptionStatus,
+    claim_next_mail_delivery, claim_next_mail_ingress, claim_system_mail, complete_mail_ingress,
+    complete_system_mail, enqueue_mail_delivery, ensure_subscription_unsubscribe_token,
+    fail_mail_delivery, fail_mail_ingress, mark_mail_delivery_sent, release_system_mail,
+    retry_mail_ingress, schedule_mail_delivery_retry, DbConnection, MailDeliveryClaimed,
+    MailIngress, MailMessage, MessageCategory, Subscription, SubscriptionStatus,
 };
 use spacetimedb_sdk::{DbContext, Table, TableWithPrimaryKey as _};
 use std::{error::Error, sync::Arc};
@@ -78,6 +77,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Entering main processing loop");
 
+    let mut in_flight_system_mails: std::collections::HashSet<u64> = std::collections::HashSet::new();
+
     loop {
         trace!("Main loop running: checking all work...");
 
@@ -87,7 +88,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         // Process system emails queued for verification/notification flows.
-        if let Err(e) = send_system_mail_jobs(&connection, &config).await {
+        if let Err(e) = send_system_mail_jobs(&connection, &config, &instance_id, &mut in_flight_system_mails).await {
             warn!("Error during send_system_mail_jobs: {e}");
         }
 
@@ -733,7 +734,11 @@ fn process_ingress_job(
                 .db
                 .visible_account_emails()
                 .iter()
-                .find(|row| row.id == subscription.account_email_id)
+                .find(|row| {
+                    row.id == subscription.account_email_id
+                        && row.account_id == subscription.subscriber_account_id
+                        && row.is_verified
+                })
                 .map(|row| row.email.clone())?;
             Some((subscriber_email, subscription))
         })
@@ -813,6 +818,8 @@ fn process_ingress_job(
 async fn send_system_mail_jobs(
     connection: &DbConnection,
     config: &SenderConfig,
+    instance_id: &str,
+    in_flight: &mut std::collections::HashSet<u64>,
 ) -> Result<(), Box<dyn Error>> {
     let Some(username) = config.smtp_system_username.as_deref() else {
         trace!("SMTP_SYSTEM_USERNAME not configured; skipping system mail dispatch");
@@ -823,16 +830,43 @@ async fn send_system_mail_jobs(
         return Ok(());
     };
 
-    let transport = build_transport(config, username, password)?;
     let pending = connection
         .db
         .sender_system_mail_pending()
         .iter()
         .collect::<Vec<_>>();
+
+    // Prune in_flight IDs that are no longer in the pending table
+    let current_ids: std::collections::HashSet<u64> = pending.iter().map(|m| m.id).collect();
+    in_flight.retain(|id| current_ids.contains(id));
+
     if pending.is_empty() {
         return Ok(());
     }
 
+    // Claim any unowned pending jobs
+    for mail in &pending {
+        if mail.instance_id.is_none() && !in_flight.contains(&mail.id) {
+            if let Err(e) = connection
+                .reducers()
+                .claim_system_mail(mail.id, instance_id.to_string())
+            {
+                trace!("Failed to request claim for system mail {}: {e}", mail.id);
+            }
+        }
+    }
+
+    // Process jobs claimed by this instance that are not already in-flight
+    let owned_jobs: Vec<_> = pending
+        .into_iter()
+        .filter(|m| m.instance_id.as_deref() == Some(instance_id) && !in_flight.contains(&m.id))
+        .collect();
+
+    if owned_jobs.is_empty() {
+        return Ok(());
+    }
+
+    let transport = build_transport(config, username, password)?;
     let from = config
         .smtp_system_username
         .as_deref()
@@ -840,12 +874,16 @@ async fn send_system_mail_jobs(
         .map(|value| value.to_string())
         .unwrap_or_else(|| format!("no-reply@{}", config.message_id_domain));
 
-    for mail in pending {
+    for mail in owned_jobs {
+        in_flight.insert(mail.id);
+
         let Ok(to_addr) = mail.recipient.parse::<lettre::Address>() else {
             warn!(
                 "Skipping system email {}: invalid recipient '{}'",
                 mail.id, mail.recipient
             );
+            in_flight.remove(&mail.id);
+            let _ = connection.reducers().complete_system_mail(mail.id);
             continue;
         };
         let Ok(from_addr) = from.parse::<lettre::Address>() else {
@@ -853,6 +891,8 @@ async fn send_system_mail_jobs(
                 "Skipping system email {}: invalid sender '{}'",
                 mail.id, from
             );
+            in_flight.remove(&mail.id);
+            let _ = connection.reducers().release_system_mail(mail.id);
             continue;
         };
 
@@ -863,6 +903,8 @@ async fn send_system_mail_jobs(
                 "Skipping system email {}: invalid envelope for '{}'",
                 mail.id, mail.recipient
             );
+            in_flight.remove(&mail.id);
+            let _ = connection.reducers().complete_system_mail(mail.id);
             continue;
         };
 
@@ -875,6 +917,8 @@ async fn send_system_mail_jobs(
             Ok(message) => message,
             Err(error) => {
                 warn!("Failed to build system email {}: {error}", mail.id);
+                in_flight.remove(&mail.id);
+                let _ = connection.reducers().complete_system_mail(mail.id);
                 continue;
             }
         };
@@ -897,6 +941,8 @@ async fn send_system_mail_jobs(
                     "Failed to send system email {} to {}: {error}",
                     mail.id, mail.recipient
                 );
+                in_flight.remove(&mail.id);
+                let _ = connection.reducers().release_system_mail(mail.id);
             }
         }
     }

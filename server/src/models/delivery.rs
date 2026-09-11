@@ -167,4 +167,6 @@ pub struct SystemMailPending {
     pub recipient: String,
     pub subject: String,
     pub body_text: String,
+    pub instance_id: Option<String>,
+    pub claimed_at: Option<Timestamp>,
 }

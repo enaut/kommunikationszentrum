@@ -145,6 +145,9 @@ pub fn handle_data_stage(
                 .email()
                 .filter(&from_address.to_string())
                 .map(|ae| ae.account_id)
+                .filter(|acc_id| {
+                    ctx.db.account().id().find(acc_id).map_or(false, |acc| acc.is_active)
+                })
                 .collect();
 
             let sender_is_admin = sender_account_ids.iter().any(|id| {

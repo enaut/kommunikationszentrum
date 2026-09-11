@@ -11,6 +11,8 @@ pub struct SystemMailPending {
     pub recipient: String,
     pub subject: String,
     pub body_text: String,
+    pub instance_id: Option<String>,
+    pub claimed_at: Option<__sdk::Timestamp>,
 }
 
 impl __sdk::InModule for SystemMailPending {
@@ -25,6 +27,8 @@ pub struct SystemMailPendingCols {
     pub recipient: __sdk::__query_builder::Col<SystemMailPending, String>,
     pub subject: __sdk::__query_builder::Col<SystemMailPending, String>,
     pub body_text: __sdk::__query_builder::Col<SystemMailPending, String>,
+    pub instance_id: __sdk::__query_builder::Col<SystemMailPending, Option<String>>,
+    pub claimed_at: __sdk::__query_builder::Col<SystemMailPending, Option<__sdk::Timestamp>>,
 }
 
 impl __sdk::__query_builder::HasCols for SystemMailPending {
@@ -35,6 +39,8 @@ impl __sdk::__query_builder::HasCols for SystemMailPending {
             recipient: __sdk::__query_builder::Col::new(table_name, "recipient"),
             subject: __sdk::__query_builder::Col::new(table_name, "subject"),
             body_text: __sdk::__query_builder::Col::new(table_name, "body_text"),
+            instance_id: __sdk::__query_builder::Col::new(table_name, "instance_id"),
+            claimed_at: __sdk::__query_builder::Col::new(table_name, "claimed_at"),
         }
     }
 }

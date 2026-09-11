@@ -2186,6 +2186,103 @@ pub fn use_reducer_claim_next_mail_ingress_async(
     }
 }
 
+/// Get a callback to invoke the `claim_system_mail` reducer.
+#[must_use]
+pub fn use_reducer_claim_system_mail(
+) -> impl Fn(u64, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |mail_id: u64, instance_id: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.claim_system_mail(mail_id, instance_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `claim_system_mail` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_claim_system_mail_then() -> (
+    impl Fn(u64, String) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |mail_id: u64, instance_id: String| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) =
+                conn.reducers
+                    .claim_system_mail_then(mail_id, instance_id, move |_ctx, res| {
+                        let _ = tx.send(res);
+                    })
+            {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `claim_system_mail` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_claim_system_mail_async(
+) -> impl Fn(u64, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |mail_id: u64,
+          instance_id: String|
+          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) =
+                conn.reducers
+                    .claim_system_mail_then(mail_id, instance_id, move |_ctx, res| {
+                        let _ = tx.send(res);
+                    })
+            {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
 /// Get a callback to invoke the `complete_mail_ingress` reducer.
 #[must_use]
 pub fn use_reducer_complete_mail_ingress(
@@ -3591,6 +3688,101 @@ pub fn use_reducer_register_admin_identity_async(
             if let Err(e) = conn.reducers.register_admin_identity_then(identity_hex, move |_ctx, res| {
                 let _ = tx.send(res);
             }) {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
+/// Get a callback to invoke the `release_system_mail` reducer.
+#[must_use]
+pub fn use_reducer_release_system_mail(
+) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |mail_id: u64| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.release_system_mail(mail_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `release_system_mail` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_release_system_mail_then() -> (
+    impl Fn(u64) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |mail_id: u64| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn
+                .reducers
+                .release_system_mail_then(mail_id, move |_ctx, res| {
+                    let _ = tx.send(res);
+                })
+            {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `release_system_mail` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_release_system_mail_async(
+) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |mail_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn
+                .reducers
+                .release_system_mail_then(mail_id, move |_ctx, res| {
+                    let _ = tx.send(res);
+                })
+            {
                 return Err(e.to_string());
             }
             match rx.await {

@@ -2,7 +2,7 @@ use log::{error, info};
 use spacetimedb::{ReducerContext, Table, Timestamp};
 
 use crate::common::auth::{is_admin_identity, is_admin_user};
-use crate::models::account::{account, Account};
+use crate::models::account::{account, account_emails, Account};
 use crate::models::category::*;
 use crate::models::domain::domains;
 use crate::services::stalwart::category::{
@@ -194,6 +194,17 @@ pub(crate) fn do_add_subscription(
 ) -> Result<Subscription, String> {
     let timestamp = ctx.timestamp;
 
+    let email = ctx
+        .db
+        .account_emails()
+        .id()
+        .find(&account_email_id)
+        .ok_or_else(|| format!("Account email {} not found", account_email_id))?;
+
+    if email.account_id != subscriber_account_id {
+        return Err("Email does not belong to the subscriber account".to_string());
+    }
+
     let category = ctx.db.message_categories().id().find(&category_id).ok_or("Category not found")?;
 
     let existing = ctx
@@ -262,6 +273,36 @@ pub fn add_subscription(
 
     if !is_admin && !is_self {
         return Err("Unauthorized: can only subscribe yourself or requires admin".to_string());
+    }
+
+    let email = ctx
+        .db
+        .account_emails()
+        .id()
+        .find(&account_email_id)
+        .ok_or_else(|| format!("Account email {} not found", account_email_id))?;
+
+    if !is_admin && !email.is_verified {
+        return Err("Cannot subscribe an unverified email address".to_string());
+    }
+
+    let category = ctx
+        .db
+        .message_categories()
+        .id()
+        .find(&category_id)
+        .ok_or("Category not found")?;
+
+    if !is_admin && category.visibility != CategoryVisibility::Public {
+        let already_subscribed = ctx
+            .db
+            .subscriptions()
+            .subscriber_account_id()
+            .filter(&subscriber_account_id)
+            .any(|s| s.category_id == category_id && s.status.is_active());
+        if !already_subscribed {
+            return Err("Cannot subscribe to a private category without an invitation".to_string());
+        }
     }
 
     do_add_subscription(
