@@ -23,6 +23,8 @@ direction: right
   mail_delivery_claimed
   mail_delivery_done
   mail_delivery_events
+  system_mail_pending
+  email_verification_tokens
 }
 
 "Member / Admin Views": {
@@ -212,6 +214,14 @@ direction: right
     shape: rectangle
     style.fill: "#f3e5f5"
   }
+
+  sender_system_mail_pending: |md
+    ### sender_system_mail_pending
+    * Admin-only queue for pending verification & system emails.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
 }
 
 "Private Tables".account -> "Member / Admin Views".visible_accounts
@@ -236,3 +246,4 @@ direction: right
 "Private Tables".mail_delivery_done -> "Sender Worker Views".sender_mail_delivery_done
 "Private Tables".mail_delivery_events -> "Sender Worker Views".sender_mail_delivery_events
 "Private Tables".mail_delivery_temporary_failed -> "Sender Worker Views".sender_mail_delivery_temporary_failed
+"Private Tables".system_mail_pending -> "Sender Worker Views".sender_system_mail_pending

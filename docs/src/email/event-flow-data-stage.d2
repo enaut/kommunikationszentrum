@@ -5,8 +5,8 @@ start: "DATA hook received" {
   style.fill: lightcoral
 }
 resolve: "Resolve recipients\nto message_categories\n(envelope To -> header To fallback)"
-sender: "Look up sender\naccount by email"
-filter: "Filter categories:\nsender must be admin\nOR have active subscription"
+sender: "Look up sender accounts\nby email in account_emails\n(filter active accounts)"
+filter: "Authorize categories:\nAdmin identity OR\nActive Write subscription"
 no_cat: "quarantine\n(no authorized categories)" {
   shape: diamond
   style.fill: lightyellow

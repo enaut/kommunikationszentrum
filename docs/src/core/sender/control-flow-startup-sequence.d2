@@ -12,9 +12,9 @@ env: "1. Load SenderConfig\n(Environment Variables)" { class: config }
 otel: "2. Initialize OpenTelemetry\n(OTLP Traces + Logs → Alloy)" { class: otel }
 conn: "3. Connect to SpacetimeDB\n(DbConnection::builder)" { class: db }
 pump: "4. Spawn Background Thread Pump\n(connection.run_threaded())\nAwait initial token & identity" { class: db }
-sub: "5. Subscribe to 10 Views:\n• sender_mail_ingress\n• sender_mail_delivery_pending\n• sender_mail_delivery_claimed\n• sender_mail_delivery_messages\n• sender_mail_messages\n• active_subscriptions\n• visible_message_categories\n• visible_category_app_passwords\n• active_unsubscribe_tokens\n• visible_admin_identities" { class: db }
+sub: "5. Subscribe to 12 Views:\n• sender_mail_ingress\n• sender_mail_delivery_pending\n• sender_mail_delivery_claimed\n• sender_mail_delivery_messages\n• sender_mail_messages\n• sender_system_mail_pending\n• active_subscriptions\n• visible_account_emails\n• visible_message_categories\n• visible_category_app_passwords\n• active_unsubscribe_tokens\n• visible_admin_identities" { class: db }
 auth: "6. on_applied Callback:\nVerify admin identity in\nvisible_admin_identities\n(FatalError shutdown if missing)" { class: cb }
-cb: "7. Register Callbacks → mpsc Channel:\n• sender_mail_ingress (insert, update)\n• sender_mail_delivery_pending (insert, update)\n• sender_mail_delivery_claimed (insert, delete)\n• active_unsubscribe_tokens (insert)" { class: cb }
+cb: "7. Register Callbacks → mpsc Channel:\n• sender_mail_ingress (insert, update)\n• sender_mail_delivery_pending (insert, update)\n• sender_mail_delivery_claimed (insert, delete)\n• active_unsubscribe_tokens (insert)\n• sender_system_mail_pending (insert, delete)" { class: cb }
 loop_: "8. Enter tokio::select! Event Loop\n(Immediate work sweep, then awaits\nmpsc wakeups or 15s timer)" { class: loop }
 
 env -> otel -> conn -> pump -> sub -> auth -> cb -> loop_

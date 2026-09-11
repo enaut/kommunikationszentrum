@@ -13,10 +13,11 @@ monitors the delivery pipeline tables, and dispatches outgoing emails over SMTP.
 ## Purpose & Responsibilities
 
 1. **Ingress Fan-Out** — Expands each inbound `MailIngress` record into individual per-subscriber deliveries and enqueues them into `mail_delivery_pending`, storing full RFC 5322 payloads in `mail_delivery_messages`.
-2. **SMTP Submission** — Claims queued deliveries (`mail_delivery_claimed`) with atomic leases and transmits RFC 5322 formatted emails over TLS using category-specific credentials and pooled connections.
-3. **State Management & Auditing** — Transitions completed deliveries to `mail_delivery_done` (sent/failed/bounced) or `mail_delivery_temporary_failed` (transient errors) and writes immutable audit logs to `mail_delivery_events`.
-4. **Distributed Trace Correlation** — Bridges inbound Stalwart SMTP queue IDs with outbound sender delivery spans via BLAKE3 deterministic W3C traceparents.
-5. **Lease Expiration & Recovery** — Automatically re-claims expired processing or delivery leases in case of worker failure.
+2. **Transactional System Mail Dispatch** — Claims pending system emails (`sender_system_mail_pending`) such as user email verification tokens and dispatches them via dedicated system SMTP credentials with atomic distributed leasing.
+3. **SMTP Submission** — Claims queued deliveries (`mail_delivery_claimed`) with atomic leases and transmits RFC 5322 formatted emails over TLS using category-specific credentials and pooled connections.
+4. **State Management & Auditing** — Transitions completed deliveries to `mail_delivery_done` (sent/failed/bounced) or `mail_delivery_temporary_failed` (transient errors) and writes immutable audit logs to `mail_delivery_events`.
+5. **Distributed Trace Correlation** — Bridges inbound Stalwart SMTP queue IDs with outbound sender delivery spans via BLAKE3 deterministic W3C traceparents.
+6. **Lease Expiration & Recovery** — Automatically re-claims expired processing or delivery leases in case of worker failure.
 
 The sender daemon is the only component in the system that performs **external outbound network calls** (to the SMTP relay). Everything else is driven by SpacetimeDB's reactive WebSocket subscription model.
 
@@ -45,9 +46,10 @@ On startup, once the initial database subscription snapshot is applied, the send
 ### Atomic Claim & Lease Protocol
 Work is distributed safely across instances using atomic server-side reducers:
 - `claim_next_mail_ingress` grants a 10-minute lease on `MailIngress` (`claim_owner = Identity`, `instance_id = UUID`).
+- `claim_system_mail` grants a 5-minute lease on `system_mail_pending` (`instance_id = UUID`, `claimed_at = Timestamp`).
 - `claim_next_mail_delivery` grants a 5-minute lease moving a row from `mail_delivery_pending` to `mail_delivery_claimed`.
 - Transient SMTP failures are moved to `mail_delivery_temporary_failed` with a 5-minute retry delay.
-- Expired leases are automatically recycled by the 60-second server scheduler (`expire_stale_delivery_claims`).
+- Expired leases are automatically recycled by the 60-second server scheduler (`expire_stale_delivery_claims`) or lease timeouts.
 
 ## Source File Map
 

@@ -33,6 +33,7 @@ server: "SpacetimeDB Server Module" {
   temp_fail_tbl: "mail_delivery_temporary_failed\n[Transient Failures (5 min backoff)]" { class: db_node }
   done_tbl: "mail_delivery_done\n[Sent / Failed / Bounced]" { class: db_node }
   events_tbl: "mail_delivery_events\n[Audit Trail]" { class: db_node }
+  system_mail_tbl: "system_mail_pending\n[Verification / System Mails]" { class: db_node }
 }
 
 sender: "Sender Daemon (Async Tokio Runtime)" {
@@ -45,6 +46,7 @@ sender: "Sender Daemon (Async Tokio Runtime)" {
   
   work_loop: "Main Reactive Work Loop" {
     fanout: "Fan-Out Engine\n(process_fanout_jobs)" { class: worker_node }
+    system_mail: "System Mail Engine\n(send_system_mail_jobs)" { class: worker_node }
     delivery: "Delivery Engine\n(send_delivery_jobs)" { class: worker_node }
   }
 }
@@ -59,13 +61,17 @@ server.pending_tbl -> sender.pump
 server.claimed_tbl -> sender.pump
 server.messages_tbl -> sender.pump
 server.deliv_msg_tbl -> sender.pump
+server.system_mail_tbl -> sender.pump
 
 sender.pump -> sender.callbacks: "Local Cache Updates"
 sender.callbacks -> sender.channel: "Event::Wakeup"
 sender.channel -> sender.work_loop.fanout: "Wake Loop"
-sender.work_loop.fanout -> sender.work_loop.delivery: "Sequential Sweep"
+sender.work_loop.fanout -> sender.work_loop.system_mail: "Sequential Sweep"
+sender.work_loop.system_mail -> sender.work_loop.delivery: "Sequential Sweep"
 
 sender.work_loop.fanout -> server.pending_tbl: "enqueue_mail_delivery()"
+sender.work_loop.system_mail -> server.system_mail_tbl: "claim / complete / release"
+sender.work_loop.system_mail -> ext.smtp: "Send System Email"
 sender.work_loop.delivery -> server.claimed_tbl: "claim_next_mail_delivery()"
 sender.work_loop.delivery -> ext.smtp: "Send RFC 5322 Raw Message"
 sender.work_loop.delivery -> server.done_tbl: "mark_sent() / fail_delivery()"

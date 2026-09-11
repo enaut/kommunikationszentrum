@@ -38,16 +38,16 @@ The email processing flow in the Kommunikationszentrum follows a multi-stage val
 - **Actions**: ACCEPT for valid categories, REJECT for unknown
 
 ### 5. DATA Stage
-- **Purpose**: Full message processing and subscription validation
+- **Purpose**: Full message processing, sender account resolution, and permission validation
 - **Checks**:
-  - Subscription exists in `subscriptions` table
-  - Subscription is active
-  - Sender is subscribed to target category
+  - Sender address is looked up across `account_emails` (supports shared addresses across multiple accounts)
+  - Admin privileges: sender is authorized if *any* matching account has an admin identity
+  - Write permissions: for regular members, verifies that the account is active (`is_active == true`) and holds an active subscription with `SubscriptionPermission::Write` for the category
 - **Logging**: `mta_message_log` (detailed message information)
 - **Actions**: 
-  - ACCEPT: Subscriber sending to subscribed category
-  - QUARANTINE: Non-subscriber or inactive subscription
-  - REJECT: System errors or policy violations
+  - ACCEPT: Admin sender or member with active `Write` subscription; persists `mail_message`, archives `received_message`, and queues `mail_ingress` fan-out
+  - QUARANTINE: Sender is unauthenticated, not an active member, or lacks `Write` permissions
+  - REJECT: System errors or malformed payloads
 
 ### 6. AUTH Stage
 - **Purpose**: Authentication handling
@@ -71,15 +71,39 @@ if !message_categories.contains(recipient_email) || !category.active {
 }
 ```
 
-### Subscription Validation (DATA)
+### Sender Authorization (DATA)
 ```rust
-let account_email = account_emails.find_by_email(sender_email)?;
-if is_active_subscription(&subscription.status)
-   && subscription.category_id == target_category.id 
-   && subscription.account_email_id == account_email.id 
-   && subscription.permission == SubscriptionPermission::Write {
+// 1. Resolve all active accounts associated with the sender email address
+let sender_account_ids: Vec<u64> = ctx
+    .db
+    .account_emails()
+    .email()
+    .filter(&from_address.to_string())
+    .map(|ae| ae.account_id)
+    .filter(|acc_id| {
+        ctx.db.account().id().find(acc_id).map_or(false, |acc| acc.is_active)
+    })
+    .collect();
+
+// 2. Administrators are authorized to post to any valid category
+let sender_is_admin = sender_account_ids.iter().any(|id| {
+    ctx.db.account().id().find(id).map_or(false, |acc| {
+        ctx.db.admin_identities().identity().find(&acc.identity).is_some()
+    })
+});
+
+// 3. For non-admins, at least one matching active account must have an active Write subscription
+let is_authorized = sender_is_admin || sender_account_ids.iter().any(|acc_id| {
+    ctx.db.subscriptions().subscriber_account_id().filter(acc_id).any(|s| {
+        s.category_id == target_category.id
+            && s.status.is_active()
+            && s.permission == SubscriptionPermission::Write
+    })
+});
+
+if is_authorized {
     return ACCEPT;
 } else {
-    return QUARANTINE; // Could be legitimate but unsubscribed or lacking write permissions
+    return QUARANTINE;
 }
 ```

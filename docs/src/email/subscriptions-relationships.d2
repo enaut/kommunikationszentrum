@@ -13,6 +13,9 @@ Schema: {
     id: u64 (PK)
     account_id: u64 (FK)
     email: String
+    source: EmailSource
+    is_verified: bool
+    added_at: i64
   }
   subscriptions: "Subscription" {
     shape: sql_table
@@ -48,7 +51,7 @@ Schema: {
   }
 }
 
-example_data: "Example Data" {
+example_data: "Example Data (Multi-Email per Account & Category)" {
   style.fill: "#e0f7fa"
   account_example: "Account (Example)" {
     shape: sql_table
@@ -56,16 +59,23 @@ example_data: "Example Data" {
     id: 1
     primary_email_id: 10
     name: "John Doe"
-    is_active: true"
+    is_active: true
   }
-  account_email_example: "AccountEmail (Example)" {
+  account_email_example: "AccountEmail (Primary)" {
     shape: sql_table
     style.fill: lightblue
     id: 10
     account_id: 1
     email: "user@example.com"
   }
-  subscription_example: "Subscription (Example)" {
+  account_email_example_2: "AccountEmail (Alternative)" {
+    shape: sql_table
+    style.fill: lightblue
+    id: 11
+    account_id: 1
+    email: "work@example.com"
+  }
+  subscription_example: "Subscription (Primary Email)" {
     style.fill: lightgreen
     shape: sql_table
     id: 101
@@ -73,21 +83,36 @@ example_data: "Example Data" {
     account_email_id: 10
     category_id: 1
     subscribed_at: 1672531200
-    status: ActiveSubscribed
+    status: ManuallySubscribed
     permission: Read
+  }
+  subscription_example_2: "Subscription (Alt Email)" {
+    style.fill: lightgreen
+    shape: sql_table
+    id: 102
+    subscriber_account_id: 1
+    account_email_id: 11
+    category_id: 1
+    subscribed_at: 1672531300
+    status: ManuallySubscribed
+    permission: Write
   }
   category_example: "MessageCategory (Example)" {
     shape: sql_table
     style.fill: lightyellow
     id: 1
-    name: \"SoLaWi News\"
-    email_address: \"news@solawis.de\"
-    description: \"Newsletter\"
+    name: "SoLaWi News"
+    email_address: "news@solawis.de"
+    description: "Newsletter"
     active: true
     default_permission: Read
   }
 
   account_email_example.account_id -> account_example.id: "references" {
+    style.stroke: blue
+    style.stroke-dash: 5
+  }
+  account_email_example_2.account_id -> account_example.id: "references" {
     style.stroke: blue
     style.stroke-dash: 5
   }
@@ -99,7 +124,19 @@ example_data: "Example Data" {
     style.stroke: blue
     style.stroke-dash: 5
   }
+  subscription_example_2.subscriber_account_id -> account_example.id: "references" {
+    style.stroke: blue
+    style.stroke-dash: 5
+  }
+  subscription_example_2.account_email_id -> account_email_example_2.id: "references" {
+    style.stroke: blue
+    style.stroke-dash: 5
+  }
   subscription_example.category_id -> category_example.id: "references" {
+    style.stroke: red
+    style.stroke-dash: 5
+  }
+  subscription_example_2.category_id -> category_example.id: "references" {
     style.stroke: red
     style.stroke-dash: 5
   }

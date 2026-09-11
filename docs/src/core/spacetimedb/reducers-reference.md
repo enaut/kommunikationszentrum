@@ -36,6 +36,15 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `sync_user` | Admin/Webhook | `action: String, user_data: String` | Upserts/deletes user account & syncs category subscriptions from Django. |
 | `set_stalwart_config` | Admin | `jmap_url: String, admin_token: String` | Configures or updates Stalwart MTA JMAP REST API endpoint URL and admin bearer token in `stalwart_config`. |
 
+### Account & Multi-Email Reducers
+
+| Function | Visibility | Parameters | Description |
+|---|---|---|---|
+| `admin_add_account_email` | Admin | `account_id: u64, email: String` | Directly adds an email address to a member account (pre-verified with `source = Native`). Enforces uniqueness per account. |
+| `user_request_email_verification` | User | `email: String` | Initiates email addition for caller's account. Generates a token and queues a verification email in `system_mail_pending`. |
+| `user_verify_email` | User/Public | `token: String` | Validates verification token, inserts `AccountEmail` marked verified, and cleans up token. |
+| `remove_account_email` | User/Admin | `account_email_id: u64` | Removes an email from the account. Cascades deletion to associated subscriptions and unsubscribe tokens. Cannot delete primary email. |
+
 ### Category & Subscription Reducers
 
 | Function | Visibility | Parameters | Description |
@@ -47,10 +56,11 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `rename_topic` | Admin | `topic_id: u64, new_name: String` | Renames an existing topic. |
 | `provision_message_category` **`[Procedure]`** | Admin | `name: String, base: String, domain_id: String, description: String, visibility: CategoryVisibility` | Inserts category into DB **and** calls Stalwart JMAP REST API to create mailbox and app password credential. |
 | `sync_stalwart_domains` **`[Procedure]`** | Admin/Owner | _(none)_ | Queries Stalwart JMAP REST API (`x:Domain/query`, `x:Domain/get`) and synchronizes domains into the `domains` table. |
-| `add_subscription` | User/Admin | `subscriber_account_id: u64, account_email_id: u64, category_id: u64` | Subscribes account to a category (`ManuallySubscribed`). |
-| `admin_add_subscription` | Admin | `subscriber_account_id: u64, account_email_id: u64, category_id: u64, status: SubscriptionStatus, permission: SubscriptionPermission` | Adds or updates a subscription with an explicit status and permission override. |
-| `add_and_subscribe_category` | Admin | `subscriber_account_id: u64, account_email_id: u64, name: String, email_address: String, description: String, visibility: CategoryVisibility, default_permission: SubscriptionPermission` | Idempotently creates category if not present and subscribes the specified account. |
-| `remove_subscription` | User/Admin | `subscription_id: u64` | Unsubscribes account (`ManuallyUnsubscribed`). Non-admins cannot remove `RequiredSubscribed`. |
+| `add_subscription` | User/Admin | `subscriber_account_id: u64, account_email_id: u64, category_id: u64` | Subscribes account's verified email to a category (`ManuallySubscribed`). Enforces email verification and private category access rules. |
+| `admin_add_subscription` | Admin | `subscriber_account_id: u64, account_email_id: u64, category_id: u64, status: SubscriptionStatus` | Adds or updates a subscription with an explicitly chosen status. |
+| `add_and_subscribe_category` | Admin | `subscriber_account_id: u64, account_email_id: u64, name: String, email_address: String, description: String, visibility: CategoryVisibility` | Idempotently creates category if not present and subscribes the specified account email. |
+| `update_subscription_permission` | Admin | `subscription_id: u64, permission: SubscriptionPermission` | Updates subscription permission mode (`Read` or `Write`). |
+| `remove_subscription` | User/Admin | `subscription_id: u64` | Unsubscribes account email (`ManuallyUnsubscribed`). Non-admins cannot remove `RequiredSubscribed`. |
 | `ensure_subscription_unsubscribe_token` | Admin/System | `subscription_id: u64` | Ensures an active unsubscribe token exists for the given subscription, reactivating or generating a new one. |
 
 > **Note on List-Unsubscribe:** One-click unsubscription (`LinkUnsubscribed`) is executed via the HTTP endpoint `POST /mailing-list/unsubscribe` rather than a direct client reducer.
@@ -62,6 +72,16 @@ MTA hook processing is handled via HTTP handlers (`POST /mta-hook`), documented 
 | Function | Visibility | Parameters | Description |
 |---|---|---|---|
 | `dump_mta_logs_to_server_logs` | Admin | _(none)_ | Dumps `mta_connection_log` and `mta_message_log` table contents to server log output for debugging. |
+
+### System Mail Reducers
+
+System transactional emails (such as email verification requests) are queued in `system_mail_pending` and dispatched by the sender daemon using distributed leases.
+
+| Function | Visibility | Parameters | Description |
+|---|---|---|---|
+| `claim_system_mail` | Sender Daemon / Admin | `mail_id: u64, instance_id: String` | Claims an unowned pending system email under a 5-minute worker lease. |
+| `release_system_mail` | Sender Daemon / Admin | `mail_id: u64` | Releases worker claim on a system email upon transient delivery failure. |
+| `complete_system_mail` | Sender Daemon / Admin | `mail_id: u64` | Deletes a successfully dispatched system email from `system_mail_pending`. |
 
 ### Delivery Pipeline Reducers
 

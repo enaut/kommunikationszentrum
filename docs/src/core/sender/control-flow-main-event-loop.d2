@@ -1,10 +1,11 @@
 direction: down
 
 fanout: "1. process_fanout_jobs()\n• Claim next ingress if none owned\n• Fan out owned ingress jobs" { style.fill: "#bbdefb" }
-delivery: "2. send_delivery_jobs()\n• Resolve category SMTP credentials\n• Dispatch claimed deliveries over TLS" { style.fill: "#bbdefb" }
-claim: "3. claim_next_mail_delivery()\nRequest next pending delivery claim" { style.fill: "#bbdefb" }
+system_mail: "2. send_system_mail_jobs()\n• Claim unowned system mails (5 min lease)\n• Send verification / system emails\n• Complete or release claims" { style.fill: "#bbdefb" }
+delivery: "3. send_delivery_jobs()\n• Resolve category SMTP credentials\n• Dispatch claimed deliveries over TLS" { style.fill: "#bbdefb" }
+claim: "4. claim_next_mail_delivery()\nRequest next pending delivery claim" { style.fill: "#bbdefb" }
 
-wait: "4. tokio::select!\n(Event Multiplexer)" {
+wait: "5. tokio::select!\n(Event Multiplexer)" {
   shape: diamond
   style.fill: "#fff9c4"
 }
@@ -14,7 +15,8 @@ timer: "sleep(15s) timeout\n(Periodic safety poll)" { style.fill: "#fff9c4" }
 fatal: "rx.recv() == Event::FatalError\n(e.g. unauthorized identity)" { style.fill: "#ffcdd2" }
 term: "Exit daemon with error" { style.fill: "#d32f2f"; style.font-color: white }
 
-fanout -> delivery
+fanout -> system_mail
+system_mail -> delivery
 delivery -> claim
 claim -> wait
 

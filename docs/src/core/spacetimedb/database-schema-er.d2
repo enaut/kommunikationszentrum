@@ -23,7 +23,10 @@ direction: down
     label: "account_emails [Private]"
     id: "u64" {constraint: [primary_key; INC]}
     account_id: "u64" {constraint: [foreign_key; BTree]}
-    email: "String" {constraint: [unique; BTree]}
+    email: "String" {constraint: BTree}
+    source: "EmailSource"
+    is_verified: "bool"
+    added_at: "Timestamp" {constraint: BTree}
   }
 
   admin_identities: {
@@ -41,6 +44,16 @@ direction: down
     permissions: "Vec<String>"
     created_at: "Timestamp" {constraint: BTree}
     active: "bool"
+  }
+
+  email_verification_tokens: {
+    shape: sql_table
+    label: "email_verification_tokens [Private]"
+    token: "String" {constraint: primary_key}
+    account_id: "u64" {constraint: [foreign_key; BTree]}
+    email: "String"
+    created_at: "Timestamp" {constraint: BTree}
+    expires_at: "Timestamp" {constraint: BTree}
   }
 }
 
@@ -288,6 +301,17 @@ direction: down
     worker_identity: "Option<Identity>"
   }
 
+  system_mail_pending: {
+    shape: sql_table
+    label: "system_mail_pending [Private]"
+    id: "u64" {constraint: [primary_key; INC]}
+    recipient: "String"
+    subject: "String"
+    body_text: "String"
+    instance_id: "Option<String>"
+    claimed_at: "Option<Timestamp>"
+  }
+
   expire_stale_delivery_claims_schedule: {
     shape: sql_table
     label: "expire_stale_delivery_claims_schedule [Public]"
@@ -327,6 +351,7 @@ delivery_final_state: {
 
 "User Management & Auth".admin_identities.identity -> "User Management & Auth".account.identity
 "User Management & Auth".account_emails.account_id -> "User Management & Auth".account.id
+"User Management & Auth".email_verification_tokens.account_id -> "User Management & Auth".account.id
 "User Management & Auth".account.primary_email_id -> "User Management & Auth".account_emails.id
 "Mailing & Categories".subscriptions.subscriber_account_id -> "User Management & Auth".account.id
 "Mailing & Categories".subscriptions.account_email_id -> "User Management & Auth".account_emails.id

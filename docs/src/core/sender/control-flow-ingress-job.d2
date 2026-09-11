@@ -9,7 +9,7 @@ trace_attach: "Attach Stalwart Trace Context:\n• Derive traceparent from queue
 cat: "Lookup visible_message_categories\nby ingress.category_id" { shape: diamond }
 fail: "fail_mail_ingress()\n'missing message category'" { style.fill: "#ffcdd2" }
 
-subs: "Filter active_subscriptions\nfor category_id & dedup by email" { style.fill: "#bbdefb" }
+subs: "Filter active_subscriptions\nfor category_id\nJoin visible_account_emails (verified & matching account)\nDedup by recipient email" { style.fill: "#bbdefb" }
 
 loop_: "For each subscriber:\nprocess_subscription_job()" { style.fill: "#bbdefb" }
 

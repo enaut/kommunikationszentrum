@@ -37,11 +37,13 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
     "is_active": true,
     "is_admin": false,
     "updated_at": "2024-01-01T12:00:00Z",
+    "account_emails": ["alt1@example.org", "alt2@example.org"],
     "categories": [
       {
         "name": "VP Reyerhof",
         "email_address": "vp-reyerhof@example.org",
-        "description": "Verteilpunkt Reyerhof"
+        "description": "Verteilpunkt Reyerhof",
+        "required": true
       }
     ],
     "unsubscribe_category_emails": ["vp-old@example.org"]
@@ -55,15 +57,36 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 
 | Field | Required | Description |
 |---|---|---|
-| `action` | ✓ | `"upsert"` to create-or-update the account; `"delete"` to deactivate it. |
+| `action` | ✓ | `"upsert"` to create-or-update the account; `"delete"` to cascade-delete it. |
 | `user.mitgliedsnr` | ✓ | Canonical member ID from Django. |
 | `user.name` | ✓ | Full display name. |
-| `user.email` | ✓ | Primary email address. |
+| `user.email` | ✓ | Primary email address. Synchronized as verified `DjangoSync` email. |
 | `user.is_active` | ✓ | Account active flag. |
 | `user.is_admin` | — | Grants admin privileges when `true`. |
 | `user.updated_at` | — | ISO 8601 timestamp of last modification in Django. |
-| `user.categories` | — | Mailing-list categories the account should be subscribed to. Each entry is created in `message_categories` if it doesn't already exist (matched by `email_address`); an existing category is never modified. Subscriptions are only ever **added** — omit or send `[]` to leave existing subscriptions untouched. |
-| `user.unsubscribe_category_emails` | — | Email addresses of categories whose subscription should be deactivated for this account (the category row itself is never touched). Used when a member's Verteilpunkt changes: the old category is unsubscribed while `categories` adds the new one in the same request. |
+| `user.account_emails` | — | Array of alternative email addresses synchronized from Django. |
+| `user.categories` | — | Mailing-list categories the account should be subscribed to. Each entry is created in `message_categories` if missing. Subscriptions are created or activated. |
+| `user.unsubscribe_category_emails` | — | Email addresses of categories whose subscription should be deactivated for this account. Deactivates all active subscriptions of that account for the category. |
+
+---
+
+## Multi-Email Reconciliation & Cascading Deletions
+
+### Upsert & Email Reconciliation
+1. **Primary Email Resolution**: Resolves or creates the primary email in `account_emails` with `source = EmailSource::DjangoSync` and `is_verified = true`.
+2. **Alternative Emails**: Synchronizes any emails in `account_emails` payload under `DjangoSync`.
+3. **Removed Emails**: When a previously synced email is no longer present in the sync payload:
+   - Identifies subscriptions tied to that removed address.
+   - If the user already has a subscription to that category on `primary_email_id`, the duplicate subscription and its unsubscribe token are safely deleted.
+   - If no subscription on `primary_email_id` exists (e.g. primary address changed), the subscription is migrated to `primary_email_id`.
+   - The obsolete `AccountEmail` row is deleted.
+
+### Cascading Deletion (`action = "delete"`)
+When an account is deleted from Django:
+- All subscriptions and their corresponding `SubscriptionUnsubscribeToken` rows are deleted.
+- All linked `AccountEmail` records are deleted.
+- All pending `EmailVerificationToken` rows for the account are deleted.
+- The `Account` row and any associated `AdminIdentity` records are removed.
 
 ---
 

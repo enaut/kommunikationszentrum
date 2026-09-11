@@ -85,9 +85,10 @@ The SpacetimeDB connection I/O is maintained on a dedicated background OS thread
 
 Work coordination across instances relies on atomic server-side reducers with lease timeouts:
 - `claim_next_mail_ingress` attaches a 10-minute lease (`claim_owner = Identity`, `instance_id = UUID`).
+- `claim_system_mail` grants an atomic 5-minute lease on `system_mail_pending` (`instance_id = String`, `claimed_at = Timestamp`).
 - `claim_next_mail_delivery` moves one row from `mail_delivery_pending` to `mail_delivery_claimed` with a 5-minute lease.
 - `schedule_mail_delivery_retry` moves a transiently failed delivery into `mail_delivery_temporary_failed` with a 5-minute backoff delay.
-- The 60-second scheduled recycler (`expire_stale_delivery_claims`) automatically recovers abandoned items back to pending queues.
+- The 60-second scheduled recycler (`expire_stale_delivery_claims`) and 5-minute lease checks automatically recover abandoned items back to pending queues.
 
 ### Message Composition via Lettre
 
@@ -200,4 +201,4 @@ spacetime generate --lang rust --out-dir sender/src/module_bindings --server htt
 
 ### Double-Claiming & Multi-Instance Safety
 
-Work coordination is handled by atomic server-side reducers with leases. If multiple sender instances run simultaneously, each claim reducer grants a row to only one worker. If no rows are available, the claim reducer returns empty, and the sender waits for the next table notification.
+Work coordination is handled by atomic server-side reducers with leases. If multiple sender instances run simultaneously, each claim reducer grants a row to only one worker. If no rows are available, the claim reducer returns empty, and the sender waits for the next table notification. For system emails (`system_mail_pending`), an in-memory `in_flight: HashSet<u64>` is additionally maintained locally within each sender instance to prevent loop wakeups from re-dispatching already claimed jobs before WebSocket deletion confirmations arrive.

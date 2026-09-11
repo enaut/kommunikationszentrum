@@ -31,8 +31,11 @@ The `data` handler runs inside `ctx.with_tx(...)` to ensure atomic writes:
 
 1. Extracts headers, subject, message size, and body.
 2. Resolves matching categories from envelope recipients; falls back to the message `To` header.
-3. For each matching active category, checks whether the sender is subscribed via the `subscriptions` table.
-4. If deliveries are found, stores a `received_message` row per delivery and returns `accept` (optionally adding processing headers). If no deliveries are possible, quarantines the message.
+3. Resolves all active sender accounts by matching `from_address` against `account_emails`.
+4. Checks sender authorization for each category:
+   - **Admin Access**: If *any* matching account has an admin identity in `admin_identities`, posting authorization is granted.
+   - **Member Write Permission**: Otherwise, ensures matching accounts exist and are active (`is_active == true`), and verifies that at least one matching account holds an active subscription with `SubscriptionPermission::Write` to the category.
+5. If authorized, creates a canonical `mail_message` row, enqueues an ingress fan-out job in `mail_ingress`, archives to `received_message` for subscribed members, and returns `accept` (optionally adding processing headers). If no authorized categories remain, quarantines the message.
 
 > **Note:** Messages over 2 MB may have their bodies omitted from storage to avoid memory pressure.
 

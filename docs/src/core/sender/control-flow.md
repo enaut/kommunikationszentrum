@@ -23,17 +23,19 @@ The daemon loads configuration, sets up OpenTelemetry exporters, connects to Spa
 ```
 
 ### Table Subscriptions
-The daemon subscribes to 10 SpacetimeDB views:
+The daemon subscribes to 12 SpacetimeDB views:
 1. `sender_mail_ingress` — Inbound ingress items awaiting fanout.
 2. `sender_mail_delivery_pending` — Queued outbound recipient deliveries.
 3. `sender_mail_delivery_claimed` — Active delivery leases owned by workers.
 4. `sender_mail_delivery_messages` — Full RFC 5322 payload per recipient delivery.
 5. `sender_mail_messages` — Canonical message bodies and Stalwart `queue_id`.
-6. `active_subscriptions` — Category subscriber lists for fanout.
-7. `visible_message_categories` — Active categories and their outbound addresses.
-8. `visible_category_app_passwords` — SMTP credentials per category.
-9. `active_unsubscribe_tokens` — Per-subscriber one-click unsubscribe tokens.
-10. `visible_admin_identities` — List of authorized administrator identities.
+6. `sender_system_mail_pending` — Queued verification and transactional system emails.
+7. `active_subscriptions` — Category subscriber lists for fanout.
+8. `visible_account_emails` — Linked member email addresses for subscriber address resolution and verification checks.
+9. `visible_message_categories` — Active categories and their outbound addresses.
+10. `visible_category_app_passwords` — SMTP credentials per category.
+11. `active_unsubscribe_tokens` — Per-subscriber one-click unsubscribe tokens.
+12. `visible_admin_identities` — List of authorized administrator identities.
 
 ### Fail-Fast Admin Identity Verification
 When subscriptions are applied (`on_applied` callback), the daemon queries `visible_admin_identities` for its own identity. If missing, it outputs an error with the exact CLI command needed to register the identity and sends `Event::FatalError`, shutting down immediately rather than failing repeatedly during runtime.
@@ -48,12 +50,13 @@ The main loop coordinates processing between reactive database callbacks and a 1
 {{#include control-flow-main-event-loop.d2}}
 ```
 
-Each loop cycle executes three steps sequentially:
+Each loop cycle executes four steps sequentially:
 1. `process_fanout_jobs`: Processes owned ingress jobs or requests a new ingress lease.
-2. `send_delivery_jobs`: Processes owned delivery jobs over pooled SMTP transports.
-3. `claim_next_mail_delivery`: Issues an asynchronous claim for the next pending delivery.
+2. `send_system_mail_jobs`: Claims unowned system emails from `sender_system_mail_pending` with a 5-minute lease, dispatches verification emails using system SMTP credentials, and calls `complete_system_mail` on success or `release_system_mail` on transient error.
+3. `send_delivery_jobs`: Processes owned delivery jobs over pooled category SMTP transports.
+4. `claim_next_mail_delivery`: Issues an asynchronous claim for the next pending delivery.
 
-The daemon then suspends on `tokio::select!` awaiting either an incoming `Event::Wakeup` from SpacetimeDB table callbacks or the 15-second fallback poll timer.
+The daemon then suspends on `tokio::select!` awaiting either an incoming `Event::Wakeup` from SpacetimeDB table callbacks (including ingress, delivery, token, and system mail updates) or the 15-second fallback poll timer.
 
 ---
 
@@ -74,6 +77,12 @@ Fan-out reads inbound `MailIngress` jobs and generates individual deliveries for
 #### Safe Token Waiting
 If any subscriber does not yet have an active unsubscribe token, `process_ingress_job` requests one via `ensure_subscription_unsubscribe_token` and returns `Err(IngressJobError::AwaitingToken)`. The fanout runner leaves the ingress claimed and retries on the next wakeup **without incrementing the retry counter**, ensuring transient token generation does not burn the ingress attempt limit.
 
+#### Subscriber Address Resolution & Verification Checks
+When expanding subscribers, `process_ingress_job` filters `active_subscriptions` for the category and resolves each subscriber's email address by joining `visible_account_emails`. For defense-in-depth, the runner asserts that:
+1. `row.account_id == subscription.subscriber_account_id` (the email belongs to the subscriber account).
+2. `row.is_verified == true` (only verified email addresses receive mailing list distributions).
+3. The resulting recipient list is sorted and deduplicated by recipient email address, preventing duplicate transmissions if an account has multiple subscriptions pointing to identical addresses.
+
 #### Error Isolation
 Errors during fanout are strictly categorized:
 - **`SubscriptionJobError::Transient`** (e.g. database communication failures) aborts fanout and triggers `retry_mail_ingress`.
@@ -90,7 +99,25 @@ Errors during fanout are strictly categorized:
 
 ---
 
-## 5. Delivery Dispatch Pipeline (`send_delivery_jobs`)
+## 5. System Mail Processing (`send_system_mail_jobs`)
+
+Transactional system emails (such as self-service email verification tokens) are queued by SpacetimeDB in `system_mail_pending` and processed by the sender daemon:
+
+1. **Distributed Lease Locking**:
+   - The daemon inspects `sender_system_mail_pending`.
+   - Any unowned pending item (`instance_id == None`) is claimed via `claim_system_mail(mail.id, instance_id)`.
+   - The server reducer grants an atomic 5-minute lease (`claimed_at`). If an instance crashes, another worker can reclaim the record after 5 minutes.
+2. **In-Flight Single-Instance Protection**:
+   - To eliminate race conditions where local loop wakeups re-evaluate pending tables before WebSocket deletion confirmations arrive from SpacetimeDB, the sender tracks claimed jobs in an in-memory `HashSet<u64>`.
+3. **SMTP Dispatch & Completion**:
+   - Dispatches the email using dedicated system SMTP credentials (`SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD`).
+   - On successful transmission: calls `complete_system_mail(mail.id)` to remove the row.
+   - On transient failure: calls `release_system_mail(mail.id)` to clear the claim immediately for retry.
+   - On invalid address/envelope: logs a warning and calls `complete_system_mail(mail.id)` to prevent poisoned queue blocking.
+
+---
+
+## 6. Delivery Dispatch Pipeline (`send_delivery_jobs`)
 
 Queued deliveries are claimed atomically, converted to RFC 5321 envelopes, and dispatched via SMTP:
 
@@ -130,7 +157,7 @@ When an SMTP relay returns a transient 4xx error or timeout, the sender invokes 
 
 ---
 
-## 6. Distributed Tracing & Tempo Correlation
+## 7. Distributed Tracing & Tempo Correlation
 
 The sender integrates with OpenTelemetry and correlates with Stalwart MTA transactions:
 
@@ -145,9 +172,9 @@ The sender integrates with OpenTelemetry and correlates with Stalwart MTA transa
 
 ---
 
-## 7. Lease Expiration & Crash Recovery
+## 8. Lease Expiration & Crash Recovery
 
-If a daemon crashes while holding an active ingress or delivery lease, SpacetimeDB's scheduled cleanup recycler automatically recovers the work:
+If a daemon crashes while holding an active ingress, delivery, or system mail lease, SpacetimeDB's scheduled cleanup recycler and lease timeouts automatically recover the work:
 
 ```d2
 {{#include control-flow-lease-expiration.d2}}
@@ -155,11 +182,12 @@ If a daemon crashes while holding an active ingress or delivery lease, Spacetime
 
 - **Ingress Lease Duration:** 10 minutes (`claim_expires_at`).
 - **Delivery Lease Duration:** 5 minutes (`lease_expires_at`).
+- **System Mail Lease Duration:** 5 minutes (`claimed_at`).
 - **Recycle Cron:** Every 60 seconds via `expire_stale_delivery_claims`.
 
 ---
 
-## 8. Outbound Message Headers
+## 9. Outbound Message Headers
 
 `compose_delivery` in `mail.rs` uses the `lettre::Message::builder()` API with typed custom headers:
 
