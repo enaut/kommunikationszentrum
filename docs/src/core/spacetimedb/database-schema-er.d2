@@ -37,7 +37,7 @@ direction: down
     label: "webhook_tokens [Private]"
     id: "u64" {constraint: [primary_key; INC]}
     token_hash: "String" {constraint: unique}
-    label: "String"
+    "label": "String"
     permissions: "Vec<String>"
     created_at: "Timestamp" {constraint: BTree}
     active: "bool"
