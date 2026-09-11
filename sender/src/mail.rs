@@ -130,9 +130,10 @@ pub fn compose_delivery(
     config: &SenderConfig,
     ingress_id: &str,
     message: &MailMessage,
-    subscription: &Subscription,
+    _subscription: &Subscription,
     category: &MessageCategory,
     token: &SubscriptionUnsubscribeToken,
+    subscriber_email: &str,
 ) -> Result<String, Box<dyn Error>> {
     trace!("Composing delivery for {ingress_id}");
 
@@ -149,7 +150,7 @@ pub fn compose_delivery(
     };
     trace!("List email: {list_email}, list name: {list_name}");
 
-    let recipient_email = &subscription.subscriber_email;
+    let recipient_email = subscriber_email;
     let subject = rewrite_subject(&list_name, &message.subject);
     let reply_to = &message.sender_email;
     let msg_id = format!(

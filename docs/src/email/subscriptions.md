@@ -20,14 +20,15 @@ Subscriptions are stored in the `subscriptions` table:
 ```rust
 #[spacetimedb::table(name = subscriptions)]
 pub struct Subscription {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,                    // Auto-increment primary key
-    pub subscriber_account_id: u64, // References account.id
-    pub subscriber_email: String,   // Email address of subscriber
-    pub category_id: u64,           // Foreign key to message_categories.id
-    pub subscribed_at: i64,         // Timestamp when subscription was created
-    pub active: bool,               // Whether subscription is currently active
+    #[primarykey]
+    #[autoinc]
+    pub id: u64,
+    pub subscriber_account_id: u64,
+    pub account_email_id: u64,
+    pub category_id: u64,
+    pub subscribed_at: i64,
+    pub status: SubscriptionStatus,
+    pub permission: SubscriptionPermission,
 }
 ```
 

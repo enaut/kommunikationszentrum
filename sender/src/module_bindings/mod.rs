@@ -6,12 +6,14 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+pub mod account_email_type;
 pub mod account_type;
 pub mod active_subscriptions_table;
 pub mod active_unsubscribe_tokens_table;
 pub mod add_and_subscribe_category_reducer;
 pub mod add_message_category_reducer;
 pub mod add_subscription_reducer;
+pub mod admin_add_account_email_reducer;
 pub mod admin_add_subscription_reducer;
 pub mod admin_identity_type;
 pub mod admin_stalwart_config_table;
@@ -22,12 +24,16 @@ pub mod category_visibility_type;
 pub mod claim_next_mail_delivery_reducer;
 pub mod claim_next_mail_ingress_reducer;
 pub mod claim_state_type;
+pub mod claim_system_mail_reducer;
 pub mod complete_mail_ingress_reducer;
+pub mod complete_system_mail_reducer;
 pub mod create_webhook_token_reducer;
 pub mod delivery_final_state_type;
 pub mod delivery_status_type;
 pub mod domain_type;
 pub mod dump_mta_logs_to_server_logs_reducer;
+pub mod email_source_type;
+pub mod email_verification_token_type;
 pub mod enqueue_mail_delivery_reducer;
 pub mod ensure_subscription_unsubscribe_token_reducer;
 pub mod expire_stale_delivery_claims_schedule_table;
@@ -53,6 +59,8 @@ pub mod mta_message_log_type;
 pub mod provision_message_category_procedure;
 pub mod received_message_type;
 pub mod register_admin_identity_reducer;
+pub mod release_system_mail_reducer;
+pub mod remove_account_email_reducer;
 pub mod remove_message_category_reducer;
 pub mod remove_subscription_reducer;
 pub mod rename_topic_reducer;
@@ -69,18 +77,25 @@ pub mod sender_mail_delivery_pending_table;
 pub mod sender_mail_delivery_temporary_failed_table;
 pub mod sender_mail_ingress_table;
 pub mod sender_mail_messages_table;
+pub mod sender_system_mail_pending_table;
 pub mod set_category_topics_reducer;
 pub mod set_stalwart_config_reducer;
 pub mod stalwart_config_type;
+pub mod subscription_permission_type;
 pub mod subscription_status_type;
 pub mod subscription_type;
 pub mod subscription_unsubscribe_token_type;
 pub mod sync_domains_result_type;
 pub mod sync_stalwart_domains_procedure;
 pub mod sync_user_reducer;
+pub mod system_mail_pending_type;
 pub mod topic_type;
 pub mod unregister_admin_identity_reducer;
 pub mod update_message_category_reducer;
+pub mod update_subscription_permission_reducer;
+pub mod user_request_email_verification_reducer;
+pub mod user_verify_email_reducer;
+pub mod visible_account_emails_table;
 pub mod visible_accounts_table;
 pub mod visible_admin_identities_table;
 pub mod visible_category_app_passwords_table;
@@ -93,12 +108,14 @@ pub mod visible_topics_table;
 pub mod visible_webhook_tokens_table;
 pub mod webhook_token_type;
 
+pub use account_email_type::AccountEmail;
 pub use account_type::Account;
 pub use active_subscriptions_table::*;
 pub use active_unsubscribe_tokens_table::*;
 pub use add_and_subscribe_category_reducer::add_and_subscribe_category;
 pub use add_message_category_reducer::add_message_category;
 pub use add_subscription_reducer::add_subscription;
+pub use admin_add_account_email_reducer::admin_add_account_email;
 pub use admin_add_subscription_reducer::admin_add_subscription;
 pub use admin_identity_type::AdminIdentity;
 pub use admin_stalwart_config_table::*;
@@ -109,12 +126,16 @@ pub use category_visibility_type::CategoryVisibility;
 pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
 pub use claim_next_mail_ingress_reducer::claim_next_mail_ingress;
 pub use claim_state_type::ClaimState;
+pub use claim_system_mail_reducer::claim_system_mail;
 pub use complete_mail_ingress_reducer::complete_mail_ingress;
+pub use complete_system_mail_reducer::complete_system_mail;
 pub use create_webhook_token_reducer::create_webhook_token;
 pub use delivery_final_state_type::DeliveryFinalState;
 pub use delivery_status_type::DeliveryStatus;
 pub use domain_type::Domain;
 pub use dump_mta_logs_to_server_logs_reducer::dump_mta_logs_to_server_logs;
+pub use email_source_type::EmailSource;
+pub use email_verification_token_type::EmailVerificationToken;
 pub use enqueue_mail_delivery_reducer::enqueue_mail_delivery;
 pub use ensure_subscription_unsubscribe_token_reducer::ensure_subscription_unsubscribe_token;
 pub use expire_stale_delivery_claims_schedule_table::*;
@@ -140,6 +161,8 @@ pub use mta_message_log_type::MtaMessageLog;
 pub use provision_message_category_procedure::provision_message_category;
 pub use received_message_type::ReceivedMessage;
 pub use register_admin_identity_reducer::register_admin_identity;
+pub use release_system_mail_reducer::release_system_mail;
+pub use remove_account_email_reducer::remove_account_email;
 pub use remove_message_category_reducer::remove_message_category;
 pub use remove_subscription_reducer::remove_subscription;
 pub use rename_topic_reducer::rename_topic;
@@ -156,18 +179,25 @@ pub use sender_mail_delivery_pending_table::*;
 pub use sender_mail_delivery_temporary_failed_table::*;
 pub use sender_mail_ingress_table::*;
 pub use sender_mail_messages_table::*;
+pub use sender_system_mail_pending_table::*;
 pub use set_category_topics_reducer::set_category_topics;
 pub use set_stalwart_config_reducer::set_stalwart_config;
 pub use stalwart_config_type::StalwartConfig;
+pub use subscription_permission_type::SubscriptionPermission;
 pub use subscription_status_type::SubscriptionStatus;
 pub use subscription_type::Subscription;
 pub use subscription_unsubscribe_token_type::SubscriptionUnsubscribeToken;
 pub use sync_domains_result_type::SyncDomainsResult;
 pub use sync_stalwart_domains_procedure::sync_stalwart_domains;
 pub use sync_user_reducer::sync_user;
+pub use system_mail_pending_type::SystemMailPending;
 pub use topic_type::Topic;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
 pub use update_message_category_reducer::update_message_category;
+pub use update_subscription_permission_reducer::update_subscription_permission;
+pub use user_request_email_verification_reducer::user_request_email_verification;
+pub use user_verify_email_reducer::user_verify_email;
+pub use visible_account_emails_table::*;
 pub use visible_accounts_table::*;
 pub use visible_admin_identities_table::*;
 pub use visible_category_app_passwords_table::*;
@@ -190,7 +220,7 @@ pub use webhook_token_type::WebhookToken;
 pub enum Reducer {
     AddAndSubscribeCategory {
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         name: String,
         email_address: String,
         description: String,
@@ -204,12 +234,16 @@ pub enum Reducer {
     },
     AddSubscription {
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         category_id: u64,
+    },
+    AdminAddAccountEmail {
+        account_id: u64,
+        email: String,
     },
     AdminAddSubscription {
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         category_id: u64,
         status: SubscriptionStatus,
     },
@@ -222,9 +256,16 @@ pub enum Reducer {
     ClaimNextMailIngress {
         instance_id: String,
     },
+    ClaimSystemMail {
+        mail_id: u64,
+        instance_id: String,
+    },
     CompleteMailIngress {
         ingress_id: String,
         instance_id: String,
+    },
+    CompleteSystemMail {
+        mail_id: u64,
     },
     CreateWebhookToken {
         token_hash: String,
@@ -280,6 +321,12 @@ pub enum Reducer {
     RegisterAdminIdentity {
         identity_hex: String,
     },
+    ReleaseSystemMail {
+        mail_id: u64,
+    },
+    RemoveAccountEmail {
+        account_email_id: u64,
+    },
     RemoveMessageCategory {
         category_id: u64,
     },
@@ -325,6 +372,16 @@ pub enum Reducer {
         description: String,
         visibility: Option<CategoryVisibility>,
     },
+    UpdateSubscriptionPermission {
+        subscription_id: u64,
+        permission: SubscriptionPermission,
+    },
+    UserRequestEmailVerification {
+        email: String,
+    },
+    UserVerifyEmail {
+        token: String,
+    },
 }
 
 impl __sdk::InModule for Reducer {
@@ -337,11 +394,14 @@ impl __sdk::Reducer for Reducer {
             Reducer::AddAndSubscribeCategory { .. } => "add_and_subscribe_category",
             Reducer::AddMessageCategory { .. } => "add_message_category",
             Reducer::AddSubscription { .. } => "add_subscription",
+            Reducer::AdminAddAccountEmail { .. } => "admin_add_account_email",
             Reducer::AdminAddSubscription { .. } => "admin_add_subscription",
             Reducer::CancelMailDeliveryRetry { .. } => "cancel_mail_delivery_retry",
             Reducer::ClaimNextMailDelivery { .. } => "claim_next_mail_delivery",
             Reducer::ClaimNextMailIngress { .. } => "claim_next_mail_ingress",
+            Reducer::ClaimSystemMail { .. } => "claim_system_mail",
             Reducer::CompleteMailIngress { .. } => "complete_mail_ingress",
+            Reducer::CompleteSystemMail { .. } => "complete_system_mail",
             Reducer::CreateWebhookToken { .. } => "create_webhook_token",
             Reducer::DumpMtaLogsToServerLogs => "dump_mta_logs_to_server_logs",
             Reducer::EnqueueMailDelivery { .. } => "enqueue_mail_delivery",
@@ -359,6 +419,8 @@ impl __sdk::Reducer for Reducer {
             Reducer::MarkMailDeliveryBounced { .. } => "mark_mail_delivery_bounced",
             Reducer::MarkMailDeliverySent { .. } => "mark_mail_delivery_sent",
             Reducer::RegisterAdminIdentity { .. } => "register_admin_identity",
+            Reducer::ReleaseSystemMail { .. } => "release_system_mail",
+            Reducer::RemoveAccountEmail { .. } => "remove_account_email",
             Reducer::RemoveMessageCategory { .. } => "remove_message_category",
             Reducer::RemoveSubscription { .. } => "remove_subscription",
             Reducer::RenameTopic { .. } => "rename_topic",
@@ -370,6 +432,9 @@ impl __sdk::Reducer for Reducer {
             Reducer::SyncUser { .. } => "sync_user",
             Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
             Reducer::UpdateMessageCategory { .. } => "update_message_category",
+            Reducer::UpdateSubscriptionPermission { .. } => "update_subscription_permission",
+            Reducer::UserRequestEmailVerification { .. } => "user_request_email_verification",
+            Reducer::UserVerifyEmail { .. } => "user_verify_email",
             _ => unreachable!(),
         }
     }
@@ -378,14 +443,14 @@ impl __sdk::Reducer for Reducer {
         match self {
                         Reducer::AddAndSubscribeCategory{
                 subscriber_account_id,
-                subscriber_email,
+                account_email_id,
                 name,
                 email_address,
                 description,
                 visibility,
 }             => __sats::bsatn::to_vec(&add_and_subscribe_category_reducer::AddAndSubscribeCategoryArgs {
                 subscriber_account_id: subscriber_account_id.clone(),
-                subscriber_email: subscriber_email.clone(),
+                account_email_id: account_email_id.clone(),
                 name: name.clone(),
                 email_address: email_address.clone(),
                 description: description.clone(),
@@ -404,21 +469,28 @@ impl __sdk::Reducer for Reducer {
 }),
             Reducer::AddSubscription{
                 subscriber_account_id,
-                subscriber_email,
+                account_email_id,
                 category_id,
 }             => __sats::bsatn::to_vec(&add_subscription_reducer::AddSubscriptionArgs {
                 subscriber_account_id: subscriber_account_id.clone(),
-                subscriber_email: subscriber_email.clone(),
+                account_email_id: account_email_id.clone(),
                 category_id: category_id.clone(),
+}),
+            Reducer::AdminAddAccountEmail{
+                account_id,
+                email,
+}             => __sats::bsatn::to_vec(&admin_add_account_email_reducer::AdminAddAccountEmailArgs {
+                account_id: account_id.clone(),
+                email: email.clone(),
 }),
             Reducer::AdminAddSubscription{
                 subscriber_account_id,
-                subscriber_email,
+                account_email_id,
                 category_id,
                 status,
 }             => __sats::bsatn::to_vec(&admin_add_subscription_reducer::AdminAddSubscriptionArgs {
                 subscriber_account_id: subscriber_account_id.clone(),
-                subscriber_email: subscriber_email.clone(),
+                account_email_id: account_email_id.clone(),
                 category_id: category_id.clone(),
                 status: status.clone(),
 }),
@@ -437,12 +509,24 @@ impl __sdk::Reducer for Reducer {
 }             => __sats::bsatn::to_vec(&claim_next_mail_ingress_reducer::ClaimNextMailIngressArgs {
                 instance_id: instance_id.clone(),
 }),
+            Reducer::ClaimSystemMail{
+                mail_id,
+                instance_id,
+}             => __sats::bsatn::to_vec(&claim_system_mail_reducer::ClaimSystemMailArgs {
+                mail_id: mail_id.clone(),
+                instance_id: instance_id.clone(),
+}),
             Reducer::CompleteMailIngress{
                 ingress_id,
                 instance_id,
 }             => __sats::bsatn::to_vec(&complete_mail_ingress_reducer::CompleteMailIngressArgs {
                 ingress_id: ingress_id.clone(),
                 instance_id: instance_id.clone(),
+}),
+            Reducer::CompleteSystemMail{
+                mail_id,
+}             => __sats::bsatn::to_vec(&complete_system_mail_reducer::CompleteSystemMailArgs {
+                mail_id: mail_id.clone(),
 }),
             Reducer::CreateWebhookToken{
                 token_hash,
@@ -542,6 +626,16 @@ Reducer::EnqueueMailDelivery{
 }             => __sats::bsatn::to_vec(&register_admin_identity_reducer::RegisterAdminIdentityArgs {
                 identity_hex: identity_hex.clone(),
 }),
+            Reducer::ReleaseSystemMail{
+                mail_id,
+}             => __sats::bsatn::to_vec(&release_system_mail_reducer::ReleaseSystemMailArgs {
+                mail_id: mail_id.clone(),
+}),
+            Reducer::RemoveAccountEmail{
+                account_email_id,
+}             => __sats::bsatn::to_vec(&remove_account_email_reducer::RemoveAccountEmailArgs {
+                account_email_id: account_email_id.clone(),
+}),
             Reducer::RemoveMessageCategory{
                 category_id,
 }             => __sats::bsatn::to_vec(&remove_message_category_reducer::RemoveMessageCategoryArgs {
@@ -621,6 +715,23 @@ Reducer::EnqueueMailDelivery{
                 description: description.clone(),
                 visibility: visibility.clone(),
 }),
+            Reducer::UpdateSubscriptionPermission{
+                subscription_id,
+                permission,
+}             => __sats::bsatn::to_vec(&update_subscription_permission_reducer::UpdateSubscriptionPermissionArgs {
+                subscription_id: subscription_id.clone(),
+                permission: permission.clone(),
+}),
+            Reducer::UserRequestEmailVerification{
+                email,
+}             => __sats::bsatn::to_vec(&user_request_email_verification_reducer::UserRequestEmailVerificationArgs {
+                email: email.clone(),
+}),
+            Reducer::UserVerifyEmail{
+                token,
+}             => __sats::bsatn::to_vec(&user_verify_email_reducer::UserVerifyEmailArgs {
+                token: token.clone(),
+}),
             _ => unreachable!(),
 }
     }
@@ -644,6 +755,8 @@ pub struct DbUpdate {
     sender_mail_delivery_temporary_failed: __sdk::TableUpdate<MailDeliveryTemporaryFailed>,
     sender_mail_ingress: __sdk::TableUpdate<MailIngress>,
     sender_mail_messages: __sdk::TableUpdate<MailMessage>,
+    sender_system_mail_pending: __sdk::TableUpdate<SystemMailPending>,
+    visible_account_emails: __sdk::TableUpdate<AccountEmail>,
     visible_accounts: __sdk::TableUpdate<Account>,
     visible_admin_identities: __sdk::TableUpdate<AdminIdentity>,
     visible_category_app_passwords: __sdk::TableUpdate<CategoryAppPassword>,
@@ -712,6 +825,12 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                     .append(sender_mail_ingress_table::parse_table_update(table_update)?),
                 "sender_mail_messages" => db_update.sender_mail_messages.append(
                     sender_mail_messages_table::parse_table_update(table_update)?,
+                ),
+                "sender_system_mail_pending" => db_update.sender_system_mail_pending.append(
+                    sender_system_mail_pending_table::parse_table_update(table_update)?,
+                ),
+                "visible_account_emails" => db_update.visible_account_emails.append(
+                    visible_account_emails_table::parse_table_update(table_update)?,
                 ),
                 "visible_accounts" => db_update
                     .visible_accounts
@@ -843,6 +962,16 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.sender_mail_messages = cache
             .apply_diff_to_table::<MailMessage>("sender_mail_messages", &self.sender_mail_messages)
             .with_updates_by_pk(|row| &row.id);
+        diff.sender_system_mail_pending = cache
+            .apply_diff_to_table::<SystemMailPending>(
+                "sender_system_mail_pending",
+                &self.sender_system_mail_pending,
+            )
+            .with_updates_by_pk(|row| &row.id);
+        diff.visible_account_emails = cache.apply_diff_to_table::<AccountEmail>(
+            "visible_account_emails",
+            &self.visible_account_emails,
+        );
         diff.visible_accounts =
             cache.apply_diff_to_table::<Account>("visible_accounts", &self.visible_accounts);
         diff.visible_admin_identities = cache
@@ -931,6 +1060,12 @@ impl __sdk::DbUpdate for DbUpdate {
                 "sender_mail_messages" => db_update
                     .sender_mail_messages
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_system_mail_pending" => db_update
+                    .sender_system_mail_pending
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_account_emails" => db_update
+                    .visible_account_emails
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_accounts" => db_update
                     .visible_accounts
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
@@ -1013,6 +1148,12 @@ impl __sdk::DbUpdate for DbUpdate {
                 "sender_mail_messages" => db_update
                     .sender_mail_messages
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_system_mail_pending" => db_update
+                    .sender_system_mail_pending
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_account_emails" => db_update
+                    .visible_account_emails
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_accounts" => db_update
                     .visible_accounts
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -1073,6 +1214,8 @@ pub struct AppliedDiff<'r> {
     sender_mail_delivery_temporary_failed: __sdk::TableAppliedDiff<'r, MailDeliveryTemporaryFailed>,
     sender_mail_ingress: __sdk::TableAppliedDiff<'r, MailIngress>,
     sender_mail_messages: __sdk::TableAppliedDiff<'r, MailMessage>,
+    sender_system_mail_pending: __sdk::TableAppliedDiff<'r, SystemMailPending>,
+    visible_account_emails: __sdk::TableAppliedDiff<'r, AccountEmail>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
     visible_admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
     visible_category_app_passwords: __sdk::TableAppliedDiff<'r, CategoryAppPassword>,
@@ -1159,6 +1302,16 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<MailMessage>(
             "sender_mail_messages",
             &self.sender_mail_messages,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<SystemMailPending>(
+            "sender_system_mail_pending",
+            &self.sender_system_mail_pending,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<AccountEmail>(
+            "visible_account_emails",
+            &self.visible_account_emails,
             event,
         );
         callbacks.invoke_table_row_callbacks::<Account>(
@@ -1884,6 +2037,8 @@ impl __sdk::SpacetimeModule for RemoteModule {
         sender_mail_delivery_temporary_failed_table::register_table(client_cache);
         sender_mail_ingress_table::register_table(client_cache);
         sender_mail_messages_table::register_table(client_cache);
+        sender_system_mail_pending_table::register_table(client_cache);
+        visible_account_emails_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
         visible_admin_identities_table::register_table(client_cache);
         visible_category_app_passwords_table::register_table(client_cache);
@@ -1909,6 +2064,8 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "sender_mail_delivery_temporary_failed",
         "sender_mail_ingress",
         "sender_mail_messages",
+        "sender_system_mail_pending",
+        "visible_account_emails",
         "visible_accounts",
         "visible_admin_identities",
         "visible_category_app_passwords",

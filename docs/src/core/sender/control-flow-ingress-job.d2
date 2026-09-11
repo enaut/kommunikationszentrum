@@ -4,24 +4,39 @@ start: "process_ingress_job(ingress)" { style.fill: "#fff9c4" }
 msg: "Lookup sender_mail_messages\nby ingress.mail_message_id" { shape: diamond }
 msg_err: "Return Err (not in cache yet)" { style.fill: "#ffe0b2" }
 
+trace_attach: "Attach Stalwart Trace Context:\n• Derive traceparent from queue_id\n• Set remote parent context on span" { style.fill: "#ffe0b2" }
+
 cat: "Lookup visible_message_categories\nby ingress.category_id" { shape: diamond }
 fail: "fail_mail_ingress()\n'missing message category'" { style.fill: "#ffcdd2" }
 
 subs: "Filter active_subscriptions\nfor category_id & dedup by email" { style.fill: "#bbdefb" }
-empty: "No subscribers?\ncomplete_mail_ingress(0, 0)\nreturn Ok(())" { style.fill: "#c8e6c9" }
 
 loop_: "For each subscriber:\nprocess_subscription_job()" { style.fill: "#bbdefb" }
-token: "Any subscriber 'AwaitingToken'?" { shape: diamond }
-token_err: "Return Err → retry_mail_ingress()\n(Wait for token generation)" { style.fill: "#ffe0b2" }
-done: "complete_mail_ingress(\ningress_id,\ndeliveries_created, 0)" { style.fill: "#c8e6c9" }
+
+err_check: "Outcome classification" { shape: diamond }
+trans_err: "SubscriptionJobError::Transient\nBubble up Err → retry_mail_ingress()" { style.fill: "#ffcdd2" }
+perm_err: "SubscriptionJobError::Permanent\nLog warning & skip recipient\n(Other subscribers continue)" { style.fill: "#ffe0b2" }
+queued: "DeliveryQueued / AlreadyQueued\nincrement_mail_ingress_delivery_count()" { style.fill: "#c8e6c9" }
+
+token_check: "Any subscriber 'AwaitingToken'?" { shape: diamond }
+token_wait: "Return Err(IngressJobError::AwaitingToken)\n(Keep lease, do NOT call retry_mail_ingress)" { style.fill: "#ffe0b2" }
+done: "complete_mail_ingress(ingress.id, instance_id)\n(All deliveries enqueued)" { style.fill: "#c8e6c9" }
 
 start -> msg
 msg -> msg_err: "Missing"
-msg -> cat: "Found"
+msg -> trace_attach: "Found"
+trace_attach -> cat
 cat -> fail: "Missing"
 cat -> subs: "Found"
-subs -> empty: "0 subscribers"
-subs -> loop_: "1+ subscribers"
-loop_ -> token
-token -> token_err: "Yes"
-token -> done: "No (all enqueued)"
+subs -> loop_
+loop_ -> err_check
+
+err_check -> trans_err: "Transient DB error"
+err_check -> perm_err: "Invalid address / format"
+err_check -> queued: "Delivery created / existed"
+
+queued -> token_check: "Finished all subscribers"
+perm_err -> token_check: "Finished all subscribers"
+
+token_check -> token_wait: "Yes (> 0)"
+token_check -> done: "No (all enqueued)"

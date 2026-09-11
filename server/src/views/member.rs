@@ -31,6 +31,29 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
     }
 }
 
+#[spacetimedb::view(accessor = visible_account_emails, public)]
+pub fn visible_account_emails(ctx: &ViewContext) -> Vec<AccountEmail> {
+    let sender = ctx.sender();
+    let is_admin = is_admin_user(ctx);
+    if is_admin {
+        ctx.db
+            .account_emails()
+            .added_at()
+            .filter(Timestamp::UNIX_EPOCH..)
+            .collect()
+    } else {
+        match ctx.db.account().identity().find(&sender) {
+            Some(acc) => ctx
+                .db
+                .account_emails()
+                .account_id()
+                .filter(&acc.id)
+                .collect(),
+            None => vec![],
+        }
+    }
+}
+
 #[spacetimedb::view(accessor = visible_subscriptions, public)]
 pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
     let sender = ctx.sender();
@@ -128,7 +151,7 @@ pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
     } else {
         match ctx.db.account().identity().find(&sender) {
             Some(acc) => {
-                let subscribed_category_ids: Vec<u64> = ctx
+                let mut subscribed_category_ids: Vec<u64> = ctx
                     .db
                     .subscriptions()
                     .subscriber_account_id()
@@ -136,6 +159,8 @@ pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
                     .filter(|s| s.status.is_active())
                     .map(|s| s.category_id)
                     .collect();
+                subscribed_category_ids.sort_unstable();
+                subscribed_category_ids.dedup();
                 subscribed_category_ids
                     .into_iter()
                     .flat_map(|cat_id| {

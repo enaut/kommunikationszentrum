@@ -2,7 +2,7 @@ use log::{error, info};
 use spacetimedb::{ReducerContext, Table, Timestamp};
 
 use crate::common::auth::{is_admin_identity, is_admin_user};
-use crate::models::account::{account, Account};
+use crate::models::account::{account, account_emails, Account};
 use crate::models::category::*;
 use crate::models::domain::domains;
 use crate::services::stalwart::category::{
@@ -31,6 +31,7 @@ pub fn add_message_category(
         active: true,
         visibility,
         app_password_id: None,
+        default_permission: SubscriptionPermission::Read,
     });
     log::info!(
         "Added new message category (by identity: {:?})",
@@ -186,19 +187,32 @@ pub fn rename_topic(ctx: &ReducerContext, topic_id: u64, new_name: String) -> Re
 pub(crate) fn do_add_subscription(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
-    subscriber_email: String,
+    account_email_id: u64,
     category_id: u64,
     status: SubscriptionStatus,
     force: bool,
 ) -> Result<Subscription, String> {
     let timestamp = ctx.timestamp;
 
+    let email = ctx
+        .db
+        .account_emails()
+        .id()
+        .find(&account_email_id)
+        .ok_or_else(|| format!("Account email {} not found", account_email_id))?;
+
+    if email.account_id != subscriber_account_id {
+        return Err("Email does not belong to the subscriber account".to_string());
+    }
+
+    let category = ctx.db.message_categories().id().find(&category_id).ok_or("Category not found")?;
+
     let existing = ctx
         .db
         .subscriptions()
         .subscriber_account_id()
         .filter(&subscriber_account_id)
-        .find(|sub| sub.category_id == category_id);
+        .find(|sub| sub.category_id == category_id && sub.account_email_id == account_email_id);
 
     let subscription = if let Some(existing) = existing {
         // When not forced and the new status is automatic, protect manual/link-unsubscribed state.
@@ -206,7 +220,7 @@ pub(crate) fn do_add_subscription(
             return Ok(existing);
         }
         let updated = Subscription {
-            subscriber_email: subscriber_email.clone(),
+            account_email_id,
             subscribed_at: timestamp,
             status,
             ..existing
@@ -217,17 +231,18 @@ pub(crate) fn do_add_subscription(
         let candidate = Subscription {
             id: 0,
             subscriber_account_id,
-            subscriber_email: subscriber_email.clone(),
+            account_email_id,
             category_id,
             subscribed_at: timestamp,
             status,
+            permission: category.default_permission,
         };
         ctx.db.subscriptions().insert(candidate);
         ctx.db
             .subscriptions()
             .subscriber_account_id()
             .filter(&subscriber_account_id)
-            .find(|sub| sub.category_id == category_id)
+            .find(|sub| sub.category_id == category_id && sub.account_email_id == account_email_id)
             .ok_or_else(|| "Subscription insert failed".to_string())?
     };
 
@@ -244,7 +259,7 @@ pub(crate) fn do_add_subscription(
 pub fn add_subscription(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
-    subscriber_email: String,
+    account_email_id: u64,
     category_id: u64,
 ) -> Result<(), String> {
     let is_admin = is_admin_user(ctx);
@@ -260,10 +275,40 @@ pub fn add_subscription(
         return Err("Unauthorized: can only subscribe yourself or requires admin".to_string());
     }
 
+    let email = ctx
+        .db
+        .account_emails()
+        .id()
+        .find(&account_email_id)
+        .ok_or_else(|| format!("Account email {} not found", account_email_id))?;
+
+    if !is_admin && !email.is_verified {
+        return Err("Cannot subscribe an unverified email address".to_string());
+    }
+
+    let category = ctx
+        .db
+        .message_categories()
+        .id()
+        .find(&category_id)
+        .ok_or("Category not found")?;
+
+    if !is_admin && category.visibility != CategoryVisibility::Public {
+        let already_subscribed = ctx
+            .db
+            .subscriptions()
+            .subscriber_account_id()
+            .filter(&subscriber_account_id)
+            .any(|s| s.category_id == category_id && s.status.is_active());
+        if !already_subscribed {
+            return Err("Cannot subscribe to a private category without an invitation".to_string());
+        }
+    }
+
     do_add_subscription(
         ctx,
         subscriber_account_id,
-        subscriber_email,
+        account_email_id,
         category_id,
         SubscriptionStatus::ManuallySubscribed,
         true, // force: explicit user/admin action always applies
@@ -279,7 +324,7 @@ pub fn add_subscription(
 pub fn admin_add_subscription(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
-    subscriber_email: String,
+    account_email_id: u64,
     category_id: u64,
     status: SubscriptionStatus,
 ) -> Result<(), String> {
@@ -289,7 +334,7 @@ pub fn admin_add_subscription(
     do_add_subscription(
         ctx,
         subscriber_account_id,
-        subscriber_email,
+        account_email_id,
         category_id,
         status,
         true, // force: explicit admin action always overwrites existing status
@@ -364,7 +409,7 @@ fn sync_category_topics(
 pub(crate) fn do_add_and_subscribe_category(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
-    subscriber_email: String,
+    account_email_id: u64,
     name: String,
     email_address: String,
     description: String,
@@ -403,6 +448,7 @@ pub(crate) fn do_add_and_subscribe_category(
                 active: true,
                 visibility,
                 app_password_id: None,
+                default_permission: SubscriptionPermission::Read,
             });
             ctx.db
                 .message_categories()
@@ -419,7 +465,7 @@ pub(crate) fn do_add_and_subscribe_category(
     do_add_subscription(
         ctx,
         subscriber_account_id,
-        subscriber_email,
+        account_email_id,
         category.id,
         if required {
             SubscriptionStatus::RequiredSubscribed
@@ -437,7 +483,7 @@ pub(crate) fn do_add_and_subscribe_category(
 pub fn add_and_subscribe_category(
     ctx: &ReducerContext,
     subscriber_account_id: u64,
-    subscriber_email: String,
+    account_email_id: u64,
     name: String,
     email_address: String,
     description: String,
@@ -453,7 +499,7 @@ pub fn add_and_subscribe_category(
     do_add_and_subscribe_category(
         ctx,
         subscriber_account_id,
-        subscriber_email,
+        account_email_id,
         name,
         email_address,
         description,
@@ -503,32 +549,32 @@ pub(crate) fn do_remove_subscription_for_category_email(
         return Ok(());
     };
 
-    let Some(sub) = ctx
+    let subs: Vec<_> = ctx
         .db
         .subscriptions()
         .subscriber_account_id()
         .filter(&subscriber_account_id)
-        .find(|s| s.category_id == category.id)
-    else {
-        return Ok(());
-    };
+        .filter(|s| s.category_id == category.id)
+        .collect();
 
-    if sub.status.is_active() {
-        let sub_id = sub.id;
-        if do_deactivate_subscription(ctx, sub, SubscriptionStatus::AutomaticallyUnsubscribed) {
-            log::info!(
-                "Deactivated subscription {} for account {} (category email: {})",
-                sub_id,
-                subscriber_account_id,
-                category_email_address
-            );
-        } else {
-            log::info!(
-                "Skipped sync-driven unsubscribe of subscription {} for account {} (category email: {}): manually managed",
-                sub_id,
-                subscriber_account_id,
-                category_email_address
-            );
+    for sub in subs {
+        if sub.status.is_active() {
+            let sub_id = sub.id;
+            if do_deactivate_subscription(ctx, sub, SubscriptionStatus::AutomaticallyUnsubscribed) {
+                log::info!(
+                    "Deactivated subscription {} for account {} (category email: {})",
+                    sub_id,
+                    subscriber_account_id,
+                    category_email_address
+                );
+            } else {
+                log::info!(
+                    "Skipped sync-driven unsubscribe of subscription {} for account {} (category email: {}): manually managed",
+                    sub_id,
+                    subscriber_account_id,
+                    category_email_address
+                );
+            }
         }
     }
     Ok(())
@@ -575,6 +621,36 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
     log::info!(
         "Deactivated subscription {} (by identity: {:?})",
         subscription_id,
+        ctx.sender()
+    );
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn update_subscription_permission(
+    ctx: &ReducerContext,
+    subscription_id: u64,
+    permission: SubscriptionPermission,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+    let existing = ctx
+        .db
+        .subscriptions()
+        .id()
+        .find(&subscription_id)
+        .ok_or_else(|| format!("Subscription {} not found", subscription_id))?;
+
+    let updated = Subscription {
+        permission,
+        ..existing
+    };
+    ctx.db.subscriptions().id().update(updated);
+    log::info!(
+        "Updated permission for subscription {} to {:?} (by identity: {:?})",
+        subscription_id,
+        permission,
         ctx.sender()
     );
     Ok(())
@@ -784,6 +860,7 @@ pub fn provision_message_category(
             active: true,
             visibility,
             app_password_id: Some(app_password.id),
+            default_permission: SubscriptionPermission::Read,
         });
     });
 

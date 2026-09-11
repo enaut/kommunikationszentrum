@@ -1,0 +1,34 @@
+direction: down
+
+ingress: "mail_ingress\n(Pending → Processing → Completed / Failed)" {
+  style.fill: "#e3f2fd"
+}
+
+pending: "mail_delivery_pending\n(Active FIFO Queue)" {
+  style.fill: "#fff9c4"
+}
+
+claimed: "mail_delivery_claimed\n(Active Leases: 5 min)" {
+  style.fill: "#e1bee7"
+}
+
+temp_fail: "mail_delivery_temporary_failed\n(Parked for backoff: 5 min)" {
+  style.fill: "#ffe0b2"
+}
+
+done: "mail_delivery_done\n(Terminal: sent / failed / bounced)" {
+  style.fill: "#c8e6c9"
+}
+
+events: "mail_delivery_events\n(Append-only Audit Log)" {
+  shape: page
+  style.fill: "#f5f5f5"
+}
+
+ingress -> pending: "Fanout: enqueue_mail_delivery()"
+pending -> claimed: "claim_next_mail_delivery()"
+claimed -> done: "SMTP 2xx → mark_mail_delivery_sent()\nSMTP 5xx / Pre-SMTP → fail_mail_delivery()"
+claimed -> temp_fail: "SMTP 4xx / Timeout → schedule_mail_delivery_retry()"
+temp_fail -> pending: "Server Scheduler (10s):\nrequeue_temporary_failed_mails()"
+claimed -> pending: "Lease Expired (60s):\nexpire_stale_delivery_claims()"
+claimed -> events: "All outcomes logged"

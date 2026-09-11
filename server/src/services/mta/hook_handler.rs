@@ -1,7 +1,7 @@
 use spacetimedb::{ReducerContext, Table, Timestamp};
 use stalwart_mta_hook_types::Request as MtaHookRequest;
 
-use crate::models::account::{account, admin_identities};
+use crate::models::account::{account, admin_identities, account_emails};
 use crate::models::category::{message_categories, subscriptions};
 use crate::models::mail_message::{mail_message, MailMessage};
 use crate::models::mta::*;
@@ -139,40 +139,48 @@ pub fn handle_data_stage(
     // Persist the full message for each accepted category delivery
     if !valid_categories.is_empty() {
         if let Some(message) = &request.message {
-            let sender_account_id = ctx
+            let sender_account_ids: Vec<u64> = ctx
                 .db
-                .account()
+                .account_emails()
                 .email()
                 .filter(&from_address.to_string())
-                .next()
-                .map(|a| a.id);
+                .map(|ae| ae.account_id)
+                .filter(|acc_id| {
+                    ctx.db.account().id().find(acc_id).map_or(false, |acc| acc.is_active)
+                })
+                .collect();
 
-            let sender_is_admin = sender_account_id
-                .and_then(|id| ctx.db.account().id().find(&id))
-                .map_or(false, |acc| {
+            let sender_is_admin = sender_account_ids.iter().any(|id| {
+                ctx.db.account().id().find(id).map_or(false, |acc| {
                     ctx.db
                         .admin_identities()
                         .identity()
                         .find(&acc.identity)
                         .is_some()
-                });
+                })
+            });
 
             valid_categories.retain(|(cat_id, cat_email)| {
                 if sender_is_admin {
                     return true;
                 }
-                if let Some(acc_id) = sender_account_id {
-                    let has_sub = ctx
-                        .db
-                        .subscriptions()
-                        .subscriber_account_id()
-                        .filter(&acc_id)
-                        .any(|s| s.category_id == *cat_id && s.status.is_active());
+                if !sender_account_ids.is_empty() {
+                    let has_sub = sender_account_ids.iter().any(|acc_id| {
+                        ctx.db
+                            .subscriptions()
+                            .subscriber_account_id()
+                            .filter(acc_id)
+                            .any(|s| {
+                                s.category_id == *cat_id 
+                                && s.status.is_active() 
+                                && matches!(s.permission, crate::models::category::SubscriptionPermission::Write)
+                            })
+                    });
                     if !has_sub {
                         log::warn!(
-                            "Sender {} (acc {}) is NOT subscribed to category {} ({})",
+                            "Sender {} (accounts {:?}) is NOT authorized to write to category {} ({})",
                             from_address,
-                            acc_id,
+                            sender_account_ids,
                             cat_id,
                             cat_email
                         );
@@ -225,7 +233,7 @@ pub fn handle_data_stage(
             let mail_message_id = insert_mail_message(
                 ctx,
                 queue_id.clone(),
-                sender_account_id,
+                sender_account_ids.first().copied(),
                 from_address.to_string(),
                 subject.clone(),
                 from_header.clone(),

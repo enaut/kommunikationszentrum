@@ -12,10 +12,18 @@ direction: down
     label: "account [Private]"
     id: "u64" {constraint: primary_key}
     identity: "Identity" {constraint: unique}
-    email: "String" {constraint: BTree}
+    primary_email_id: "u64" {constraint: BTree}
     name: "String"
     is_active: "bool"
     last_synced: "Timestamp" {constraint: BTree}
+  }
+
+  account_emails: {
+    shape: sql_table
+    label: "account_emails [Private]"
+    id: "u64" {constraint: [primary_key; INC]}
+    account_id: "u64" {constraint: [foreign_key; BTree]}
+    email: "String" {constraint: [unique; BTree]}
   }
 
   admin_identities: {
@@ -62,6 +70,7 @@ direction: down
     active: "bool"
     visibility: "CategoryVisibility" {constraint: BTree}
     app_password_id: "Option<u64>" {constraint: [BTree; foreign_key]}
+    default_permission: "SubscriptionPermission"
   }
 
   category_app_passwords: {
@@ -93,10 +102,11 @@ direction: down
     label: "subscriptions [Private]"
     id: "u64" {constraint: [primary_key; INC]}
     subscriber_account_id: "u64" {constraint: [foreign_key; BTree]}
-    subscriber_email: "String" {constraint: BTree}
+    account_email_id: "u64" {constraint: [foreign_key; BTree]}
     category_id: "u64" {constraint: [foreign_key; BTree]}
     subscribed_at: "Timestamp"
     status: "SubscriptionStatus" {constraint: BTree}
+    permission: "SubscriptionPermission"
   }
 
   subscription_unsubscribe_tokens: {
@@ -316,7 +326,10 @@ delivery_final_state: {
 }
 
 "User Management & Auth".admin_identities.identity -> "User Management & Auth".account.identity
+"User Management & Auth".account_emails.account_id -> "User Management & Auth".account.id
+"User Management & Auth".account.primary_email_id -> "User Management & Auth".account_emails.id
 "Mailing & Categories".subscriptions.subscriber_account_id -> "User Management & Auth".account.id
+"Mailing & Categories".subscriptions.account_email_id -> "User Management & Auth".account_emails.id
 "Mailing & Categories".subscriptions.category_id -> "Mailing & Categories".message_categories.id
 "Mailing & Categories".subscription_unsubscribe_tokens.subscription_id -> "Mailing & Categories".subscriptions.id
 "Mailing & Categories".message_category_topics.category_id -> "Mailing & Categories".message_categories.id

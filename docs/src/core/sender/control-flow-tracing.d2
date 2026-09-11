@@ -1,0 +1,30 @@
+direction: right
+
+mta: "Stalwart MTA" {
+  accept: "Accept Inbound SMTP"
+  queue_id: "Generate Queue ID\n(e.g. '019934ab-c8...')"
+  hook: "POST /route/mta-hook\n(Stores queue_id in MailMessage)"
+  accept -> queue_id -> hook
+}
+
+db: "SpacetimeDB" {
+  msg_tbl: "sender_mail_messages\n(queue_id, body_raw)"
+}
+
+sender: "Sender Daemon (tracing_util.rs)" {
+  hash: "BLAKE3 Hash(queue_id)"
+  traceparent: "Synthesize W3C Traceparent:\n00-{trace_id_32hex}-{span_id_16hex}-01"
+  cx: "Extract OTel Context\ncontext_from_traceparent()"
+  span: "Attach Context to Span:\nprocess_ingress_job"
+  loki: "Emit Structured Log Fields:\nstalwart_trace_id, queue_id, to_list"
+  
+  hash -> traceparent -> cx -> span -> loki
+}
+
+tempo: "Grafana Tempo / Loki" {
+  trace: "Single Unified Trace\n(MTA logs + Sender Spans)"
+}
+
+mta.hook -> db.msg_tbl
+db.msg_tbl -> sender.hash: "Read queue_id"
+sender.loki -> tempo: "OTLP Spans & Loki Logs"

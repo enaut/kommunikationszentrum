@@ -25,45 +25,51 @@ classes: {
 }
 
 server: "SpacetimeDB Server Module" {
+  messages_tbl: "mail_messages\n[queue_id, body_raw]" { class: db_node }
   ingress_tbl: "mail_ingress\n[Status: Pending, Processing, ...]" { class: db_node }
   pending_tbl: "mail_delivery_pending\n[Queued Deliveries]" { class: db_node }
   claimed_tbl: "mail_delivery_claimed\n[Active Leases (5 min)]" { class: db_node }
+  deliv_msg_tbl: "mail_delivery_messages\n[RFC 5322 Raw Payloads]" { class: db_node }
+  temp_fail_tbl: "mail_delivery_temporary_failed\n[Transient Failures (5 min backoff)]" { class: db_node }
   done_tbl: "mail_delivery_done\n[Sent / Failed / Bounced]" { class: db_node }
   events_tbl: "mail_delivery_events\n[Audit Trail]" { class: db_node }
 }
 
 sender: "Sender Daemon (Async Tokio Runtime)" {
-  pump: "Background DB Pump Task\n(connection.run_async())" { class: worker_node }
+  pump: "Background DB Thread Pump\n(connection.run_threaded())" { class: worker_node }
   callbacks: "Table Subscription Callbacks\n(on_insert / on_update / on_delete)" { class: worker_node }
-  doorbell: "Notify Doorbell\n(Arc<Notify>)" {
+  channel: "Event Wakeup Channel\n(mpsc::unbounded_channel)" {
     shape: diamond
     style.fill: "#c8e6c9"
   }
   
   work_loop: "Main Reactive Work Loop" {
     fanout: "Fan-Out Engine\n(process_fanout_jobs)" { class: worker_node }
-    delivery: "Delivery Engine\n(process_delivery_jobs)" { class: worker_node }
+    delivery: "Delivery Engine\n(send_delivery_jobs)" { class: worker_node }
   }
 }
 
 ext: "External Services" {
-  smtp: "SMTP Relay\n(Letts / Postfix / MailHog)" { class: ext_node }
-  otel: "Grafana Alloy / OTLP\n(Traces + Logs)" { class: ext_node }
+  smtp: "Outbound SMTP Relay\n(Stalwart / SMTP2GO / Postfix)" { class: ext_node }
+  otel: "Grafana Alloy / Tempo / Loki\n(OTLP Traces + Logs)" { class: ext_node }
 }
 
 server.ingress_tbl -> sender.pump: "WebSocket Subscription Stream"
 server.pending_tbl -> sender.pump
 server.claimed_tbl -> sender.pump
+server.messages_tbl -> sender.pump
+server.deliv_msg_tbl -> sender.pump
 
 sender.pump -> sender.callbacks: "Local Cache Updates"
-sender.callbacks -> sender.doorbell: "notify_one()"
-sender.doorbell -> sender.work_loop.fanout: "Trigger Work"
-sender.work_loop.fanout -> sender.work_loop.delivery: "Chain Work"
+sender.callbacks -> sender.channel: "Event::Wakeup"
+sender.channel -> sender.work_loop.fanout: "Wake Loop"
+sender.work_loop.fanout -> sender.work_loop.delivery: "Sequential Sweep"
 
 sender.work_loop.fanout -> server.pending_tbl: "enqueue_mail_delivery()"
 sender.work_loop.delivery -> server.claimed_tbl: "claim_next_mail_delivery()"
 sender.work_loop.delivery -> ext.smtp: "Send RFC 5322 Raw Message"
-sender.work_loop.delivery -> server.done_tbl: "mark_sent() / fail() / bounce()"
+sender.work_loop.delivery -> server.done_tbl: "mark_sent() / fail_delivery()"
+sender.work_loop.delivery -> server.temp_fail_tbl: "schedule_mail_delivery_retry()"
 sender.work_loop.delivery -> server.events_tbl: "Log Delivery Event"
 
-sender -> ext.otel: "OTLP Spans & Logs"
+sender -> ext.otel: "OTLP Spans & Structured Logs"

@@ -6,13 +6,15 @@ categories: "MessageCategory" {
     name: "SoLaWi News"
     email_address: "news@solawis.de"
     active: true
+    default_permission: "Read"
 }
 subscriptions: "Subscription"{
     shape: sql_table
     id: 101
     category_id: 1
-    subscriber_email: "member@example.com"
-    active: true
+    account_email_id: 42
+    status: "ActiveSubscribed"
+    permission: "Read"
 }
 
 subscriptions.category_id -> categories.id: "category_id → id" {

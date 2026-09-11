@@ -5,6 +5,7 @@
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 use super::category_visibility_type::CategoryVisibility;
+use super::subscription_permission_type::SubscriptionPermission;
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
@@ -16,6 +17,7 @@ pub struct MessageCategory {
     pub active: bool,
     pub visibility: CategoryVisibility,
     pub app_password_id: Option<u64>,
+    pub default_permission: SubscriptionPermission,
 }
 
 impl __sdk::InModule for MessageCategory {
@@ -33,6 +35,7 @@ pub struct MessageCategoryCols {
     pub active: __sdk::__query_builder::Col<MessageCategory, bool>,
     pub visibility: __sdk::__query_builder::Col<MessageCategory, CategoryVisibility>,
     pub app_password_id: __sdk::__query_builder::Col<MessageCategory, Option<u64>>,
+    pub default_permission: __sdk::__query_builder::Col<MessageCategory, SubscriptionPermission>,
 }
 
 impl __sdk::__query_builder::HasCols for MessageCategory {
@@ -46,6 +49,7 @@ impl __sdk::__query_builder::HasCols for MessageCategory {
             active: __sdk::__query_builder::Col::new(table_name, "active"),
             visibility: __sdk::__query_builder::Col::new(table_name, "visibility"),
             app_password_id: __sdk::__query_builder::Col::new(table_name, "app_password_id"),
+            default_permission: __sdk::__query_builder::Col::new(table_name, "default_permission"),
         }
     }
 }

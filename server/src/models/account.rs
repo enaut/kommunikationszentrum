@@ -8,6 +8,28 @@ pub const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
 
 pub const DJANGO_OAUTH_ISSUER_PATH: &str = "/o";
 
+#[derive(spacetimedb::SpacetimeType, Debug, Clone, PartialEq)]
+pub enum EmailSource {
+    DjangoSync,
+    Native,
+}
+
+#[derive(Debug, Clone)]
+#[spacetimedb::table(accessor = account_emails)]
+pub struct AccountEmail {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    #[index(btree)]
+    pub account_id: u64,
+    #[index(btree)]
+    pub email: String,
+    pub source: EmailSource,
+    pub is_verified: bool,
+    #[index(btree)]
+    pub added_at: Timestamp,
+}
+
 #[derive(Debug, Clone)]
 #[spacetimedb::table(accessor = account)]
 pub struct Account {
@@ -17,7 +39,7 @@ pub struct Account {
     pub identity: Identity,
     pub name: String,
     #[index(btree)]
-    pub email: String,
+    pub primary_email_id: u64,
     pub is_active: bool,
     #[index(btree)]
     pub last_synced: Timestamp,
@@ -43,4 +65,17 @@ pub struct WebhookToken {
     #[index(btree)]
     pub created_at: Timestamp,
     pub active: bool,
+}
+
+#[derive(Debug, Clone)]
+#[spacetimedb::table(accessor = email_verification_tokens)]
+pub struct EmailVerificationToken {
+    #[primary_key]
+    pub token: String,
+    pub account_id: u64,
+    pub email: String,
+    #[index(btree)]
+    pub created_at: Timestamp,
+    #[index(btree)]
+    pub expires_at: Timestamp,
 }

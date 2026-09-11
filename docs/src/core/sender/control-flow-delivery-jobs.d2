@@ -1,26 +1,28 @@
 direction: down
 
-entry: "process_delivery_jobs()" { style.fill: "#fff9c4" }
+entry: "send_delivery_jobs()" { style.fill: "#fff9c4" }
 owned: "self_owned_delivery_jobs()\nFilter sender_mail_delivery_claimed for:\nworker == self && instance_id == current_uuid" {
   shape: diamond
   style.fill: "#ffffff"
 }
-claim: "claim_next_mail_delivery(instance_id)\n(Server moves 1 row: pending → claimed)" { style.fill: "#bbdefb" }
-wait50: "sleep 50 ms\n(Yield to background pump)" { style.fill: "#fff9c4" }
-recheck: "Re-check self_owned_delivery_jobs()" {
-  shape: diamond
-  style.fill: "#ffffff"
-}
-none: "No delivery jobs available\nBreak delivery loop" { style.fill: "#ffcdd2" }
-send: "send_delivery(connection, transport, delivery)" { style.fill: "#bbdefb" }
-cont: "Continue loop to claim next\n(did_work = true)" { style.fill: "#c8e6c9" }
+ret_none: "Return Ok(())\n(No claimed jobs currently owned)" { style.fill: "#c8e6c9" }
+
+loop_: "For each claimed delivery" { style.fill: "#bbdefb" }
+cat_check: "Lookup category & credentials in cache\nresolve_category_smtp_credentials(cid)" { shape: diamond }
+
+pre_fail: "fail_mail_delivery()\n'smtp-transport-build'\n(Permanent pre-SMTP failure)" { style.fill: "#ffcdd2" }
+cached: "Get or build AsyncSmtpTransport\n(Pooled per category_id in HashMap)" { style.fill: "#bbdefb" }
+
+send: "send_delivery(connection, transport, delivery, instance_id).await" { style.fill: "#c8e6c9" }
+done: "Processed all owned deliveries\nReturn Ok(())" { style.fill: "#c8e6c9" }
 
 entry -> owned
-owned -> claim: "None owned yet"
-owned -> send: "Owned delivery found"
-claim -> wait50
-wait50 -> recheck
-recheck -> none: "Still empty"
-recheck -> send: "Leased delivery confirmed"
-send -> cont
-cont -> owned
+owned -> ret_none: "Empty"
+owned -> loop_: "Owned delivery job(s)"
+
+loop_ -> cat_check
+cat_check -> pre_fail: "Missing credentials / bad TLS"
+cat_check -> cached: "Valid credentials"
+cached -> send
+send -> loop_: "Next job"
+loop_ -> done: "All finished"

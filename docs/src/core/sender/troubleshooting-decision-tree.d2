@@ -5,21 +5,21 @@ start: "Sender issue detected" { style.fill: "#fff9c4" }
 check_conn: "Is daemon connected to SpacetimeDB?" { shape: diamond }
 fix_conn: "Check SPACETIMEDB_URI & network.\nVerify SpacetimeDB is running." { style.fill: "#ffcdd2" }
 
-check_auth: "Are claim reducers failing with Unauthorized?" { shape: diamond }
-fix_auth: "Sender identity missing from admin_identities.\nRun: spacetime call <db> register_admin_identity <hex>" { style.fill: "#ffcdd2" }
+check_auth: "Did daemon exit on startup with\nFatalError: missing admin permissions?" { shape: diamond }
+fix_auth: "Register identity in admin_identities\nvia Admin Web UI or CLI:\nspacetime call <db> register_admin_identity <hex>\nSave token to SPACETIMEDB_TOKEN in .env" { style.fill: "#ffcdd2" }
 
 check_ingress: "Are mail_ingress rows stuck in Processing?" { shape: diamond }
-fix_ingress: "Wait for 10-minute lease expiry or check\nif visible_message_categories view is populated." { style.fill: "#ffe0b2" }
+fix_ingress: "Check if tokens are awaiting generation\nor wait for 10-minute lease expiry.\nVerify visible_message_categories is populated." { style.fill: "#ffe0b2" }
 
 check_smtp: "Are deliveries failing with SMTP errors?" { shape: diamond }
-fix_smtp: "Check SMTP_HOST/PORT/TLS credentials.\nInspect mail_delivery_events table for status codes." { style.fill: "#ffcdd2" }
+fix_smtp: "Check SMTP app password in Admin UI\n(CategoryAppPassword table) & relay host/port.\nInspect mail_delivery_events for status codes." { style.fill: "#ffcdd2" }
 
 ok: "All systems healthy.\nDeliveries moving: Pending → Claimed → Done." { style.fill: "#c8e6c9" }
 
 start -> check_conn
 check_conn -> fix_conn: "No connection"
 check_conn -> check_auth: "Connected"
-check_auth -> fix_auth: "Unauthorized errors in logs"
+check_auth -> fix_auth: "FatalError in startup log"
 check_auth -> check_ingress: "Authorized"
 check_ingress -> fix_ingress: "Stuck in processing"
 check_ingress -> check_smtp: "Ingress completed"

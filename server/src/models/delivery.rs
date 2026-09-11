@@ -157,3 +157,16 @@ pub struct MailDeliveryEvent {
     pub details: String,
     pub worker_identity: Option<Identity>,
 }
+
+#[derive(Debug, Clone)]
+#[spacetimedb::table(accessor = system_mail_pending)]
+pub struct SystemMailPending {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub recipient: String,
+    pub subject: String,
+    pub body_text: String,
+    pub instance_id: Option<String>,
+    pub claimed_at: Option<Timestamp>,
+}

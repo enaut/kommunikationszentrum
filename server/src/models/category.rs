@@ -8,6 +8,13 @@ pub enum CategoryVisibility {
     Private,
 }
 
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SubscriptionPermission {
+    #[default]
+    Read,
+    Write,
+}
+
 impl CategoryVisibility {
     pub fn parse(value: &str) -> Result<Self, String> {
         match value {
@@ -41,6 +48,8 @@ pub struct MessageCategory {
     #[index(btree)]
     #[default(None::<u64>)]
     pub app_password_id: Option<u64>,
+    #[default(SubscriptionPermission::Read)]
+    pub default_permission: SubscriptionPermission,
 }
 
 // Private: clients never subscribe to this table directly. `visible_category_app_passwords`
@@ -146,12 +155,13 @@ pub struct Subscription {
     #[index(btree)]
     pub subscriber_account_id: u64,
     #[index(btree)]
-    pub subscriber_email: String,
+    pub account_email_id: u64,
     #[index(btree)]
     pub category_id: u64,
     pub subscribed_at: Timestamp,
     #[index(btree)]
     pub status: SubscriptionStatus,
+    pub permission: SubscriptionPermission,
 }
 
 // Private: clients never subscribe to this table directly. `active_unsubscribe_tokens`

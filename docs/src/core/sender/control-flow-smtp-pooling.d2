@@ -1,0 +1,24 @@
+direction: right
+
+delivery: "Claimed Delivery\n(ingress.category_id)"
+
+resolve: "resolve_category_smtp_credentials()" {
+  shape: diamond
+}
+
+tables: "SpacetimeDB Tables" {
+  cat: "visible_message_categories\n(app_password_id, email_address)"
+  pass: "visible_category_app_passwords\n(secret)"
+}
+
+cache: "transports Cache\nHashMap<u64, AsyncSmtpTransport>" {
+  shape: cylinder
+}
+
+send: "transport.send_raw().await\n(Reused TLS connection pool)"
+
+delivery -> resolve
+resolve -> tables.cat: "Lookup category"
+tables.cat -> tables.pass: "Lookup secret"
+tables.pass -> cache: "Get or build transport"
+cache -> send: "Dispatch email"

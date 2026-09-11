@@ -3,6 +3,7 @@ direction: right
 "Private Tables": {
   style.fill: "#edf2ff"
   account
+  account_emails
   admin_identities
   webhook_tokens
   stalwart_config
@@ -39,6 +40,15 @@ direction: right
   visible_admin_identities: |md
     ### visible_admin_identities
     * Admin-only authorization view.
+  | {
+    shape: rectangle
+    style.fill: "#e3f2fd"
+  }
+
+  visible_account_emails: |md
+    ### visible_account_emails
+    * Admin sees all rows.
+    * Member sees only their own emails.
   | {
     shape: rectangle
     style.fill: "#e3f2fd"
@@ -205,6 +215,7 @@ direction: right
 }
 
 "Private Tables".account -> "Member / Admin Views".visible_accounts
+"Private Tables".account_emails -> "Member / Admin Views".visible_account_emails
 "Private Tables".admin_identities -> "Member / Admin Views".visible_admin_identities
 "Private Tables".webhook_tokens -> "Member / Admin Views".visible_webhook_tokens
 "Private Tables".stalwart_config -> "Member / Admin Views".admin_stalwart_config

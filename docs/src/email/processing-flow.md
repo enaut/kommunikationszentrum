@@ -73,10 +73,13 @@ if !message_categories.contains(recipient_email) || !category.active {
 
 ### Subscription Validation (DATA)
 ```rust
-if subscription.active && subscription.category_id == target_category.id 
-   && subscription.subscriber_email == sender_email {
+let account_email = account_emails.find_by_email(sender_email)?;
+if is_active_subscription(&subscription.status)
+   && subscription.category_id == target_category.id 
+   && subscription.account_email_id == account_email.id 
+   && subscription.permission == SubscriptionPermission::Write {
     return ACCEPT;
 } else {
-    return QUARANTINE; // Could be legitimate but unsubscribed
+    return QUARANTINE; // Could be legitimate but unsubscribed or lacking write permissions
 }
 ```

@@ -12,7 +12,7 @@ use super::subscription_status_type::SubscriptionStatus;
 #[sats(crate = __lib)]
 pub(super) struct AdminAddSubscriptionArgs {
     pub subscriber_account_id: u64,
-    pub subscriber_email: String,
+    pub account_email_id: u64,
     pub category_id: u64,
     pub status: SubscriptionStatus,
 }
@@ -21,7 +21,7 @@ impl From<AdminAddSubscriptionArgs> for super::Reducer {
     fn from(args: AdminAddSubscriptionArgs) -> Self {
         Self::AdminAddSubscription {
             subscriber_account_id: args.subscriber_account_id,
-            subscriber_email: args.subscriber_email,
+            account_email_id: args.account_email_id,
             category_id: args.category_id,
             status: args.status,
         }
@@ -47,13 +47,13 @@ pub trait admin_add_subscription {
     fn admin_add_subscription(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         category_id: u64,
         status: SubscriptionStatus,
     ) -> __sdk::Result<()> {
         self.admin_add_subscription_then(
             subscriber_account_id,
-            subscriber_email,
+            account_email_id,
             category_id,
             status,
             |_, _| {},
@@ -69,7 +69,7 @@ pub trait admin_add_subscription {
     fn admin_add_subscription_then(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         category_id: u64,
         status: SubscriptionStatus,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -82,7 +82,7 @@ impl admin_add_subscription for super::RemoteReducers {
     fn admin_add_subscription_then(
         &self,
         subscriber_account_id: u64,
-        subscriber_email: String,
+        account_email_id: u64,
         category_id: u64,
         status: SubscriptionStatus,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -92,7 +92,7 @@ impl admin_add_subscription for super::RemoteReducers {
         self.imp.invoke_reducer_with_callback(
             AdminAddSubscriptionArgs {
                 subscriber_account_id,
-                subscriber_email,
+                account_email_id,
                 category_id,
                 status,
             },

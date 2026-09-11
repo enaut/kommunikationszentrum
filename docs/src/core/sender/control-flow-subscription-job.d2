@@ -2,18 +2,28 @@ direction: down
 
 start: "process_subscription_job()" { style.fill: "#fff9c4" }
 dup: "Check if delivery ID exists in\npending, claimed, or done tables" { shape: diamond }
-skip: "Return DeliveryQueued\n(Idempotent skip)" { style.fill: "#c8e6c9" }
+skip: "Return Ok(AlreadyQueued)\n(Idempotent skip without recount)" { style.fill: "#c8e6c9" }
 
 tok: "Lookup active_unsubscribe_tokens\nfor subscription.id" { shape: diamond }
-req: "ensure_subscription_unsubscribe_token()\n→ Return AwaitingToken" { style.fill: "#ffe0b2" }
+req: "ensure_subscription_unsubscribe_token()\n→ Return Ok(AwaitingToken)" { style.fill: "#ffe0b2" }
 
-comp: "compose_delivery()\nBuild RFC 5322 raw message with\ncustom list headers & unsubscribe links" { style.fill: "#bbdefb" }
+comp: "compose_delivery()\nBuild RFC 5322 message via lettre builder\nwith custom list headers & unsubscribe link" { style.fill: "#bbdefb" }
+comp_err: "Return Err(SubscriptionJobError::Permanent)\n(Invalid RFC 5322 address format)" { style.fill: "#ffe0b2" }
+
 enq: "enqueue_mail_delivery() reducer\n→ Inserts into MailDeliveryPending" { style.fill: "#bbdefb" }
-ret: "Return DeliveryQueued" { style.fill: "#c8e6c9" }
+enq_err: "Return Err(SubscriptionJobError::Transient)\n(Database / network failure)" { style.fill: "#ffcdd2" }
+
+ret: "Return Ok(DeliveryQueued)" { style.fill: "#c8e6c9" }
 
 start -> dup
 dup -> skip: "Already exists"
 dup -> tok: "New delivery"
+
 tok -> req: "Token missing"
 tok -> comp: "Token present"
-comp -> enq -> ret
+
+comp -> comp_err: "Composition failed"
+comp -> enq: "Success"
+
+enq -> enq_err: "Enqueue failed"
+enq -> ret: "Success"

@@ -18,7 +18,7 @@ tables: "Database Tables" {
   mta_conn_log_tbl: "mta_connection_log\n• id (PK)\n• client_ip\n• stage\n• action\n• timestamp"
   mta_msg_log_tbl: "mta_message_log\n• id (PK)\n• from_address\n• to_addresses\n• subject\n• message_size"
   categories_tbl: "message_categories\n• id (PK)\n• name\n• email_address\n• active"
-  subscriptions_tbl: "subscriptions\n• id (PK)\n• subscriber_email\n• category_id (FK)\n• active"
+  subscriptions_tbl: "subscriptions\n• id (PK)\n• account_email_id (FK)\n• category_id (FK)\n• permission"
 }
 
 logic: "Processing Logic" {

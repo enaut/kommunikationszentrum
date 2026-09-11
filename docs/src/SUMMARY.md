@@ -61,7 +61,6 @@
   - [Debugging](./development/debugging.md)
   - [Server Module](./development/server.md)
   - [Sender Daemon](./development/sender.md)
-  - [Admin Frontend Restructure](./development/admin-frontend-restructure.md)
 
 - [Operations](./operations/overview.md)
   - [Deployment]()

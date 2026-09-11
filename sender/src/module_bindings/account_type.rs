@@ -10,7 +10,7 @@ pub struct Account {
     pub id: u64,
     pub identity: __sdk::Identity,
     pub name: String,
-    pub email: String,
+    pub primary_email_id: u64,
     pub is_active: bool,
     pub last_synced: __sdk::Timestamp,
 }
@@ -26,7 +26,7 @@ pub struct AccountCols {
     pub id: __sdk::__query_builder::Col<Account, u64>,
     pub identity: __sdk::__query_builder::Col<Account, __sdk::Identity>,
     pub name: __sdk::__query_builder::Col<Account, String>,
-    pub email: __sdk::__query_builder::Col<Account, String>,
+    pub primary_email_id: __sdk::__query_builder::Col<Account, u64>,
     pub is_active: __sdk::__query_builder::Col<Account, bool>,
     pub last_synced: __sdk::__query_builder::Col<Account, __sdk::Timestamp>,
 }
@@ -38,7 +38,7 @@ impl __sdk::__query_builder::HasCols for Account {
             id: __sdk::__query_builder::Col::new(table_name, "id"),
             identity: __sdk::__query_builder::Col::new(table_name, "identity"),
             name: __sdk::__query_builder::Col::new(table_name, "name"),
-            email: __sdk::__query_builder::Col::new(table_name, "email"),
+            primary_email_id: __sdk::__query_builder::Col::new(table_name, "primary_email_id"),
             is_active: __sdk::__query_builder::Col::new(table_name, "is_active"),
             last_synced: __sdk::__query_builder::Col::new(table_name, "last_synced"),
         }
@@ -49,20 +49,20 @@ impl __sdk::__query_builder::HasCols for Account {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct AccountIxCols {
-    pub email: __sdk::__query_builder::IxCol<Account, String>,
     pub id: __sdk::__query_builder::IxCol<Account, u64>,
     pub identity: __sdk::__query_builder::IxCol<Account, __sdk::Identity>,
     pub last_synced: __sdk::__query_builder::IxCol<Account, __sdk::Timestamp>,
+    pub primary_email_id: __sdk::__query_builder::IxCol<Account, u64>,
 }
 
 impl __sdk::__query_builder::HasIxCols for Account {
     type IxCols = AccountIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         AccountIxCols {
-            email: __sdk::__query_builder::IxCol::new(table_name, "email"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
             identity: __sdk::__query_builder::IxCol::new(table_name, "identity"),
             last_synced: __sdk::__query_builder::IxCol::new(table_name, "last_synced"),
+            primary_email_id: __sdk::__query_builder::IxCol::new(table_name, "primary_email_id"),
         }
     }
 }

@@ -4,6 +4,7 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::subscription_permission_type::SubscriptionPermission;
 use super::subscription_status_type::SubscriptionStatus;
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
@@ -11,10 +12,11 @@ use super::subscription_status_type::SubscriptionStatus;
 pub struct Subscription {
     pub id: u64,
     pub subscriber_account_id: u64,
-    pub subscriber_email: String,
+    pub account_email_id: u64,
     pub category_id: u64,
     pub subscribed_at: __sdk::Timestamp,
     pub status: SubscriptionStatus,
+    pub permission: SubscriptionPermission,
 }
 
 impl __sdk::InModule for Subscription {
@@ -27,10 +29,11 @@ impl __sdk::InModule for Subscription {
 pub struct SubscriptionCols {
     pub id: __sdk::__query_builder::Col<Subscription, u64>,
     pub subscriber_account_id: __sdk::__query_builder::Col<Subscription, u64>,
-    pub subscriber_email: __sdk::__query_builder::Col<Subscription, String>,
+    pub account_email_id: __sdk::__query_builder::Col<Subscription, u64>,
     pub category_id: __sdk::__query_builder::Col<Subscription, u64>,
     pub subscribed_at: __sdk::__query_builder::Col<Subscription, __sdk::Timestamp>,
     pub status: __sdk::__query_builder::Col<Subscription, SubscriptionStatus>,
+    pub permission: __sdk::__query_builder::Col<Subscription, SubscriptionPermission>,
 }
 
 impl __sdk::__query_builder::HasCols for Subscription {
@@ -42,10 +45,11 @@ impl __sdk::__query_builder::HasCols for Subscription {
                 table_name,
                 "subscriber_account_id",
             ),
-            subscriber_email: __sdk::__query_builder::Col::new(table_name, "subscriber_email"),
+            account_email_id: __sdk::__query_builder::Col::new(table_name, "account_email_id"),
             category_id: __sdk::__query_builder::Col::new(table_name, "category_id"),
             subscribed_at: __sdk::__query_builder::Col::new(table_name, "subscribed_at"),
             status: __sdk::__query_builder::Col::new(table_name, "status"),
+            permission: __sdk::__query_builder::Col::new(table_name, "permission"),
         }
     }
 }
@@ -54,17 +58,18 @@ impl __sdk::__query_builder::HasCols for Subscription {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct SubscriptionIxCols {
+    pub account_email_id: __sdk::__query_builder::IxCol<Subscription, u64>,
     pub category_id: __sdk::__query_builder::IxCol<Subscription, u64>,
     pub id: __sdk::__query_builder::IxCol<Subscription, u64>,
     pub status: __sdk::__query_builder::IxCol<Subscription, SubscriptionStatus>,
     pub subscriber_account_id: __sdk::__query_builder::IxCol<Subscription, u64>,
-    pub subscriber_email: __sdk::__query_builder::IxCol<Subscription, String>,
 }
 
 impl __sdk::__query_builder::HasIxCols for Subscription {
     type IxCols = SubscriptionIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         SubscriptionIxCols {
+            account_email_id: __sdk::__query_builder::IxCol::new(table_name, "account_email_id"),
             category_id: __sdk::__query_builder::IxCol::new(table_name, "category_id"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
             status: __sdk::__query_builder::IxCol::new(table_name, "status"),
@@ -72,7 +77,6 @@ impl __sdk::__query_builder::HasIxCols for Subscription {
                 table_name,
                 "subscriber_account_id",
             ),
-            subscriber_email: __sdk::__query_builder::IxCol::new(table_name, "subscriber_email"),
         }
     }
 }

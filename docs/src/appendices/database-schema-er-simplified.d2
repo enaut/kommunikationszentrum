@@ -3,6 +3,9 @@ direction: down
 account: "Account\n(User Management)" {
   style.fill: lightblue
 }
+account_emails: "AccountEmail\n(User Management)" {
+  style.fill: lightblue
+}
 mta_connection_log: "MtaConnectionLog\n(MTA Processing)" {
   style.fill: lightcoral
 }
@@ -19,7 +22,13 @@ subscriptions: "Subscription\n(Category System)" {
   style.fill: lightgreen
 }
 
+account_emails -> account: "belongs to" {
+  style.stroke: blue
+}
 subscriptions -> message_categories: "belongs to" {
+  style.stroke: blue
+}
+subscriptions -> account_emails: "subscriber email" {
   style.stroke: blue
 }
 subscriptions -> account: "subscriber" {

@@ -120,3 +120,9 @@ pub fn visible_category_app_passwords(ctx: &ViewContext) -> impl Query<CategoryA
         .category_app_passwords()
         .r#filter(move |_| is_admin)
 }
+
+#[spacetimedb::view(accessor = sender_system_mail_pending, public)]
+pub fn sender_system_mail_pending(ctx: &ViewContext) -> impl Query<SystemMailPending> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.system_mail_pending().r#filter(move |_| is_admin)
+}
