@@ -88,7 +88,7 @@ pub fn AddCategoryCard() -> Element {
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "plus-circle", class: "me-2" }
-                    "{tid!(\"category-add-title\")}"
+                    {tid!("category-add-title")}
                 }
             },
             body: rsx! {
@@ -133,7 +133,7 @@ pub fn AddCategoryCard() -> Element {
                                             selected_domain.set(Some((id, dname)));
                                         }
                                     },
-                                    option { value: "", "{tid!(\"category-form-domain-select\")}" }
+                                    option { value: "", {tid!("category-form-domain-select")} }
                                     for domain in domains() {
                                         option {
                                             key: "{domain.id}",
@@ -166,8 +166,8 @@ pub fn AddCategoryCard() -> Element {
                                         _ => {}
                                     }
                                 },
-                                option { value: "Public", "{tid!(\"category-visibility-public\")}" }
-                                option { value: "Private", "{tid!(\"category-visibility-private\")}" }
+                                option { value: "Public", {tid!("category-visibility-public")} }
+                                option { value: "Private", {tid!("category-visibility-private")} }
                             }
                         }
                     }
@@ -219,7 +219,7 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "list-ul", class: "me-2" }
-                    "{tid!(\"category-table-title\")}"
+                    {tid!("category-table-title")}
                     span { class: "badge bg-white text-primary ms-2", "{categories().len()}" }
                 }
             },
@@ -227,19 +227,19 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                 if categories().is_empty() {
                     div { class: "p-4 text-muted",
                         Icon { name: "inbox", class: "me-2" }
-                        "{tid!(\"category-table-empty\")}"
+                        {tid!("category-table-empty")}
                     }
                 } else {
                     Table { hover: true, responsive: true, class: "mb-0",
                         thead { class: "table-light",
                             tr {
-                                th { "{tid!(\"category-table-th-name\")}" }
-                                th { "{tid!(\"category-table-th-email\")}" }
-                                th { "{tid!(\"category-table-th-description\")}" }
-                                th { "{tid!(\"category-table-th-status\")}" }
-                                th { "{tid!(\"category-table-th-visibility\")}" }
-                                th { class: "text-end", "{tid!(\"category-table-th-subscribers\")}" }
-                                th { class: "text-end", "{tid!(\"category-table-th-actions\")}" }
+                                th { {tid!("category-table-th-name")} }
+                                th { {tid!("category-table-th-email")} }
+                                th { {tid!("category-table-th-description")} }
+                                th { {tid!("category-table-th-status")} }
+                                th { {tid!("category-table-th-visibility")} }
+                                th { class: "text-end", {tid!("category-table-th-subscribers")} }
+                                th { class: "text-end", {tid!("category-table-th-actions")} }
                             }
                         }
                         tbody {
@@ -265,16 +265,16 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                                             td { class: "text-muted", "{cat.description}" }
                                             td {
                                                 if cat.active {
-                                                    Badge { color: Color::Success, "{tid!(\"category-status-active\")}" }
+                                                    Badge { color: Color::Success, {tid!("category-status-active")} }
                                                 } else {
-                                                    Badge { color: Color::Secondary, "{tid!(\"category-status-inactive\")}" }
+                                                    Badge { color: Color::Secondary, {tid!("category-status-inactive")} }
                                                 }
                                             }
                                             td {
                                                 if cat.visibility == CategoryVisibility::Public {
-                                                    Badge { color: Color::Info, "{tid!(\"category-visibility-public\")}" }
+                                                    Badge { color: Color::Info, {tid!("category-visibility-public")} }
                                                 } else {
-                                                    Badge { color: Color::Warning, "{tid!(\"category-visibility-private\")}" }
+                                                    Badge { color: Color::Warning, {tid!("category-visibility-private")} }
                                                 }
                                             }
                                             td { class: "text-end",
@@ -290,7 +290,7 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                                                         selected_category.set(Some(cat_id));
                                                     },
                                                     Icon { name: "pencil-square", class: "me-1" }
-                                                    "{tid!(\"category-action-details\")}"
+                                                    {tid!("category-action-details")}
                                                 }
                                                 Button {
                                                     color: Color::Danger,
@@ -303,7 +303,7 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                                                         }
                                                     },
                                                     Icon { name: "trash", class: "me-1" }
-                                                    "{tid!(\"category-action-delete\")}"
+                                                    {tid!("category-action-delete")}
                                                 }
                                             }
                                         }
@@ -339,7 +339,7 @@ pub fn CategoriesPage() -> Element {
                     Col {
                         h2 { class: "mb-0",
                             Icon { name: "tags-fill", class: "me-2" }
-                            "{tid!(\"category-page-title\")}"
+                            {tid!("category-page-title")}
                         }
                     }
                 }

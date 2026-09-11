@@ -20,7 +20,7 @@ pub fn ManagementStatusPage(user_info: UserInfo) -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "activity", class: "me-2" }
-                        "{tid!(\"management-status-title\") }"
+                        {tid!("management-status-title")}
                     }
                 }
             }
@@ -49,10 +49,7 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
         ConnectionState::Reconnecting { attempt, delay_ms } => (
             Color::Warning,
             "exclamation-triangle-fill",
-            format!(
-                "{} ({attempt}, {delay_ms} ms)",
-                tid!("status-connection-reconnecting")
-            ),
+            tid!("status-connection-reconnecting", attempt: attempt, delay_ms: delay_ms),
         ),
         ConnectionState::Error => (
             Color::Danger,
@@ -75,7 +72,7 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "plug-fill", class: "me-2" }
-                            "{tid!(\"status-connection-title\") }"
+                            {tid!("status-connection-title")}
                             Icon { name: icon_name, class: "mx-3" }
                         }
                     },
@@ -83,27 +80,29 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
                         Row { class: "text-center",
                             Col { md: ColumnSize::Span(4),
                                 div { class: "border-end",
-                                    h6 { class: "text-muted mb-1", "{tid!(\"status-identity\")}" }
+                                    h6 { class: "text-muted mb-1", {tid!("status-identity")} }
                                     p { class: "h5 mb-0", "{status_text}" }
                                     if let Some(err) = conn_error() {
-                                        div { class: "text-danger mt-1 small", "{tid!(\"status-error-label\")}: {err}" }
+                                        div { class: "text-danger mt-1 small",
+                                            {tid!("status-connection-error-details", error: err)}
+                                        }
                                     }
                                 }
                             }
                             Col { md: ColumnSize::Span(4),
                                 div { class: "border-end",
-                                    h6 { class: "text-muted mb-1", "{tid!(\"status-member-number\")}" }
+                                    h6 { class: "text-muted mb-1", {tid!("status-member-number")} }
                                     p { class: "h5 mb-0", "{user_info.mitgliedsnr}" }
                                 }
                             }
                             Col { md: ColumnSize::Span(4),
                                 div { class: "border-end",
-                                    h6 { class: "text-muted mb-1", "{tid!(\"status-email\")}" }
+                                    h6 { class: "text-muted mb-1", {tid!("status-email")} }
                                     p { class: "h5 mb-0",
                                         if let Some(email) = &user_info.email {
                                             "{email}"
                                         } else {
-                                            "{tid!(\"status-email-empty\") }"
+                                            {tid!("status-email-empty")}
                                         }
                                     }
                                 }
@@ -139,7 +138,7 @@ fn TemporaryFailedCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "clock-history", class: "me-2" }
-                            "{tid!(\"status-temporary-failed-title\") }"
+                            {tid!("status-temporary-failed-title")}
                             span { class: "badge bg-dark text-white ms-2", "{rows.len()}" }
                         }
                     },
@@ -147,7 +146,7 @@ fn TemporaryFailedCard() -> Element {
                         if rows.is_empty() {
                             p { class: "text-muted mb-0",
                                 Icon { name: "inbox", class: "me-2" }
-                                "{tid!(\"status-temporary-failed-empty\") }"
+                                {tid!("status-temporary-failed-empty")}
                             }
                         } else {
                             Table {
@@ -157,12 +156,12 @@ fn TemporaryFailedCard() -> Element {
                                 class: "mb-0 align-middle",
                                 thead { class: "table-light",
                                     tr {
-                                        th { "{tid!(\"status-temporary-failed-delivery-id\")}" }
-                                        th { "{tid!(\"status-temporary-failed-recipient\")}" }
-                                        th { "{tid!(\"status-temporary-failed-retry-at\")}" }
-                                        th { "{tid!(\"status-last-updated\")}" }
-                                        th { "{tid!(\"status-temporary-failed-reason\")}" }
-                                        th { class: "text-end", "{tid!(\"status-temporary-failed-action\")}" }
+                                        th { {tid!("status-temporary-failed-delivery-id")} }
+                                        th { {tid!("status-temporary-failed-recipient")} }
+                                        th { {tid!("status-temporary-failed-retry-at")} }
+                                        th { {tid!("status-last-updated")} }
+                                        th { {tid!("status-temporary-failed-reason")} }
+                                        th { class: "text-end", {tid!("status-temporary-failed-action")} }
                                     }
                                 }
                                 tbody {
@@ -203,7 +202,7 @@ fn TemporaryFailedCard() -> Element {
                                                                 }
                                                             },
                                                             Icon { name: "x-circle", class: "me-1" }
-                                                            "{tid!(\"status-temporary-failed-cancel\") }"
+                                                            {tid!("status-temporary-failed-cancel")}
                                                         }
                                                     }
                                                 }
@@ -237,13 +236,13 @@ fn DeliveryEventsCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "journal-text", class: "me-2" }
-                            "{tid!(\"status-delivery-events-title\") }"
+                            {tid!("status-delivery-events-title")}
                             span { class: "badge bg-white text-dark ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0", "{tid!(\"status-delivery-events-empty\") }" }
+                            p { class: "text-muted mb-0", {tid!("status-delivery-events-empty")} }
                         } else {
                             Table {
                                 hover: true,
@@ -252,11 +251,11 @@ fn DeliveryEventsCard() -> Element {
                                 class: "mb-0",
                                 thead { class: "table-light",
                                     tr {
-                                        th { "{tid!(\"status-delivery-events-id\")}" }
-                                        th { "{tid!(\"status-delivery-events-delivery-id\")}" }
-                                        th { "{tid!(\"status-delivery-events-type\")}" }
-                                        th { "{tid!(\"status-delivery-events-attempt\")}" }
-                                        th { "{tid!(\"status-delivery-events-details\")}" }
+                                        th { {tid!("status-delivery-events-id")} }
+                                        th { {tid!("status-delivery-events-delivery-id")} }
+                                        th { {tid!("status-delivery-events-type")} }
+                                        th { {tid!("status-delivery-events-attempt")} }
+                                        th { {tid!("status-delivery-events-details")} }
                                     }
                                 }
                                 tbody {
@@ -311,13 +310,13 @@ fn PendingCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "hourglass-split", class: "me-2" }
-                            "{tid!(\"status-pending-title\") }"
+                            {tid!("status-pending-title")}
                             span { class: "badge bg-white text-secondary ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0", "{tid!(\"status-pending-empty\") }" }
+                            p { class: "text-muted mb-0", {tid!("status-pending-empty")} }
                         } else {
                             Table {
                                 hover: true,
@@ -326,10 +325,10 @@ fn PendingCard() -> Element {
                                 class: "mb-0",
                                 thead { class: "table-light",
                                     tr {
-                                        th { "{tid!(\"status-pending-id\")}" }
-                                        th { "{tid!(\"status-pending-recipient\")}" }
-                                        th { "{tid!(\"status-pending-ingress\")}" }
-                                        th { "{tid!(\"status-last-updated\")}" }
+                                        th { {tid!("status-pending-id")} }
+                                        th { {tid!("status-pending-recipient")} }
+                                        th { {tid!("status-pending-ingress")} }
+                                        th { {tid!("status-last-updated")} }
                                     }
                                 }
                                 tbody {
@@ -390,13 +389,13 @@ fn ClaimedCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "person-workspace", class: "me-2" }
-                            "{tid!(\"status-claimed-title\") }"
+                            {tid!("status-claimed-title")}
                             span { class: "badge bg-white text-info ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0", "{tid!(\"status-claimed-empty\") }" }
+                            p { class: "text-muted mb-0", {tid!("status-claimed-empty")} }
                         } else {
                             Table {
                                 hover: true,
@@ -405,11 +404,11 @@ fn ClaimedCard() -> Element {
                                 class: "mb-0",
                                 thead { class: "table-light",
                                     tr {
-                                        th { "{tid!(\"status-claimed-id\")}" }
-                                        th { "{tid!(\"status-claimed-worker\")}" }
-                                        th { "{tid!(\"status-claimed-lease\")}" }
-                                        th { "{tid!(\"status-claimed-recipient\")}" }
-                                        th { "{tid!(\"status-last-updated\")}" }
+                                        th { {tid!("status-claimed-id")} }
+                                        th { {tid!("status-claimed-worker")} }
+                                        th { {tid!("status-claimed-lease")} }
+                                        th { {tid!("status-claimed-recipient")} }
+                                        th { {tid!("status-last-updated")} }
                                     }
                                 }
                                 tbody {
@@ -473,13 +472,13 @@ fn DoneCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "check-circle", class: "me-2" }
-                            "{tid!(\"status-done-title\") }"
+                            {tid!("status-done-title")}
                             span { class: "badge bg-white text-success ms-2", "{rows.len()}" }
                         }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0", "{tid!(\"status-done-empty\") }" }
+                            p { class: "text-muted mb-0", {tid!("status-done-empty")} }
                         } else {
                             Table {
                                 hover: true,
@@ -488,11 +487,11 @@ fn DoneCard() -> Element {
                                 class: "mb-0",
                                 thead { class: "table-light",
                                     tr {
-                                        th { "{tid!(\"status-done-id\")}" }
-                                        th { "{tid!(\"status-done-status\")}" }
-                                        th { "{tid!(\"status-done-recipient\")}" }
-                                        th { "{tid!(\"status-done-reason\")}" }
-                                        th { "{tid!(\"status-last-updated\")}" }
+                                        th { {tid!("status-done-id")} }
+                                        th { {tid!("status-done-status")} }
+                                        th { {tid!("status-done-recipient")} }
+                                        th { {tid!("status-done-reason")} }
+                                        th { {tid!("status-last-updated")} }
                                     }
                                 }
                                 tbody {

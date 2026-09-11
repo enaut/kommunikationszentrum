@@ -22,7 +22,7 @@ pub fn ManagementConfigurationPage() -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "sliders", class: "me-2" }
-                        "{tid!(\"management-config-title\") }"
+                        {tid!("management-config-title")}
                     }
                 }
             }
@@ -51,7 +51,7 @@ fn AdminIdentityCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "shield-fill", class: "me-2" }
-                            "{tid!(\"management-config-admin-identities\") }"
+                            {tid!("management-config-admin-identities")}
                             span { class: "badge bg-white text-primary ms-2",
                                 "{admin_identities().len()}"
                             }
@@ -87,12 +87,12 @@ fn AdminIdentityCard() -> Element {
                                         }
                                     },
                                     Icon { name: "person-plus", class: "me-1" }
-                                    "{tid!(\"management-config-admin-add\") }"
+                                    {tid!("management-config-admin-add")}
                                 }
                             }
                         }
                         if admin_identities().is_empty() {
-                            p { class: "text-muted mb-0", "{tid!(\"management-config-admin-no-identities\") }" }
+                            p { class: "text-muted mb-0", {tid!("management-config-admin-no-identities")} }
                         } else {
                             ListGroup { flush: true,
                                 for ident in admin_identities() {
@@ -150,7 +150,7 @@ fn WebhookTokenCard() -> Element {
                     header: rsx! {
                         h5 { class: "card-title mb-0",
                             Icon { name: "key-fill", class: "me-2" }
-                            "{tid!(\"management-config-webhook-title\") }"
+                            {tid!("management-config-webhook-title")}
                         }
                     },
                     body: rsx! {
@@ -189,7 +189,7 @@ fn WebhookTokenCard() -> Element {
                                         token_hash.set(hash);
                                     },
                                     Icon { name: "plus", class: "me-1" }
-                                    "{tid!(\"management-config-token-generate\") }"
+                                    {tid!("management-config-token-generate")}
                                 }
                             }
                         }
@@ -252,7 +252,7 @@ fn WebhookTokenCard() -> Element {
                                 }
                             },
                             Icon { name: "key", class: "me-1" }
-                            "{tid!(\"management-config-token-create\") }"
+                            {tid!("management-config-token-create")}
                         }
 
                         if !admin_tokens().is_empty() {
@@ -288,10 +288,10 @@ fn WebhookTokenCard() -> Element {
                                 }
                             }
                         } else {
-                            p { class: "text-muted mb-0", "{tid!(\"management-config-token-empty\") }" }
+                            p { class: "text-muted mb-0", {tid!("management-config-token-empty")} }
                         }
 
-                        p { class: "small text-muted mt-2", "{tid!(\"management-config-token-security\") }" }
+                        p { class: "small text-muted mt-2", {tid!("management-config-token-security")} }
                     }
                 }
             }
@@ -351,14 +351,14 @@ fn StalwartConfigCard() -> Element {
                         h5 { class: "card-title mb-0 d-flex justify-content-between align-items-center",
                             span {
                                 Icon { name: "server", class: "me-2" }
-                                "{tid!(\"management-config-stalwart-title\") }"
+                                {tid!("management-config-stalwart-title")}
                                 if is_configured {
                                     Badge {
                                         color: Color::Light,
                                         fill: BadgeFill::Bg,
                                         class: "text-success ms-2",
                                         Icon { name: "check-circle-fill", class: "me-1" }
-                                        "{tid!(\"management-config-stalwart-status-configured\") }"
+                                        {tid!("management-config-stalwart-status-configured")}
                                     }
                                 } else {
                                     Badge {
@@ -366,7 +366,7 @@ fn StalwartConfigCard() -> Element {
                                         fill: BadgeFill::Bg,
                                         class: "text-warning ms-2",
                                         Icon { name: "exclamation-triangle-fill", class: "me-1" }
-                                        "{tid!(\"management-config-stalwart-status-not-configured\") }"
+                                        {tid!("management-config-stalwart-status-not-configured")}
                                     }
                                 }
                             }
@@ -375,7 +375,7 @@ fn StalwartConfigCard() -> Element {
                     body: rsx! {
                         p { class: "text-muted mb-3",
                             Icon { name: "info-circle", class: "me-2" }
-                            "{tid!(\"management-config-stalwart-help\") }"
+                            {tid!("management-config-stalwart-help")}
                         }
 
                         if let Some(result) = save_result() {
@@ -385,7 +385,7 @@ fn StalwartConfigCard() -> Element {
                                         color: Color::Success,
                                         class: "mb-3 d-flex align-items-center",
                                         Icon { name: "check-circle", class: "me-2 flex-shrink-0" }
-                                        span { "{tid!(\"management-config-stalwart-saved\") }" }
+                                        span { {tid!("management-config-stalwart-saved")} }
                                     }
                                 },
                                 Err(ref err) => rsx! {
@@ -413,7 +413,7 @@ fn StalwartConfigCard() -> Element {
                                         }
                                     }
                                     div { class: "form-text text-muted",
-                                        "{tid!(\"management-config-stalwart-jmap-url-help\") }"
+                                        {tid!("management-config-stalwart-jmap-url-help")}
                                     }
                                 }
                             }
@@ -438,7 +438,7 @@ fn StalwartConfigCard() -> Element {
                                         }
                                     }
                                     div { class: "form-text text-muted",
-                                        "{tid!(\"management-config-stalwart-admin-token-help\") }"
+                                        {tid!("management-config-stalwart-admin-token-help")}
                                     }
                                 }
                             }
@@ -464,10 +464,10 @@ fn StalwartConfigCard() -> Element {
                                     },
                                     if is_saving() {
                                         Spinner { size: Size::Sm, class: "me-1" }
-                                        "{tid!(\"management-config-stalwart-saving\") }"
+                                        {tid!("management-config-stalwart-saving")}
                                     } else {
                                         Icon { name: "check-lg", class: "me-1" }
-                                        "{tid!(\"management-config-stalwart-save\") }"
+                                        {tid!("management-config-stalwart-save")}
                                     }
                                 }
                                 if is_dirty() {
@@ -488,14 +488,15 @@ fn StalwartConfigCard() -> Element {
                                             }
                                         },
                                         Icon { name: "arrow-counterclockwise", class: "me-1" }
-                                        "{tid!(\"management-config-stalwart-reset\") }"
+                                        {tid!("management-config-stalwart-reset")}
                                     }
                                 }
                             }
                             if let Some(ref config) = current_config {
                                 span { class: "text-muted small",
                                     Icon { name: "clock-history", class: "me-1" }
-                                    "{tid!(\"management-config-stalwart-last-updated\") }: "
+                                    {tid!("management-config-stalwart-last-updated")}
+                                    ": "
                                     code { "{config.updated_at.to_string()}" }
                                 }
                             }
@@ -523,7 +524,7 @@ fn DomainsCard() -> Element {
                         h5 { class: "card-title mb-0 d-flex justify-content-between align-items-center",
                             span {
                                 Icon { name: "globe", class: "me-2" }
-                                "{tid!(\"management-config-domains-title\") }"
+                                {tid!("management-config-domains-title")}
                                 span { class: "badge bg-white text-primary ms-2", "{domains().len()}" }
                             }
                             Button {
@@ -538,7 +539,7 @@ fn DomainsCard() -> Element {
                                     }
                                 },
                                 Icon { name: "arrow-repeat", class: "me-1" }
-                                "{tid!(\"management-config-domains-sync\") }"
+                                {tid!("management-config-domains-sync")}
                             }
                         }
                     },
@@ -550,14 +551,13 @@ fn DomainsCard() -> Element {
                                         color: Color::Success,
                                         class: "mb-3 d-flex align-items-start",
                                         Icon { name: "check-circle", class: "me-2 mt-1 flex-shrink-0" }
-                                        span {
-                                            "{tid!(\"management-config-sync-success\") }"
-                                            ": "
-                                            strong { "{r.domains_found}" } " {tid!(\"management-config-sync-found\")} , "
-                                            strong { "{r.domains_added}" } " {tid!(\"management-config-sync-added\")} , "
-                                            strong { "{r.domains_updated}" } " {tid!(\"management-config-sync-updated\")} , "
-                                            strong { "{r.domains_removed}" } " {tid!(\"management-config-sync-removed\")} ."
-                                        }
+                                        {tid!(
+                                            "management-config-sync-success",
+                                            found: r.domains_found,
+                                            added: r.domains_added,
+                                            updated: r.domains_updated,
+                                            removed: r.domains_removed
+                                        )}
                                     }
                                 },
                                 Ok(Err(proc_err)) => rsx! {
@@ -568,15 +568,12 @@ fn DomainsCard() -> Element {
                                         "{proc_err}"
                                     }
                                 },
-                                Err(internal_err) => {
-                                    let err_msg = tid!("management-config-sync-internal-error", error: internal_err);
-                                    rsx! {
-                                        Alert {
-                                            color: Color::Danger,
-                                            class: "mb-3 d-flex align-items-start",
-                                            Icon { name: "exclamation-circle", class: "me-2 mt-1 flex-shrink-0" }
-                                            "{err_msg}"
-                                        }
+                                Err(internal_err) => rsx! {
+                                    Alert {
+                                        color: Color::Danger,
+                                        class: "mb-3 d-flex align-items-start",
+                                        Icon { name: "exclamation-circle", class: "me-2 mt-1 flex-shrink-0" }
+                                        {tid!("management-config-sync-internal-error", error: internal_err)}
                                     }
                                 },
                             }
@@ -584,15 +581,15 @@ fn DomainsCard() -> Element {
                         if domains().is_empty() {
                             p { class: "text-muted mb-0",
                                 Icon { name: "inbox", class: "me-2" }
-                                "{tid!(\"management-config-domains-empty\") }"
+                                {tid!("management-config-domains-empty")}
                             }
                         } else {
                             Table { hover: true, responsive: true, class: "mb-0",
                                     thead { class: "table-light",
                                         tr {
-                                            th { "{tid!(\"management-config-table-id\")}" }
-                                            th { "{tid!(\"management-config-table-name\")}" }
-                                            th { "{tid!(\"management-config-table-description\")}" }
+                                            th { {tid!("management-config-table-id")} }
+                                            th { {tid!("management-config-table-name")} }
+                                            th { {tid!("management-config-table-description")} }
                                         }
                                     }
                                     tbody {
@@ -604,7 +601,7 @@ fn DomainsCard() -> Element {
                                                     if let Some(ref desc) = domain.description {
                                                         "{desc}"
                                                     } else {
-                                                        "{tid!(\"general-none\") }"
+                                                        {tid!("general-none")}
                                                     }
                                                 }
                                             }

@@ -114,15 +114,15 @@ fn LoginPage(on_login: Callback<()>) -> Element {
             Card { class: "shadow p-4", style: "min-width: 320px;",
                 div { class: "text-center mb-4",
                     Icon { name: "envelope-fill", class: "text-primary" }
-                    h4 { class: "mt-2 mb-0", "{tid!(\"app-login-title\")}" }
-                    p { class: "text-muted small", "{tid!(\"app-login-subtitle\")}" }
+                    h4 { class: "mt-2 mb-0", {tid!("app-login-title")} }
+                    p { class: "text-muted small", {tid!("app-login-subtitle")} }
                 }
                 Button {
                     color: Color::Primary,
                     class: "w-100",
                     onclick: move |_| on_login.call(()),
                     Icon { name: "box-arrow-in-right", class: "me-2" }
-                    "{tid!(\"app-login-button\")}"
+                    {tid!("app-login-button")}
                 }
             }
         }
@@ -134,8 +134,8 @@ fn AuthenticatingPage() -> Element {
     rsx! {
         div { class: "d-flex justify-content-center align-items-center vh-100",
             div { class: "text-center",
-                Spinner { color: Color::Primary, class: "mb-3", "{tid!(\"app-loading\")}" }
-                p { class: "text-muted", "{tid!(\"app-authenticating\")}" }
+                Spinner { color: Color::Primary, class: "mb-3", {tid!("app-loading")} }
+                p { class: "text-muted", {tid!("app-authenticating")} }
             }
         }
     }
@@ -147,13 +147,13 @@ fn ErrorPage(error: String, on_retry: Callback<()>) -> Element {
         div { class: "d-flex justify-content-center align-items-center vh-100 bg-light",
             Card { class: "shadow p-4 text-center", style: "min-width: 320px;",
                 Icon { name: "exclamation-triangle-fill", class: "text-danger" }
-                h5 { class: "mt-3 text-danger", "{tid!(\"app-authentication-error\")}" }
+                h5 { class: "mt-3 text-danger", {tid!("app-authentication-error")} }
                 p { class: "text-muted small mb-4", "{error}" }
                 Button {
                     color: Color::Primary,
                     onclick: move |_| on_retry.call(()),
                     Icon { name: "arrow-clockwise", class: "me-2" }
-                    "{tid!(\"app-retry\")}"
+                    {tid!("app-retry")}
                 }
             }
         }
@@ -246,8 +246,8 @@ fn AuthenticatedApp(
                     rsx! {
                         div { class: "d-flex justify-content-center align-items-center mt-5",
                             div { class: "text-center",
-                                Spinner { color: Color::Primary, class: "mb-3", "{tid!(\"app-loading\")}" }
-                                p { class: "text-muted", "{tid!(\"app-connection-loading\")}" }
+                                Spinner { color: Color::Primary, class: "mb-3", {tid!("app-loading")} }
+                                p { class: "text-muted", {tid!("app-connection-loading")} }
                             }
                         }
                     }
@@ -256,7 +256,7 @@ fn AuthenticatedApp(
                     Container { class: "mt-5",
                         Alert { color: Color::Danger, class: "d-flex align-items-center",
                             Icon { name: "exclamation-circle", class: "me-2" }
-                            "{tid!(\"app-connection-lost\")}"
+                            {tid!("app-connection-lost")}
                         }
                     }
                 },

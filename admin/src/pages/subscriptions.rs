@@ -120,17 +120,17 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 Col {
                     h2 { class: "mb-0",
                         Icon { name: "envelope-check", class: "me-2" }
-                        "{tid!(\"subscriptions-page-title\") }"
+                        {tid!("subscriptions-page-title")}
                     }
                     p { class: "text-muted mt-1",
-                        "{tid!(\"subscriptions-page-description\") }"
+                        {tid!("subscriptions-page-description")}
                     }
                 }
             }
 
             Card { class: "mb-4 shadow-sm",
                 header: rsx! {
-                    h5 { class: "mb-0", "{tid!(\"subscriptions-linked-emails-title\")}" }
+                    h5 { class: "mb-0", {tid!("subscriptions-linked-emails-title")} }
                 },
                 body: rsx! {
                     ul { class: "list-group list-group-flush mb-3",
@@ -143,12 +143,12 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                         div {
                                             if email.id == my_primary_email_id {
                                                 strong { "{email.email} " }
-                                                span { class: "text-muted", "{tid!(\"subscriptions-primary-badge\")}" }
+                                                span { class: "text-muted", {tid!("subscriptions-primary-badge")} }
                                             } else {
                                                 span { "{email.email}" }
                                             }
                                             if !email.is_verified {
-                                                Badge { color: Color::Warning, class: "ms-2", "{tid!(\"subscriptions-email-pending-verification\")}" }
+                                                Badge { color: Color::Warning, class: "ms-2", {tid!("subscriptions-email-pending-verification")} }
                                             }
                                         }
                                         if email.source != EmailSource::DjangoSync && email.id != my_primary_email_id {
@@ -196,7 +196,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                 }
                                             }
                                         },
-                                        "{tid!(\"subscriptions-send-verification\")}"
+                                        {tid!("subscriptions-send-verification")}
                                     }
                                 }
                             }
@@ -207,7 +207,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                     show_add_email.set(false);
                                     add_email_input.set(String::new());
                                 },
-                                "{tid!(\"general-cancel\")}"
+                                {tid!("general-cancel")}
                             }
                         }
                     } else {
@@ -219,7 +219,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                 add_email_input.set(String::new());
                             },
                             Icon { name: "plus-lg", class: "me-2" }
-                            "{tid!(\"subscriptions-add-email-button\")}"
+                            {tid!("subscriptions-add-email-button")}
                         }
                     }
                 },
@@ -249,7 +249,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                     user_picked_tab.set(true);
                                     active_tab.set(TopicTab::Sonstige);
                                 },
-                                "{tid!(\"subscriptions-tab-other\") }"
+                                {tid!("subscriptions-tab-other")}
                             }
                         }
                     }
@@ -260,9 +260,9 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
                     if topic_ids.is_empty() && sonstige_cats.is_empty() {
-                        "{tid!(\"subscriptions-empty\") }"
+                        {tid!("subscriptions-empty")}
                     } else {
-                        "{tid!(\"subscriptions-empty-category\") }"
+                        {tid!("subscriptions-empty-category")}
                     }
                 }
             } else {
@@ -288,13 +288,13 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                         header: rsx! {
                                             h5 { class: "card-title mb-0", "{cat.name}" }
                                             if is_subscribed_any {
-                                                Badge { color: Color::Success, class: "ms-2", "{tid!(\"subscriptions-subscribed\")}" }
+                                                Badge { color: Color::Success, class: "ms-2", {tid!("subscriptions-subscribed")} }
                                             }
 
                                             if cat.visibility == CategoryVisibility::Public {
-                                                Badge { color: Color::Info, class: "ms-2 align-middle", "{tid!(\"subscriptions-public\")}" }
+                                                Badge { color: Color::Info, class: "ms-2 align-middle", {tid!("subscriptions-public")} }
                                             } else {
-                                                Badge { color: Color::Warning, class: "ms-2 align-middle", "{tid!(\"subscriptions-private\")}" }
+                                                Badge { color: Color::Warning, class: "ms-2 align-middle", {tid!("subscriptions-private")} }
                                             }
                                         },
                                         body: rsx! {
@@ -306,7 +306,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                 }
                                             }
                                             div { class: "mt-auto pt-2 border-top",
-                                                small { class: "text-muted fw-bold d-block mb-2", "{tid!(\"subscriptions-card-email-subscriptions\")}" }
+                                                small { class: "text-muted fw-bold d-block mb-2", {tid!("subscriptions-card-email-subscriptions")} }
                                                 div { class: "d-flex flex-column gap-2",
                                                     for email in my_emails_clone {
                                                         {
@@ -348,15 +348,15 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                                         r#for: "{input_id}",
                                                                         if email.id == my_primary_email_id {
                                                                             strong { "{email.email} " }
-                                                                            span { class: "text-muted", "{tid!(\"subscriptions-primary-badge\")}" }
+                                                                            span { class: "text-muted", {tid!("subscriptions-primary-badge")} }
                                                                         } else {
                                                                             span { "{email.email}" }
                                                                         }
                                                                         if !email.is_verified {
-                                                                            Badge { color: Color::Secondary, class: "ms-1", "{tid!(\"subscriptions-email-unverified\")}" }
+                                                                            Badge { color: Color::Secondary, class: "ms-1", {tid!("subscriptions-email-unverified")} }
                                                                         }
                                                                         if is_required {
-                                                                            Badge { color: Color::Info, class: "ms-1", "{tid!(\"subscriptions-required\")}" }
+                                                                            Badge { color: Color::Info, class: "ms-1", {tid!("subscriptions-required")} }
                                                                         }
                                                                     }
                                                                 }

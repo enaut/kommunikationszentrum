@@ -71,11 +71,11 @@ pub fn MembersPage() -> Element {
                 Col { md: ColumnSize::Span(6),
                     h2 { class: "mb-0",
                         Icon { name: "people-fill", class: "me-2" }
-                        "{tid!(\"members-page-title\") }"
+                        {tid!("members-page-title")}
                     }
                     p { class: "text-muted mt-1 mb-0",
                         Badge { color: Color::Primary, class: "me-2", "{filtered_accounts.len()} / {all_accounts.len()}" }
-                        "{tid!(\"members-summary\") }"
+                        {tid!("members-summary")}
                     }
                 }
                 Col { md: ColumnSize::Span(6), class: "mt-2 mt-md-0",
@@ -94,12 +94,12 @@ pub fn MembersPage() -> Element {
             if all_accounts.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
-                    "{tid!(\"members-empty\") }"
+                    {tid!("members-empty")}
                 }
             } else if filtered_accounts.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
-                    "{tid!(\"general-no-results\") }"
+                    {tid!("general-no-results")}
                 }
             } else {
                 Card {
@@ -109,12 +109,12 @@ pub fn MembersPage() -> Element {
                         Table { hover: true, responsive: true, class: "mb-0",
                             thead { class: "table-light",
                                 tr {
-                                    th { "{tid!(\"members-table-id\")}" }
-                                    th { "{tid!(\"members-table-name\")}" }
-                                    th { "{tid!(\"members-table-email\")}" }
-                                    th { "{tid!(\"members-table-status\")}" }
-                                    th { "{tid!(\"members-table-subscriptions\")}" }
-                                    th { "{tid!(\"members-table-action\")}" }
+                                    th { {tid!("members-table-id")} }
+                                    th { {tid!("members-table-name")} }
+                                    th { {tid!("members-table-email")} }
+                                    th { {tid!("members-table-status")} }
+                                    th { {tid!("members-table-subscriptions")} }
+                                    th { {tid!("members-table-action")} }
                                 }
                             }
                             tbody {
@@ -219,16 +219,16 @@ pub fn MembersPage() -> Element {
                                                                     add_email_account.set(Some(acct_id));
                                                                     add_email_input.set(String::new());
                                                                 },
-                                                                "{tid!(\"members-add-email\")}"
+                                                                {tid!("members-add-email")}
                                                             }
                                                         }
                                                     }
                                                 }
                                                 td {
                                                     if account.is_active {
-                                                        Badge { color: Color::Success, "{tid!(\"members-status-active\")}" }
+                                                        Badge { color: Color::Success, {tid!("members-status-active")} }
                                                     } else {
-                                                        Badge { color: Color::Danger, "{tid!(\"members-status-inactive\")}" }
+                                                        Badge { color: Color::Danger, {tid!("members-status-inactive")} }
                                                     }
                                                 }
                                                 td {
@@ -277,7 +277,7 @@ pub fn MembersPage() -> Element {
                                                                         add_form_category.set(id);
                                                                     }
                                                                 },
-                                                                option { value: "0", "{tid!(\"general-no-topic-selected\")}" }
+                                                                option { value: "0", {tid!("general-no-topic-selected")} }
                                                                 for cat in categories().into_iter().filter(|c| c.active) {
                                                                     {
                                                                         let val = cat.id.to_string();
@@ -353,7 +353,7 @@ pub fn MembersPage() -> Element {
                                                                 add_form_email_id.set(0);
                                                             },
                                                             Icon { name: "plus-lg", class: "me-1" }
-                                                            "{tid!(\"members-add-topic\") }"
+                                                            {tid!("members-add-topic")}
                                                         }
                                                     }
                                                 }

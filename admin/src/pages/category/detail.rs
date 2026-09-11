@@ -39,7 +39,7 @@ pub fn CategoryDetailsCard(
             header: rsx! {
                 h5 { class: "card-title mb-0",
                     Icon { name: "pencil-square", class: "me-2" }
-                    "{tid!(\"category-detail-title\") }"
+                    {tid!("category-detail-title")}
                 }
             },
             body: rsx! {
@@ -70,11 +70,11 @@ pub fn CategoryDetailsCard(
                                 _ => {}
                             }
                         },
-                        option { value: "Public", "{tid!(\"category-visibility-public\")}" }
-                        option { value: "Private", "{tid!(\"category-visibility-private\")}" }
+                        option { value: "Public", {tid!("category-visibility-public")} }
+                        option { value: "Private", {tid!("category-visibility-private")} }
                     }
                     FormText {
-                        "{tid!(\"category-detail-visibility-help\") }"
+                        {tid!("category-detail-visibility-help")}
                     }
                 }
                 FormGroup { label: tid!("category-detail-email"),
@@ -84,7 +84,7 @@ pub fn CategoryDetailsCard(
                         disabled: true,
                         readonly: true,
                     }
-                    FormText { "{tid!(\"category-detail-email-help\") }" }
+                    FormText { {tid!("category-detail-email-help")} }
                 }
                 Button {
                     color: Color::Primary,
@@ -101,12 +101,12 @@ pub fn CategoryDetailsCard(
                             Err(e) => {
                                 error!("update_message_category failed: {e:?}");
                                 save_message
-                                    .set(Some((format!("{}: {e:?}", tid!("category-detail-save-error")), Color::Danger)));
+                                    .set(Some((tid!("category-detail-save-error", error: format!("{e:?}")), Color::Danger)));
                             }
                         }
                     },
                     Icon { name: "check-lg", class: "me-2" }
-                    "{tid!(\"category-detail-save\") }"
+                    {tid!("category-detail-save")}
                 }
             },
         }
@@ -165,13 +165,13 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
             Container { fluid: true, class: "mt-4",
                 Alert { color: Color::Warning, class: "d-flex align-items-center",
                     Icon { name: "exclamation-triangle", class: "me-2" }
-                    "{tid!(\"category-detail-not-found\") }"
+                    {tid!("category-detail-not-found")}
                 }
                 Button {
                     color: Color::Secondary,
                     onclick: move |_| on_back.call(()),
                     Icon { name: "arrow-left", class: "me-2" }
-                    "{tid!(\"category-detail-back\") }"
+                    {tid!("category-detail-back")}
                 }
             }
         };
@@ -223,7 +223,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                         class: "mb-2",
                         onclick: move |_| on_back.call(()),
                         Icon { name: "arrow-left", class: "me-2" }
-                        "{tid!(\"category-detail-back\") }"
+                        {tid!("category-detail-back")}
                     }
                     h2 { class: "mb-0",
                         Icon { name: "tag-fill", class: "me-2" }
@@ -232,26 +232,26 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                             Badge {
                                 color: Color::Success,
                                 class: "ms-2 align-middle",
-                                "{tid!(\"category-status-active\") }"
+                                {tid!("category-status-active")}
                             }
                         } else {
                             Badge {
                                 color: Color::Secondary,
                                 class: "ms-2 align-middle",
-                                "{tid!(\"category-status-inactive\") }"
+                                {tid!("category-status-inactive")}
                             }
                         }
                         if cat.visibility == CategoryVisibility::Public {
                             Badge {
                                 color: Color::Info,
                                 class: "ms-2 align-middle",
-                                "{tid!(\"category-visibility-public\") }"
+                                {tid!("category-visibility-public")}
                             }
                         } else {
                             Badge {
                                 color: Color::Warning,
                                 class: "ms-2 align-middle",
-                                "{tid!(\"category-visibility-private\") }"
+                                {tid!("category-visibility-private")}
                             }
                         }
                     }
