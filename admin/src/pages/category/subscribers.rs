@@ -7,6 +7,7 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_remove_subscription, use_table_visible_accounts, use_table_visible_subscriptions, use_table_visible_account_emails,
+    use_reducer_update_account_config,
 };
 use crate::module_bindings::SubscriptionStatus;
 use crate::pages::category::modals::EditSubscriptionTarget;
@@ -84,6 +85,20 @@ pub fn CategorySubscribersCard(
     mut show_edit_modal: Signal<bool>,
     mut edit_target: Signal<Option<EditSubscriptionTarget>>,
 ) -> Element {
+    let update_config = use_reducer_update_account_config();
+    use_effect({
+        let uc = update_config.clone();
+        move || {
+            uc(None, None, None, false, None, None, None, false, Some(category_id), false, None, None);
+        }
+    });
+    use_drop({
+        let uc = update_config.clone();
+        move || {
+            uc(None, None, None, false, None, None, None, false, None, true, None, None);
+        }
+    });
+
     let subscriptions = use_table_visible_subscriptions();
     let accounts = use_table_visible_accounts();
     let account_emails = use_table_visible_account_emails();

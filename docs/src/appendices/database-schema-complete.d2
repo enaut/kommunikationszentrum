@@ -12,6 +12,10 @@ email_verification_tokens: {
   label: "EmailVerificationToken\ntoken: String (PK)\naccount_id: u64 (FK)\nemail: String\ncreated_at: i64\nexpires_at: i64"
 }
 
+account_configs: {
+  label: "AccountConfig\naccount_id: u64 (PK, FK)\nmessage_offset: u32\nmessage_limit: u32\nselected_message_category: Option<u64>\nmember_offset: u32\nmember_limit: u32\nmember_search_query: Option<String>\nlanguage: Option<String>\ntheme: Option<String>"
+}
+
 system_mail_pending: {
   label: "SystemMailPending\nid: u64 (PK, auto_inc)\nrecipient: String\nsubject: String\nbody_text: String\ninstance_id: Option<String>\nclaimed_at: Option<i64>"
 }
@@ -49,6 +53,9 @@ account_emails -> account: "account_id → id" {
 email_verification_tokens -> account: "account_id → id" {
   style.stroke: blue
 }
+account_configs -> account: "account_id → id" {
+  style.stroke: blue
+}
 subscriptions -> account_emails: "account_email_id → id" {
   style.stroke: blue
 }
@@ -82,6 +89,7 @@ category_mgmt: "Category Management" {
 user_mgmt: "User Management" {
   style.fill: "#fffde7"
   account
+  account_configs
   account_emails
   email_verification_tokens
 }

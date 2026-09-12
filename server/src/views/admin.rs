@@ -62,9 +62,18 @@ pub fn sender_mail_delivery_temporary_failed(
 }
 
 #[spacetimedb::view(accessor = sender_mail_messages, public)]
-pub fn sender_mail_messages(ctx: &ViewContext) -> impl Query<MailMessage> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.mail_message().r#filter(move |_| is_admin)
+pub fn sender_mail_messages(ctx: &ViewContext) -> Vec<MailMessage> {
+    if !is_admin_user(ctx) {
+        return vec![];
+    }
+    let received = crate::views::member::get_paginated_received_messages(ctx);
+    let mut ids: Vec<_> = received.into_iter().map(|rm| rm.mail_message_id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    
+    ids.into_iter()
+        .filter_map(|id| ctx.db.mail_message().id().find(&id))
+        .collect()
 }
 
 #[spacetimedb::view(accessor = active_subscriptions, public)]

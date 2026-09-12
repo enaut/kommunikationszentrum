@@ -11,25 +11,30 @@ use crate::{
         use_reducer_remove_account_email, use_reducer_remove_subscription, use_subscription,
         use_table_visible_account_emails, use_table_visible_accounts,
         use_table_visible_message_categories, use_table_visible_subscriptions,
+        use_table_visible_account_configs, use_reducer_update_account_config,
     },
     module_bindings::{EmailSource, SubscriptionStatus},
+    oauth::UserInfo,
     pages::category::status_color,
 };
 
 /// Admin-only view: all members with their current subscriptions.
 /// Admins can add or remove subscriptions on behalf of any member.
 #[component]
-pub fn MembersPage() -> Element {
+pub fn MembersPage(user_info: UserInfo) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
         "SELECT * FROM visible_account_emails",
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
+        "SELECT * FROM visible_account_configs",
     ]);
     let accounts = use_table_visible_accounts();
     let account_emails = use_table_visible_account_emails();
     let subscriptions = use_table_visible_subscriptions();
     let categories = use_table_visible_message_categories();
+    let configs = use_table_visible_account_configs();
+    let update_config = use_reducer_update_account_config();
     let add_subscription = use_reducer_admin_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
 
@@ -42,28 +47,24 @@ pub fn MembersPage() -> Element {
 
     let admin_add_email = use_reducer_admin_add_account_email();
     let remove_email = use_reducer_remove_account_email();
+    
+    // Which account's inline add-email form is currently open.
     let mut add_email_account: Signal<Option<u64>> = use_signal(|| None);
     let mut add_email_input: Signal<String> = use_signal(|| String::new());
-    let mut search_query = use_signal(String::new);
+
+    let config = configs().into_iter().next();
+    let search_query = config.as_ref().and_then(|c| c.member_search_query.clone()).unwrap_or_default();
+    let current_offset = config.as_ref().map(|c| c.member_offset).unwrap_or(0);
+    let current_limit = config.as_ref().map(|c| c.member_limit).unwrap_or(50);
+
+    let total_accounts = config.as_ref().map(|c| c.total_accounts).unwrap_or_else(|| accounts().len() as u32);
+    let search_matching_accounts = config.as_ref().map(|c| c.search_matching_accounts).unwrap_or_else(|| accounts().len() as u32);
 
     let all_accounts = accounts();
-    let all_emails = account_emails();
-    let query = search_query().trim().to_lowercase();
-    let filtered_accounts: Vec<_> = all_accounts
-        .iter()
-        .filter(|acc| {
-            if query.is_empty() {
-                return true;
-            }
-            if acc.id.to_string().contains(&query) || acc.name.to_lowercase().contains(&query) {
-                return true;
-            }
-            all_emails
-                .iter()
-                .any(|e| e.account_id == acc.id && e.email.to_lowercase().contains(&query))
-        })
-        .cloned()
-        .collect();
+
+    // filtered_accounts is now just all_accounts because the server already filters and slices
+    let mut filtered_accounts = all_accounts.clone();
+    filtered_accounts.sort_by_key(|a| a.id);
 
     rsx! {
         Container { fluid: true, class: "mt-4",
@@ -74,32 +75,74 @@ pub fn MembersPage() -> Element {
                         {tid!("members-page-title")}
                     }
                     p { class: "text-muted mt-1 mb-0",
-                        Badge { color: Color::Primary, class: "me-2", "{filtered_accounts.len()} / {all_accounts.len()}" }
+                        Badge { color: Color::Primary, class: "me-2", "{search_matching_accounts} / {total_accounts}" }
                         {tid!("members-summary")}
                     }
                 }
                 Col { md: ColumnSize::Span(6), class: "mt-2 mt-md-0",
-                    InputGroup {
-                        InputGroupText { Icon { name: "search" } }
-                        Input {
-                            r#type: "search",
-                            placeholder: tid!("subscriber-search-placeholder"),
-                            value: "{search_query}",
-                            oninput: move |e: FormEvent| search_query.set(e.value()),
+                    div { class: "d-flex align-items-center gap-2",
+                        InputGroup { class: "mb-0",
+                            InputGroupText { Icon { name: "search" } }
+                            Input {
+                                r#type: "search",
+                                placeholder: tid!("subscriber-search-placeholder"),
+                                value: "{search_query}",
+                                oninput: {
+                                    let update_config = update_config.clone();
+                                    move |e: FormEvent| {
+                                        let val = e.value();
+                                        if val.is_empty() {
+                                            update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+                                        } else {
+                                            update_config(None, None, None, false, Some(0), None, Some(val), false, None, false, None, None);
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                        div { class: "ms-auto d-flex align-items-center gap-2 text-nowrap",
+                            Button {
+                                color: Color::Secondary,
+                                outline: true,
+                                size: Size::Sm,
+                                disabled: current_offset == 0,
+                                onclick: {
+                                    let update_config = update_config.clone();
+                                    move |_| {
+                                        if current_offset >= current_limit {
+                                            update_config(None, None, None, false, Some(current_offset - current_limit), None, None, false, None, false, None, None);
+                                        } else {
+                                            update_config(None, None, None, false, Some(0), None, None, false, None, false, None, None);
+                                        }
+                                    }
+                                },
+                                Icon { name: "chevron-left" }
+                            }
+                            span { class: "text-muted small",
+                                "Page {(current_offset / current_limit) + 1}"
+                            }
+                            Button {
+                                color: Color::Secondary,
+                                outline: true,
+                                size: Size::Sm,
+                                disabled: current_offset + current_limit >= search_matching_accounts,
+                                onclick: {
+                                    let update_config = update_config.clone();
+                                    move |_| {
+                                        update_config(None, None, None, false, Some(current_offset + current_limit), None, None, false, None, false, None, None);
+                                    }
+                                },
+                                Icon { name: "chevron-right" }
+                            }
                         }
                     }
                 }
             }
 
-            if all_accounts.is_empty() {
+            if filtered_accounts.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
                     {tid!("members-empty")}
-                }
-            } else if filtered_accounts.is_empty() {
-                Alert { color: Color::Info,
-                    Icon { name: "info-circle", class: "me-2" }
-                    {tid!("general-no-results")}
                 }
             } else {
                 Card {

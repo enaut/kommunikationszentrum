@@ -8,6 +8,8 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 pub mod dioxus;
 
+pub mod account_config_type;
+pub mod account_configs_table;
 pub mod account_email_type;
 pub mod account_type;
 pub mod active_subscriptions_table;
@@ -93,10 +95,12 @@ pub mod sync_user_reducer;
 pub mod system_mail_pending_type;
 pub mod topic_type;
 pub mod unregister_admin_identity_reducer;
+pub mod update_account_config_reducer;
 pub mod update_message_category_reducer;
 pub mod update_subscription_permission_reducer;
 pub mod user_request_email_verification_reducer;
 pub mod user_verify_email_reducer;
+pub mod visible_account_configs_table;
 pub mod visible_account_emails_table;
 pub mod visible_accounts_table;
 pub mod visible_admin_identities_table;
@@ -110,6 +114,8 @@ pub mod visible_topics_table;
 pub mod visible_webhook_tokens_table;
 pub mod webhook_token_type;
 
+pub use account_config_type::AccountConfig;
+pub use account_configs_table::*;
 pub use account_email_type::AccountEmail;
 pub use account_type::Account;
 pub use active_subscriptions_table::*;
@@ -195,10 +201,12 @@ pub use sync_user_reducer::sync_user;
 pub use system_mail_pending_type::SystemMailPending;
 pub use topic_type::Topic;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
+pub use update_account_config_reducer::update_account_config;
 pub use update_message_category_reducer::update_message_category;
 pub use update_subscription_permission_reducer::update_subscription_permission;
 pub use user_request_email_verification_reducer::user_request_email_verification;
 pub use user_verify_email_reducer::user_verify_email;
+pub use visible_account_configs_table::*;
 pub use visible_account_emails_table::*;
 pub use visible_accounts_table::*;
 pub use visible_admin_identities_table::*;
@@ -368,6 +376,20 @@ pub enum Reducer {
     UnregisterAdminIdentity {
         identity_hex: String,
     },
+    UpdateAccountConfig {
+        message_offset: Option<u32>,
+        message_limit: Option<u32>,
+        selected_message_category: Option<u64>,
+        clear_selected_message_category: bool,
+        member_offset: Option<u32>,
+        member_limit: Option<u32>,
+        member_search_query: Option<String>,
+        clear_member_search_query: bool,
+        viewing_category_id: Option<u64>,
+        clear_viewing_category_id: bool,
+        language: Option<String>,
+        theme: Option<String>,
+    },
     UpdateMessageCategory {
         category_id: u64,
         name: String,
@@ -433,6 +455,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::SetStalwartConfig { .. } => "set_stalwart_config",
             Reducer::SyncUser { .. } => "sync_user",
             Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
+            Reducer::UpdateAccountConfig { .. } => "update_account_config",
             Reducer::UpdateMessageCategory { .. } => "update_message_category",
             Reducer::UpdateSubscriptionPermission { .. } => "update_subscription_permission",
             Reducer::UserRequestEmailVerification { .. } => "user_request_email_verification",
@@ -706,6 +729,33 @@ Reducer::EnqueueMailDelivery{
 }             => __sats::bsatn::to_vec(&unregister_admin_identity_reducer::UnregisterAdminIdentityArgs {
                 identity_hex: identity_hex.clone(),
 }),
+            Reducer::UpdateAccountConfig{
+                message_offset,
+                message_limit,
+                selected_message_category,
+                clear_selected_message_category,
+                member_offset,
+                member_limit,
+                member_search_query,
+                clear_member_search_query,
+                viewing_category_id,
+                clear_viewing_category_id,
+                language,
+                theme,
+}             => __sats::bsatn::to_vec(&update_account_config_reducer::UpdateAccountConfigArgs {
+                message_offset: message_offset.clone(),
+                message_limit: message_limit.clone(),
+                selected_message_category: selected_message_category.clone(),
+                clear_selected_message_category: clear_selected_message_category.clone(),
+                member_offset: member_offset.clone(),
+                member_limit: member_limit.clone(),
+                member_search_query: member_search_query.clone(),
+                clear_member_search_query: clear_member_search_query.clone(),
+                viewing_category_id: viewing_category_id.clone(),
+                clear_viewing_category_id: clear_viewing_category_id.clone(),
+                language: language.clone(),
+                theme: theme.clone(),
+}),
             Reducer::UpdateMessageCategory{
                 category_id,
                 name,
@@ -743,6 +793,7 @@ Reducer::EnqueueMailDelivery{
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub struct DbUpdate {
+    account_configs: __sdk::TableUpdate<AccountConfig>,
     active_subscriptions: __sdk::TableUpdate<Subscription>,
     active_unsubscribe_tokens: __sdk::TableUpdate<SubscriptionUnsubscribeToken>,
     admin_stalwart_config: __sdk::TableUpdate<StalwartConfig>,
@@ -758,6 +809,7 @@ pub struct DbUpdate {
     sender_mail_ingress: __sdk::TableUpdate<MailIngress>,
     sender_mail_messages: __sdk::TableUpdate<MailMessage>,
     sender_system_mail_pending: __sdk::TableUpdate<SystemMailPending>,
+    visible_account_configs: __sdk::TableUpdate<AccountConfig>,
     visible_account_emails: __sdk::TableUpdate<AccountEmail>,
     visible_accounts: __sdk::TableUpdate<Account>,
     visible_admin_identities: __sdk::TableUpdate<AdminIdentity>,
@@ -777,6 +829,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
         let mut db_update = DbUpdate::default();
         for table_update in __sdk::transaction_update_iter_table_updates(raw) {
             match &table_update.table_name[..] {
+                "account_configs" => db_update
+                    .account_configs
+                    .append(account_configs_table::parse_table_update(table_update)?),
                 "active_subscriptions" => db_update.active_subscriptions.append(
                     active_subscriptions_table::parse_table_update(table_update)?,
                 ),
@@ -830,6 +885,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 ),
                 "sender_system_mail_pending" => db_update.sender_system_mail_pending.append(
                     sender_system_mail_pending_table::parse_table_update(table_update)?,
+                ),
+                "visible_account_configs" => db_update.visible_account_configs.append(
+                    visible_account_configs_table::parse_table_update(table_update)?,
                 ),
                 "visible_account_emails" => db_update.visible_account_emails.append(
                     visible_account_emails_table::parse_table_update(table_update)?,
@@ -894,6 +952,9 @@ impl __sdk::DbUpdate for DbUpdate {
     ) -> AppliedDiff<'_> {
         let mut diff = AppliedDiff::default();
 
+        diff.account_configs = cache
+            .apply_diff_to_table::<AccountConfig>("account_configs", &self.account_configs)
+            .with_updates_by_pk(|row| &row.account_id);
         diff.expire_stale_delivery_claims_schedule = cache
             .apply_diff_to_table::<ExpireStaleDeliveryClaimsSchedule>(
                 "expire_stale_delivery_claims_schedule",
@@ -962,14 +1023,17 @@ impl __sdk::DbUpdate for DbUpdate {
             .apply_diff_to_table::<MailIngress>("sender_mail_ingress", &self.sender_mail_ingress)
             .with_updates_by_pk(|row| &row.id);
         diff.sender_mail_messages = cache
-            .apply_diff_to_table::<MailMessage>("sender_mail_messages", &self.sender_mail_messages)
-            .with_updates_by_pk(|row| &row.id);
+            .apply_diff_to_table::<MailMessage>("sender_mail_messages", &self.sender_mail_messages);
         diff.sender_system_mail_pending = cache
             .apply_diff_to_table::<SystemMailPending>(
                 "sender_system_mail_pending",
                 &self.sender_system_mail_pending,
             )
             .with_updates_by_pk(|row| &row.id);
+        diff.visible_account_configs = cache.apply_diff_to_table::<AccountConfig>(
+            "visible_account_configs",
+            &self.visible_account_configs,
+        );
         diff.visible_account_emails = cache.apply_diff_to_table::<AccountEmail>(
             "visible_account_emails",
             &self.visible_account_emails,
@@ -1023,6 +1087,9 @@ impl __sdk::DbUpdate for DbUpdate {
         let mut db_update = DbUpdate::default();
         for table_rows in raw.tables {
             match &table_rows.table[..] {
+                "account_configs" => db_update
+                    .account_configs
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "active_subscriptions" => db_update
                     .active_subscriptions
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
@@ -1064,6 +1131,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_system_mail_pending" => db_update
                     .sender_system_mail_pending
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_account_configs" => db_update
+                    .visible_account_configs
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_account_emails" => db_update
                     .visible_account_emails
@@ -1111,6 +1181,9 @@ impl __sdk::DbUpdate for DbUpdate {
         let mut db_update = DbUpdate::default();
         for table_rows in raw.tables {
             match &table_rows.table[..] {
+                "account_configs" => db_update
+                    .account_configs
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "active_subscriptions" => db_update
                     .active_subscriptions
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -1152,6 +1225,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_system_mail_pending" => db_update
                     .sender_system_mail_pending
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_account_configs" => db_update
+                    .visible_account_configs
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_account_emails" => db_update
                     .visible_account_emails
@@ -1201,6 +1277,7 @@ impl __sdk::DbUpdate for DbUpdate {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub struct AppliedDiff<'r> {
+    account_configs: __sdk::TableAppliedDiff<'r, AccountConfig>,
     active_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     active_unsubscribe_tokens: __sdk::TableAppliedDiff<'r, SubscriptionUnsubscribeToken>,
     admin_stalwart_config: __sdk::TableAppliedDiff<'r, StalwartConfig>,
@@ -1217,6 +1294,7 @@ pub struct AppliedDiff<'r> {
     sender_mail_ingress: __sdk::TableAppliedDiff<'r, MailIngress>,
     sender_mail_messages: __sdk::TableAppliedDiff<'r, MailMessage>,
     sender_system_mail_pending: __sdk::TableAppliedDiff<'r, SystemMailPending>,
+    visible_account_configs: __sdk::TableAppliedDiff<'r, AccountConfig>,
     visible_account_emails: __sdk::TableAppliedDiff<'r, AccountEmail>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
     visible_admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
@@ -1241,6 +1319,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         event: &EventContext,
         callbacks: &mut __sdk::DbCallbacks<RemoteModule>,
     ) {
+        callbacks.invoke_table_row_callbacks::<AccountConfig>(
+            "account_configs",
+            &self.account_configs,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<Subscription>(
             "active_subscriptions",
             &self.active_subscriptions,
@@ -1309,6 +1392,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<SystemMailPending>(
             "sender_system_mail_pending",
             &self.sender_system_mail_pending,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<AccountConfig>(
+            "visible_account_configs",
+            &self.visible_account_configs,
             event,
         );
         callbacks.invoke_table_row_callbacks::<AccountEmail>(
@@ -2026,6 +2114,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
     type QueryBuilder = __sdk::QueryBuilder;
 
     fn register_tables(client_cache: &mut __sdk::ClientCache<Self>) {
+        account_configs_table::register_table(client_cache);
         active_subscriptions_table::register_table(client_cache);
         active_unsubscribe_tokens_table::register_table(client_cache);
         admin_stalwart_config_table::register_table(client_cache);
@@ -2040,6 +2129,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         sender_mail_ingress_table::register_table(client_cache);
         sender_mail_messages_table::register_table(client_cache);
         sender_system_mail_pending_table::register_table(client_cache);
+        visible_account_configs_table::register_table(client_cache);
         visible_account_emails_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
         visible_admin_identities_table::register_table(client_cache);
@@ -2053,6 +2143,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         visible_webhook_tokens_table::register_table(client_cache);
     }
     const ALL_TABLE_NAMES: &'static [&'static str] = &[
+        "account_configs",
         "active_subscriptions",
         "active_unsubscribe_tokens",
         "admin_stalwart_config",
@@ -2067,6 +2158,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "sender_mail_ingress",
         "sender_mail_messages",
         "sender_system_mail_pending",
+        "visible_account_configs",
         "visible_account_emails",
         "visible_accounts",
         "visible_admin_identities",

@@ -6,6 +6,9 @@ account: "Account\n(User Management)" {
 account_emails: "AccountEmail\n(Multi-Email per Account)" {
   style.fill: lightblue
 }
+account_configs: "AccountConfig\n(User UI State)" {
+  style.fill: lightblue
+}
 system_mail_pending: "SystemMailPending\n(Verification & System Mail)" {
   style.fill: lightyellow
 }
@@ -26,6 +29,9 @@ subscriptions: "Subscription\n(Category System)" {
 }
 
 account_emails -> account: "belongs to" {
+  style.stroke: blue
+}
+account_configs -> account: "configures" {
   style.stroke: blue
 }
 subscriptions -> message_categories: "belongs to" {
