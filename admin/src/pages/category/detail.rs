@@ -123,6 +123,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_topics",
         "SELECT * FROM visible_message_category_topics",
+        "SELECT * FROM category_subscriber_counts",
     ]);
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();

@@ -7,6 +7,7 @@ use crate::models::mail_message::*;
 use log::info;
 use spacetimedb::{Query, ViewContext};
 
+
 #[spacetimedb::view(accessor = admin_stalwart_config, public)]
 pub fn admin_stalwart_config(ctx: &ViewContext) -> impl Query<StalwartConfig> {
     let is_admin = is_admin_user(ctx);

@@ -3,8 +3,6 @@ use spacetimedb::{Identity, ReducerContext, Table};
 
 use crate::common::auth::{is_admin_identity, is_admin_user};
 use crate::models::account::*;
-use crate::models::domain::*;
-use crate::models::mta::*;
 use crate::models::category::{subscription_unsubscribe_tokens, subscriptions};
 
 use crate::models::delivery::*;
@@ -184,10 +182,7 @@ pub(crate) fn do_sync_user(
                         viewing_category_id: None,
                         language: None,
                         theme: None,
-                        total_accounts: 0,
                         search_matching_accounts: 0,
-                        total_messages: 0,
-                        category_matching_messages: 0,
                     });
                 }
 
@@ -675,10 +670,7 @@ pub fn update_account_config(
             viewing_category_id: None,
             language: None,
             theme: None,
-            total_accounts: 0,
             search_matching_accounts: 0,
-            total_messages: 0,
-            category_matching_messages: 0,
         });
 
     if let Some(mo) = message_offset {
@@ -714,20 +706,12 @@ pub fn update_account_config(
     if let Some(val) = language { config.language = Some(val); }
     if let Some(val) = theme { config.theme = Some(val); }
 
-    // Update metrics
-    config.total_accounts = ctx.db.account().iter().count() as u32;
+    // Update search matching accounts metric for the user
     config.search_matching_accounts = if let Some(query) = &config.member_search_query {
         let q = query.to_lowercase();
         ctx.db.account().iter().filter(|acc| acc.name.to_lowercase().contains(&q) || acc.primary_email_id.to_string() == q).count() as u32
     } else {
-        config.total_accounts
-    };
-    
-    config.total_messages = ctx.db.received_message().iter().count() as u32;
-    config.category_matching_messages = if let Some(cat_id) = config.selected_message_category {
-        ctx.db.received_message().iter().filter(|rm| rm.category_id == cat_id).count() as u32
-    } else {
-        config.total_messages
+        ctx.db.account().count() as u32
     };
 
     if ctx.db.account_configs().account_id().find(&account.id).is_some() {

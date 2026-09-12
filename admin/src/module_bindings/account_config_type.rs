@@ -17,10 +17,7 @@ pub struct AccountConfig {
     pub viewing_category_id: Option<u64>,
     pub language: Option<String>,
     pub theme: Option<String>,
-    pub total_accounts: u32,
     pub search_matching_accounts: u32,
-    pub total_messages: u32,
-    pub category_matching_messages: u32,
 }
 
 impl __sdk::InModule for AccountConfig {
@@ -41,10 +38,7 @@ pub struct AccountConfigCols {
     pub viewing_category_id: __sdk::__query_builder::Col<AccountConfig, Option<u64>>,
     pub language: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
     pub theme: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
-    pub total_accounts: __sdk::__query_builder::Col<AccountConfig, u32>,
     pub search_matching_accounts: __sdk::__query_builder::Col<AccountConfig, u32>,
-    pub total_messages: __sdk::__query_builder::Col<AccountConfig, u32>,
-    pub category_matching_messages: __sdk::__query_builder::Col<AccountConfig, u32>,
 }
 
 impl __sdk::__query_builder::HasCols for AccountConfig {
@@ -70,15 +64,9 @@ impl __sdk::__query_builder::HasCols for AccountConfig {
             ),
             language: __sdk::__query_builder::Col::new(table_name, "language"),
             theme: __sdk::__query_builder::Col::new(table_name, "theme"),
-            total_accounts: __sdk::__query_builder::Col::new(table_name, "total_accounts"),
             search_matching_accounts: __sdk::__query_builder::Col::new(
                 table_name,
                 "search_matching_accounts",
-            ),
-            total_messages: __sdk::__query_builder::Col::new(table_name, "total_messages"),
-            category_matching_messages: __sdk::__query_builder::Col::new(
-                table_name,
-                "category_matching_messages",
             ),
         }
     }

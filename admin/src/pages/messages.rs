@@ -9,6 +9,7 @@ use crate::module_bindings::dioxus::{
     use_table_visible_message_categories, use_table_visible_messages,
     use_table_visible_subscriptions, use_table_visible_account_configs,
     use_reducer_update_account_config,
+    use_table_total_messages, use_table_category_message_counts,
 };
 use crate::module_bindings::{MailMessage, ReceivedMessage};
 use crate::oauth::UserInfo;
@@ -90,6 +91,8 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_account_configs",
+        "SELECT * FROM total_messages",
+        "SELECT * FROM category_message_counts",
     ]);
 
     let messages = use_table_visible_messages();
@@ -98,6 +101,8 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     let configs = use_table_visible_account_configs();
+    let total_messages_table = use_table_total_messages();
+    let category_message_counts_table = use_table_category_message_counts();
     let update_config = use_reducer_update_account_config();
 
     let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
@@ -106,7 +111,19 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let current_offset = config.as_ref().map(|c| c.message_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.message_limit).unwrap_or(50);
     
-    let total_msgs = config.as_ref().map(|c| c.category_matching_messages).unwrap_or_else(|| received_messages().len() as u32);
+    let total_msgs = if let Some(cat_id) = filter_category {
+        category_message_counts_table()
+            .into_iter()
+            .find(|c| c.category_id == cat_id)
+            .map(|c| c.count as u32)
+            .unwrap_or(0)
+    } else {
+        total_messages_table()
+            .into_iter()
+            .next()
+            .map(|r| r.count as u32)
+            .unwrap_or_else(|| received_messages().len() as u32)
+    };
 
     // Join ReceivedMessage with MailMessage using mail_message_id
     let messages_with_content: Vec<MessageWithContent> = received_messages()

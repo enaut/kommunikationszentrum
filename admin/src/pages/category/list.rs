@@ -8,7 +8,7 @@ use dioxus_i18n::tid;
 use crate::module_bindings::dioxus::{
     use_procedure_provision_message_category, use_reducer_remove_message_category,
     use_subscription, use_table_visible_domains, use_table_visible_message_categories,
-    use_table_visible_subscriptions,
+    use_table_visible_subscriptions, use_table_category_subscriber_counts,
 };
 use crate::module_bindings::CategoryVisibility;
 use crate::pages::category::detail::CategoryDetailPage;
@@ -208,7 +208,7 @@ pub fn AddCategoryCard() -> Element {
 #[component]
 pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
     let categories = use_table_visible_message_categories();
-    let subscriptions = use_table_visible_subscriptions();
+    let subscriber_counts = use_table_category_subscriber_counts();
     let remove_category = use_reducer_remove_message_category();
 
     rsx! {
@@ -247,10 +247,11 @@ pub fn CategoryTable(mut selected_category: Signal<Option<u64>>) -> Element {
                                 {
                                     let cat_id = cat.id;
                                     let remove = remove_category.clone();
-                                    let subscriber_count = subscriptions()
+                                    let subscriber_count = subscriber_counts()
                                         .iter()
-                                        .filter(|s| s.category_id == cat_id && crate::pages::is_active_subscription(&s.status))
-                                        .count();
+                                        .find(|c| c.category_id == cat_id)
+                                        .map(|c| c.count)
+                                        .unwrap_or(0);
                                     rsx! {
                                         tr {
                                             key: "{cat_id}",
@@ -325,6 +326,7 @@ pub fn CategoriesPage() -> Element {
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_domains",
+        "SELECT * FROM category_subscriber_counts",
     ]);
 
     // When set, the detail/edit page for this category is shown instead of the list.

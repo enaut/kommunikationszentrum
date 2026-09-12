@@ -13,7 +13,7 @@ email_verification_tokens: {
 }
 
 account_configs: {
-  label: "AccountConfig\naccount_id: u64 (PK, FK)\nmessage_offset: u32\nmessage_limit: u32\nselected_message_category: Option<u64>\nmember_offset: u32\nmember_limit: u32\nmember_search_query: Option<String>\nlanguage: Option<String>\ntheme: Option<String>"
+  label: "AccountConfig\naccount_id: u64 (PK, FK)\nmessage_offset: u32\nmessage_limit: u32\nselected_message_category: Option<u64>\nmember_offset: u32\nmember_limit: u32\nmember_search_query: Option<String>\nviewing_category_id: Option<u64>\nlanguage: Option<String>\ntheme: Option<String>\nsearch_matching_accounts: u32"
 }
 
 system_mail_pending: {

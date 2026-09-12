@@ -12,6 +12,7 @@ use crate::{
         use_table_visible_account_emails, use_table_visible_accounts,
         use_table_visible_message_categories, use_table_visible_subscriptions,
         use_table_visible_account_configs, use_reducer_update_account_config,
+        use_table_total_accounts,
     },
     module_bindings::{EmailSource, SubscriptionStatus},
     oauth::UserInfo,
@@ -28,12 +29,14 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_account_configs",
+        "SELECT * FROM total_accounts",
     ]);
     let accounts = use_table_visible_accounts();
     let account_emails = use_table_visible_account_emails();
     let subscriptions = use_table_visible_subscriptions();
     let categories = use_table_visible_message_categories();
     let configs = use_table_visible_account_configs();
+    let total_accounts_table = use_table_total_accounts();
     let update_config = use_reducer_update_account_config();
     let add_subscription = use_reducer_admin_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
@@ -57,8 +60,15 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
     let current_offset = config.as_ref().map(|c| c.member_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.member_limit).unwrap_or(50);
 
-    let total_accounts = config.as_ref().map(|c| c.total_accounts).unwrap_or_else(|| accounts().len() as u32);
-    let search_matching_accounts = config.as_ref().map(|c| c.search_matching_accounts).unwrap_or_else(|| accounts().len() as u32);
+    let total_accounts = total_accounts_table()
+        .into_iter()
+        .next()
+        .map(|r| r.count as u32)
+        .unwrap_or_else(|| accounts().len() as u32);
+    let search_matching_accounts = config
+        .as_ref()
+        .map(|c| c.search_matching_accounts)
+        .unwrap_or(total_accounts);
 
     let all_accounts = accounts();
 

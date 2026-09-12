@@ -156,6 +156,42 @@ direction: right
     shape: rectangle
     style.fill: "#fff3e0"
   }
+
+  total_accounts: |md
+    ### total_accounts
+    * Public anonymous view.
+    * Constant-time total registered accounts count.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
+
+  total_messages: |md
+    ### total_messages
+    * Public anonymous view.
+    * Constant-time total received messages count.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
+
+  category_message_counts: |md
+    ### category_message_counts
+    * Public anonymous view.
+    * Real-time received message counts per category.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
+
+  category_subscriber_counts: |md
+    ### category_subscriber_counts
+    * Public anonymous view.
+    * Real-time active subscriber counts per category.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
 }
 
 "Sender Worker Views": {
@@ -249,6 +285,10 @@ direction: right
 "Private Tables".subscription_unsubscribe_tokens -> "Member / Admin Views".active_unsubscribe_tokens
 "Private Tables".category_app_passwords -> "Member / Admin Views".visible_category_app_passwords
 "Private Tables".received_message -> "Member / Admin Views".visible_messages
+"Private Tables".account -> "Member / Admin Views".total_accounts
+"Private Tables".received_message -> "Member / Admin Views".total_messages
+"Private Tables".received_message -> "Member / Admin Views".category_message_counts
+"Private Tables".subscriptions -> "Member / Admin Views".category_subscriber_counts
 "Private Tables".mail_message -> "Sender Worker Views".sender_mail_messages
 "Private Tables".mail_ingress -> "Sender Worker Views".sender_mail_ingress
 "Private Tables".mail_delivery_message -> "Sender Worker Views".sender_mail_delivery_messages

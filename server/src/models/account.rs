@@ -63,12 +63,8 @@ pub struct AccountConfig {
 
     pub language: Option<String>,
     pub theme: Option<String>,
-    
-    // Cached metrics for pagination
-    pub total_accounts: u32,
+
     pub search_matching_accounts: u32,
-    pub total_messages: u32,
-    pub category_matching_messages: u32,
 }
 
 #[derive(Debug, Clone)]

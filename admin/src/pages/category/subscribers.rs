@@ -7,7 +7,7 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_remove_subscription, use_table_visible_accounts, use_table_visible_subscriptions, use_table_visible_account_emails,
-    use_reducer_update_account_config,
+    use_reducer_update_account_config, use_table_category_subscriber_counts,
 };
 use crate::module_bindings::SubscriptionStatus;
 use crate::pages::category::modals::EditSubscriptionTarget;
@@ -127,10 +127,17 @@ pub fn CategorySubscribersCard(
         })
         .collect();
 
-    let active_subscriber_count = category_subscriptions
+    let subscriber_counts = use_table_category_subscriber_counts();
+    let active_subscriber_count = subscriber_counts()
         .iter()
-        .filter(|sub| crate::pages::is_active_subscription(&sub.status))
-        .count();
+        .find(|c| c.category_id == category_id)
+        .map(|c| c.count)
+        .unwrap_or_else(|| {
+            category_subscriptions
+                .iter()
+                .filter(|sub| crate::pages::is_active_subscription(&sub.status))
+                .count() as u64
+        });
 
     rsx! {
         Card {

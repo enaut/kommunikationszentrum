@@ -3,7 +3,6 @@ use crate::models::account::*;
 use crate::models::category::*;
 use crate::models::domain::*;
 use crate::models::mta::*;
-use spacetimedb::Table;
 use spacetimedb::{Query, Timestamp, ViewContext};
 
 #[spacetimedb::view(accessor = visible_domains, public)]
@@ -30,10 +29,7 @@ pub fn get_account_config(ctx: &ViewContext) -> AccountConfig {
             viewing_category_id: None,
             language: None,
             theme: None,
-            total_accounts: 0,
             search_matching_accounts: 0,
-            total_messages: 0,
-            category_matching_messages: 0,
         })
 }
 

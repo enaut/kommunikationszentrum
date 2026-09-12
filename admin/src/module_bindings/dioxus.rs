@@ -24,6 +24,8 @@ pub struct TableSignals {
     pub active_subscriptions: SyncSignal<Vec<Subscription>>,
     pub active_unsubscribe_tokens: SyncSignal<Vec<SubscriptionUnsubscribeToken>>,
     pub admin_stalwart_config: SyncSignal<Vec<StalwartConfig>>,
+    pub category_message_counts: SyncSignal<Vec<CategoryMessageCount>>,
+    pub category_subscriber_counts: SyncSignal<Vec<CategorySubscriberCount>>,
     pub expire_stale_delivery_claims_schedule: SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>>,
     pub requeue_temporary_failed_mails_schedule:
         SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>>,
@@ -36,6 +38,8 @@ pub struct TableSignals {
     pub sender_mail_ingress: SyncSignal<Vec<MailIngress>>,
     pub sender_mail_messages: SyncSignal<Vec<MailMessage>>,
     pub sender_system_mail_pending: SyncSignal<Vec<SystemMailPending>>,
+    pub total_accounts: SyncSignal<Vec<CountRow>>,
+    pub total_messages: SyncSignal<Vec<CountRow>>,
     pub visible_account_configs: SyncSignal<Vec<AccountConfig>>,
     pub visible_account_emails: SyncSignal<Vec<AccountEmail>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
@@ -198,6 +202,8 @@ pub fn use_spacetimedb_context_provider(
         active_subscriptions: use_signal_sync(Vec::new),
         active_unsubscribe_tokens: use_signal_sync(Vec::new),
         admin_stalwart_config: use_signal_sync(Vec::new),
+        category_message_counts: use_signal_sync(Vec::new),
+        category_subscriber_counts: use_signal_sync(Vec::new),
         expire_stale_delivery_claims_schedule: use_signal_sync(Vec::new),
         requeue_temporary_failed_mails_schedule: use_signal_sync(Vec::new),
         sender_mail_delivery_claimed: use_signal_sync(Vec::new),
@@ -209,6 +215,8 @@ pub fn use_spacetimedb_context_provider(
         sender_mail_ingress: use_signal_sync(Vec::new),
         sender_mail_messages: use_signal_sync(Vec::new),
         sender_system_mail_pending: use_signal_sync(Vec::new),
+        total_accounts: use_signal_sync(Vec::new),
+        total_messages: use_signal_sync(Vec::new),
         visible_account_configs: use_signal_sync(Vec::new),
         visible_account_emails: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
@@ -368,6 +376,58 @@ pub fn use_spacetimedb_context_provider(
                                 ctx.db.admin_stalwart_config().iter().collect();
                             table_signals_on_connect.admin_stalwart_config.set(updated);
                         });
+                        // Populate initial rows for category_message_counts
+                        let current: Vec<CategoryMessageCount> =
+                            conn.db.category_message_counts().iter().collect();
+                        table_signals_on_connect
+                            .category_message_counts
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .category_message_counts()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategoryMessageCount> =
+                                    ctx.db.category_message_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_message_counts
+                                    .set(updated);
+                            });
+                        conn.db
+                            .category_message_counts()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategoryMessageCount> =
+                                    ctx.db.category_message_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_message_counts
+                                    .set(updated);
+                            });
+                        // Populate initial rows for category_subscriber_counts
+                        let current: Vec<CategorySubscriberCount> =
+                            conn.db.category_subscriber_counts().iter().collect();
+                        table_signals_on_connect
+                            .category_subscriber_counts
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .category_subscriber_counts()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategorySubscriberCount> =
+                                    ctx.db.category_subscriber_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_subscriber_counts
+                                    .set(updated);
+                            });
+                        conn.db
+                            .category_subscriber_counts()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategorySubscriberCount> =
+                                    ctx.db.category_subscriber_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_subscriber_counts
+                                    .set(updated);
+                            });
                         // Populate initial rows for expire_stale_delivery_claims_schedule
                         let current: Vec<ExpireStaleDeliveryClaimsSchedule> = conn
                             .db
@@ -758,6 +818,32 @@ pub fn use_spacetimedb_context_provider(
                                     .sender_system_mail_pending
                                     .set(updated);
                             });
+                        // Populate initial rows for total_accounts
+                        let current: Vec<CountRow> = conn.db.total_accounts().iter().collect();
+                        table_signals_on_connect.total_accounts.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.total_accounts().on_insert(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_accounts().iter().collect();
+                            table_signals_on_connect.total_accounts.set(updated);
+                        });
+                        conn.db.total_accounts().on_delete(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_accounts().iter().collect();
+                            table_signals_on_connect.total_accounts.set(updated);
+                        });
+                        // Populate initial rows for total_messages
+                        let current: Vec<CountRow> = conn.db.total_messages().iter().collect();
+                        table_signals_on_connect.total_messages.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.total_messages().on_insert(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_messages().iter().collect();
+                            table_signals_on_connect.total_messages.set(updated);
+                        });
+                        conn.db.total_messages().on_delete(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_messages().iter().collect();
+                            table_signals_on_connect.total_messages.set(updated);
+                        });
                         // Populate initial rows for visible_account_configs
                         let current: Vec<AccountConfig> =
                             conn.db.visible_account_configs().iter().collect();
@@ -1229,6 +1315,20 @@ pub fn use_table_admin_stalwart_config() -> SyncSignal<Vec<StalwartConfig>> {
     ctx.tables.admin_stalwart_config
 }
 
+/// Get a reactive signal containing all rows of the `category_message_counts` table.
+#[must_use]
+pub fn use_table_category_message_counts() -> SyncSignal<Vec<CategoryMessageCount>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.category_message_counts
+}
+
+/// Get a reactive signal containing all rows of the `category_subscriber_counts` table.
+#[must_use]
+pub fn use_table_category_subscriber_counts() -> SyncSignal<Vec<CategorySubscriberCount>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.category_subscriber_counts
+}
+
 /// Get a reactive signal containing all rows of the `expire_stale_delivery_claims_schedule` table.
 #[must_use]
 pub fn use_table_expire_stale_delivery_claims_schedule(
@@ -1307,6 +1407,20 @@ pub fn use_table_sender_mail_messages() -> SyncSignal<Vec<MailMessage>> {
 pub fn use_table_sender_system_mail_pending() -> SyncSignal<Vec<SystemMailPending>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.sender_system_mail_pending
+}
+
+/// Get a reactive signal containing all rows of the `total_accounts` table.
+#[must_use]
+pub fn use_table_total_accounts() -> SyncSignal<Vec<CountRow>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.total_accounts
+}
+
+/// Get a reactive signal containing all rows of the `total_messages` table.
+#[must_use]
+pub fn use_table_total_messages() -> SyncSignal<Vec<CountRow>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.total_messages
 }
 
 /// Get a reactive signal containing all rows of the `visible_account_configs` table.
