@@ -20,9 +20,12 @@ pub type SharedConnection = Arc<DbConnection>;
 /// Container for all table signals, created at root level.
 #[derive(Clone)]
 pub struct TableSignals {
+    pub account_configs: SyncSignal<Vec<AccountConfig>>,
     pub active_subscriptions: SyncSignal<Vec<Subscription>>,
     pub active_unsubscribe_tokens: SyncSignal<Vec<SubscriptionUnsubscribeToken>>,
     pub admin_stalwart_config: SyncSignal<Vec<StalwartConfig>>,
+    pub category_message_counts: SyncSignal<Vec<CategoryMessageCount>>,
+    pub category_subscriber_counts: SyncSignal<Vec<CategorySubscriberCount>>,
     pub expire_stale_delivery_claims_schedule: SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>>,
     pub requeue_temporary_failed_mails_schedule:
         SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>>,
@@ -35,6 +38,9 @@ pub struct TableSignals {
     pub sender_mail_ingress: SyncSignal<Vec<MailIngress>>,
     pub sender_mail_messages: SyncSignal<Vec<MailMessage>>,
     pub sender_system_mail_pending: SyncSignal<Vec<SystemMailPending>>,
+    pub total_accounts: SyncSignal<Vec<CountRow>>,
+    pub total_messages: SyncSignal<Vec<CountRow>>,
+    pub visible_account_configs: SyncSignal<Vec<AccountConfig>>,
     pub visible_account_emails: SyncSignal<Vec<AccountEmail>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
     pub visible_admin_identities: SyncSignal<Vec<AdminIdentity>>,
@@ -192,9 +198,12 @@ pub fn use_spacetimedb_context_provider(
     let error: SyncSignal<Option<String>> = use_signal_sync(|| None);
 
     let mut table_signals = TableSignals {
+        account_configs: use_signal_sync(Vec::new),
         active_subscriptions: use_signal_sync(Vec::new),
         active_unsubscribe_tokens: use_signal_sync(Vec::new),
         admin_stalwart_config: use_signal_sync(Vec::new),
+        category_message_counts: use_signal_sync(Vec::new),
+        category_subscriber_counts: use_signal_sync(Vec::new),
         expire_stale_delivery_claims_schedule: use_signal_sync(Vec::new),
         requeue_temporary_failed_mails_schedule: use_signal_sync(Vec::new),
         sender_mail_delivery_claimed: use_signal_sync(Vec::new),
@@ -206,6 +215,9 @@ pub fn use_spacetimedb_context_provider(
         sender_mail_ingress: use_signal_sync(Vec::new),
         sender_mail_messages: use_signal_sync(Vec::new),
         sender_system_mail_pending: use_signal_sync(Vec::new),
+        total_accounts: use_signal_sync(Vec::new),
+        total_messages: use_signal_sync(Vec::new),
+        visible_account_configs: use_signal_sync(Vec::new),
         visible_account_emails: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
         visible_admin_identities: use_signal_sync(Vec::new),
@@ -269,6 +281,27 @@ pub fn use_spacetimedb_context_provider(
                     .with_database_name(&module_name)
                     .with_token(token_for_build)
                     .on_connect(move |conn, identity, token| {
+                        // Populate initial rows for account_configs
+                        let current: Vec<AccountConfig> =
+                            conn.db.account_configs().iter().collect();
+                        table_signals_on_connect.account_configs.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.account_configs().on_insert(move |ctx, _row| {
+                            let updated: Vec<AccountConfig> =
+                                ctx.db.account_configs().iter().collect();
+                            table_signals_on_connect.account_configs.set(updated);
+                        });
+                        conn.db.account_configs().on_update(move |ctx, _old, _new| {
+                            let updated: Vec<AccountConfig> =
+                                ctx.db.account_configs().iter().collect();
+                            table_signals_on_connect.account_configs.set(updated);
+                        });
+                        conn.db.account_configs().on_delete(move |ctx, _row| {
+                            let updated: Vec<AccountConfig> =
+                                ctx.db.account_configs().iter().collect();
+                            table_signals_on_connect.account_configs.set(updated);
+                        });
                         // Populate initial rows for active_subscriptions
                         let current: Vec<Subscription> =
                             conn.db.active_subscriptions().iter().collect();
@@ -343,6 +376,58 @@ pub fn use_spacetimedb_context_provider(
                                 ctx.db.admin_stalwart_config().iter().collect();
                             table_signals_on_connect.admin_stalwart_config.set(updated);
                         });
+                        // Populate initial rows for category_message_counts
+                        let current: Vec<CategoryMessageCount> =
+                            conn.db.category_message_counts().iter().collect();
+                        table_signals_on_connect
+                            .category_message_counts
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .category_message_counts()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategoryMessageCount> =
+                                    ctx.db.category_message_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_message_counts
+                                    .set(updated);
+                            });
+                        conn.db
+                            .category_message_counts()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategoryMessageCount> =
+                                    ctx.db.category_message_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_message_counts
+                                    .set(updated);
+                            });
+                        // Populate initial rows for category_subscriber_counts
+                        let current: Vec<CategorySubscriberCount> =
+                            conn.db.category_subscriber_counts().iter().collect();
+                        table_signals_on_connect
+                            .category_subscriber_counts
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .category_subscriber_counts()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategorySubscriberCount> =
+                                    ctx.db.category_subscriber_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_subscriber_counts
+                                    .set(updated);
+                            });
+                        conn.db
+                            .category_subscriber_counts()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategorySubscriberCount> =
+                                    ctx.db.category_subscriber_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_subscriber_counts
+                                    .set(updated);
+                            });
                         // Populate initial rows for expire_stale_delivery_claims_schedule
                         let current: Vec<ExpireStaleDeliveryClaimsSchedule> = conn
                             .db
@@ -693,13 +778,6 @@ pub fn use_spacetimedb_context_provider(
                                 ctx.db.sender_mail_messages().iter().collect();
                             table_signals_on_connect.sender_mail_messages.set(updated);
                         });
-                        conn.db
-                            .sender_mail_messages()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<MailMessage> =
-                                    ctx.db.sender_mail_messages().iter().collect();
-                                table_signals_on_connect.sender_mail_messages.set(updated);
-                            });
                         conn.db.sender_mail_messages().on_delete(move |ctx, _row| {
                             let updated: Vec<MailMessage> =
                                 ctx.db.sender_mail_messages().iter().collect();
@@ -738,6 +816,58 @@ pub fn use_spacetimedb_context_provider(
                                     ctx.db.sender_system_mail_pending().iter().collect();
                                 table_signals_on_connect
                                     .sender_system_mail_pending
+                                    .set(updated);
+                            });
+                        // Populate initial rows for total_accounts
+                        let current: Vec<CountRow> = conn.db.total_accounts().iter().collect();
+                        table_signals_on_connect.total_accounts.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.total_accounts().on_insert(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_accounts().iter().collect();
+                            table_signals_on_connect.total_accounts.set(updated);
+                        });
+                        conn.db.total_accounts().on_delete(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_accounts().iter().collect();
+                            table_signals_on_connect.total_accounts.set(updated);
+                        });
+                        // Populate initial rows for total_messages
+                        let current: Vec<CountRow> = conn.db.total_messages().iter().collect();
+                        table_signals_on_connect.total_messages.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.total_messages().on_insert(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_messages().iter().collect();
+                            table_signals_on_connect.total_messages.set(updated);
+                        });
+                        conn.db.total_messages().on_delete(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_messages().iter().collect();
+                            table_signals_on_connect.total_messages.set(updated);
+                        });
+                        // Populate initial rows for visible_account_configs
+                        let current: Vec<AccountConfig> =
+                            conn.db.visible_account_configs().iter().collect();
+                        table_signals_on_connect
+                            .visible_account_configs
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .visible_account_configs()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<AccountConfig> =
+                                    ctx.db.visible_account_configs().iter().collect();
+                                table_signals_on_connect
+                                    .visible_account_configs
+                                    .set(updated);
+                            });
+                        conn.db
+                            .visible_account_configs()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<AccountConfig> =
+                                    ctx.db.visible_account_configs().iter().collect();
+                                table_signals_on_connect
+                                    .visible_account_configs
                                     .set(updated);
                             });
                         // Populate initial rows for visible_account_emails
@@ -1157,6 +1287,13 @@ pub fn use_subscription(queries: &[&str]) {
 
 // --- Table hooks ---
 
+/// Get a reactive signal containing all rows of the `account_configs` table.
+#[must_use]
+pub fn use_table_account_configs() -> SyncSignal<Vec<AccountConfig>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.account_configs
+}
+
 /// Get a reactive signal containing all rows of the `active_subscriptions` table.
 #[must_use]
 pub fn use_table_active_subscriptions() -> SyncSignal<Vec<Subscription>> {
@@ -1176,6 +1313,20 @@ pub fn use_table_active_unsubscribe_tokens() -> SyncSignal<Vec<SubscriptionUnsub
 pub fn use_table_admin_stalwart_config() -> SyncSignal<Vec<StalwartConfig>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.admin_stalwart_config
+}
+
+/// Get a reactive signal containing all rows of the `category_message_counts` table.
+#[must_use]
+pub fn use_table_category_message_counts() -> SyncSignal<Vec<CategoryMessageCount>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.category_message_counts
+}
+
+/// Get a reactive signal containing all rows of the `category_subscriber_counts` table.
+#[must_use]
+pub fn use_table_category_subscriber_counts() -> SyncSignal<Vec<CategorySubscriberCount>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.category_subscriber_counts
 }
 
 /// Get a reactive signal containing all rows of the `expire_stale_delivery_claims_schedule` table.
@@ -1256,6 +1407,27 @@ pub fn use_table_sender_mail_messages() -> SyncSignal<Vec<MailMessage>> {
 pub fn use_table_sender_system_mail_pending() -> SyncSignal<Vec<SystemMailPending>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.sender_system_mail_pending
+}
+
+/// Get a reactive signal containing all rows of the `total_accounts` table.
+#[must_use]
+pub fn use_table_total_accounts() -> SyncSignal<Vec<CountRow>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.total_accounts
+}
+
+/// Get a reactive signal containing all rows of the `total_messages` table.
+#[must_use]
+pub fn use_table_total_messages() -> SyncSignal<Vec<CountRow>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.total_messages
+}
+
+/// Get a reactive signal containing all rows of the `visible_account_configs` table.
+#[must_use]
+pub fn use_table_visible_account_configs() -> SyncSignal<Vec<AccountConfig>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_account_configs
 }
 
 /// Get a reactive signal containing all rows of the `visible_account_emails` table.
@@ -4860,6 +5032,210 @@ pub fn use_reducer_unregister_admin_identity_async(
             if let Err(e) = conn.reducers.unregister_admin_identity_then(identity_hex, move |_ctx, res| {
                 let _ = tx.send(res);
             }) {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
+/// Get a callback to invoke the `update_account_config` reducer.
+#[must_use]
+pub fn use_reducer_update_account_config() -> impl Fn(
+    Option<u32>,
+    Option<u32>,
+    Option<u64>,
+    bool,
+    Option<u32>,
+    Option<u32>,
+    Option<String>,
+    bool,
+    Option<u64>,
+    bool,
+    Option<String>,
+    Option<String>,
+) -> spacetimedb_sdk::Result<()>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |message_offset: Option<u32>,
+          message_limit: Option<u32>,
+          selected_message_category: Option<u64>,
+          clear_selected_message_category: bool,
+          member_offset: Option<u32>,
+          member_limit: Option<u32>,
+          member_search_query: Option<String>,
+          clear_member_search_query: bool,
+          viewing_category_id: Option<u64>,
+          clear_viewing_category_id: bool,
+          language: Option<String>,
+          theme: Option<String>| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.update_account_config(
+                message_offset,
+                message_limit,
+                selected_message_category,
+                clear_selected_message_category,
+                member_offset,
+                member_limit,
+                member_search_query,
+                clear_member_search_query,
+                viewing_category_id,
+                clear_viewing_category_id,
+                language,
+                theme,
+            )
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `update_account_config` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_update_account_config_then() -> (
+    impl Fn(
+            Option<u32>,
+            Option<u32>,
+            Option<u64>,
+            bool,
+            Option<u32>,
+            Option<u32>,
+            Option<String>,
+            bool,
+            Option<u64>,
+            bool,
+            Option<String>,
+            Option<String>,
+        ) + Clone
+        + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |message_offset: Option<u32>,
+                       message_limit: Option<u32>,
+                       selected_message_category: Option<u64>,
+                       clear_selected_message_category: bool,
+                       member_offset: Option<u32>,
+                       member_limit: Option<u32>,
+                       member_search_query: Option<String>,
+                       clear_member_search_query: bool,
+                       viewing_category_id: Option<u64>,
+                       clear_viewing_category_id: bool,
+                       language: Option<String>,
+                       theme: Option<String>| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.update_account_config_then(
+                message_offset,
+                message_limit,
+                selected_message_category,
+                clear_selected_message_category,
+                member_offset,
+                member_limit,
+                member_search_query,
+                clear_member_search_query,
+                viewing_category_id,
+                clear_viewing_category_id,
+                language,
+                theme,
+                move |_ctx, res| {
+                    let _ = tx.send(res);
+                },
+            ) {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `update_account_config` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_update_account_config_async() -> impl Fn(
+    Option<u32>,
+    Option<u32>,
+    Option<u64>,
+    bool,
+    Option<u32>,
+    Option<u32>,
+    Option<String>,
+    bool,
+    Option<u64>,
+    bool,
+    Option<String>,
+    Option<String>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |message_offset: Option<u32>,
+          message_limit: Option<u32>,
+          selected_message_category: Option<u64>,
+          clear_selected_message_category: bool,
+          member_offset: Option<u32>,
+          member_limit: Option<u32>,
+          member_search_query: Option<String>,
+          clear_member_search_query: bool,
+          viewing_category_id: Option<u64>,
+          clear_viewing_category_id: bool,
+          language: Option<String>,
+          theme: Option<String>|
+          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.update_account_config_then(
+                message_offset,
+                message_limit,
+                selected_message_category,
+                clear_selected_message_category,
+                member_offset,
+                member_limit,
+                member_search_query,
+                clear_member_search_query,
+                viewing_category_id,
+                clear_viewing_category_id,
+                language,
+                theme,
+                move |_ctx, res| {
+                    let _ = tx.send(res);
+                },
+            ) {
                 return Err(e.to_string());
             }
             match rx.await {

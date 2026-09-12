@@ -3,6 +3,7 @@ direction: right
 "Private Tables": {
   style.fill: "#edf2ff"
   account
+  account_configs
   account_emails
   admin_identities
   webhook_tokens
@@ -34,6 +35,15 @@ direction: right
     ### visible_accounts
     * Admin sees all rows.
     * Member sees only their own row.
+  | {
+    shape: rectangle
+    style.fill: "#e3f2fd"
+  }
+
+  visible_account_configs: |md
+    ### visible_account_configs
+    * Config for user UI state and pagination.
+    * Member sees only their own config.
   | {
     shape: rectangle
     style.fill: "#e3f2fd"
@@ -146,6 +156,42 @@ direction: right
     shape: rectangle
     style.fill: "#fff3e0"
   }
+
+  total_accounts: |md
+    ### total_accounts
+    * Public anonymous view.
+    * Constant-time total registered accounts count.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
+
+  total_messages: |md
+    ### total_messages
+    * Public anonymous view.
+    * Constant-time total received messages count.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
+
+  category_message_counts: |md
+    ### category_message_counts
+    * Public anonymous view.
+    * Real-time received message counts per category.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
+
+  category_subscriber_counts: |md
+    ### category_subscriber_counts
+    * Public anonymous view.
+    * Real-time active subscriber counts per category.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
 }
 
 "Sender Worker Views": {
@@ -225,6 +271,7 @@ direction: right
 }
 
 "Private Tables".account -> "Member / Admin Views".visible_accounts
+"Private Tables".account_configs -> "Member / Admin Views".visible_account_configs
 "Private Tables".account_emails -> "Member / Admin Views".visible_account_emails
 "Private Tables".admin_identities -> "Member / Admin Views".visible_admin_identities
 "Private Tables".webhook_tokens -> "Member / Admin Views".visible_webhook_tokens
@@ -238,6 +285,10 @@ direction: right
 "Private Tables".subscription_unsubscribe_tokens -> "Member / Admin Views".active_unsubscribe_tokens
 "Private Tables".category_app_passwords -> "Member / Admin Views".visible_category_app_passwords
 "Private Tables".received_message -> "Member / Admin Views".visible_messages
+"Private Tables".account -> "Member / Admin Views".total_accounts
+"Private Tables".received_message -> "Member / Admin Views".total_messages
+"Private Tables".received_message -> "Member / Admin Views".category_message_counts
+"Private Tables".subscriptions -> "Member / Admin Views".category_subscriber_counts
 "Private Tables".mail_message -> "Sender Worker Views".sender_mail_messages
 "Private Tables".mail_ingress -> "Sender Worker Views".sender_mail_ingress
 "Private Tables".mail_delivery_message -> "Sender Worker Views".sender_mail_delivery_messages

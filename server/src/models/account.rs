@@ -46,6 +46,28 @@ pub struct Account {
 }
 
 #[derive(Debug, Clone)]
+#[spacetimedb::table(accessor = account_configs, public)]
+pub struct AccountConfig {
+    #[primary_key]
+    pub account_id: u64,
+
+    pub message_offset: u32,
+    pub message_limit: u32,
+    pub selected_message_category: Option<u64>,
+
+    pub member_offset: u32,
+    pub member_limit: u32,
+    pub member_search_query: Option<String>,
+    
+    pub viewing_category_id: Option<u64>,
+
+    pub language: Option<String>,
+    pub theme: Option<String>,
+
+    pub search_matching_accounts: u32,
+}
+
+#[derive(Debug, Clone)]
 #[spacetimedb::table(accessor = admin_identities)]
 pub struct AdminIdentity {
     #[primary_key]

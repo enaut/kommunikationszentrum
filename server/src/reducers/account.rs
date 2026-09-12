@@ -170,6 +170,22 @@ pub(crate) fn do_sync_user(
                     log::info!("Inserted new account: {}", data.mitgliedsnr);
                 }
 
+                if ctx.db.account_configs().account_id().find(&data.mitgliedsnr).is_none() {
+                    ctx.db.account_configs().insert(crate::models::account::AccountConfig {
+                        account_id: data.mitgliedsnr,
+                        message_offset: 0,
+                        message_limit: 50,
+                        selected_message_category: None,
+                        member_offset: 0,
+                        member_limit: 50,
+                        member_search_query: None,
+                        viewing_category_id: None,
+                        language: None,
+                        theme: None,
+                        search_matching_accounts: 0,
+                    });
+                }
+
                 if is_admin {
                     if ctx
                         .db
@@ -614,3 +630,95 @@ pub fn complete_system_mail(ctx: &ReducerContext, mail_id: u64) -> Result<(), St
     Ok(())
 }
 
+#[spacetimedb::reducer]
+pub fn update_account_config(
+    ctx: &ReducerContext,
+    message_offset: Option<u32>,
+    message_limit: Option<u32>,
+    selected_message_category: Option<u64>,
+    clear_selected_message_category: bool,
+    member_offset: Option<u32>,
+    member_limit: Option<u32>,
+    member_search_query: Option<String>,
+    clear_member_search_query: bool,
+    viewing_category_id: Option<u64>,
+    clear_viewing_category_id: bool,
+    language: Option<String>,
+    theme: Option<String>,
+) -> Result<(), String> {
+    let sender = ctx.sender();
+    let account = ctx
+        .db
+        .account()
+        .identity()
+        .find(&sender)
+        .ok_or_else(|| "Account not found for sender".to_string())?;
+
+    let mut config = ctx
+        .db
+        .account_configs()
+        .account_id()
+        .find(&account.id)
+        .unwrap_or_else(|| AccountConfig {
+            account_id: account.id,
+            message_offset: 0,
+            message_limit: 50,
+            selected_message_category: None,
+            member_offset: 0,
+            member_limit: 50,
+            member_search_query: None,
+            viewing_category_id: None,
+            language: None,
+            theme: None,
+            search_matching_accounts: 0,
+        });
+
+    if let Some(mo) = message_offset {
+        config.message_offset = mo;
+    }
+    if let Some(ml) = message_limit {
+        config.message_limit = ml;
+    }
+    if clear_selected_message_category {
+        config.selected_message_category = None;
+    } else if let Some(smc) = selected_message_category {
+        config.selected_message_category = Some(smc);
+    }
+    
+    if let Some(mo) = member_offset {
+        config.member_offset = mo;
+    }
+    if let Some(ml) = member_limit {
+        config.member_limit = ml;
+    }
+    if clear_member_search_query {
+        config.member_search_query = None;
+    } else if let Some(msq) = member_search_query {
+        config.member_search_query = Some(msq);
+    }
+    
+    if clear_viewing_category_id {
+        config.viewing_category_id = None;
+    } else if let Some(vcid) = viewing_category_id {
+        config.viewing_category_id = Some(vcid);
+    }
+
+    if let Some(val) = language { config.language = Some(val); }
+    if let Some(val) = theme { config.theme = Some(val); }
+
+    // Update search matching accounts metric for the user
+    config.search_matching_accounts = if let Some(query) = &config.member_search_query {
+        let q = query.to_lowercase();
+        ctx.db.account().iter().filter(|acc| acc.name.to_lowercase().contains(&q) || acc.primary_email_id.to_string() == q).count() as u32
+    } else {
+        ctx.db.account().count() as u32
+    };
+
+    if ctx.db.account_configs().account_id().find(&account.id).is_some() {
+        ctx.db.account_configs().account_id().update(config);
+    } else {
+        ctx.db.account_configs().insert(config);
+    }
+
+    Ok(())
+}

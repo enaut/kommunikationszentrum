@@ -656,8 +656,8 @@ fn process_ingress_job(
     let message = connection
         .db
         .sender_mail_messages()
-        .id()
-        .find(&ingress.mail_message_id)
+        .iter()
+        .find(|m| m.id == ingress.mail_message_id)
         .ok_or_else(|| format!("MailMessage {} not in local cache", ingress.mail_message_id))?;
 
     // Re-attach this span (and all children) to the Stalwart SMTP trace.

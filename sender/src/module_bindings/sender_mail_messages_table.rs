@@ -132,72 +132,9 @@ impl<'ctx> __sdk::WithDelete for SenderMailMessagesTableHandle<'ctx> {
     }
 }
 
-pub struct SenderMailMessagesUpdateCallbackId(__sdk::CallbackId);
-
-impl<'ctx> __sdk::TableWithPrimaryKey for SenderMailMessagesTableHandle<'ctx> {
-    type UpdateCallbackId = SenderMailMessagesUpdateCallbackId;
-
-    fn on_update(
-        &self,
-        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
-    ) -> SenderMailMessagesUpdateCallbackId {
-        SenderMailMessagesUpdateCallbackId(self.imp.on_update(Box::new(callback)))
-    }
-
-    fn remove_on_update(&self, callback: SenderMailMessagesUpdateCallbackId) {
-        self.imp.remove_on_update(callback.0)
-    }
-}
-
-impl<'ctx> __sdk::WithUpdate for SenderMailMessagesTableHandle<'ctx> {
-    type UpdateCallbackId = SenderMailMessagesUpdateCallbackId;
-
-    fn on_update(
-        &self,
-        callback: impl FnMut(&Self::EventContext, &Self::Row, &Self::Row) + Send + 'static,
-    ) -> SenderMailMessagesUpdateCallbackId {
-        SenderMailMessagesUpdateCallbackId(self.imp.on_update(Box::new(callback)))
-    }
-
-    fn remove_on_update(&self, callback: SenderMailMessagesUpdateCallbackId) {
-        self.imp.remove_on_update(callback.0)
-    }
-}
-
-/// Access to the `id` unique index on the table `sender_mail_messages`,
-/// which allows point queries on the field of the same name
-/// via the [`SenderMailMessagesIdUnique::find`] method.
-///
-/// Users are encouraged not to explicitly reference this type,
-/// but to directly chain method calls,
-/// like `ctx.db.sender_mail_messages().id().find(...)`.
-pub struct SenderMailMessagesIdUnique<'ctx> {
-    imp: __sdk::UniqueConstraintHandle<MailMessage, u64>,
-    phantom: std::marker::PhantomData<&'ctx super::RemoteTables>,
-}
-
-impl<'ctx> SenderMailMessagesTableHandle<'ctx> {
-    /// Get a handle on the `id` unique index on the table `sender_mail_messages`.
-    pub fn id(&self) -> SenderMailMessagesIdUnique<'ctx> {
-        SenderMailMessagesIdUnique {
-            imp: self.imp.get_unique_constraint::<u64>("id"),
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<'ctx> SenderMailMessagesIdUnique<'ctx> {
-    /// Find the subscribed row whose `id` column value is equal to `col_val`,
-    /// if such a row is present in the client cache.
-    pub fn find(&self, col_val: &u64) -> Option<MailMessage> {
-        self.imp.find(col_val)
-    }
-}
-
 #[doc(hidden)]
 pub(super) fn register_table(client_cache: &mut __sdk::ClientCache<super::RemoteModule>) {
     let _table = client_cache.get_or_make_table::<MailMessage>("sender_mail_messages");
-    _table.add_unique_constraint::<u64>("id", |row| &row.id);
 }
 
 #[doc(hidden)]

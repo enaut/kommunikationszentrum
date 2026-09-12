@@ -5,8 +5,11 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_subscription, use_table_sender_mail_messages, use_table_visible_message_categories,
-    use_table_visible_messages, use_table_visible_subscriptions,
+    use_subscription, use_table_sender_mail_messages,
+    use_table_visible_message_categories, use_table_visible_messages,
+    use_table_visible_subscriptions, use_table_visible_account_configs,
+    use_reducer_update_account_config,
+    use_table_total_messages, use_table_category_message_counts,
 };
 use crate::module_bindings::{MailMessage, ReceivedMessage};
 use crate::oauth::UserInfo;
@@ -81,16 +84,46 @@ fn cat_badge_color(category_id: u64) -> Color {
 
 #[component]
 pub fn MessagesPage(user_info: UserInfo) -> Element {
+
+    // We subscribe to messages and mail_messages instead of calling reducers
     use_subscription(&[
         "SELECT * FROM visible_messages",
-        "SELECT * FROM sender_mail_messages",
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
+        "SELECT * FROM visible_account_configs",
+        "SELECT * FROM total_messages",
+        "SELECT * FROM category_message_counts",
     ]);
-    let received_messages = use_table_visible_messages();
+
+    let messages = use_table_visible_messages();
+    let received_messages = messages;
     let mail_messages = use_table_sender_mail_messages();
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
+    let configs = use_table_visible_account_configs();
+    let total_messages_table = use_table_total_messages();
+    let category_message_counts_table = use_table_category_message_counts();
+    let update_config = use_reducer_update_account_config();
+
+    let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
+    let config = configs().into_iter().next();
+    let filter_category = config.as_ref().and_then(|c| c.selected_message_category);
+    let current_offset = config.as_ref().map(|c| c.message_offset).unwrap_or(0);
+    let current_limit = config.as_ref().map(|c| c.message_limit).unwrap_or(50);
+    
+    let total_msgs = if let Some(cat_id) = filter_category {
+        category_message_counts_table()
+            .into_iter()
+            .find(|c| c.category_id == cat_id)
+            .map(|c| c.count as u32)
+            .unwrap_or(0)
+    } else {
+        total_messages_table()
+            .into_iter()
+            .next()
+            .map(|r| r.count as u32)
+            .unwrap_or_else(|| received_messages().len() as u32)
+    };
 
     // Join ReceivedMessage with MailMessage using mail_message_id
     let messages_with_content: Vec<MessageWithContent> = received_messages()
@@ -106,14 +139,10 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         })
         .collect();
 
-    let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
-
     let mut selected_id: Signal<Option<u64>> = use_signal(|| None);
-    let mut filter_category: Signal<Option<u64>> = use_signal(|| None);
 
     // Only offer filter chips for categories the current account is actively
-    // subscribed to; `visible_messages` already restricts non-admins to these
-    // categories, so the chips should match what's actually being shown.
+    // subscribed to
     let subscribed_category_ids: HashSet<u64> = subscriptions()
         .into_iter()
         .filter(|s| {
@@ -122,19 +151,14 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         .map(|s| s.category_id)
         .collect();
 
-    // Newest-first
-    let mut sorted = messages_with_content.clone();
-    sorted.sort_by(|a, b| {
+    // Since the server already sorts, filters, and slices, we can just use the returned messages.
+    // However, the `visible_messages` view sorts by DESC.
+    let mut filtered = messages_with_content.clone();
+    filtered.sort_by(|a, b| {
         let a_us = a.received_at();
         let b_us = b.received_at();
         b_us.cmp(&a_us)
     });
-
-    // Apply category filter
-    let filtered: Vec<_> = sorted
-        .into_iter()
-        .filter(|m| filter_category().map_or(true, |cat| m.category_id() == cat))
-        .collect();
 
     let selected_msg = selected_id().and_then(|id| {
         filtered
@@ -166,12 +190,15 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                     div { class: "d-flex flex-wrap gap-2 align-items-center",
                         span { class: "text-muted small me-1", {tid!("messages-filter")} }
                         Button {
-                            color: if filter_category().is_none() { Color::Primary } else { Color::Secondary },
-                            outline: filter_category().is_some(),
+                            color: if filter_category.is_none() { Color::Primary } else { Color::Secondary },
+                            outline: filter_category.is_some(),
                             size: Size::Sm,
-                            onclick: move |_| {
-                                filter_category.set(None);
-                                selected_id.set(None);
+                            onclick: {
+                                let update_config = update_config.clone();
+                                move |_| {
+                                    update_config(None, None, None, true, None, None, None, false, None, false, None, None);
+                                    selected_id.set(None);
+                                }
                             },
                             {tid!("messages-filter-all")}
                         }
@@ -181,19 +208,57 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                         {
                             {
                                 let cat_id = cat.id;
-                                let is_active = filter_category() == Some(cat_id);
+                                let is_active = filter_category == Some(cat_id);
                                 rsx! {
                                     Button {
                                         color: cat_badge_color(cat_id),
                                         outline: !is_active,
                                         size: Size::Sm,
-                                        onclick: move |_| {
-                                            filter_category.set(Some(cat_id));
-                                            selected_id.set(None);
+                                        onclick: {
+                                            let update_config = update_config.clone();
+                                            move |_| {
+                                                update_config(Some(0), None, Some(cat_id), false, None, None, None, false, None, false, None, None);
+                                                selected_id.set(None);
+                                            }
                                         },
                                         "{cat.name}"
                                     }
                                 }
+                            }
+                        }
+                        div { class: "ms-auto d-flex align-items-center gap-2",
+                            Button {
+                                color: Color::Secondary,
+                                outline: true,
+                                size: Size::Sm,
+                                disabled: current_offset == 0,
+                                onclick: {
+                                    let update_config = update_config.clone();
+                                    move |_| {
+                                        if current_offset >= current_limit {
+                                            update_config(Some(current_offset - current_limit), None, None, false, None, None, None, false, None, false, None, None);
+                                        } else {
+                                            update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None);
+                                        }
+                                    }
+                                },
+                                Icon { name: "chevron-left" }
+                            }
+                            span { class: "text-muted small",
+                                "Page {(current_offset / current_limit) + 1}"
+                            }
+                            Button {
+                                color: Color::Secondary,
+                                outline: true,
+                                size: Size::Sm,
+                                disabled: current_offset + current_limit >= total_msgs,
+                                onclick: {
+                                    let update_config = update_config.clone();
+                                    move |_| {
+                                        update_config(Some(current_offset + current_limit), None, None, false, None, None, None, false, None, false, None, None);
+                                    }
+                                },
+                                Icon { name: "chevron-right" }
                             }
                         }
                     }
@@ -204,7 +269,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             if filtered.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "inbox", class: "me-2" }
-                    if filter_category().is_none() {
+                    if filter_category.is_none() {
                         {tid!("messages-empty")}
                     } else {
                         {tid!("messages-empty-category")}
