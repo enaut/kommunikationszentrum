@@ -275,19 +275,78 @@ struct UnsubscribeRequest {
     token: String,
 }
 
+fn query_param_token_from_query(query: Option<&str>) -> Option<String> {
+    let query = query?;
+    for pair in query.split('&') {
+        let mut parts = pair.splitn(2, '=');
+        let key = parts.next()?.trim();
+        let value = parts.next().unwrap_or_default().trim();
+        if key == "token" && !value.is_empty() {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
+fn parse_unsubscribe_token(
+    method: &str,
+    query: Option<&str>,
+    body_bytes: &[u8],
+) -> Result<String, (u16, &'static str)> {
+    if method != "POST" {
+        return Err((405, "method not allowed"));
+    }
+
+    if let Some(raw_token) = query_param_token_from_query(query) {
+        let token = urlencoding::decode(&raw_token)
+            .map(|s| s.into_owned())
+            .unwrap_or(raw_token);
+        let body_str = String::from_utf8_lossy(body_bytes).trim().to_string();
+        if body_str == "List-Unsubscribe=One-Click" {
+            return Ok(token);
+        }
+        if let Ok(payload) = serde_json::from_slice::<UnsubscribeRequest>(body_bytes) {
+            if !payload.token.trim().is_empty() {
+                return Ok(payload.token);
+            }
+            return Ok(token);
+        }
+        return Err((400, "invalid one-click payload"));
+    }
+
+    if let Ok(payload) = serde_json::from_slice::<UnsubscribeRequest>(body_bytes) {
+        if !payload.token.trim().is_empty() {
+            return Ok(payload.token);
+        }
+    }
+
+    Err((400, "missing token query parameter"))
+}
+
 #[spacetimedb::http::handler]
 fn mailing_list_unsubscribe_handler(
     ctx: &mut HandlerContext,
     request: HttpRequest,
 ) -> HttpResponse {
+    let method = request.method().as_str().to_string();
+    let query = request.uri().query().map(|q| q.to_string());
     let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
-    let payload: UnsubscribeRequest = match serde_json::from_slice(&body_bytes) {
-        Ok(p) => p,
-        Err(_) => return json_response(400, json!({"error":"invalid JSON"})),
+
+    let token = match parse_unsubscribe_token(&method, query.as_deref(), &body_bytes) {
+        Ok(token) => token,
+        Err((405, _)) => {
+            return HttpResponse::builder()
+                .status(405)
+                .header("allow", "POST")
+                .body(Body::from_bytes(b"method not allowed".to_vec()))
+                .unwrap();
+        }
+        Err((status, msg)) => {
+            return json_response(status, json!({ "error": msg }));
+        }
     };
 
-    let token_clone = payload.token.clone();
-    let result = ctx.with_tx(|tx| unsubscribe_subscription_by_token(tx, token_clone.clone()));
+    let result = ctx.with_tx(|tx| unsubscribe_subscription_by_token(tx, token.clone()));
 
     match result {
         Ok(()) => json_response(200, json!({"status": "unsubscribed"})),
@@ -577,3 +636,97 @@ fn router() -> Router {
             mailing_list_unsubscribe_handler,
         )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_unsubscribe_token_rfc8058_success() {
+        let token = parse_unsubscribe_token(
+            "POST",
+            Some("token=test-sub-token-123"),
+            b"List-Unsubscribe=One-Click",
+        )
+        .expect("should parse valid RFC 8058 request");
+        assert_eq!(token, "test-sub-token-123");
+    }
+
+    #[test]
+    fn test_parse_unsubscribe_token_rfc8058_with_whitespace_newlines() {
+        let token = parse_unsubscribe_token(
+            "POST",
+            Some("token=test-token"),
+            b"List-Unsubscribe=One-Click\r\n",
+        )
+        .expect("should trim whitespace/newlines");
+        assert_eq!(token, "test-token");
+    }
+
+    #[test]
+    fn test_parse_unsubscribe_token_url_encoded() {
+        let token = parse_unsubscribe_token(
+            "POST",
+            Some("token=sub%2B123%2Fxyz"),
+            b"List-Unsubscribe=One-Click",
+        )
+        .expect("should decode url encoded token");
+        assert_eq!(token, "sub+123/xyz");
+    }
+
+    #[test]
+    fn test_parse_unsubscribe_token_multiple_query_params() {
+        let token = parse_unsubscribe_token(
+            "POST",
+            Some("foo=bar&token=target-token&baz=qux"),
+            b"List-Unsubscribe=One-Click",
+        )
+        .expect("should extract token among multiple query params");
+        assert_eq!(token, "target-token");
+    }
+
+    #[test]
+    fn test_parse_unsubscribe_token_invalid_payload() {
+        let err = parse_unsubscribe_token(
+            "POST",
+            Some("token=test-token"),
+            b"Invalid-Body",
+        )
+        .expect_err("should reject invalid body for RFC 8058");
+        assert_eq!(err, (400, "invalid one-click payload"));
+    }
+
+    #[test]
+    fn test_parse_unsubscribe_token_json_body_fallback() {
+        let token = parse_unsubscribe_token(
+            "POST",
+            None,
+            b"{\"token\": \"json-token-abc\"}",
+        )
+        .expect("should accept valid JSON body when query param is absent");
+        assert_eq!(token, "json-token-abc");
+    }
+
+    #[test]
+    fn test_parse_unsubscribe_token_missing_token() {
+        let err = parse_unsubscribe_token(
+            "POST",
+            None,
+            b"List-Unsubscribe=One-Click",
+        )
+        .expect_err("should reject when token is missing from both query and JSON");
+        assert_eq!(err, (400, "missing token query parameter"));
+    }
+
+    #[test]
+    fn test_parse_unsubscribe_token_method_not_allowed() {
+        let err = parse_unsubscribe_token(
+            "GET",
+            Some("token=test-token"),
+            b"List-Unsubscribe=One-Click",
+        )
+        .expect_err("should reject non-POST request");
+        assert_eq!(err, (405, "method not allowed"));
+    }
+}
+
