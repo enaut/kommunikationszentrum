@@ -28,6 +28,9 @@ pub struct TableSignals {
     pub expire_stale_delivery_claims_schedule: SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>>,
     pub requeue_temporary_failed_mails_schedule:
         SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>>,
+    pub sender_account_emails: SyncSignal<Vec<AccountEmail>>,
+    pub sender_accounts: SyncSignal<Vec<Account>>,
+    pub sender_category_app_passwords: SyncSignal<Vec<CategoryAppPassword>>,
     pub sender_mail_delivery_claimed: SyncSignal<Vec<MailDeliveryClaimed>>,
     pub sender_mail_delivery_done: SyncSignal<Vec<MailDeliveryDone>>,
     pub sender_mail_delivery_events: SyncSignal<Vec<MailDeliveryEvent>>,
@@ -36,6 +39,8 @@ pub struct TableSignals {
     pub sender_mail_delivery_temporary_failed: SyncSignal<Vec<MailDeliveryTemporaryFailed>>,
     pub sender_mail_ingress: SyncSignal<Vec<MailIngress>>,
     pub sender_mail_messages: SyncSignal<Vec<MailMessage>>,
+    pub sender_message_categories: SyncSignal<Vec<MessageCategory>>,
+    pub sender_subscriptions: SyncSignal<Vec<Subscription>>,
     pub sender_system_mail_pending: SyncSignal<Vec<SystemMailPending>>,
     pub total_accounts: SyncSignal<Vec<CountRow>>,
     pub total_messages: SyncSignal<Vec<CountRow>>,
@@ -205,6 +210,9 @@ pub fn use_spacetimedb_context_provider(
         category_subscriber_counts: use_signal_sync(Vec::new),
         expire_stale_delivery_claims_schedule: use_signal_sync(Vec::new),
         requeue_temporary_failed_mails_schedule: use_signal_sync(Vec::new),
+        sender_account_emails: use_signal_sync(Vec::new),
+        sender_accounts: use_signal_sync(Vec::new),
+        sender_category_app_passwords: use_signal_sync(Vec::new),
         sender_mail_delivery_claimed: use_signal_sync(Vec::new),
         sender_mail_delivery_done: use_signal_sync(Vec::new),
         sender_mail_delivery_events: use_signal_sync(Vec::new),
@@ -213,6 +221,8 @@ pub fn use_spacetimedb_context_provider(
         sender_mail_delivery_temporary_failed: use_signal_sync(Vec::new),
         sender_mail_ingress: use_signal_sync(Vec::new),
         sender_mail_messages: use_signal_sync(Vec::new),
+        sender_message_categories: use_signal_sync(Vec::new),
+        sender_subscriptions: use_signal_sync(Vec::new),
         sender_system_mail_pending: use_signal_sync(Vec::new),
         total_accounts: use_signal_sync(Vec::new),
         total_messages: use_signal_sync(Vec::new),
@@ -501,6 +511,81 @@ pub fn use_spacetimedb_context_provider(
                                     .set(updated);
                             },
                         );
+                        // Populate initial rows for sender_account_emails
+                        let current: Vec<AccountEmail> =
+                            conn.db.sender_account_emails().iter().collect();
+                        table_signals_on_connect.sender_account_emails.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.sender_account_emails().on_insert(move |ctx, _row| {
+                            let updated: Vec<AccountEmail> =
+                                ctx.db.sender_account_emails().iter().collect();
+                            table_signals_on_connect.sender_account_emails.set(updated);
+                        });
+                        conn.db
+                            .sender_account_emails()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<AccountEmail> =
+                                    ctx.db.sender_account_emails().iter().collect();
+                                table_signals_on_connect.sender_account_emails.set(updated);
+                            });
+                        conn.db.sender_account_emails().on_delete(move |ctx, _row| {
+                            let updated: Vec<AccountEmail> =
+                                ctx.db.sender_account_emails().iter().collect();
+                            table_signals_on_connect.sender_account_emails.set(updated);
+                        });
+                        // Populate initial rows for sender_accounts
+                        let current: Vec<Account> = conn.db.sender_accounts().iter().collect();
+                        table_signals_on_connect.sender_accounts.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.sender_accounts().on_insert(move |ctx, _row| {
+                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
+                            table_signals_on_connect.sender_accounts.set(updated);
+                        });
+                        conn.db.sender_accounts().on_update(move |ctx, _old, _new| {
+                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
+                            table_signals_on_connect.sender_accounts.set(updated);
+                        });
+                        conn.db.sender_accounts().on_delete(move |ctx, _row| {
+                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
+                            table_signals_on_connect.sender_accounts.set(updated);
+                        });
+                        // Populate initial rows for sender_category_app_passwords
+                        let current: Vec<CategoryAppPassword> =
+                            conn.db.sender_category_app_passwords().iter().collect();
+                        table_signals_on_connect
+                            .sender_category_app_passwords
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .sender_category_app_passwords()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.sender_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .sender_category_app_passwords
+                                    .set(updated);
+                            });
+                        conn.db.sender_category_app_passwords().on_update(
+                            move |ctx, _old, _new| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.sender_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .sender_category_app_passwords
+                                    .set(updated);
+                            },
+                        );
+                        conn.db
+                            .sender_category_app_passwords()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.sender_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .sender_category_app_passwords
+                                    .set(updated);
+                            });
                         // Populate initial rows for sender_mail_delivery_claimed
                         let current: Vec<MailDeliveryClaimed> =
                             conn.db.sender_mail_delivery_claimed().iter().collect();
@@ -768,6 +853,64 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<MailMessage> =
                                 ctx.db.sender_mail_messages().iter().collect();
                             table_signals_on_connect.sender_mail_messages.set(updated);
+                        });
+                        // Populate initial rows for sender_message_categories
+                        let current: Vec<MessageCategory> =
+                            conn.db.sender_message_categories().iter().collect();
+                        table_signals_on_connect
+                            .sender_message_categories
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .sender_message_categories()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<MessageCategory> =
+                                    ctx.db.sender_message_categories().iter().collect();
+                                table_signals_on_connect
+                                    .sender_message_categories
+                                    .set(updated);
+                            });
+                        conn.db
+                            .sender_message_categories()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<MessageCategory> =
+                                    ctx.db.sender_message_categories().iter().collect();
+                                table_signals_on_connect
+                                    .sender_message_categories
+                                    .set(updated);
+                            });
+                        conn.db
+                            .sender_message_categories()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<MessageCategory> =
+                                    ctx.db.sender_message_categories().iter().collect();
+                                table_signals_on_connect
+                                    .sender_message_categories
+                                    .set(updated);
+                            });
+                        // Populate initial rows for sender_subscriptions
+                        let current: Vec<Subscription> =
+                            conn.db.sender_subscriptions().iter().collect();
+                        table_signals_on_connect.sender_subscriptions.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.sender_subscriptions().on_insert(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.sender_subscriptions().iter().collect();
+                            table_signals_on_connect.sender_subscriptions.set(updated);
+                        });
+                        conn.db
+                            .sender_subscriptions()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<Subscription> =
+                                    ctx.db.sender_subscriptions().iter().collect();
+                                table_signals_on_connect.sender_subscriptions.set(updated);
+                            });
+                        conn.db.sender_subscriptions().on_delete(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.sender_subscriptions().iter().collect();
+                            table_signals_on_connect.sender_subscriptions.set(updated);
                         });
                         // Populate initial rows for sender_system_mail_pending
                         let current: Vec<SystemMailPending> =
@@ -1340,6 +1483,27 @@ pub fn use_table_requeue_temporary_failed_mails_schedule(
     ctx.tables.requeue_temporary_failed_mails_schedule
 }
 
+/// Get a reactive signal containing all rows of the `sender_account_emails` table.
+#[must_use]
+pub fn use_table_sender_account_emails() -> SyncSignal<Vec<AccountEmail>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_account_emails
+}
+
+/// Get a reactive signal containing all rows of the `sender_accounts` table.
+#[must_use]
+pub fn use_table_sender_accounts() -> SyncSignal<Vec<Account>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_accounts
+}
+
+/// Get a reactive signal containing all rows of the `sender_category_app_passwords` table.
+#[must_use]
+pub fn use_table_sender_category_app_passwords() -> SyncSignal<Vec<CategoryAppPassword>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_category_app_passwords
+}
+
 /// Get a reactive signal containing all rows of the `sender_mail_delivery_claimed` table.
 #[must_use]
 pub fn use_table_sender_mail_delivery_claimed() -> SyncSignal<Vec<MailDeliveryClaimed>> {
@@ -1395,6 +1559,20 @@ pub fn use_table_sender_mail_ingress() -> SyncSignal<Vec<MailIngress>> {
 pub fn use_table_sender_mail_messages() -> SyncSignal<Vec<MailMessage>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.sender_mail_messages
+}
+
+/// Get a reactive signal containing all rows of the `sender_message_categories` table.
+#[must_use]
+pub fn use_table_sender_message_categories() -> SyncSignal<Vec<MessageCategory>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_message_categories
+}
+
+/// Get a reactive signal containing all rows of the `sender_subscriptions` table.
+#[must_use]
+pub fn use_table_sender_subscriptions() -> SyncSignal<Vec<Subscription>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_subscriptions
 }
 
 /// Get a reactive signal containing all rows of the `sender_system_mail_pending` table.
