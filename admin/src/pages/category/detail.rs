@@ -124,6 +124,8 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
         "SELECT * FROM visible_topics",
         "SELECT * FROM visible_message_category_topics",
         "SELECT * FROM category_subscriber_counts",
+        "SELECT * FROM visible_account_configs",
+        "SELECT * FROM total_accounts",
     ]);
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
@@ -298,6 +300,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                 category_id,
                 available_accounts,
                 available_emails: account_emails(),
+                subscribed_email_ids: category_subscribed_email_ids,
             }
 
             EditSubscriptionModal { show: show_edit_modal, category_id, target: edit_target }
