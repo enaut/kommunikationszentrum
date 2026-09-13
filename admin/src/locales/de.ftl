@@ -273,3 +273,13 @@ status-done-sent = gesendet
 status-done-failed = fehlgeschlagen
 status-done-bounced = gebounced
 status-done-cancelled = abgebrochen
+
+# Email verification
+email-verification-title = E-Mail-Bestätigung
+email-verification-verifying = E-Mail-Adresse wird bestätigt…
+email-verification-please-wait = Bitte warten, während der Bestätigungslink geprüft wird.
+email-verification-success-title = E-Mail-Adresse bestätigt!
+email-verification-success-desc = Deine E-Mail-Adresse wurde erfolgreich bestätigt und aktiviert.
+email-verification-failed-title = Bestätigung fehlgeschlagen
+email-verification-failed-desc = Der Bestätigungslink ist ungültig oder abgelaufen.
+email-verification-continue = Weiter zum Kommunikationszentrum

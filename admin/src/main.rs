@@ -79,6 +79,18 @@ fn App() -> Element {
     let config = use_signal(AdminConfig::load);
     let (auth_state, login, logout) = use_oauth(config.read().oauth.clone());
 
+    let mut verification_token = use_signal(|| {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let params = oauth::auth_flow::parse_url_params();
+            params.get("token").cloned()
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            None::<String>
+        }
+    });
+
     // Theme signal for ThemeProvider + ThemeToggle
     let theme = use_signal(|| Theme::Light);
 
@@ -87,19 +99,40 @@ fn App() -> Element {
         ThemeProvider { theme }
         BootstrapHead {}
         BootstrapThemeProvider { theme: solawi_theme() }
-        match &*auth_state.read() {
-            AuthState::Unauthenticated => rsx! {
-                LoginPage { on_login: login }
-            },
-            AuthState::Authenticating => rsx! {
-                AuthenticatingPage {}
-            },
-            AuthState::Authenticated(user_info) => rsx! {
-                AuthenticatedApp { user_info: user_info.clone(), on_logout: logout, theme }
-            },
-            AuthState::Error(error) => rsx! {
-                ErrorPage { error: error.clone(), on_retry: login }
-            },
+        if let Some(token) = verification_token.cloned() {
+            {
+                let (is_authenticated, id_token) = match &*auth_state.read() {
+                    AuthState::Authenticated(u) => (true, u.id_token.clone()),
+                    _ => (false, None),
+                };
+                rsx! {
+                    pages::verify_email::VerifyEmailPage {
+                        token,
+                        on_login: login,
+                        on_continue: if is_authenticated {
+                            Some(Callback::new(move |_| verification_token.set(None)))
+                        } else {
+                            None
+                        },
+                        id_token,
+                    }
+                }
+            }
+        } else {
+            match &*auth_state.read() {
+                AuthState::Unauthenticated => rsx! {
+                    LoginPage { on_login: login }
+                },
+                AuthState::Authenticating => rsx! {
+                    AuthenticatingPage {}
+                },
+                AuthState::Authenticated(user_info) => rsx! {
+                    AuthenticatedApp { user_info: user_info.clone(), on_logout: logout, theme }
+                },
+                AuthState::Error(error) => rsx! {
+                    ErrorPage { error: error.clone(), on_retry: login }
+                },
+            }
         }
     }
 }
@@ -181,35 +214,6 @@ fn AuthenticatedApp(
 
     let state = use_connection_state();
     let active_view = use_signal(|| ActiveView::MySubscriptions);
-
-    let verify_email = crate::module_bindings::dioxus::use_reducer_user_verify_email();
-    
-    use_effect(move || {
-        if matches!(state(), ConnectionState::Connected(_, _)) {
-            #[cfg(target_arch = "wasm32")]
-            if let Some(window) = web_sys::window() {
-                if let Ok(search) = window.location().search() {
-                    let search = search.trim_start_matches('?');
-                    for pair in search.split('&') {
-                        let mut kv = pair.split('=');
-                        if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
-                            if k == "token" {
-                                info!("Found verification token in URL, submitting...");
-                                if let Err(e) = verify_email(v.to_string()) {
-                                    error!("Verification failed: {:?}", e);
-                                } else {
-                                    info!("Verification requested successfully.");
-                                }
-                                // Optionally clear it from URL
-                                let _ = window.history().and_then(|h| h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/")));
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
 
     rsx! {
         components::navbar::Navbar {
