@@ -8,12 +8,12 @@ direction: right
   admin_identities
   webhook_tokens
   stalwart_config
-  message_categories
-  topics
-  message_category_topics
+  message_topics
+  categories
+  message_topic_categories
   subscriptions
   subscription_unsubscribe_tokens
-  category_app_passwords
+  topic_app_passwords
   domains
   received_message
   mail_message
@@ -90,26 +90,26 @@ direction: right
     style.fill: "#e3f2fd"
   }
 
-  visible_message_categories: |md
-    ### visible_message_categories
-    * Public categories visible to all members.
-    * Private categories require admin or subscription.
+  visible_message_topics: |md
+    ### visible_message_topics
+    * Public topics visible to all members.
+    * Private topics require admin or subscription.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
   }
 
-  visible_topics: |md
-    ### visible_topics
-    * Public topic tags.
+  visible_categories: |md
+    ### visible_categories
+    * Public category tags.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
   }
 
-  visible_message_category_topics: |md
-    ### visible_message_category_topics
-    * Public category-topic assignments.
+  visible_message_topic_categories: |md
+    ### visible_message_topic_categories
+    * Public topic-category assignments.
   | {
     shape: rectangle
     style.fill: "#e8f5e9"
@@ -140,8 +140,8 @@ direction: right
     style.fill: "#e8f5e9"
   }
 
-  visible_category_app_passwords: |md
-    ### visible_category_app_passwords
+  visible_topic_app_passwords: |md
+    ### visible_topic_app_passwords
     * Admin-only SMTP app-password metadata.
   | {
     shape: rectangle
@@ -151,7 +151,7 @@ direction: right
   visible_messages: |md
     ### visible_messages
     * Admin sees all rows.
-    * Member sees only subscribed categories.
+    * Member sees only subscribed topics.
   | {
     shape: rectangle
     style.fill: "#fff3e0"
@@ -183,19 +183,19 @@ direction: right
     style.fill: "#fff3e0"
   }
 
-  category_message_counts: |md
-    ### category_message_counts
-    * Public anonymous view.
-    * Real-time received message counts per category.
+  topic_message_counts: |md
+    ### topic_message_counts
+    * Public view.
+    * Real-time received message counts per topic.
   | {
     shape: rectangle
     style.fill: "#fff3e0"
   }
 
-  category_subscriber_counts: |md
-    ### category_subscriber_counts
-    * Public anonymous view.
-    * Real-time active subscriber counts per category.
+  topic_subscriber_counts: |md
+    ### topic_subscriber_counts
+    * Public view.
+    * Real-time active subscriber counts per topic.
   | {
     shape: rectangle
     style.fill: "#fff3e0"
@@ -276,6 +276,22 @@ direction: right
     shape: rectangle
     style.fill: "#f3e5f5"
   }
+
+  sender_message_topics: |md
+    ### sender_message_topics
+    * Admin-only view of topics for routing & Stalwart account mapping.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
+
+  sender_topic_app_passwords: |md
+    ### sender_topic_app_passwords
+    * Admin-only managed topic SMTP credentials.
+  | {
+    shape: rectangle
+    style.fill: "#f3e5f5"
+  }
 }
 
 "Private Tables".account -> "Member / Admin Views".visible_accounts
@@ -285,19 +301,19 @@ direction: right
 "Private Tables".webhook_tokens -> "Member / Admin Views".visible_webhook_tokens
 "Private Tables".stalwart_config -> "Member / Admin Views".admin_stalwart_config
 "Private Tables".domains -> "Member / Admin Views".visible_domains
-"Private Tables".message_categories -> "Member / Admin Views".visible_message_categories
-"Private Tables".topics -> "Member / Admin Views".visible_topics
-"Private Tables".message_category_topics -> "Member / Admin Views".visible_message_category_topics
+"Private Tables".message_topics -> "Member / Admin Views".visible_message_topics
+"Private Tables".categories -> "Member / Admin Views".visible_categories
+"Private Tables".message_topic_categories -> "Member / Admin Views".visible_message_topic_categories
 "Private Tables".subscriptions -> "Member / Admin Views".visible_subscriptions
 "Private Tables".subscriptions -> "Member / Admin Views".active_subscriptions
 "Private Tables".subscription_unsubscribe_tokens -> "Member / Admin Views".active_unsubscribe_tokens
-"Private Tables".category_app_passwords -> "Member / Admin Views".visible_category_app_passwords
+"Private Tables".topic_app_passwords -> "Member / Admin Views".visible_topic_app_passwords
 "Private Tables".received_message -> "Member / Admin Views".visible_messages
 "Private Tables".mail_message -> "Member / Admin Views".visible_mail_messages
 "Private Tables".account -> "Member / Admin Views".total_accounts
 "Private Tables".received_message -> "Member / Admin Views".total_messages
-"Private Tables".received_message -> "Member / Admin Views".category_message_counts
-"Private Tables".subscriptions -> "Member / Admin Views".category_subscriber_counts
+"Private Tables".received_message -> "Member / Admin Views".topic_message_counts
+"Private Tables".subscriptions -> "Member / Admin Views".topic_subscriber_counts
 "Private Tables".mail_message -> "Sender Worker Views".sender_mail_messages
 "Private Tables".mail_ingress -> "Sender Worker Views".sender_mail_ingress
 "Private Tables".mail_delivery_message -> "Sender Worker Views".sender_mail_delivery_messages
@@ -307,3 +323,6 @@ direction: right
 "Private Tables".mail_delivery_events -> "Sender Worker Views".sender_mail_delivery_events
 "Private Tables".mail_delivery_temporary_failed -> "Sender Worker Views".sender_mail_delivery_temporary_failed
 "Private Tables".system_mail_pending -> "Sender Worker Views".sender_system_mail_pending
+"Private Tables".message_topics -> "Sender Worker Views".sender_message_topics
+"Private Tables".topic_app_passwords -> "Sender Worker Views".sender_topic_app_passwords
+

@@ -9,10 +9,10 @@ check_auth: "Did daemon exit on startup with\nFatalError: missing admin permissi
 fix_auth: "Register identity in admin_identities\nvia Admin Web UI or CLI:\nspacetime call <db> register_admin_identity <hex>\nSave token to SPACETIMEDB_TOKEN in .env" { style.fill: "#ffcdd2" }
 
 check_ingress: "Are mail_ingress rows stuck in Processing?" { shape: diamond }
-fix_ingress: "Check if tokens are awaiting generation\nor wait for 10-minute lease expiry.\nVerify visible_message_categories is populated." { style.fill: "#ffe0b2" }
+fix_ingress: "Check if tokens are awaiting generation\nor wait for 10-minute lease expiry.\nVerify visible_message_topics is populated." { style.fill: "#ffe0b2" }
 
 check_smtp: "Are deliveries failing with SMTP errors?" { shape: diamond }
-fix_smtp: "Check SMTP app password in Admin UI\n(CategoryAppPassword table) & relay host/port.\nInspect mail_delivery_events for status codes." { style.fill: "#ffcdd2" }
+fix_smtp: "Check SMTP app password in Admin UI\n(TopicAppPassword table) & relay host/port.\nInspect mail_delivery_events for status codes." { style.fill: "#ffcdd2" }
 
 ok: "All systems healthy.\nDeliveries moving: Pending → Claimed → Done." { style.fill: "#c8e6c9" }
 

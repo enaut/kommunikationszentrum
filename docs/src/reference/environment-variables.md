@@ -90,7 +90,7 @@ Complete reference of all environment variables supported by Kommunikationszentr
 All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 
 > [!NOTE]
-> **SMTP Authentication**: The sender daemon does **not** take global `SMTP_USERNAME` or `SMTP_PASSWORD` environment variables. SMTP authentication credentials (username and app password) are configured per message category and stored securely in SpacetimeDB (`CategoryAppPassword` table), managed via the Admin UI.
+> **SMTP Authentication**: The sender daemon does **not** take global `SMTP_USERNAME` or `SMTP_PASSWORD` environment variables. SMTP authentication credentials (username and app password) are configured per message topic and stored securely in SpacetimeDB (`TopicAppPassword` table), managed via the Admin UI.
 
 ### `SMTP_HOST`
 - **Default**: _(none — required)_
@@ -146,7 +146,7 @@ All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 
 ## Stalwart Mailserver Integration (Fallback)
 
-SpacetimeDB integrates with the Stalwart mailserver's JMAP API for automated category mailbox provisioning and domain synchronization.
+SpacetimeDB integrates with the Stalwart mailserver's JMAP API for automated topic mailbox provisioning and domain synchronization.
 
 > [!TIP]
 > The primary and recommended method for configuring Stalwart is via the **Admin Web UI** (under **Stalwart Mailserver**) or the `set_stalwart_config` reducer, which stores configuration in the database `stalwart_config` table. The environment variables below are used as fallbacks if the database table is empty.

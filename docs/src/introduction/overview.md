@@ -23,12 +23,12 @@ The Kommunikationszentrum acts as an intelligent email gateway that:
 - Role-based admin checks enforced in SpacetimeDB views and reducers
 - User synchronization from Django into the canonical subscription model
 
-### 📧 **Mail routing & category management**
+### 📧 **Mail routing & topic management**
 - Stalwart MTA hooks are normalized and classified in SpacetimeDB
-- Category addresses are provisioned as mailing-list identities with visibility rules
+- Topic addresses are provisioned as mailing-list identities with visibility rules
 - Domain metadata and mailbox state are synchronized from Stalwart into the module
 - Account activation state is synchronized from Django and enforced before delivery is created
-- Category-specific SMTP app passwords support list submission without broad credentials
+- Topic-specific SMTP app passwords support list submission without broad credentials
 
 ### 🧯 **Delivery resilience**
 - Transient SMTP errors are stored in a temporary retry queue instead of being lost
@@ -37,14 +37,14 @@ The Kommunikationszentrum acts as an intelligent email gateway that:
 
 ### 👥 **Member experience**
 - Self-service subscription management in the Dioxus admin UI
-- Admin controls for users, categories, domains, and routing state
+- Admin controls for users, topics, categories, domains, and routing state
 - Real-time updates via SpacetimeDB subscriptions and scoped views
 
 ## Use Cases
 
 The Kommunikationszentrum is designed for organizations that need:
 
-1. **Mailing List Management**: Organizations with multiple email categories (news, events, announcements) where users can selectively subscribe
+1. **Mailing List Management**: Organizations with multiple email topics (news, events, announcements) classified by category tags, where users can selectively subscribe
 3. **User Integration**: Seamless integration with existing user management systems
 5. **Self-Service**: Allow users to manage their own subscriptions without admin intervention
 
@@ -80,13 +80,13 @@ Each component has a single responsibility:
 ### **End Users**
 Community members who want to:
 - Manage their email subscriptions
-- Subscribe/unsubscribe from categories
+- Subscribe/unsubscribe from topics
 - View their subscription status
 
 ### **Administrators**
 System administrators who:
 - Manage user accounts and permissions
-- Configure email categories
+- Configure email topics and categories
 
 ### **Developers**
 Technical team members who:

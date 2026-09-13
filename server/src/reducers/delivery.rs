@@ -9,8 +9,8 @@ use crate::models::mail_message::mail_message;
 pub(crate) fn upsert_mail_ingress(
     ctx: &ReducerContext,
     mail_message_id: u64,
-    category_id: u64,
-    category_email: String,
+    topic_id: u64,
+    topic_email: String,
 ) -> String {
     let msg = ctx
         .db
@@ -19,13 +19,13 @@ pub(crate) fn upsert_mail_ingress(
         .find(&mail_message_id)
         .expect("MailMessage must exist before MailIngress");
     let queue_id = msg.queue_id.as_deref().unwrap_or("");
-    let ingress_id = make_ingress_id(ctx, queue_id, category_id);
+    let ingress_id = make_ingress_id(ctx, queue_id, topic_id);
 
     ctx.db.mail_ingress().insert(MailIngress {
         id: ingress_id.clone(),
         mail_message_id,
-        category_id,
-        category_email,
+        topic_id,
+        topic_email,
         claim: ClaimState::new_pending(ctx.timestamp),
         recipient_count: 0,
         delivery_count: 0,

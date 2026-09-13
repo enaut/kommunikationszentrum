@@ -1,6 +1,6 @@
 # Kommunikationszentrum - SoLaWi Email Management System
 
-A Community Supported Agriculture (SoLaWi) email management system that processes and routes emails based on user subscriptions to mailing list categories.
+A Community Supported Agriculture (SoLaWi) email management system that processes and routes emails based on user subscriptions to message topics (mailing lists) classified by category tags.
 
 The main documentation is available at: [![Documentation](https://github.com/enaut/kommunikationszentrum/actions/workflows/deploy-docs.yaml/badge.svg)](https://enaut.github.io/kommunikationszentrum/)
 
@@ -63,7 +63,7 @@ graph TD
 
 ### Components
 
-1. **SpacetimeDB Server** (`/server`): canonical state for accounts, categories, subscriptions, domains, and delivery jobs
+1. **SpacetimeDB Server** (`/server`): canonical state for accounts, topics, categories, subscriptions, domains, and delivery jobs
 2. **Admin Web Interface** (`/admin`): Dioxus frontend for member and admin workflows
 3. **Sender Daemon** (`/sender`): SMTP delivery worker with retry, lease expiry, and queue recovery
 4. **External integrations**: Django OAuth/user sync and Stalwart MTA/domain management

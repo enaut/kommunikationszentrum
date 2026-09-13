@@ -18,13 +18,13 @@ The DATA stage is where the message is actually stored and the delivery pipeline
 ```
 
 **Key checks in the DATA stage:**
-1. Resolve RCPT envelope addresses → `message_categories` (with `To`-header fallback).
+1. Resolve RCPT envelope addresses → `message_topics` (with `To`-header fallback).
 2. Look up sender's `account` row by email.
 3. Check if sender is in `admin_identities`.
-4. For non-admin senders: check write permissions and subscriptions for each target category:
-   - If the sender lacks `Write` permission (e.g. `Read`-only subscription) or is not subscribed at all (including external/unregistered senders), the category delivery is rejected.
-   - For any rejected categories, an explanatory rejection notice email is queued in `system_mail_pending` to be sent by the sender daemon from `SMTP_SYSTEM_USER`.
-5. If any authorized categories remain: insert `ReceivedMessage` + `MailIngress` (state = `pending`).
+4. For non-admin senders: check write permissions and subscriptions for each target topic:
+   - If the sender lacks `Write` permission (e.g. `Read`-only subscription) or is not subscribed at all (including external/unregistered senders), the topic delivery is rejected.
+   - For any rejected topics, an explanatory rejection notice email is queued in `system_mail_pending` to be sent by the sender daemon from `SMTP_SYSTEM_USER`.
+5. If any authorized topics remain: insert `ReceivedMessage` + `MailIngress` (state = `pending`).
 
 ---
 

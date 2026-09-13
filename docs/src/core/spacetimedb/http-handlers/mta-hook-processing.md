@@ -19,7 +19,7 @@ For instructions on generating a token, hashing it with BLAKE3, and registering 
 | `connect` | Accept or reject the TCP/SMTP connection based on client IP. | Checks `blocked_ips` table; returns `reject` if an active block is present, otherwise logs and returns `accept`. |
 | `ehlo` | Validate the HELO/EHLO argument. | Rejects if the argument is empty; otherwise logs and returns `accept`. |
 | `mail` | Validate the envelope sender address. | Rejects with 550 if the sender is missing `@` or is empty. Valid senders are logged and accepted. |
-| `rcpt` | Verify recipient addresses against known, active message categories. | Performs an indexed lookup on `message_categories.email_address`. Accepts on a match; returns `reject` (550) if no active category matches any recipient. |
+| `rcpt` | Verify recipient addresses against known, active message topics. | Performs an indexed lookup on `message_topics.email_address`. Accepts on a match; returns `reject` (550) if no active topic matches any recipient. |
 | `data` | Process and persist the incoming message for delivery to subscribers. | See [Data Stage Detail](#data-stage-detail) below. |
 | `auth` | Preliminary SMTP authentication handling. | Accepts the authentication attempt and logs it (pass-through for this project). |
 
@@ -30,12 +30,12 @@ For instructions on generating a token, hashing it with BLAKE3, and registering 
 The `data` handler runs inside `ctx.with_tx(...)` to ensure atomic writes:
 
 1. Extracts headers, subject, message size, and body.
-2. Resolves matching categories from envelope recipients; falls back to the message `To` header.
+2. Resolves matching topics from envelope recipients; falls back to the message `To` header.
 3. Resolves all active sender accounts by matching `from_address` against `account_emails`.
-4. Checks sender authorization for each category:
+4. Checks sender authorization for each topic:
    - **Admin Access**: If *any* matching account has an admin identity in `admin_identities`, posting authorization is granted.
-   - **Member Write Permission**: Otherwise, ensures matching accounts exist and are active (`is_active == true`), and verifies that at least one matching account holds an active subscription with `SubscriptionPermission::Write` to the category.
-5. If authorized, creates a canonical `mail_message` row, enqueues an ingress fan-out job in `mail_ingress`, archives to `received_message` for subscribed members, and returns `accept` (optionally adding processing headers). If no authorized categories remain, quarantines the message.
+   - **Member Write Permission**: Otherwise, ensures matching accounts exist and are active (`is_active == true`), and verifies that at least one matching account holds an active subscription with `SubscriptionPermission::Write` to the topic.
+5. If authorized, creates a canonical `mail_message` row, enqueues an ingress fan-out job in `mail_ingress`, archives to `received_message` for subscribed members, and returns `accept` (optionally adding processing headers). If no authorized topics remain, quarantines the message.
 
 > **Note:** Messages over 2 MB may have their bodies omitted from storage to avoid memory pressure.
 

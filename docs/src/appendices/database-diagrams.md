@@ -19,7 +19,7 @@ The complete database schema diagram shows:
 ### Table Groups by Color
 
 - **Yellow (User Management)**: `account`
-- **Green (Category Management)**: `message_categories`, `subscriptions`
+- **Green (Topic & Category Management)**: `message_topics`, `categories`, `message_topic_categories`, `subscriptions`
 - **Blue (MTA Processing)**: `mta_connection_log`, `mta_message_log`, `blocked_ips`
 
 ## Simplified Entity-Relationship Diagram
@@ -51,8 +51,8 @@ The MTA processing flow diagram illustrates:
    - Future: Sender whitelist/blacklist
 
 4. **RCPT TO**: Recipient validation
-   - Category validation against `message_categories`
-   - REJECT if category doesn't exist
+   - Topic validation against `message_topics`
+   - REJECT if topic doesn't exist
 
 5. **DATA**: Full message processing
    - Subscription validation against `subscriptions` table
@@ -69,7 +69,7 @@ Each stage can result in:
 
 ### Database Interactions
 
-- **Lookups**: Read from `blocked_ips`, `message_categories`, `subscriptions`
+- **Lookups**: Read from `blocked_ips`, `message_topics`, `subscriptions`
 - **Logging**: Write to `mta_connection_log` and `mta_message_log`
 - **Privacy**: IP addresses redacted in logs as "[REDACTED]"
 
@@ -120,8 +120,8 @@ The diagrams provide visual documentation that complements the textual descripti
    - Future: Sender whitelist/blacklist
 
 4. **RCPT TO**: Recipient validation
-   - Category validation against `message_categories`
-   - REJECT if category doesn't exist
+   - Topic validation against `message_topics`
+   - REJECT if topic doesn't exist
 
 5. **DATA**: Full message processing
    - Subscription validation against `subscriptions` table
@@ -138,7 +138,7 @@ Each stage can result in:
 
 ### Database Interactions
 
-- **Lookups**: Read from `blocked_ips`, `message_categories`, `subscriptions`
+- **Lookups**: Read from `blocked_ips`, `message_topics`, `subscriptions`
 - **Logging**: Write to `mta_connection_log` and `mta_message_log`
 - **Privacy**: IP addresses redacted in logs as "[REDACTED]"
 

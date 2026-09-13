@@ -7,7 +7,7 @@
   ```rust
   // Correct
   h4 { class: "mt-2 mb-0", {tid!("app-login-title")} }
-  Badge { color: Color::Success, {tid!("category-status-active")} }
+  Badge { color: Color::Success, {tid!("topic-status-active")} }
 
   // Avoid
   h4 { class: "mt-2 mb-0", "{tid!(\"app-login-title\")}" }
@@ -26,8 +26,8 @@
 - **Do not** place a trailing comma after the last argument of `tid!` (the `dioxus-i18n` macro pattern `($id:expr, $( $name:ident : $value:expr ),*)` does not allow trailing commas).
 - For component props and element attributes, pass `tid!(...)` directly as the expression value without string interpolation:
   ```rust
-  FormGroup { label: tid!("category-form-name"), ... }
-  Input { placeholder: tid!("category-form-name-placeholder"), ... }
+  FormGroup { label: tid!("topic-form-name"), ... }
+  Input { placeholder: tid!("topic-form-name-placeholder"), ... }
   ```
 
 ### 2. Internationalization (`dioxus-i18n` & Fluent)

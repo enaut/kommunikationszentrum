@@ -8,8 +8,8 @@ Guide to configuring and running the local development environment for Kommunika
 
 A complete local development environment consists of the following components:
 
-1. **SpacetimeDB Server** (`:3000`): Database and execution engine for reducers, procedures, and embedded HTTP routes (`/route/mta-hook`, `/route/user-sync`, `/route/mailing-list/unsubscribe`).
-2. **Admin Web App** (`:8080`): Dioxus WebAssembly frontend for managing categories, subscriptions, identities, and webhook tokens.
+1. **SpacetimeDB Server** (`:3000`): Database and execution engine for reducers, procedures, and embedded HTTP routes (`/route/mta-hook`, `/route/user-sync`, `/route/topic-sync`, `/route/mailing-list/unsubscribe`).
+2. **Admin Web App** (`:8080`): Dioxus WebAssembly frontend for managing topics, categories, subscriptions, identities, and webhook tokens.
 3. **Sender Daemon**: Background service that claims ingress and delivery jobs from SpacetimeDB and delivers emails via SMTP.
 4. **Django Backend (solawispielplatz)** (`:8000`): OAuth 2.0 / OIDC provider and source of user accounts.
 5. **Stalwart Mailserver** (`:8093` / `:25`): Local MTA for inbound mail hooks and JMAP mailbox management.

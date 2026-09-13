@@ -54,7 +54,7 @@ spacetime logs kommunikation --follow
 
 ```bash
 spacetime sql kommunikation "SELECT COUNT(*) FROM account"
-spacetime sql kommunikation "SELECT * FROM message_categories LIMIT 10"
+spacetime sql kommunikation "SELECT * FROM message_topics LIMIT 10"
 spacetime sql kommunikation "SELECT * FROM mta_connection_log ORDER BY timestamp DESC LIMIT 5"
 ```
 
@@ -151,7 +151,7 @@ spacetime call kommunikation revoke_webhook_token "$TOKEN_HASH"
 
 ## Managing Admin Identities
 
-Admin identities have elevated privileges to execute admin-only reducers and procedures (such as managing webhook tokens, domain sync, category creation, and recipient management).
+Admin identities have elevated privileges to execute admin-only reducers and procedures (such as managing webhook tokens, domain sync, topic creation, and recipient management).
 
 ### Option 1: Via Admin Web UI (Recommended)
 

@@ -13,7 +13,7 @@ email_verification_tokens: {
 }
 
 account_configs: {
-  label: "AccountConfig\naccount_id: u64 (PK, FK)\nmessage_offset: u32\nmessage_limit: u32\nselected_message_category: Option<u64>\nmember_offset: u32\nmember_limit: u32\nmember_search_query: Option<String>\nviewing_category_id: Option<u64>\nlanguage: Option<String>\ntheme: Option<String>\nsearch_matching_accounts: u32"
+  label: "AccountConfig\naccount_id: u64 (PK, FK)\nmessage_offset: u32\nmessage_limit: u32\nselected_message_topic: Option<u64>\nmember_offset: u32\nmember_limit: u32\nmember_search_query: Option<String>\nviewing_topic_id: Option<u64>\nlanguage: Option<String>\ntheme: Option<String>\nsearch_matching_accounts: u32"
 }
 
 system_mail_pending: {
@@ -32,15 +32,29 @@ blocked_ips: {
   label: "BlockedIp\nip: String (PK)\nreason: String\nblocked_at: i64\nactive: bool"
 }
 
-message_categories: {
-  label: "MessageCategory\nid: u64 (PK, auto_inc)\nname: String\nemail_address: String\ndescription: String\nactive: bool\ndefault_permission: SubscriptionPermission"
+message_topics: {
+  label: "MessageTopic\nid: u64 (PK, auto_inc)\nname: String\nemail_address: String\ndescription: String\nactive: bool\nvisibility: TopicVisibility\ndefault_permission: SubscriptionPermission"
+}
+
+categories: {
+  label: "Category\nid: u64 (PK, auto_inc)\nname: String"
+}
+
+message_topic_categories: {
+  label: "MessageTopicCategory\ntopic_id: u64 (PK, FK)\ncategory_id: u64 (PK, FK)"
 }
 
 subscriptions: {
-  label: "Subscription\nid: u64 (PK, auto_inc)\nsubscriber_account_id: u64\naccount_email_id: u64 (FK)\ncategory_id: u64 (FK)\nsubscribed_at: i64\nstatus: SubscriptionStatus\npermission: SubscriptionPermission"
+  label: "Subscription\nid: u64 (PK, auto_inc)\nsubscriber_account_id: u64\naccount_email_id: u64 (FK)\ntopic_id: u64 (FK)\nsubscribed_at: i64\nstatus: SubscriptionStatus\npermission: SubscriptionPermission"
 }
 
-subscriptions -> message_categories: "category_id → id" {
+subscriptions -> message_topics: "topic_id → id" {
+  style.stroke: blue
+}
+message_topic_categories -> message_topics: "topic_id → id" {
+  style.stroke: blue
+}
+message_topic_categories -> categories: "category_id → id" {
   style.stroke: blue
 }
 subscriptions -> account: "subscriber_account_id → id" {
@@ -64,7 +78,7 @@ mta_connection_log -> blocked_ips: "checks IP blocking" {
   style.stroke: red
   style.stroke-dash: 2
 }
-mta_message_log -> message_categories: "validates recipients" {
+mta_message_log -> message_topics: "validates recipients" {
   style.stroke: green
   style.stroke-dash: 2
 }
@@ -80,9 +94,11 @@ mta_processing: "MTA Processing" {
   blocked_ips
 }
 
-category_mgmt: "Category Management" {
+topic_mgmt: "Topic & Category Management" {
   style.fill: "#e8f5e9"
-  message_categories
+  message_topics
+  categories
+  message_topic_categories
   subscriptions
 }
 

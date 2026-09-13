@@ -1,11 +1,10 @@
 use crate::models::account::webhook_tokens;
-use crate::models::category::{
-    message_categories, CategorySyncData, CategoryVisibility, MessageCategory,
-    SubscriptionPermission,
-};
 use crate::models::mta::{blocked_ips, mta_connection_log, MtaConnectionLog};
+use crate::models::topic::{
+    message_topics, MessageTopic, SubscriptionPermission, TopicSyncData, TopicVisibility,
+};
 use crate::reducers::{do_sync_user, unsubscribe_subscription_by_token, UserSyncData};
-use crate::services::stalwart::category::provision_stalwart_category_mailbox;
+use crate::services::stalwart::topic::provision_stalwart_topic_mailbox;
 use log::info;
 use serde::Deserialize;
 use serde_json::json;
@@ -41,22 +40,8 @@ fn token_has_permission(ctx: &mut HandlerContext, token: &str, permission: &str)
     })
 }
 
-fn query_param_token(request: &HttpRequest) -> Option<String> {
-    let query = request.uri().query()?;
-    for pair in query.split('&') {
-        let mut parts = pair.splitn(2, '=');
-        let key = parts.next()?.trim();
-        let value = parts.next().unwrap_or_default().trim();
-        if key == "token" && !value.is_empty() {
-            return Some(value.to_string());
-        }
-    }
-    None
-}
-
 #[spacetimedb::http::handler]
 fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResponse {
-    // Authentication
     let token = match request
         .headers()
         .get("authorization")
@@ -74,13 +59,9 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
         return json_response(403, json!({"error":"forbidden"}));
     }
 
-    // Read body
     let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
     let mta_req: MtaHookRequest = match serde_json::from_slice(&body_bytes) {
-        Ok(r) => {
-            info!("Parsed MtaHookRequest: {:?}", r);
-            r
-        }
+        Ok(req) => req,
         Err(_) => {
             info!("Failed to parse MtaHookRequest");
             return json_response(400, json!({"error":"invalid JSON"}));
@@ -228,14 +209,14 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
                 if let Some(envelope) = &mta_req.envelope {
                     for recipient in &envelope.to {
                         let to_address = recipient.address.clone();
-                        let category_found = tx
+                        let topic_found = tx
                             .db
-                            .message_categories()
+                            .message_topics()
                             .email_address()
                             .find(&to_address)
                             .map_or(false, |c| c.active);
                         let action_str =
-                            if category_found { "accept" } else { "reject" }.to_string();
+                            if topic_found { "accept" } else { "reject" }.to_string();
                         tx.db.mta_connection_log().insert(MtaConnectionLog {
                             id: 0,
                             client_ip: "[REDACTED]".to_string(),
@@ -243,8 +224,8 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
                             action: action_str.clone(),
                             timestamp: tx.timestamp,
                             details: format!(
-                                "Category validation: {}",
-                                if category_found { "found" } else { "not found" }
+                                "Topic validation: {}",
+                                if topic_found { "found" } else { "not found" }
                             ),
                         });
                     }
@@ -268,9 +249,10 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
                     stage: "auth".to_string(),
                     action: "accept".to_string(),
                     timestamp: tx.timestamp,
-                    details: "Auth stage - accept".to_string(),
+                    details: "Auth stage".to_string(),
                 });
             });
+
             let resp = MtaHookResponse::accept();
             let body = serde_json::to_vec(&resp).unwrap_or_default();
             HttpResponse::builder()
@@ -288,34 +270,25 @@ struct UserSyncPayload {
     user: UserSyncData,
 }
 
+#[derive(Deserialize)]
+struct UnsubscribeRequest {
+    token: String,
+}
+
 #[spacetimedb::http::handler]
 fn mailing_list_unsubscribe_handler(
     ctx: &mut HandlerContext,
     request: HttpRequest,
 ) -> HttpResponse {
-    if request.method().as_str() != "POST" {
-        return HttpResponse::builder()
-            .status(405)
-            .header("allow", "POST")
-            .body(Body::from_bytes(b"method not allowed".to_vec()))
-            .unwrap();
-    }
-
-    let token = match query_param_token(&request) {
-        Some(token) => urlencoding::decode(&token)
-            .map(|s| s.into_owned())
-            .unwrap_or(token),
-        None => return json_response(400, json!({"error": "missing token query parameter"})),
+    let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
+    let payload: UnsubscribeRequest = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(_) => return json_response(400, json!({"error":"invalid JSON"})),
     };
 
-    let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
-    let body = String::from_utf8_lossy(&body_bytes).trim().to_string();
-    if body != "List-Unsubscribe=One-Click" {
-        return json_response(400, json!({"error": "invalid one-click payload"}));
-    }
+    let token_clone = payload.token.clone();
+    let result = ctx.with_tx(|tx| unsubscribe_subscription_by_token(tx, token_clone.clone()));
 
-    let result: Result<(), String> =
-        ctx.with_tx(|tx| unsubscribe_subscription_by_token(tx, token.clone()));
     match result {
         Ok(()) => json_response(200, json!({"status": "unsubscribed"})),
         Err(e) => {
@@ -358,12 +331,12 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
         Err(_) => return json_response(500, json!({"error":"serialization failed"})),
     };
 
-    // Ensure any new or unprovisioned categories in the user's assignment are provisioned in Stalwart
+    // Ensure any new or unprovisioned topics in the user's assignment are provisioned in Stalwart
     if payload.action == "upsert" {
-        if let Some(categories) = &payload.user.categories {
-            for cat in categories {
+        if let Some(topics) = &payload.user.topics {
+            for topic in topics {
                 let needs_provisioning = ctx.with_tx(|tx| {
-                    match tx.db.message_categories().email_address().find(&cat.email_address) {
+                    match tx.db.message_topics().email_address().find(&topic.email_address) {
                         None => true,
                         Some(existing) => existing.app_password_id.is_none(),
                     }
@@ -371,49 +344,49 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
 
                 if needs_provisioning {
                     info!(
-                        "Provisioning Stalwart mailbox for category '{}' ({})",
-                        cat.name, cat.email_address
+                        "Provisioning Stalwart mailbox for topic '{}' ({})",
+                        topic.name, topic.email_address
                     );
-                    let visibility = match CategoryVisibility::parse(&cat.visibility) {
+                    let visibility = match TopicVisibility::parse(&topic.visibility) {
                         Ok(v) => v,
                         Err(e) => {
                             return json_response(
                                 400,
-                                json!({"error": format!("Invalid category visibility: {}", e)}),
+                                json!({"error": format!("Invalid topic visibility: {}", e)}),
                             );
                         }
                     };
-                    let default_perm = match &cat.default_permission {
+                    let default_perm = match &topic.default_permission {
                         Some(p) => match SubscriptionPermission::parse(p) {
                             Ok(perm) => perm,
                             Err(e) => {
                                 return json_response(
                                     400,
-                                    json!({"error": format!("Invalid category default_permission: {}", e)}),
+                                    json!({"error": format!("Invalid topic default_permission: {}", e)}),
                                 );
                             }
                         },
                         None => SubscriptionPermission::Read,
                     };
-                    if let Err(err) = provision_stalwart_category_mailbox(
+                    if let Err(err) = provision_stalwart_topic_mailbox(
                         ctx,
-                        &cat.name,
-                        &cat.email_address,
-                        &cat.description,
+                        &topic.name,
+                        &topic.email_address,
+                        &topic.description,
                         visibility,
                         default_perm,
                     ) {
                         log::error!(
-                            "Failed to provision Stalwart mailbox for category '{}': {}",
-                            cat.email_address,
+                            "Failed to provision Stalwart mailbox for topic '{}': {}",
+                            topic.email_address,
                             err
                         );
                         return json_response(
                             500,
                             json!({
                                 "error": format!(
-                                    "Failed to provision category '{}': {}",
-                                    cat.email_address, err
+                                    "Failed to provision topic '{}': {}",
+                                    topic.email_address, err
                                 )
                             }),
                         );
@@ -442,13 +415,15 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
 }
 
 #[derive(Deserialize)]
-struct CategorySyncPayload {
+struct TopicSyncPayload {
     action: String,
-    category: CategorySyncData,
+    topic: Option<TopicSyncData>,
+    // Backwards compatibility alias during cutover
+    category: Option<TopicSyncData>,
 }
 
 #[spacetimedb::http::handler]
-fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResponse {
+fn topic_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResponse {
     let token = match request
         .headers()
         .get("authorization")
@@ -467,30 +442,35 @@ fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> Http
     }
 
     let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
-    let payload: CategorySyncPayload = match serde_json::from_slice(&body_bytes) {
+    let payload: TopicSyncPayload = match serde_json::from_slice(&body_bytes) {
         Ok(p) => p,
         Err(_) => return json_response(400, json!({"error":"invalid JSON"})),
     };
 
+    let topic_data = match payload.topic.or(payload.category) {
+        Some(d) => d,
+        None => return json_response(400, json!({"error":"missing topic in payload"})),
+    };
+
     match payload.action.as_str() {
         "upsert" => {
-            let cat = &payload.category;
-            let visibility = match CategoryVisibility::parse(&cat.visibility) {
+            let topic = &topic_data;
+            let visibility = match TopicVisibility::parse(&topic.visibility) {
                 Ok(v) => v,
                 Err(e) => {
                     return json_response(
                         400,
-                        json!({"error": format!("Invalid category visibility: {}", e)}),
+                        json!({"error": format!("Invalid topic visibility: {}", e)}),
                     );
                 }
             };
-            let default_perm = match &cat.default_permission {
+            let default_perm = match &topic.default_permission {
                 Some(p) => match SubscriptionPermission::parse(p) {
                     Ok(perm) => perm,
                     Err(e) => {
                         return json_response(
                             400,
-                            json!({"error": format!("Invalid category default_permission: {}", e)}),
+                            json!({"error": format!("Invalid topic default_permission: {}", e)}),
                         );
                     }
                 },
@@ -498,74 +478,74 @@ fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> Http
             };
 
             let needs_provisioning = ctx.with_tx(|tx| {
-                match tx.db.message_categories().email_address().find(&cat.email_address) {
+                match tx.db.message_topics().email_address().find(&topic.email_address) {
                     None => true,
                     Some(existing) => existing.app_password_id.is_none(),
                 }
             });
 
             if needs_provisioning {
-                if let Err(err) = provision_stalwart_category_mailbox(
+                if let Err(err) = provision_stalwart_topic_mailbox(
                     ctx,
-                    &cat.name,
-                    &cat.email_address,
-                    &cat.description,
+                    &topic.name,
+                    &topic.email_address,
+                    &topic.description,
                     visibility,
                     default_perm,
                 ) {
                     log::error!(
-                        "Failed to provision Stalwart mailbox for category '{}': {}",
-                        cat.email_address,
+                        "Failed to provision Stalwart mailbox for topic '{}': {}",
+                        topic.email_address,
                         err
                     );
                     return json_response(
                         500,
-                        json!({"error": format!("Failed to provision category: {}", err)}),
+                        json!({"error": format!("Failed to provision topic: {}", err)}),
                     );
                 }
             } else {
-                // Category already has an app password; update editable metadata if changed
+                // Topic already has an app password; update editable metadata if changed
                 ctx.with_tx(|tx| {
                     if let Some(existing) = tx
                         .db
-                        .message_categories()
+                        .message_topics()
                         .email_address()
-                        .find(&cat.email_address)
+                        .find(&topic.email_address)
                     {
-                        let mut updated = MessageCategory {
-                            name: cat.name.clone(),
-                            description: cat.description.clone(),
+                        let mut updated = MessageTopic {
+                            name: topic.name.clone(),
+                            description: topic.description.clone(),
                             visibility,
                             ..existing
                         };
-                        if cat.default_permission.is_some() {
+                        if topic.default_permission.is_some() {
                             updated.default_permission = default_perm;
                         }
-                        tx.db.message_categories().id().update(updated);
+                        tx.db.message_topics().id().update(updated);
                     }
                 });
             }
 
-            if let Some(topics) = &cat.topics {
-                let cat_id = ctx.with_tx(|tx| {
+            if let Some(categories) = &topic.categories {
+                let topic_id = ctx.with_tx(|tx| {
                     tx.db
-                        .message_categories()
+                        .message_topics()
                         .email_address()
-                        .find(&cat.email_address)
+                        .find(&topic.email_address)
                         .map(|c| c.id)
                 });
-                if let Some(category_id) = cat_id {
+                if let Some(topic_id) = topic_id {
                     let res = ctx.with_tx(|tx| {
-                        crate::reducers::categories::sync_category_topics(
+                        crate::reducers::topics::sync_topic_categories(
                             tx,
-                            category_id,
-                            topics.clone(),
+                            topic_id,
+                            categories.clone(),
                         )
                     });
                     if let Err(err) = res {
                         log::error!(
-                            "Failed to sync topics for category '{}': {}",
-                            cat.email_address,
+                            "Failed to sync categories for topic '{}': {}",
+                            topic.email_address,
                             err
                         );
                     }
@@ -577,7 +557,7 @@ fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> Http
                 json!({
                     "status": "success",
                     "action": "upsert",
-                    "email_address": cat.email_address
+                    "email_address": topic.email_address
                 }),
             )
         }
@@ -590,7 +570,8 @@ fn router() -> Router {
     Router::new()
         .post("/mta-hook", mta_hook_handler)
         .post("/user-sync", user_sync_handler)
-        .post("/category-sync", category_sync_handler)
+        .post("/topic-sync", topic_sync_handler)
+        .post("/category-sync", topic_sync_handler)
         .post(
             "/mailing-list/unsubscribe",
             mailing_list_unsubscribe_handler,

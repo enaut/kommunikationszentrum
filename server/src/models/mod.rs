@@ -1,5 +1,5 @@
 pub mod account;
-pub mod category;
+pub mod topic;
 pub mod config;
 pub mod delivery;
 pub mod domain;

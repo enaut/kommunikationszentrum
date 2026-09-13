@@ -1,9 +1,9 @@
 direction: right
 
 start: "send_delivery(claimed)" { style.fill: "#fff9c4" }
-lookup: "Query Cache:\n• sender_mail_delivery_messages\n  (raw_message, recipient_email)\n• sender_mail_ingress (category_email)" { style.fill: "#bbdefb" }
+lookup: "Query Cache:\n• sender_mail_delivery_messages\n  (raw_message, recipient_email)\n• sender_mail_ingress (topic_email)" { style.fill: "#bbdefb" }
 
-env: "Parse RFC 5321 Envelope:\nFrom: ingress.category_email (return path)\nTo: message.recipient_email" { shape: diamond }
+env: "Parse RFC 5321 Envelope:\nFrom: ingress.topic_email (return path)\nTo: message.recipient_email" { shape: diamond }
 pre_err: "fail_mail_delivery()\nerror_kind='pre-smtp'" { style.fill: "#ffcdd2" }
 smtp: "transport.send_raw(\n&envelope,\nraw_message.as_bytes()).await" { style.fill: "#bbdefb" }
 

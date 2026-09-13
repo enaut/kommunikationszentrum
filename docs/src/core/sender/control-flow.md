@@ -1,6 +1,6 @@
 # Control Flow
 
-This page details the runtime control flow of the `sender` daemon, including startup, the end-to-end delivery lifecycle, reactive event looping, fan-out processing, per-category SMTP dispatch, distributed tracing correlation, and automated crash recovery.
+This page details the runtime control flow of the `sender` daemon, including startup, the end-to-end delivery lifecycle, reactive event looping, fan-out processing, per-topic SMTP dispatch, distributed tracing correlation, and automated crash recovery.
 
 ---
 
@@ -30,10 +30,10 @@ The daemon subscribes to 12 SpacetimeDB views:
 4. `sender_mail_delivery_messages` — Full RFC 5322 payload per recipient delivery.
 5. `sender_mail_messages` — Canonical message bodies and Stalwart `queue_id`.
 6. `sender_system_mail_pending` — Queued verification and transactional system emails.
-7. `active_subscriptions` — Category subscriber lists for fanout.
+7. `active_subscriptions` — Topic subscriber lists for fanout.
 8. `visible_account_emails` — Linked member email addresses for subscriber address resolution and verification checks.
-9. `visible_message_categories` — Active categories and their outbound addresses.
-10. `visible_category_app_passwords` — SMTP credentials per category.
+9. `visible_message_topics` — Active topics and their outbound addresses.
+10. `visible_topic_app_passwords` — SMTP credentials per topic.
 11. `active_unsubscribe_tokens` — Per-subscriber one-click unsubscribe tokens.
 12. `visible_admin_identities` — List of authorized administrator identities.
 
@@ -53,7 +53,7 @@ The main loop coordinates processing between reactive database callbacks and a 1
 Each loop cycle executes four steps sequentially:
 1. `process_fanout_jobs`: Processes owned ingress jobs or requests a new ingress lease.
 2. `send_system_mail_jobs`: Claims unowned system emails from `sender_system_mail_pending` with a 5-minute lease, dispatches verification emails using system SMTP credentials, and calls `complete_system_mail` on success or `release_system_mail` on transient error.
-3. `send_delivery_jobs`: Processes owned delivery jobs over pooled category SMTP transports.
+3. `send_delivery_jobs`: Processes owned delivery jobs over pooled topic SMTP transports.
 4. `claim_next_mail_delivery`: Issues an asynchronous claim for the next pending delivery.
 
 The daemon then suspends on `tokio::select!` awaiting either an incoming `Event::Wakeup` from SpacetimeDB table callbacks (including ingress, delivery, token, and system mail updates) or the 15-second fallback poll timer.
@@ -78,7 +78,7 @@ Fan-out reads inbound `MailIngress` jobs and generates individual deliveries for
 If any subscriber does not yet have an active unsubscribe token, `process_ingress_job` requests one via `ensure_subscription_unsubscribe_token` and returns `Err(IngressJobError::AwaitingToken)`. The fanout runner leaves the ingress claimed and retries on the next wakeup **without incrementing the retry counter**, ensuring transient token generation does not burn the ingress attempt limit.
 
 #### Subscriber Address Resolution & Verification Checks
-When expanding subscribers, `process_ingress_job` filters `active_subscriptions` for the category and resolves each subscriber's email address by joining `visible_account_emails`. For defense-in-depth, the runner asserts that:
+When expanding subscribers, `process_ingress_job` filters `active_subscriptions` for the topic and resolves each subscriber's email address by joining `visible_account_emails`. For defense-in-depth, the runner asserts that:
 1. `row.account_id == subscription.subscriber_account_id` (the email belongs to the subscriber account).
 2. `row.is_verified == true` (only verified email addresses receive mailing list distributions).
 3. The resulting recipient list is sorted and deduplicated by recipient email address, preventing duplicate transmissions if an account has multiple subscriptions pointing to identical addresses.
@@ -125,16 +125,16 @@ Queued deliveries are claimed atomically, converted to RFC 5321 envelopes, and d
 {{#include control-flow-delivery-jobs.d2}}
 ```
 
-### Per-Category SMTP Transport Pooling
+### Per-Topic SMTP Transport Pooling
 
-To prevent SMTP authentication mismatches across different mailing lists, the daemon maintains a local connection pool per category:
+To prevent SMTP authentication mismatches across different mailing lists, the daemon maintains a local connection pool per topic:
 
 ```d2
 {{#include control-flow-smtp-pooling.d2}}
 ```
 
-- Transports are cached in a `HashMap<u64, AsyncSmtpTransport<Tokio1Executor>>` keyed by `category_id`.
-- Credentials are read securely from `visible_category_app_passwords`.
+- Transports are cached in a `HashMap<u64, AsyncSmtpTransport<Tokio1Executor>>` keyed by `topic_id`.
+- Credentials are read securely from `visible_topic_app_passwords`.
 - If credentials or transport building fails, the delivery is marked permanently failed with `error_kind='smtp-transport-build'`, avoiding endless retries on invalid configuration.
 
 ### SMTP Execution & Envelope Addressing (`send_delivery`)
@@ -143,7 +143,7 @@ To prevent SMTP authentication mismatches across different mailing lists, the da
 {{#include control-flow-send-delivery.d2}}
 ```
 
-- **RFC 5321 Envelope `From`**: Always set to `ingress.category_email` (the mailing list address) so bounces and delivery status notifications return to the list system.
+- **RFC 5321 Envelope `From`**: Always set to `ingress.topic_email` (the mailing list address) so bounces and delivery status notifications return to the list system.
 - **Envelope `To`**: Set to `delivery_message.recipient_email`.
 - **Pre-SMTP Validation**: If address parsing fails before hitting SMTP, the delivery is permanently failed with `error_kind='pre-smtp'`.
 
@@ -193,15 +193,16 @@ If a daemon crashes while holding an active ingress, delivery, or system mail le
 
 | Header | Value | Description |
 |---|---|---|
-| `From` | `category.name <category.email_address>` | List display address |
+| `From` | `topic.name <topic.email_address>` | List display address |
 | `To` | `recipient_email` (from AccountEmail) | Individual recipient address |
 | `Reply-To` | `original_sender_email` | Direct replies to original author |
 | `Subject` | `[ListName] <original_subject>` | Ensured list prefix (reply/forward tags normalized) |
 | `Message-ID` | `<seed@domain>` | Unique deterministic ID |
-| `List-Id` | `ListName <category.email_address>` | RFC 2919 List Identifier |
-| `List-Post` | `<mailto:category.email_address>` | Posting address |
+| `List-Id` | `ListName <topic.email_address>` | RFC 2919 List Identifier |
+| `List-Post` | `<mailto:topic.email_address>` | Posting address |
 | `List-Unsubscribe` | `<mailto:...>, <https://.../unsubscribe?token=...>` | One-click & HTTPS unsubscribe |
 | `List-Unsubscribe-Post` | `List-Unsubscribe=One-Click` | RFC 8058 one-click support |
 | `Precedence` | `list` | Legacy mailing list marker |
 | `X-Mailing-List` | `ListName` | Header used by mail filters |
-| `X-BeenThere` | `category.email_address` | Loop prevention header |
+| `X-BeenThere` | `topic.email_address` | Loop prevention header |
+

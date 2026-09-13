@@ -11,8 +11,8 @@ use super::claim_state_type::ClaimState;
 pub struct MailIngress {
     pub id: String,
     pub mail_message_id: u64,
-    pub category_id: u64,
-    pub category_email: String,
+    pub topic_id: u64,
+    pub topic_email: String,
     pub claim: ClaimState,
     pub recipient_count: u32,
     pub delivery_count: u32,
@@ -30,8 +30,8 @@ impl __sdk::InModule for MailIngress {
 pub struct MailIngressCols {
     pub id: __sdk::__query_builder::Col<MailIngress, String>,
     pub mail_message_id: __sdk::__query_builder::Col<MailIngress, u64>,
-    pub category_id: __sdk::__query_builder::Col<MailIngress, u64>,
-    pub category_email: __sdk::__query_builder::Col<MailIngress, String>,
+    pub topic_id: __sdk::__query_builder::Col<MailIngress, u64>,
+    pub topic_email: __sdk::__query_builder::Col<MailIngress, String>,
     pub claim: __sdk::__query_builder::Col<MailIngress, ClaimState>,
     pub recipient_count: __sdk::__query_builder::Col<MailIngress, u32>,
     pub delivery_count: __sdk::__query_builder::Col<MailIngress, u32>,
@@ -45,8 +45,8 @@ impl __sdk::__query_builder::HasCols for MailIngress {
         MailIngressCols {
             id: __sdk::__query_builder::Col::new(table_name, "id"),
             mail_message_id: __sdk::__query_builder::Col::new(table_name, "mail_message_id"),
-            category_id: __sdk::__query_builder::Col::new(table_name, "category_id"),
-            category_email: __sdk::__query_builder::Col::new(table_name, "category_email"),
+            topic_id: __sdk::__query_builder::Col::new(table_name, "topic_id"),
+            topic_email: __sdk::__query_builder::Col::new(table_name, "topic_email"),
             claim: __sdk::__query_builder::Col::new(table_name, "claim"),
             recipient_count: __sdk::__query_builder::Col::new(table_name, "recipient_count"),
             delivery_count: __sdk::__query_builder::Col::new(table_name, "delivery_count"),
@@ -63,18 +63,18 @@ impl __sdk::__query_builder::HasCols for MailIngress {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct MailIngressIxCols {
-    pub category_id: __sdk::__query_builder::IxCol<MailIngress, u64>,
     pub id: __sdk::__query_builder::IxCol<MailIngress, String>,
     pub mail_message_id: __sdk::__query_builder::IxCol<MailIngress, u64>,
+    pub topic_id: __sdk::__query_builder::IxCol<MailIngress, u64>,
 }
 
 impl __sdk::__query_builder::HasIxCols for MailIngress {
     type IxCols = MailIngressIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         MailIngressIxCols {
-            category_id: __sdk::__query_builder::IxCol::new(table_name, "category_id"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
             mail_message_id: __sdk::__query_builder::IxCol::new(table_name, "mail_message_id"),
+            topic_id: __sdk::__query_builder::IxCol::new(table_name, "topic_id"),
         }
     }
 }

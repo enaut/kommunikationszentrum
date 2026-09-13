@@ -8,10 +8,10 @@ owned: "self_owned_delivery_jobs()\nFilter sender_mail_delivery_claimed for:\nwo
 ret_none: "Return Ok(())\n(No claimed jobs currently owned)" { style.fill: "#c8e6c9" }
 
 loop_: "For each claimed delivery" { style.fill: "#bbdefb" }
-cat_check: "Lookup category & credentials in cache\nresolve_category_smtp_credentials(cid)" { shape: diamond }
+topic_check: "Lookup topic & credentials in cache\nresolve_topic_smtp_credentials(tid)" { shape: diamond }
 
 pre_fail: "fail_mail_delivery()\n'smtp-transport-build'\n(Permanent pre-SMTP failure)" { style.fill: "#ffcdd2" }
-cached: "Get or build AsyncSmtpTransport\n(Pooled per category_id in HashMap)" { style.fill: "#bbdefb" }
+cached: "Get or build AsyncSmtpTransport\n(Pooled per topic_id in HashMap)" { style.fill: "#bbdefb" }
 
 send: "send_delivery(connection, transport, delivery, instance_id).await" { style.fill: "#c8e6c9" }
 done: "Processed all owned deliveries\nReturn Ok(())" { style.fill: "#c8e6c9" }
@@ -20,9 +20,9 @@ entry -> owned
 owned -> ret_none: "Empty"
 owned -> loop_: "Owned delivery job(s)"
 
-loop_ -> cat_check
-cat_check -> pre_fail: "Missing credentials / bad TLS"
-cat_check -> cached: "Valid credentials"
+loop_ -> topic_check
+topic_check -> pre_fail: "Missing credentials / bad TLS"
+topic_check -> cached: "Valid credentials"
 cached -> send
 send -> loop_: "Next job"
 loop_ -> done: "All finished"

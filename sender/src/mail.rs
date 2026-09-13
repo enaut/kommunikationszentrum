@@ -9,8 +9,8 @@ use tracing::{trace, warn};
 
 use crate::config::SenderConfig;
 use crate::module_bindings::{
-    DbConnection, MailMessage, MessageCategory, Subscription, SubscriptionUnsubscribeToken,
-    SenderCategoryAppPasswordsTableAccess as _, SenderMessageCategoriesTableAccess as _,
+    DbConnection, MailMessage, MessageTopic, Subscription, SubscriptionUnsubscribeToken,
+    SenderMessageTopicsTableAccess as _, SenderTopicAppPasswordsTableAccess as _,
 };
 
 // ---------------------------------------------------------------------------
@@ -89,30 +89,30 @@ pub fn build_transport(
     Ok(builder.build())
 }
 
-pub fn resolve_category_smtp_credentials(
+pub fn resolve_topic_smtp_credentials(
     connection: &DbConnection,
-    category_id: u64,
+    topic_id: u64,
 ) -> Result<(String, String), Box<dyn Error>> {
-    let category = connection
+    let topic = connection
         .db
-        .sender_message_categories()
+        .sender_message_topics()
         .id()
-        .find(&category_id)
-        .ok_or_else(|| format!("Category {category_id} not in local cache"))?;
+        .find(&topic_id)
+        .ok_or_else(|| format!("Topic {topic_id} not in local cache"))?;
 
-    let app_password_id = category
+    let app_password_id = topic
         .app_password_id
-        .ok_or_else(|| format!("Category {category_id} has no SMTP app password"))?;
+        .ok_or_else(|| format!("Topic {topic_id} has no SMTP app password"))?;
 
     let app_password = connection
         .db
-        .sender_category_app_passwords()
+        .sender_topic_app_passwords()
         .id()
         .find(&app_password_id)
         .ok_or_else(|| {
-            format!("App password {app_password_id} for category {category_id} not in local cache")
+            format!("App password {app_password_id} for topic {topic_id} not in local cache")
         })?;
-    Ok((category.email_address, app_password.secret))
+    Ok((topic.email_address, app_password.secret))
 }
 
 pub fn is_permanent_error(error: &SmtpError) -> bool {
@@ -131,22 +131,22 @@ pub fn compose_delivery(
     ingress_id: &str,
     message: &MailMessage,
     _subscription: &Subscription,
-    category: &MessageCategory,
+    topic: &MessageTopic,
     token: &SubscriptionUnsubscribeToken,
     subscriber_email: &str,
 ) -> Result<String, Box<dyn Error>> {
     trace!("Composing delivery for {ingress_id}");
 
-    let list_email = &category.email_address;
-    let list_name = if category.name.trim().is_empty() {
-        category
+    let list_email = &topic.email_address;
+    let list_name = if topic.name.trim().is_empty() {
+        topic
             .email_address
             .split('@')
             .next()
             .unwrap_or("list")
             .to_string()
     } else {
-        category.name.clone()
+        topic.name.clone()
     };
     trace!("List email: {list_email}, list name: {list_name}");
 

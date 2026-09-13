@@ -24,10 +24,11 @@ direction: down
     account_id: "u64" {constraint: [primary_key; foreign_key]}
     message_offset: "u32"
     message_limit: "u32"
-    selected_message_category: "Option<u64>"
+    selected_message_topic: "Option<u64>"
     member_offset: "u32"
     member_limit: "u32"
     member_search_query: "Option<String>"
+    viewing_topic_id: "Option<u64>"
     language: "Option<String>"
     theme: "Option<String>"
   }
@@ -84,44 +85,45 @@ direction: down
   }
 }
 
-"Mailing & Categories": {
+"Mailing & Topics": {
   style.fill: "#e8f5e9"
 
-  message_categories: {
+  message_topics: {
     shape: sql_table
-    label: "message_categories [Private]"
+    label: "message_topics [Private]"
     id: "u64" {constraint: [primary_key; INC]}
     name: "String"
     email_address: "String" {constraint: unique}
     description: "String"
     active: "bool"
-    visibility: "CategoryVisibility" {constraint: BTree}
+    visibility: "TopicVisibility" {constraint: BTree}
     app_password_id: "Option<u64>" {constraint: [BTree; foreign_key]}
     default_permission: "SubscriptionPermission"
+    locked_is_provisioning: "bool"
   }
 
-  category_app_passwords: {
+  topic_app_passwords: {
     shape: sql_table
-    label: "category_app_passwords [Private]"
+    label: "topic_app_passwords [Private]"
     id: "u64" {constraint: [primary_key; INC]}
     secret: "String"
     stalwart_id: "String" {constraint: BTree}
     created_at: "Timestamp"
   }
 
-  topics: {
+  categories: {
     shape: sql_table
-    label: "topics [Private]"
+    label: "categories [Private]"
     id: "u64" {constraint: [primary_key; INC]}
     name: "String" {constraint: unique}
   }
 
-  message_category_topics: {
+  message_topic_categories: {
     shape: sql_table
-    label: "message_category_topics [Private]"
+    label: "message_topic_categories [Private]"
     id: "u64" {constraint: [primary_key; INC]}
-    category_id: "u64" {constraint: [foreign_key; BTree]}
     topic_id: "u64" {constraint: [foreign_key; BTree]}
+    category_id: "u64" {constraint: [foreign_key; BTree]}
   }
 
   subscriptions: {
@@ -130,7 +132,7 @@ direction: down
     id: "u64" {constraint: [primary_key; INC]}
     subscriber_account_id: "u64" {constraint: [foreign_key; BTree]}
     account_email_id: "u64" {constraint: [foreign_key; BTree]}
-    category_id: "u64" {constraint: [foreign_key; BTree]}
+    topic_id: "u64" {constraint: [foreign_key; BTree]}
     subscribed_at: "Timestamp"
     status: "SubscriptionStatus" {constraint: BTree}
     permission: "SubscriptionPermission"
@@ -213,8 +215,7 @@ direction: down
     label: "received_message [Private]"
     id: "u64" {constraint: [primary_key; INC]}
     mail_message_id: "u64" {constraint: [foreign_key; BTree]}
-    category_id: "u64" {constraint: [foreign_key; BTree]}
-    category_email: "String"
+    topic_id: "u64" {constraint: [foreign_key; BTree]}
     received_at: "Timestamp" {constraint: BTree}
   }
 }
@@ -227,8 +228,8 @@ direction: down
     label: "mail_ingress [Private]"
     id: "String" {constraint: primary_key}
     mail_message_id: "u64" {constraint: [foreign_key; BTree]}
-    category_id: "u64" {constraint: [foreign_key; BTree]}
-    category_email: "String"
+    topic_id: "u64" {constraint: [foreign_key; BTree]}
+    topic_email: "String"
     claim: "ClaimState"
     recipient_count: "u32"
     delivery_count: "u32"
@@ -368,21 +369,21 @@ delivery_final_state: {
 "User Management & Auth".account_emails.account_id -> "User Management & Auth".account.id
 "User Management & Auth".email_verification_tokens.account_id -> "User Management & Auth".account.id
 "User Management & Auth".account.primary_email_id -> "User Management & Auth".account_emails.id
-"Mailing & Categories".subscriptions.subscriber_account_id -> "User Management & Auth".account.id
-"Mailing & Categories".subscriptions.account_email_id -> "User Management & Auth".account_emails.id
-"Mailing & Categories".subscriptions.category_id -> "Mailing & Categories".message_categories.id
-"Mailing & Categories".subscription_unsubscribe_tokens.subscription_id -> "Mailing & Categories".subscriptions.id
-"Mailing & Categories".message_category_topics.category_id -> "Mailing & Categories".message_categories.id
-"Mailing & Categories".message_category_topics.topic_id -> "Mailing & Categories".topics.id
-"Mailing & Categories".message_categories.app_password_id -> "Mailing & Categories".category_app_passwords.id
+"Mailing & Topics".subscriptions.subscriber_account_id -> "User Management & Auth".account.id
+"Mailing & Topics".subscriptions.account_email_id -> "User Management & Auth".account_emails.id
+"Mailing & Topics".subscriptions.topic_id -> "Mailing & Topics".message_topics.id
+"Mailing & Topics".subscription_unsubscribe_tokens.subscription_id -> "Mailing & Topics".subscriptions.id
+"Mailing & Topics".message_topic_categories.topic_id -> "Mailing & Topics".message_topics.id
+"Mailing & Topics".message_topic_categories.category_id -> "Mailing & Topics".categories.id
+"Mailing & Topics".message_topics.app_password_id -> "Mailing & Topics".topic_app_passwords.id
 "MTA Audit & Processing".mail_message.sender_account_id -> "User Management & Auth".account.id
 "MTA Audit & Processing".received_message.mail_message_id -> "MTA Audit & Processing".mail_message.id
-"MTA Audit & Processing".received_message.category_id -> "Mailing & Categories".message_categories.id
+"MTA Audit & Processing".received_message.topic_id -> "Mailing & Topics".message_topics.id
 "Delivery Pipeline".mail_ingress.mail_message_id -> "MTA Audit & Processing".mail_message.id
-"Delivery Pipeline".mail_ingress.category_id -> "Mailing & Categories".message_categories.id
+"Delivery Pipeline".mail_ingress.topic_id -> "Mailing & Topics".message_topics.id
 "Delivery Pipeline".mail_delivery_message.mail_message_id -> "MTA Audit & Processing".mail_message.id
 "Delivery Pipeline".mail_delivery_message.ingress_id -> "Delivery Pipeline".mail_ingress.id
-"Delivery Pipeline".mail_delivery_message.subscription_id -> "Mailing & Categories".subscriptions.id
+"Delivery Pipeline".mail_delivery_message.subscription_id -> "Mailing & Topics".subscriptions.id
 "Delivery Pipeline".mail_delivery_message.recipient_account_id -> "User Management & Auth".account.id
 "Delivery Pipeline".mail_delivery_pending.delivery_id -> "Delivery Pipeline".mail_delivery_message.delivery_id
 "Delivery Pipeline".mail_delivery_claimed.delivery_id -> "Delivery Pipeline".mail_delivery_message.delivery_id

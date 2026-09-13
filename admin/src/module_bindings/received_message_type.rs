@@ -9,8 +9,8 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 pub struct ReceivedMessage {
     pub id: u64,
     pub mail_message_id: u64,
-    pub category_id: u64,
-    pub category_email: String,
+    pub topic_id: u64,
+    pub topic_email: String,
     pub received_at: __sdk::Timestamp,
 }
 
@@ -24,8 +24,8 @@ impl __sdk::InModule for ReceivedMessage {
 pub struct ReceivedMessageCols {
     pub id: __sdk::__query_builder::Col<ReceivedMessage, u64>,
     pub mail_message_id: __sdk::__query_builder::Col<ReceivedMessage, u64>,
-    pub category_id: __sdk::__query_builder::Col<ReceivedMessage, u64>,
-    pub category_email: __sdk::__query_builder::Col<ReceivedMessage, String>,
+    pub topic_id: __sdk::__query_builder::Col<ReceivedMessage, u64>,
+    pub topic_email: __sdk::__query_builder::Col<ReceivedMessage, String>,
     pub received_at: __sdk::__query_builder::Col<ReceivedMessage, __sdk::Timestamp>,
 }
 
@@ -35,8 +35,8 @@ impl __sdk::__query_builder::HasCols for ReceivedMessage {
         ReceivedMessageCols {
             id: __sdk::__query_builder::Col::new(table_name, "id"),
             mail_message_id: __sdk::__query_builder::Col::new(table_name, "mail_message_id"),
-            category_id: __sdk::__query_builder::Col::new(table_name, "category_id"),
-            category_email: __sdk::__query_builder::Col::new(table_name, "category_email"),
+            topic_id: __sdk::__query_builder::Col::new(table_name, "topic_id"),
+            topic_email: __sdk::__query_builder::Col::new(table_name, "topic_email"),
             received_at: __sdk::__query_builder::Col::new(table_name, "received_at"),
         }
     }
@@ -46,20 +46,20 @@ impl __sdk::__query_builder::HasCols for ReceivedMessage {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct ReceivedMessageIxCols {
-    pub category_id: __sdk::__query_builder::IxCol<ReceivedMessage, u64>,
     pub id: __sdk::__query_builder::IxCol<ReceivedMessage, u64>,
     pub mail_message_id: __sdk::__query_builder::IxCol<ReceivedMessage, u64>,
     pub received_at: __sdk::__query_builder::IxCol<ReceivedMessage, __sdk::Timestamp>,
+    pub topic_id: __sdk::__query_builder::IxCol<ReceivedMessage, u64>,
 }
 
 impl __sdk::__query_builder::HasIxCols for ReceivedMessage {
     type IxCols = ReceivedMessageIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         ReceivedMessageIxCols {
-            category_id: __sdk::__query_builder::IxCol::new(table_name, "category_id"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
             mail_message_id: __sdk::__query_builder::IxCol::new(table_name, "mail_message_id"),
             received_at: __sdk::__query_builder::IxCol::new(table_name, "received_at"),
+            topic_id: __sdk::__query_builder::IxCol::new(table_name, "topic_id"),
         }
     }
 }

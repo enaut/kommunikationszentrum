@@ -1,7 +1,7 @@
 direction: down
 
-categories: {
-  label: "MessageCategories\n• id: u64\n• name: String\n• email_address: String\n• active: bool"
+topics: {
+  label: "MessageTopics\n• id: u64\n• name: String\n• email_address: String\n• active: bool\n• visibility: TopicVisibility"
 }
 
 news_email: "To: news@solawis.de" { shape: oval }
@@ -11,26 +11,26 @@ invalid_email: "To: invalid@solawis.de" {
   style.stroke: red
 }
 
-accepted: "ACCEPT\n(Valid Category)" {
+accepted: "ACCEPT\n(Valid Topic)" {
   shape: oval
   style.stroke: green
 }
-rejected: "REJECT\n(Unknown Category)" {
+rejected: "REJECT\n(Unknown Topic)" {
   shape: oval
   style.stroke: red
 }
-disabled: "REJECT\n(Inactive Category)" {
+disabled: "REJECT\n(Inactive Topic)" {
   shape: oval
   style.stroke: orange
 }
 
-news_email -> categories: "lookup"
-events_email -> categories: "lookup"
-invalid_email -> categories: "lookup"
+news_email -> topics: "lookup"
+events_email -> topics: "lookup"
+invalid_email -> topics: "lookup"
 
-categories -> accepted: "active=true" { style.stroke: green }
-categories -> disabled: "active=false" { style.stroke: orange }
-categories -> rejected: "not found" { style.stroke: red }
+topics -> accepted: "active=true" { style.stroke: green }
+topics -> disabled: "active=false" { style.stroke: orange }
+topics -> rejected: "not found" { style.stroke: red }
 
 incoming: "Incoming Emails" {
   style.fill: "#e0f7fa"
@@ -45,3 +45,4 @@ results: "Processing Results" {
   rejected
   disabled
 }
+

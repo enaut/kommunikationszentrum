@@ -6,10 +6,10 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_subscription, use_table_visible_mail_messages,
-    use_table_visible_message_categories, use_table_visible_messages,
+    use_table_visible_message_topics, use_table_visible_messages,
     use_table_visible_subscriptions, use_table_visible_account_configs,
     use_reducer_update_account_config,
-    use_table_total_messages, use_table_category_message_counts,
+    use_table_total_messages, use_table_topic_message_counts,
 };
 use crate::module_bindings::{MailMessage, ReceivedMessage};
 use crate::oauth::UserInfo;
@@ -31,12 +31,12 @@ impl MessageWithContent {
         crate::mime_parser::decode_header_value("From", &self.mail_message.from_header)
     }
 
-    fn category_email(&self) -> String {
-        self.received_message.category_email.clone()
+    fn topic_email(&self) -> String {
+        self.received_message.topic_email.clone()
     }
 
-    fn category_id(&self) -> u64 {
-        self.received_message.category_id
+    fn topic_id(&self) -> u64 {
+        self.received_message.topic_id
     }
 
     fn received_at(&self) -> Timestamp {
@@ -79,8 +79,8 @@ impl MessageWithContent {
 // Visual helpers
 // ---------------------------------------------------------------------------
 
-fn cat_badge_color(category_id: u64) -> Color {
-    match category_id % 5 {
+fn topic_badge_color(topic_id: u64) -> Color {
+    match topic_id % 5 {
         0 => Color::Primary,
         1 => Color::Success,
         2 => Color::Info,
@@ -100,33 +100,33 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_messages",
         "SELECT * FROM visible_mail_messages",
-        "SELECT * FROM visible_message_categories",
+        "SELECT * FROM visible_message_topics",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_account_configs",
         "SELECT * FROM total_messages",
-        "SELECT * FROM category_message_counts",
+        "SELECT * FROM topic_message_counts",
     ]);
 
     let messages = use_table_visible_messages();
     let received_messages = messages;
     let mail_messages = use_table_visible_mail_messages();
-    let categories = use_table_visible_message_categories();
+    let topics = use_table_visible_message_topics();
     let subscriptions = use_table_visible_subscriptions();
     let configs = use_table_visible_account_configs();
     let total_messages_table = use_table_total_messages();
-    let category_message_counts_table = use_table_category_message_counts();
+    let topic_message_counts_table = use_table_topic_message_counts();
     let update_config = use_reducer_update_account_config();
 
     let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
     let config = configs().into_iter().next();
-    let filter_category = config.as_ref().and_then(|c| c.selected_message_category);
+    let filter_topic = config.as_ref().and_then(|c| c.selected_message_topic);
     let current_offset = config.as_ref().map(|c| c.message_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.message_limit).unwrap_or(50);
     
-    let total_msgs = if let Some(cat_id) = filter_category {
-        category_message_counts_table()
+    let total_msgs = if let Some(top_id) = filter_topic {
+        topic_message_counts_table()
             .into_iter()
-            .find(|c| c.category_id == cat_id)
+            .find(|c| c.topic_id == top_id)
             .map(|c| c.count as u32)
             .unwrap_or(0)
     } else {
@@ -154,14 +154,14 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let mut selected_id: Signal<Option<u64>> = use_signal(|| None);
     let mut show_raw_body: Signal<bool> = use_signal(|| false);
 
-    // Only offer filter chips for categories the current account is actively
+    // Only offer filter chips for topics the current account is actively
     // subscribed to
-    let subscribed_category_ids: HashSet<u64> = subscriptions()
+    let subscribed_topic_ids: HashSet<u64> = subscriptions()
         .into_iter()
         .filter(|s| {
             s.subscriber_account_id == account_id && crate::pages::is_active_subscription(&s.status)
         })
-        .map(|s| s.category_id)
+        .map(|s| s.topic_id)
         .collect();
 
     // Since the server already sorts, filters, and slices, we can just use the returned messages.
@@ -197,44 +197,44 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                 }
             }
 
-            // ── Category filter chips ──────────────────────────────────────
+            // ── Topic filter chips ──────────────────────────────────────
             Row { class: "mb-3",
                 Col {
                     div { class: "d-flex flex-wrap gap-2 align-items-center",
                         span { class: "text-muted small me-1", {tid!("messages-filter")} }
                         Button {
-                            color: if filter_category.is_none() { Color::Primary } else { Color::Secondary },
-                            outline: filter_category.is_some(),
+                            color: if filter_topic.is_none() { Color::Primary } else { Color::Secondary },
+                            outline: filter_topic.is_some(),
                             size: Size::Sm,
                             onclick: {
                                 let update_config = update_config.clone();
                                 move |_| {
-                                    update_config(None, None, None, true, None, None, None, false, None, false, None, None);
+                                    let _ = update_config(None, None, None, true, None, None, None, false, None, false, None, None);
                                     selected_id.set(None);
                                 }
                             },
                             {tid!("messages-filter-all")}
                         }
-                        for cat in categories()
+                        for top in topics()
                             .into_iter()
-                            .filter(|c| c.active && subscribed_category_ids.contains(&c.id))
+                            .filter(|t| t.active && subscribed_topic_ids.contains(&t.id))
                         {
                             {
-                                let cat_id = cat.id;
-                                let is_active = filter_category == Some(cat_id);
+                                let top_id = top.id;
+                                let is_active = filter_topic == Some(top_id);
                                 rsx! {
                                     Button {
-                                        color: cat_badge_color(cat_id),
+                                        color: topic_badge_color(top_id),
                                         outline: !is_active,
                                         size: Size::Sm,
                                         onclick: {
                                             let update_config = update_config.clone();
                                             move |_| {
-                                                update_config(Some(0), None, Some(cat_id), false, None, None, None, false, None, false, None, None);
+                                                let _ = update_config(Some(0), None, Some(top_id), false, None, None, None, false, None, false, None, None);
                                                 selected_id.set(None);
                                             }
                                         },
-                                        "{cat.name}"
+                                        "{top.name}"
                                     }
                                 }
                             }
@@ -249,9 +249,9 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     let update_config = update_config.clone();
                                     move |_| {
                                         if current_offset >= current_limit {
-                                            update_config(Some(current_offset - current_limit), None, None, false, None, None, None, false, None, false, None, None);
+                                            let _ = update_config(Some(current_offset - current_limit), None, None, false, None, None, None, false, None, false, None, None);
                                         } else {
-                                            update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None);
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None);
                                         }
                                     }
                                 },
@@ -268,7 +268,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 onclick: {
                                     let update_config = update_config.clone();
                                     move |_| {
-                                        update_config(Some(current_offset + current_limit), None, None, false, None, None, None, false, None, false, None, None);
+                                        let _ = update_config(Some(current_offset + current_limit), None, None, false, None, None, None, false, None, false, None, None);
                                     }
                                 },
                                 Icon { name: "chevron-right" }
@@ -282,10 +282,10 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             if filtered.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "inbox", class: "me-2" }
-                    if filter_category.is_none() {
+                    if filter_topic.is_none() {
                         {tid!("messages-empty")}
                     } else {
-                        {tid!("messages-empty-category")}
+                        {tid!("messages-empty-topic")}
                     }
                 }
             } else {
@@ -309,10 +309,10 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                 msg.subject()
                                             };
                                             let sender = msg.from_header();
-                                            let cat_email = msg.category_email();
+                                            let top_email = msg.topic_email();
                                             let date_str =
                                                 msg.received_at().to_string();
-                                            let badge_color = cat_badge_color(msg.category_id());
+                                            let badge_color = topic_badge_color(msg.topic_id());
                                             rsx! {
                                                 ListGroupItem {
                                                     active: is_sel,
@@ -323,7 +323,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                             color: badge_color,
                                                             class: "text-truncate",
                                                             style: "max-width: 10rem;",
-                                                            "{cat_email}"
+                                                            "{top_email}"
                                                         }
                                                         small { class: if is_sel { "text-white-50 text-nowrap ms-2" } else { "text-muted text-nowrap ms-2" },
                                                             "{date_str}"
@@ -349,7 +349,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 class: "shadow-sm",
                                 header: rsx! {
                                     div { class: "d-flex align-items-center gap-2 flex-wrap",
-                                        Badge { color: cat_badge_color(msg.category_id()), "{msg.category_email()}" }
+                                        Badge { color: topic_badge_color(msg.topic_id()), "{msg.topic_email()}" }
                                         span { class: "fw-semibold",
                                             if msg.subject().is_empty() {
                                                 {tid!("messages-no-subject")}
@@ -377,7 +377,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                             }
                                             tr {
                                                 th { class: "text-muted small pe-3", {tid!("messages-header-to")} }
-                                                td { class: "small", "{msg.category_email()}" }
+                                                td { class: "small", "{msg.topic_email()}" }
                                             }
                                             if let Some(cc) = msg.cc_header() {
                                                 tr {

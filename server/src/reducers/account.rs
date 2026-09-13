@@ -3,7 +3,7 @@ use spacetimedb::{Identity, ReducerContext, Table};
 
 use crate::common::auth::{is_admin_identity, is_admin_user};
 use crate::models::account::*;
-use crate::models::category::{subscription_unsubscribe_tokens, subscriptions};
+use crate::models::topic::{subscription_unsubscribe_tokens, subscriptions};
 
 use crate::models::delivery::*;
 
@@ -16,8 +16,10 @@ pub struct UserSyncData {
     pub is_admin: Option<bool>,
     pub updated_at: Option<String>,
     pub identity_hex: Option<String>,
-    pub categories: Option<Vec<crate::models::category::CategorySyncData>>,
-    pub unsubscribe_category_emails: Option<Vec<String>>,
+    #[serde(default, alias = "categories")]
+    pub topics: Option<Vec<crate::models::topic::TopicSyncData>>,
+    #[serde(default, alias = "unsubscribe_category_emails")]
+    pub unsubscribe_topic_emails: Option<Vec<String>>,
     pub account_emails: Option<Vec<String>>,
 }
 
@@ -175,11 +177,11 @@ pub(crate) fn do_sync_user(
                         account_id: data.mitgliedsnr,
                         message_offset: 0,
                         message_limit: 50,
-                        selected_message_category: None,
+                        selected_message_topic: None,
                         member_offset: 0,
                         member_limit: 50,
                         member_search_query: None,
-                        viewing_category_id: None,
+                        viewing_topic_id: None,
                         language: None,
                         theme: None,
                         search_matching_accounts: 0,
@@ -235,7 +237,7 @@ pub(crate) fn do_sync_user(
                                 .subscriptions()
                                 .subscriber_account_id()
                                 .filter(&data.mitgliedsnr)
-                                .any(|s| s.category_id == sub.category_id && s.account_email_id == primary_email_id);
+                                .any(|s| s.topic_id == sub.topic_id && s.account_email_id == primary_email_id);
 
                             if already_subbed_on_primary {
                                 if let Some(tok) = ctx
@@ -301,40 +303,40 @@ pub(crate) fn do_sync_user(
                     }
                 }
 
-                for category in data.categories.unwrap_or_default() {
-                    let category_email = category.email_address.clone();
-                    if let Err(e) = crate::reducers::categories::do_add_and_subscribe_category(
+                for topic in data.topics.unwrap_or_default() {
+                    let topic_email = topic.email_address.clone();
+                    if let Err(e) = crate::reducers::topics::do_add_and_subscribe_topic(
                         ctx,
                         data.mitgliedsnr,
                         primary_email_id,
-                        category.name,
-                        category.email_address,
-                        category.description,
-                        category.visibility,
-                        category.topics,
-                        category.required,
-                        category.default_permission,
+                        topic.name,
+                        topic.email_address,
+                        topic.description,
+                        topic.visibility,
+                        topic.categories,
+                        topic.required,
+                        topic.default_permission,
                     ) {
                         log::error!(
-                            "Failed to add/subscribe category '{}' for account {}: {}",
-                            category_email,
+                            "Failed to add/subscribe topic '{}' for account {}: {}",
+                            topic_email,
                             data.mitgliedsnr,
                             e
                         );
                     }
                 }
 
-                for category_email in data.unsubscribe_category_emails.unwrap_or_default() {
+                for topic_email in data.unsubscribe_topic_emails.unwrap_or_default() {
                     if let Err(e) =
-                        crate::reducers::categories::do_remove_subscription_for_category_email(
+                        crate::reducers::topics::do_remove_subscription_for_topic_email(
                             ctx,
                             data.mitgliedsnr,
-                            &category_email,
+                            &topic_email,
                         )
                     {
                         log::error!(
-                            "Failed to remove subscription to category '{}' for account {}: {}",
-                            category_email,
+                            "Failed to remove subscription to topic '{}' for account {}: {}",
+                            topic_email,
                             data.mitgliedsnr,
                             e
                         );
@@ -686,14 +688,14 @@ pub fn update_account_config(
     ctx: &ReducerContext,
     message_offset: Option<u32>,
     message_limit: Option<u32>,
-    selected_message_category: Option<u64>,
-    clear_selected_message_category: bool,
+    selected_message_topic: Option<u64>,
+    clear_selected_message_topic: bool,
     member_offset: Option<u32>,
     member_limit: Option<u32>,
     member_search_query: Option<String>,
     clear_member_search_query: bool,
-    viewing_category_id: Option<u64>,
-    clear_viewing_category_id: bool,
+    viewing_topic_id: Option<u64>,
+    clear_viewing_topic_id: bool,
     language: Option<String>,
     theme: Option<String>,
 ) -> Result<(), String> {
@@ -714,11 +716,11 @@ pub fn update_account_config(
             account_id: account.id,
             message_offset: 0,
             message_limit: 50,
-            selected_message_category: None,
+            selected_message_topic: None,
             member_offset: 0,
             member_limit: 50,
             member_search_query: None,
-            viewing_category_id: None,
+            viewing_topic_id: None,
             language: None,
             theme: None,
             search_matching_accounts: 0,
@@ -730,10 +732,10 @@ pub fn update_account_config(
     if let Some(ml) = message_limit {
         config.message_limit = ml;
     }
-    if clear_selected_message_category {
-        config.selected_message_category = None;
-    } else if let Some(smc) = selected_message_category {
-        config.selected_message_category = Some(smc);
+    if clear_selected_message_topic {
+        config.selected_message_topic = None;
+    } else if let Some(smt) = selected_message_topic {
+        config.selected_message_topic = Some(smt);
     }
     
     if let Some(mo) = member_offset {
@@ -748,10 +750,10 @@ pub fn update_account_config(
         config.member_search_query = Some(msq);
     }
     
-    if clear_viewing_category_id {
-        config.viewing_category_id = None;
-    } else if let Some(vcid) = viewing_category_id {
-        config.viewing_category_id = Some(vcid);
+    if clear_viewing_topic_id {
+        config.viewing_topic_id = None;
+    } else if let Some(vtid) = viewing_topic_id {
+        config.viewing_topic_id = Some(vtid);
     }
 
     if let Some(val) = language { config.language = Some(val); }
@@ -784,4 +786,64 @@ pub fn update_account_config(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_user_sync_data_backward_compat_aliases() {
+        let legacy_json = r#"{
+            "mitgliedsnr": 42,
+            "name": "Erika Mustermann",
+            "email": "erika@example.org",
+            "categories": [
+                {
+                    "name": "VP Nord",
+                    "email_address": "vp-nord@solawi.org",
+                    "description": "Verteilpunkt Nord",
+                    "topics": ["Verteilpunkt"]
+                }
+            ],
+            "unsubscribe_category_emails": ["vp-sued@solawi.org"]
+        }"#;
+
+        let data: UserSyncData = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(data.mitgliedsnr, 42);
+        let topics = data.topics.unwrap();
+        assert_eq!(topics.len(), 1);
+        assert_eq!(topics[0].name, "VP Nord");
+        assert_eq!(topics[0].categories, Some(vec!["Verteilpunkt".to_string()]));
+        assert_eq!(
+            data.unsubscribe_topic_emails,
+            Some(vec!["vp-sued@solawi.org".to_string()])
+        );
+
+        let modern_json = r#"{
+            "mitgliedsnr": 43,
+            "name": "Max Mustermann",
+            "email": "max@example.org",
+            "topics": [
+                {
+                    "name": "VP Süd",
+                    "email_address": "vp-sued@solawi.org",
+                    "description": "Verteilpunkt Süd",
+                    "categories": ["Verteilpunkt"]
+                }
+            ],
+            "unsubscribe_topic_emails": ["vp-nord@solawi.org"]
+        }"#;
+
+        let data: UserSyncData = serde_json::from_str(modern_json).unwrap();
+        assert_eq!(data.mitgliedsnr, 43);
+        let topics = data.topics.unwrap();
+        assert_eq!(topics.len(), 1);
+        assert_eq!(topics[0].name, "VP Süd");
+        assert_eq!(topics[0].categories, Some(vec!["Verteilpunkt".to_string()]));
+        assert_eq!(
+            data.unsubscribe_topic_emails,
+            Some(vec!["vp-nord@solawi.org".to_string()])
+        );
+    }
 }

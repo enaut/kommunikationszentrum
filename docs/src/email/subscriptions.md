@@ -8,7 +8,7 @@ The subscription system enables:
 
 - **Multi-Email per Account**: Accounts can register multiple email addresses (`AccountEmail`), each verified independently.
 - **Shared Email Support**: Multiple accounts can share the same email address (e.g. family or organizational accounts), with indexed lookup `(account_id, email)`.
-- **Multi-Email Subscriptions**: An account can maintain distinct active subscriptions to the same category for different email addresses.
+- **Multi-Email Subscriptions**: An account can maintain distinct active subscriptions to the same topic for different email addresses.
 - **Role-Based Permissions**: Subscriptions support granular `Read` and `Write` permissions.
 - **Sync & Requirement Protection**: Distinguishes between automated Django syncs, mandatory pickup-point requirements (`RequiredSubscribed`), and explicit user/admin actions.
 - **One-Click Unsubscribe**: Cryptographic tokens (`SubscriptionUnsubscribeToken`) support RFC 8058 one-click unsubscription.
@@ -19,7 +19,7 @@ The subscription system enables:
 
 ### Database Schema
 
-Subscriptions are stored in the `subscriptions` table and link an account and specific email address to a category:
+Subscriptions are stored in the `subscriptions` table and link an account and specific email address to a topic:
 
 ```rust
 #[spacetimedb::table(accessor = subscriptions)]
@@ -32,7 +32,7 @@ pub struct Subscription {
     #[index(btree)]
     pub account_email_id: u64,
     #[index(btree)]
-    pub category_id: u64,
+    pub topic_id: u64,
     pub subscribed_at: Timestamp,
     #[index(btree)]
     pub status: SubscriptionStatus,
@@ -84,8 +84,8 @@ pub struct AccountEmail {
 
 Every subscription has an associated `SubscriptionPermission`:
 
-- **`SubscriptionPermission::Read`** (Default): The subscriber receives all emails distributed by the category mailing list, but is not authorized to post to the list unless they are an administrator.
-- **`SubscriptionPermission::Write`**: The subscriber receives all category emails **and** is authorized to send emails to the category address via SMTP through the MTA hook.
+- **`SubscriptionPermission::Read`** (Default): The subscriber receives all emails distributed by the topic mailing list, but is not authorized to post to the list unless they are an administrator.
+- **`SubscriptionPermission::Write`**: The subscriber receives all topic emails **and** is authorized to send emails to the topic address via SMTP through the MTA hook.
 
 Administrators can adjust a subscription's permission at any time using the `update_subscription_permission` reducer.
 
@@ -96,7 +96,7 @@ Administrators can adjust a subscription's permission at any time using the `upd
 When a user or admin calls `add_subscription`:
 1. **Ownership**: Non-admin callers can only manage subscriptions for their own account (`subscriber_account_id`).
 2. **Email Verification**: Non-admin callers cannot subscribe an unverified email address (`email.is_verified == true` required).
-3. **Category Visibility**: Non-admin callers can self-subscribe only to `CategoryVisibility::Public` categories. Private categories require an existing subscription or admin intervention.
+3. **Topic Visibility**: Non-admin callers can self-subscribe only to `TopicVisibility::Public` topics. Private topics require an existing subscription or admin intervention.
 4. **Account Scoping**: The specified `account_email_id` must belong to `subscriber_account_id`.
 
 ---
@@ -107,7 +107,7 @@ The system guarantees that dangling subscriptions or orphan tokens are never lef
 
 - **Email Removal (`remove_account_email`)**: Removing a linked email cascades deletion to all subscriptions tied to that `account_email_id` and revokes their associated `SubscriptionUnsubscribeToken` rows.
 - **Django Sync Email Removal**: If an email is removed from the Django sync payload:
-  - If the user already has a subscription to that category on their `primary_email_id`, the redundant subscription and its token are deleted.
+  - If the user already has a subscription to that topic on their `primary_email_id`, the redundant subscription and its token are deleted.
   - If no subscription exists on `primary_email_id`, the subscription is migrated: `sub.account_email_id = primary_email_id`.
 - **Account Deletion (`action = "delete"`)**: Deleting an account cascades across all subscriptions, unsubscribe tokens, linked emails, verification tokens, and admin identities.
 
@@ -117,19 +117,19 @@ The system guarantees that dangling subscriptions or orphan tokens are never lef
 
 ### Member Subscriptions Page
 
-In the Web UI, each category card provides an **inline checkbox list** containing all verified and unverified email addresses linked to the user's account:
+In the Web UI, each topic card provides an **inline checkbox list** containing all verified and unverified email addresses linked to the user's account:
 
 - **Instant Toggle**: Checking or unchecking an email address immediately invokes `add_subscription` or `remove_subscription`.
 - **Unverified Badge**: Unverified addresses are disabled with an `Unverified` badge and cannot be subscribed until verified.
 - **Required Badge**: Mandatory subscriptions (`RequiredSubscribed`) display a `Required` badge and disabled checkbox to prevent accidental removal.
-- **Subscribed Badge**: The category card header displays a green `Subscribed` badge whenever at least one email address of the account is active in that category.
+- **Subscribed Badge**: The topic card header displays a green `Subscribed` badge whenever at least one email address of the account is active in that topic.
 
 ### Member Search & Administration
 
 Administrators can manage subscriptions across all accounts:
 - **Member Search Bar**: Real-time filtering by Member Number (`account.id`), Name (`account.name`), or any linked email address (`account_emails`).
 - **Counter Badge**: Live display of `{filtered} / {total}` members.
-- **Category Detail Modal**: Add Subscriber modal allows searching members across names, IDs, and email addresses, and displays accounts that have at least one unsubscribed email available.
+- **Topic Detail Modal**: Add Subscriber modal allows searching members across names, IDs, and email addresses, and displays accounts that have at least one unsubscribed email available.
 
 ---
 
@@ -137,8 +137,9 @@ Administrators can manage subscriptions across all accounts:
 
 ### Subscription Checking Flow
 
-During the DATA stage of MTA processing, the system validates that senders are authorized to distribute mail to target categories:
+During the DATA stage of MTA processing, the system validates that senders are authorized to distribute mail to target topics:
 
 ```d2
 {{#include subscriptions-checking-flow.d2}}
 ```
+

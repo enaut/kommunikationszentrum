@@ -21,7 +21,7 @@ pub struct MtaMessageLog {
     pub action: String,
     pub timestamp: Timestamp,
     pub queue_id: Option<String>,
-    pub category_count: u32,
+    pub topic_count: u32,
 }
 
 #[spacetimedb::table(accessor = blocked_ips)]
@@ -34,7 +34,7 @@ pub struct BlockedIp {
 }
 
 /// One row per accepted email delivery, linked to its canonical `MailMessage`
-/// and the target mailing-list category.
+/// and the target mailing-list topic.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = received_message)]
 pub struct ReceivedMessage {
@@ -44,11 +44,11 @@ pub struct ReceivedMessage {
     /// FK → MailMessage.id
     #[index(btree)]
     pub mail_message_id: u64,
-    /// FK → MessageCategory.id (used for per-category lookup in user view)
+    /// FK → MessageTopic.id (used for per-topic lookup in user view)
     #[index(btree)]
-    pub category_id: u64,
+    pub topic_id: u64,
     /// The mailing-list address this message was delivered to
-    pub category_email: String,
+    pub topic_email: String,
     /// Copy of MailMessage.received_at for efficient range scans in the admin view
     /// without requiring a join.
     #[index(btree)]

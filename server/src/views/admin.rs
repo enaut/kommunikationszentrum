@@ -1,12 +1,11 @@
 use crate::common::auth::is_admin_user;
 use crate::models::account::*;
-use crate::models::category::*;
 use crate::models::config::*;
 use crate::models::delivery::*;
 use crate::models::mail_message::*;
+use crate::models::topic::*;
 use log::info;
 use spacetimedb::{Query, ViewContext};
-
 
 #[spacetimedb::view(accessor = admin_stalwart_config, public)]
 pub fn admin_stalwart_config(ctx: &ViewContext) -> impl Query<StalwartConfig> {
@@ -114,11 +113,11 @@ pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
     ctx.from.webhook_tokens().r#filter(move |_| is_admin)
 }
 
-#[spacetimedb::view(accessor = visible_category_app_passwords, public)]
-pub fn visible_category_app_passwords(ctx: &ViewContext) -> impl Query<CategoryAppPassword> {
+#[spacetimedb::view(accessor = visible_topic_app_passwords, public)]
+pub fn visible_topic_app_passwords(ctx: &ViewContext) -> impl Query<TopicAppPassword> {
     let is_admin = is_admin_user(ctx);
     ctx.from
-        .category_app_passwords()
+        .topic_app_passwords()
         .r#filter(move |_| is_admin)
 }
 
@@ -140,17 +139,17 @@ pub fn sender_subscriptions(ctx: &ViewContext) -> impl Query<Subscription> {
     ctx.from.subscriptions().r#filter(move |_| is_admin)
 }
 
-#[spacetimedb::view(accessor = sender_message_categories, public)]
-pub fn sender_message_categories(ctx: &ViewContext) -> impl Query<MessageCategory> {
+#[spacetimedb::view(accessor = sender_message_topics, public)]
+pub fn sender_message_topics(ctx: &ViewContext) -> impl Query<MessageTopic> {
     let is_admin = is_admin_user(ctx);
-    ctx.from.message_categories().r#filter(move |_| is_admin)
+    ctx.from.message_topics().r#filter(move |_| is_admin)
 }
 
-#[spacetimedb::view(accessor = sender_category_app_passwords, public)]
-pub fn sender_category_app_passwords(ctx: &ViewContext) -> impl Query<CategoryAppPassword> {
+#[spacetimedb::view(accessor = sender_topic_app_passwords, public)]
+pub fn sender_topic_app_passwords(ctx: &ViewContext) -> impl Query<TopicAppPassword> {
     let is_admin = is_admin_user(ctx);
     ctx.from
-        .category_app_passwords()
+        .topic_app_passwords()
         .r#filter(move |_| is_admin)
 }
 
@@ -159,4 +158,3 @@ pub fn sender_accounts(ctx: &ViewContext) -> impl Query<Account> {
     let is_admin = is_admin_user(ctx);
     ctx.from.account().r#filter(move |_| is_admin)
 }
-

@@ -28,8 +28,8 @@ stalwart -> handler: "3. MAIL FROM\n(sender address)"
 handler -> stalwart: "accept / reject 550"
 
 stalwart -> handler: "4. RCPT TO\n(recipient)"
-handler -> db: "lookup message_categories"
-db -> handler: "active category?"
+handler -> db: "lookup message_topics"
+db -> handler: "active topic?"
 handler -> stalwart: "accept / reject 550"
 
 stalwart -> handler: "5. DATA\n(full message)"

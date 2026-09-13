@@ -11,7 +11,7 @@ use super::subscription_status_type::SubscriptionStatus;
 pub(super) struct AdminAddSubscriptionArgs {
     pub subscriber_account_id: u64,
     pub account_email_id: u64,
-    pub category_id: u64,
+    pub topic_id: u64,
     pub status: SubscriptionStatus,
 }
 
@@ -20,7 +20,7 @@ impl From<AdminAddSubscriptionArgs> for super::Reducer {
         Self::AdminAddSubscription {
             subscriber_account_id: args.subscriber_account_id,
             account_email_id: args.account_email_id,
-            category_id: args.category_id,
+            topic_id: args.topic_id,
             status: args.status,
         }
     }
@@ -45,13 +45,13 @@ pub trait admin_add_subscription {
         &self,
         subscriber_account_id: u64,
         account_email_id: u64,
-        category_id: u64,
+        topic_id: u64,
         status: SubscriptionStatus,
     ) -> __sdk::Result<()> {
         self.admin_add_subscription_then(
             subscriber_account_id,
             account_email_id,
-            category_id,
+            topic_id,
             status,
             |_, _| {},
         )
@@ -67,7 +67,7 @@ pub trait admin_add_subscription {
         &self,
         subscriber_account_id: u64,
         account_email_id: u64,
-        category_id: u64,
+        topic_id: u64,
         status: SubscriptionStatus,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -81,7 +81,7 @@ impl admin_add_subscription for super::RemoteReducers {
         &self,
         subscriber_account_id: u64,
         account_email_id: u64,
-        category_id: u64,
+        topic_id: u64,
         status: SubscriptionStatus,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
@@ -92,7 +92,7 @@ impl admin_add_subscription for super::RemoteReducers {
             AdminAddSubscriptionArgs {
                 subscriber_account_id,
                 account_email_id,
-                category_id,
+                topic_id,
                 status,
             },
             callback,

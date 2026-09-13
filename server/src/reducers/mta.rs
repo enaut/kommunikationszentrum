@@ -17,11 +17,11 @@ pub fn dump_mta_logs_to_server_logs(ctx: &ReducerContext) {
     log::info!("=== MTA Message Logs ===");
     for log in ctx.db.mta_message_log().iter() {
         log::info!(
-            "Message Log {}: {} - {} - Categories: {}",
+            "Message Log {}: {} - {} - Topics: {}",
             log.id,
             log.stage,
             log.action,
-            log.category_count
+            log.topic_count
         );
     }
 }

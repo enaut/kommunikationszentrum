@@ -143,7 +143,7 @@ curl -s -v -X POST "$MTA_HOOK_URL" \
       },
       "to": [
         {
-          "address": "category@kommunikationszentrum.org"
+          "address": "topic@kommunikationszentrum.org"
         }
       ]
     },
@@ -185,7 +185,7 @@ curl -s -v -X POST "$MTA_HOOK_URL" \
       },
       "to": [
         {
-          "address": "category@kommunikationszentrum.org"
+          "address": "topic@kommunikationszentrum.org"
         }
       ]
     },
@@ -193,8 +193,8 @@ curl -s -v -X POST "$MTA_HOOK_URL" \
       "headers": [
         ["Date", " Mon, 01 Jan 2024 12:00:00 +0000\\r\\n"],
         ["From", " Sender <sender@example.org>\\r\\n"],
-        ["Subject", " Test Message for Category\\r\\n"],
-        ["To", " category@kommunikationszentrum.org\\r\\n"],
+        ["Subject", " Test Message for Topic\\r\\n"],
+        ["To", " topic@kommunikationszentrum.org\\r\\n"],
         ["Message-Id", " <TEST.123456@example.org>\\r\\n"],
         ["MIME-Version", " 1.0\\r\\n"],
         ["Content-Type", " text/plain; charset=utf-8\\r\\n"]

@@ -2,7 +2,7 @@ use stalwart_mta_hook_types::Message as MtaMessage;
 
 use crate::services::mta::envelope_parser::extract_header;
 
-/// Reason why an email could not be delivered to a topic category.
+/// Reason why an email could not be delivered to a message topic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TopicRejectionReason {
     /// The user is subscribed to the topic, but only has Read permission (no Write permission).
@@ -13,7 +13,7 @@ pub enum TopicRejectionReason {
     NotRegistered,
 }
 
-/// Information about a topic category that rejected the incoming message.
+/// Information about a message topic that rejected the incoming message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectedTopic {
     pub topic_name: String,

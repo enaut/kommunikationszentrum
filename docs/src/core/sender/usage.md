@@ -79,7 +79,7 @@ Inspect queue states using the SpacetimeDB SQL CLI:
 ```bash
 # 1. Inspect Ingress Queue
 spacetime sql kommunikationszentrum \
-  "SELECT id, mail_message_id, category_email, claim.status, claim.attempt_count, claim.claim_expires_at FROM mail_ingress"
+  "SELECT id, mail_message_id, topic_email, claim.status, claim.attempt_count, claim.claim_expires_at FROM mail_ingress"
 
 # 2. Inspect Pending Deliveries (Waiting for Worker)
 spacetime sql kommunikationszentrum \
@@ -111,7 +111,7 @@ spacetime sql kommunikationszentrum \
 | Symptom | Diagnostic Step | Resolution |
 |---|---|---|
 | Reducers return `Unauthorized` | Query `admin_identities` | Run `spacetime call <db> register_admin_identity "<hex>"` |
-| Ingress claimed but not sending | Query `visible_message_categories` & active subscribers | Ensure message category exists and sender is admin |
+| Ingress claimed but not sending | Query `visible_message_topics` & active subscribers | Ensure message topic exists and sender is admin |
 | Delivery lease stuck | Check `mail_delivery_claimed` timestamp | Auto-recycles via 60s cron `expire_stale_delivery_claims` |
 | SMTP rejects mail (5xx) | Inspect `mail_delivery_events` | Verify SPF/DKIM/From headers match relay policy |
 | Transient timeouts (4xx) | Check retry backoff in `mail_delivery_pending` | Auto-retries up to 5 times before marking failed |

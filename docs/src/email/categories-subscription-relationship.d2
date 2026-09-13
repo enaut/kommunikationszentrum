@@ -1,6 +1,6 @@
 direction: right
 
-categories: "MessageCategory" {
+topics: "MessageTopic" {
     shape: sql_table
     id: 1
     name: "SoLaWi News"
@@ -11,13 +11,13 @@ categories: "MessageCategory" {
 subscriptions: "Subscription"{
     shape: sql_table
     id: 101
-    category_id: 1
+    topic_id: 1
     account_email_id: 42
     status: "ManuallySubscribed"
     permission: "Read"
 }
 
-subscriptions.category_id -> categories.id: "category_id → id" {
+subscriptions.topic_id -> topics.id: "topic_id → id" {
   style.stroke: blue
 }
 subscribers: "Subscribers" {
@@ -31,3 +31,4 @@ subscribers: "Subscribers" {
 subscribers.user1 -> subscriptions: "subscribes to"
 subscribers.user2 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
 subscribers.user3 -> subscriptions: "subscribes to" { style.stroke-dash: 5 }
+
