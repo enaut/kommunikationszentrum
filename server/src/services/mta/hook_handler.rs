@@ -134,16 +134,20 @@ pub fn handle_data_stage(
     }
 
     let from_lower = from_address.to_lowercase();
-    let sender_account_ids: Vec<u64> = ctx
+    let sender_account_emails: Vec<crate::models::account::AccountEmail> = ctx
         .db
         .account_emails()
         .email()
         .filter(&from_lower)
         .filter(|ae| ae.is_verified)
-        .map(|ae| ae.account_id)
-        .filter(|acc_id| {
-            ctx.db.account().id().find(acc_id).map_or(false, |acc| acc.is_active)
+        .filter(|ae| {
+            ctx.db.account().id().find(&ae.account_id).map_or(false, |acc| acc.is_active)
         })
+        .collect();
+
+    let sender_account_ids: Vec<u64> = sender_account_emails
+        .iter()
+        .map(|ae| ae.account_id)
         .collect();
 
     let sender_is_admin = sender_account_ids.iter().any(|id| {
@@ -165,7 +169,7 @@ pub fn handle_data_stage(
             continue;
         }
 
-        if sender_account_ids.is_empty() {
+        if sender_account_emails.is_empty() {
             log::warn!(
                 "External/unregistered sender {} attempted to post to category {} ({})",
                 from_address,
@@ -183,8 +187,8 @@ pub fn handle_data_stage(
         let mut found_subscription = false;
         let mut has_write = false;
 
-        for acc_id in &sender_account_ids {
-            for s in ctx.db.subscriptions().subscriber_account_id().filter(acc_id) {
+        for ae in &sender_account_emails {
+            for s in ctx.db.subscriptions().account_email_id().filter(&ae.id) {
                 if s.category_id == cat_id && s.status.is_active() {
                     found_subscription = true;
                     if matches!(

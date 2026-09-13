@@ -183,7 +183,8 @@ mod tests {
         assert!(body.contains("Gartenbau <gartenbau@solawi.org>"));
         assert!(body.contains("keine Schreibberechtigung"));
         assert!(body.contains("read-only"));
-        assert!(body.contains("Betreff / Subject: Frage zur Ernte"));
+        assert!(body.contains("Betreff: Frage zur Ernte"));
+        assert!(body.contains("Subject: Frage zur Ernte"));
     }
 
     #[test]
