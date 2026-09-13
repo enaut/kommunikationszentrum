@@ -157,6 +157,14 @@ direction: right
     style.fill: "#fff3e0"
   }
 
+  visible_mail_messages: |md
+    ### visible_mail_messages
+    * Paginated message bodies and headers for the visible messages page.
+  | {
+    shape: rectangle
+    style.fill: "#fff3e0"
+  }
+
   total_accounts: |md
     ### total_accounts
     * Public anonymous view.
@@ -285,6 +293,7 @@ direction: right
 "Private Tables".subscription_unsubscribe_tokens -> "Member / Admin Views".active_unsubscribe_tokens
 "Private Tables".category_app_passwords -> "Member / Admin Views".visible_category_app_passwords
 "Private Tables".received_message -> "Member / Admin Views".visible_messages
+"Private Tables".mail_message -> "Member / Admin Views".visible_mail_messages
 "Private Tables".account -> "Member / Admin Views".total_accounts
 "Private Tables".received_message -> "Member / Admin Views".total_messages
 "Private Tables".received_message -> "Member / Admin Views".category_message_counts

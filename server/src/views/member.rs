@@ -2,6 +2,7 @@ use crate::common::auth::is_admin_user;
 use crate::models::account::*;
 use crate::models::category::*;
 use crate::models::domain::*;
+use crate::models::mail_message::*;
 use crate::models::mta::*;
 use spacetimedb::{Query, Timestamp, ViewContext};
 
@@ -48,9 +49,13 @@ pub fn get_paginated_account_ids(ctx: &ViewContext) -> Vec<u64> {
     if let Some(query) = config.member_search_query {
         let q = query.to_lowercase();
         accounts.retain(|acc| {
-            acc.id.to_string().contains(&q) || acc.name.to_lowercase().contains(&q)
-            // Note: In a real search we might also join emails, but for the helper
-            // simple ID/name match is a good start.
+            account_matches_search_query(acc, &q, || {
+                ctx.db
+                    .account_emails()
+                    .account_id()
+                    .filter(&acc.id)
+                    .any(|e| e.email.to_lowercase().contains(&q))
+            })
         });
     }
 
@@ -248,3 +253,16 @@ pub fn visible_message_category_topics(ctx: &ViewContext) -> impl Query<MessageC
 pub fn visible_messages(ctx: &ViewContext) -> Vec<ReceivedMessage> {
     get_paginated_received_messages(ctx)
 }
+
+#[spacetimedb::view(accessor = visible_mail_messages, public)]
+pub fn visible_mail_messages(ctx: &ViewContext) -> Vec<MailMessage> {
+    let received = get_paginated_received_messages(ctx);
+    let mut ids: Vec<_> = received.into_iter().map(|rm| rm.mail_message_id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+
+    ids.into_iter()
+        .filter_map(|id| ctx.db.mail_message().id().find(&id))
+        .collect()
+}
+

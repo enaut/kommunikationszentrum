@@ -32,6 +32,7 @@ general-no-topic-selected = – Kein Thema gewählt –
 general-none = –
 general-cancel = Abbrechen
 general-unknown = Unbekannt
+pagination-page = Seite { $page }
 
 # Members
 members-page-title = Mitglieder

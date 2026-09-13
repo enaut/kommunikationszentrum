@@ -1,7 +1,7 @@
-use spacetimedb::{AnonymousViewContext, SpacetimeType};
+use spacetimedb::{AnonymousViewContext, SpacetimeType, ViewContext};
 
 use crate::models::account::account__view;
-use crate::models::category::{CategoryVisibility, message_categories__view, subscriptions__view};
+use crate::models::category::subscriptions__view;
 use crate::models::mta::received_message__view;
 
 #[derive(SpacetimeType, Clone, Debug)]
@@ -36,11 +36,9 @@ pub fn total_messages(ctx: &AnonymousViewContext) -> Vec<CountRow> {
 }
 
 #[spacetimedb::view(accessor = category_message_counts, public)]
-pub fn category_message_counts(ctx: &AnonymousViewContext) -> Vec<CategoryMessageCount> {
+pub fn category_message_counts(ctx: &ViewContext) -> Vec<CategoryMessageCount> {
     let mut counts = Vec::new();
-    let public_cats = ctx.db.message_categories().visibility().filter(CategoryVisibility::Public);
-    let private_cats = ctx.db.message_categories().visibility().filter(CategoryVisibility::Private);
-    for cat in public_cats.chain(private_cats) {
+    for cat in crate::views::member::visible_message_categories(ctx) {
         let count = ctx.db.received_message().category_id().filter(&cat.id).count() as u64;
         counts.push(CategoryMessageCount {
             category_id: cat.id,
@@ -51,11 +49,9 @@ pub fn category_message_counts(ctx: &AnonymousViewContext) -> Vec<CategoryMessag
 }
 
 #[spacetimedb::view(accessor = category_subscriber_counts, public)]
-pub fn category_subscriber_counts(ctx: &AnonymousViewContext) -> Vec<CategorySubscriberCount> {
+pub fn category_subscriber_counts(ctx: &ViewContext) -> Vec<CategorySubscriberCount> {
     let mut counts = Vec::new();
-    let public_cats = ctx.db.message_categories().visibility().filter(CategoryVisibility::Public);
-    let private_cats = ctx.db.message_categories().visibility().filter(CategoryVisibility::Private);
-    for cat in public_cats.chain(private_cats) {
+    for cat in crate::views::member::visible_message_categories(ctx) {
         let count = ctx.db.subscriptions().category_id().filter(&cat.id)
             .filter(|s| s.status.is_active())
             .count() as u64;

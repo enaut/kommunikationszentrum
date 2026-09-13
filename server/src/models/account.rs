@@ -46,7 +46,7 @@ pub struct Account {
 }
 
 #[derive(Debug, Clone)]
-#[spacetimedb::table(accessor = account_configs, public)]
+#[spacetimedb::table(accessor = account_configs)]
 pub struct AccountConfig {
     #[primary_key]
     pub account_id: u64,
@@ -101,3 +101,13 @@ pub struct EmailVerificationToken {
     #[index(btree)]
     pub expires_at: Timestamp,
 }
+
+pub fn account_matches_search_query<F>(acc: &Account, q: &str, mut has_matching_email: F) -> bool
+where
+    F: FnMut() -> bool,
+{
+    acc.id.to_string().contains(q)
+        || acc.name.to_lowercase().contains(q)
+        || has_matching_email()
+}
+

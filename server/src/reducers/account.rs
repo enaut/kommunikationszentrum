@@ -709,7 +709,19 @@ pub fn update_account_config(
     // Update search matching accounts metric for the user
     config.search_matching_accounts = if let Some(query) = &config.member_search_query {
         let q = query.to_lowercase();
-        ctx.db.account().iter().filter(|acc| acc.name.to_lowercase().contains(&q) || acc.primary_email_id.to_string() == q).count() as u32
+        ctx.db
+            .account()
+            .iter()
+            .filter(|acc| {
+                account_matches_search_query(acc, &q, || {
+                    ctx.db
+                        .account_emails()
+                        .account_id()
+                        .filter(&acc.id)
+                        .any(|e| e.email.to_lowercase().contains(&q))
+                })
+            })
+            .count() as u32
     } else {
         ctx.db.account().count() as u32
     };

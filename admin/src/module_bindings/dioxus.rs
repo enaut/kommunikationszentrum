@@ -20,7 +20,6 @@ pub type SharedConnection = Arc<DbConnection>;
 /// Container for all table signals, created at root level.
 #[derive(Clone)]
 pub struct TableSignals {
-    pub account_configs: SyncSignal<Vec<AccountConfig>>,
     pub active_subscriptions: SyncSignal<Vec<Subscription>>,
     pub active_unsubscribe_tokens: SyncSignal<Vec<SubscriptionUnsubscribeToken>>,
     pub admin_stalwart_config: SyncSignal<Vec<StalwartConfig>>,
@@ -46,6 +45,7 @@ pub struct TableSignals {
     pub visible_admin_identities: SyncSignal<Vec<AdminIdentity>>,
     pub visible_category_app_passwords: SyncSignal<Vec<CategoryAppPassword>>,
     pub visible_domains: SyncSignal<Vec<Domain>>,
+    pub visible_mail_messages: SyncSignal<Vec<MailMessage>>,
     pub visible_message_categories: SyncSignal<Vec<MessageCategory>>,
     pub visible_message_category_topics: SyncSignal<Vec<MessageCategoryTopic>>,
     pub visible_messages: SyncSignal<Vec<ReceivedMessage>>,
@@ -198,7 +198,6 @@ pub fn use_spacetimedb_context_provider(
     let error: SyncSignal<Option<String>> = use_signal_sync(|| None);
 
     let mut table_signals = TableSignals {
-        account_configs: use_signal_sync(Vec::new),
         active_subscriptions: use_signal_sync(Vec::new),
         active_unsubscribe_tokens: use_signal_sync(Vec::new),
         admin_stalwart_config: use_signal_sync(Vec::new),
@@ -223,6 +222,7 @@ pub fn use_spacetimedb_context_provider(
         visible_admin_identities: use_signal_sync(Vec::new),
         visible_category_app_passwords: use_signal_sync(Vec::new),
         visible_domains: use_signal_sync(Vec::new),
+        visible_mail_messages: use_signal_sync(Vec::new),
         visible_message_categories: use_signal_sync(Vec::new),
         visible_message_category_topics: use_signal_sync(Vec::new),
         visible_messages: use_signal_sync(Vec::new),
@@ -281,27 +281,6 @@ pub fn use_spacetimedb_context_provider(
                     .with_database_name(&module_name)
                     .with_token(token_for_build)
                     .on_connect(move |conn, identity, token| {
-                        // Populate initial rows for account_configs
-                        let current: Vec<AccountConfig> =
-                            conn.db.account_configs().iter().collect();
-                        table_signals_on_connect.account_configs.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.account_configs().on_insert(move |ctx, _row| {
-                            let updated: Vec<AccountConfig> =
-                                ctx.db.account_configs().iter().collect();
-                            table_signals_on_connect.account_configs.set(updated);
-                        });
-                        conn.db.account_configs().on_update(move |ctx, _old, _new| {
-                            let updated: Vec<AccountConfig> =
-                                ctx.db.account_configs().iter().collect();
-                            table_signals_on_connect.account_configs.set(updated);
-                        });
-                        conn.db.account_configs().on_delete(move |ctx, _row| {
-                            let updated: Vec<AccountConfig> =
-                                ctx.db.account_configs().iter().collect();
-                            table_signals_on_connect.account_configs.set(updated);
-                        });
                         // Populate initial rows for active_subscriptions
                         let current: Vec<Subscription> =
                             conn.db.active_subscriptions().iter().collect();
@@ -778,6 +757,13 @@ pub fn use_spacetimedb_context_provider(
                                 ctx.db.sender_mail_messages().iter().collect();
                             table_signals_on_connect.sender_mail_messages.set(updated);
                         });
+                        conn.db
+                            .sender_mail_messages()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<MailMessage> =
+                                    ctx.db.sender_mail_messages().iter().collect();
+                                table_signals_on_connect.sender_mail_messages.set(updated);
+                            });
                         conn.db.sender_mail_messages().on_delete(move |ctx, _row| {
                             let updated: Vec<MailMessage> =
                                 ctx.db.sender_mail_messages().iter().collect();
@@ -989,6 +975,22 @@ pub fn use_spacetimedb_context_provider(
                         conn.db.visible_domains().on_delete(move |ctx, _row| {
                             let updated: Vec<Domain> = ctx.db.visible_domains().iter().collect();
                             table_signals_on_connect.visible_domains.set(updated);
+                        });
+                        // Populate initial rows for visible_mail_messages
+                        let current: Vec<MailMessage> =
+                            conn.db.visible_mail_messages().iter().collect();
+                        table_signals_on_connect.visible_mail_messages.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.visible_mail_messages().on_insert(move |ctx, _row| {
+                            let updated: Vec<MailMessage> =
+                                ctx.db.visible_mail_messages().iter().collect();
+                            table_signals_on_connect.visible_mail_messages.set(updated);
+                        });
+                        conn.db.visible_mail_messages().on_delete(move |ctx, _row| {
+                            let updated: Vec<MailMessage> =
+                                ctx.db.visible_mail_messages().iter().collect();
+                            table_signals_on_connect.visible_mail_messages.set(updated);
                         });
                         // Populate initial rows for visible_message_categories
                         let current: Vec<MessageCategory> =
@@ -1287,13 +1289,6 @@ pub fn use_subscription(queries: &[&str]) {
 
 // --- Table hooks ---
 
-/// Get a reactive signal containing all rows of the `account_configs` table.
-#[must_use]
-pub fn use_table_account_configs() -> SyncSignal<Vec<AccountConfig>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.account_configs
-}
-
 /// Get a reactive signal containing all rows of the `active_subscriptions` table.
 #[must_use]
 pub fn use_table_active_subscriptions() -> SyncSignal<Vec<Subscription>> {
@@ -1463,6 +1458,13 @@ pub fn use_table_visible_category_app_passwords() -> SyncSignal<Vec<CategoryAppP
 pub fn use_table_visible_domains() -> SyncSignal<Vec<Domain>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.visible_domains
+}
+
+/// Get a reactive signal containing all rows of the `visible_mail_messages` table.
+#[must_use]
+pub fn use_table_visible_mail_messages() -> SyncSignal<Vec<MailMessage>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_mail_messages
 }
 
 /// Get a reactive signal containing all rows of the `visible_message_categories` table.

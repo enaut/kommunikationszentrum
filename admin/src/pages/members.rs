@@ -129,7 +129,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                 Icon { name: "chevron-left" }
                             }
                             span { class: "text-muted small",
-                                "Page {(current_offset / current_limit) + 1}"
+                                {tid!("pagination-page", page: (current_offset / current_limit) + 1)}
                             }
                             Button {
                                 color: Color::Secondary,

@@ -5,7 +5,7 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_subscription, use_table_sender_mail_messages,
+    use_subscription, use_table_visible_mail_messages,
     use_table_visible_message_categories, use_table_visible_messages,
     use_table_visible_subscriptions, use_table_visible_account_configs,
     use_reducer_update_account_config,
@@ -88,6 +88,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     // We subscribe to messages and mail_messages instead of calling reducers
     use_subscription(&[
         "SELECT * FROM visible_messages",
+        "SELECT * FROM visible_mail_messages",
         "SELECT * FROM visible_message_categories",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_account_configs",
@@ -97,7 +98,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
 
     let messages = use_table_visible_messages();
     let received_messages = messages;
-    let mail_messages = use_table_sender_mail_messages();
+    let mail_messages = use_table_visible_mail_messages();
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
     let configs = use_table_visible_account_configs();
@@ -245,7 +246,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 Icon { name: "chevron-left" }
                             }
                             span { class: "text-muted small",
-                                "Page {(current_offset / current_limit) + 1}"
+                                {tid!("pagination-page", page: (current_offset / current_limit) + 1)}
                             }
                             Button {
                                 color: Color::Secondary,

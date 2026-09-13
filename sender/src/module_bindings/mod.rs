@@ -7,7 +7,6 @@
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 pub mod account_config_type;
-pub mod account_configs_table;
 pub mod account_email_type;
 pub mod account_type;
 pub mod active_subscriptions_table;
@@ -111,6 +110,7 @@ pub mod visible_accounts_table;
 pub mod visible_admin_identities_table;
 pub mod visible_category_app_passwords_table;
 pub mod visible_domains_table;
+pub mod visible_mail_messages_table;
 pub mod visible_message_categories_table;
 pub mod visible_message_category_topics_table;
 pub mod visible_messages_table;
@@ -120,7 +120,6 @@ pub mod visible_webhook_tokens_table;
 pub mod webhook_token_type;
 
 pub use account_config_type::AccountConfig;
-pub use account_configs_table::*;
 pub use account_email_type::AccountEmail;
 pub use account_type::Account;
 pub use active_subscriptions_table::*;
@@ -224,6 +223,7 @@ pub use visible_accounts_table::*;
 pub use visible_admin_identities_table::*;
 pub use visible_category_app_passwords_table::*;
 pub use visible_domains_table::*;
+pub use visible_mail_messages_table::*;
 pub use visible_message_categories_table::*;
 pub use visible_message_category_topics_table::*;
 pub use visible_messages_table::*;
@@ -805,7 +805,6 @@ Reducer::EnqueueMailDelivery{
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub struct DbUpdate {
-    account_configs: __sdk::TableUpdate<AccountConfig>,
     active_subscriptions: __sdk::TableUpdate<Subscription>,
     active_unsubscribe_tokens: __sdk::TableUpdate<SubscriptionUnsubscribeToken>,
     admin_stalwart_config: __sdk::TableUpdate<StalwartConfig>,
@@ -831,6 +830,7 @@ pub struct DbUpdate {
     visible_admin_identities: __sdk::TableUpdate<AdminIdentity>,
     visible_category_app_passwords: __sdk::TableUpdate<CategoryAppPassword>,
     visible_domains: __sdk::TableUpdate<Domain>,
+    visible_mail_messages: __sdk::TableUpdate<MailMessage>,
     visible_message_categories: __sdk::TableUpdate<MessageCategory>,
     visible_message_category_topics: __sdk::TableUpdate<MessageCategoryTopic>,
     visible_messages: __sdk::TableUpdate<ReceivedMessage>,
@@ -845,9 +845,6 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
         let mut db_update = DbUpdate::default();
         for table_update in __sdk::transaction_update_iter_table_updates(raw) {
             match &table_update.table_name[..] {
-                "account_configs" => db_update
-                    .account_configs
-                    .append(account_configs_table::parse_table_update(table_update)?),
                 "active_subscriptions" => db_update.active_subscriptions.append(
                     active_subscriptions_table::parse_table_update(table_update)?,
                 ),
@@ -934,6 +931,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "visible_domains" => db_update
                     .visible_domains
                     .append(visible_domains_table::parse_table_update(table_update)?),
+                "visible_mail_messages" => db_update.visible_mail_messages.append(
+                    visible_mail_messages_table::parse_table_update(table_update)?,
+                ),
                 "visible_message_categories" => db_update.visible_message_categories.append(
                     visible_message_categories_table::parse_table_update(table_update)?,
                 ),
@@ -980,9 +980,6 @@ impl __sdk::DbUpdate for DbUpdate {
     ) -> AppliedDiff<'_> {
         let mut diff = AppliedDiff::default();
 
-        diff.account_configs = cache
-            .apply_diff_to_table::<AccountConfig>("account_configs", &self.account_configs)
-            .with_updates_by_pk(|row| &row.account_id);
         diff.expire_stale_delivery_claims_schedule = cache
             .apply_diff_to_table::<ExpireStaleDeliveryClaimsSchedule>(
                 "expire_stale_delivery_claims_schedule",
@@ -1059,7 +1056,8 @@ impl __sdk::DbUpdate for DbUpdate {
             .apply_diff_to_table::<MailIngress>("sender_mail_ingress", &self.sender_mail_ingress)
             .with_updates_by_pk(|row| &row.id);
         diff.sender_mail_messages = cache
-            .apply_diff_to_table::<MailMessage>("sender_mail_messages", &self.sender_mail_messages);
+            .apply_diff_to_table::<MailMessage>("sender_mail_messages", &self.sender_mail_messages)
+            .with_updates_by_pk(|row| &row.id);
         diff.sender_system_mail_pending = cache
             .apply_diff_to_table::<SystemMailPending>(
                 "sender_system_mail_pending",
@@ -1095,6 +1093,10 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.visible_domains = cache
             .apply_diff_to_table::<Domain>("visible_domains", &self.visible_domains)
             .with_updates_by_pk(|row| &row.id);
+        diff.visible_mail_messages = cache.apply_diff_to_table::<MailMessage>(
+            "visible_mail_messages",
+            &self.visible_mail_messages,
+        );
         diff.visible_message_categories = cache.apply_diff_to_table::<MessageCategory>(
             "visible_message_categories",
             &self.visible_message_categories,
@@ -1127,9 +1129,6 @@ impl __sdk::DbUpdate for DbUpdate {
         let mut db_update = DbUpdate::default();
         for table_rows in raw.tables {
             match &table_rows.table[..] {
-                "account_configs" => db_update
-                    .account_configs
-                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "active_subscriptions" => db_update
                     .active_subscriptions
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
@@ -1201,6 +1200,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_domains" => db_update
                     .visible_domains
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_mail_messages" => db_update
+                    .visible_mail_messages
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_message_categories" => db_update
                     .visible_message_categories
@@ -1233,9 +1235,6 @@ impl __sdk::DbUpdate for DbUpdate {
         let mut db_update = DbUpdate::default();
         for table_rows in raw.tables {
             match &table_rows.table[..] {
-                "account_configs" => db_update
-                    .account_configs
-                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "active_subscriptions" => db_update
                     .active_subscriptions
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -1307,6 +1306,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_domains" => db_update
                     .visible_domains
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_mail_messages" => db_update
+                    .visible_mail_messages
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_message_categories" => db_update
                     .visible_message_categories
@@ -1341,7 +1343,6 @@ impl __sdk::DbUpdate for DbUpdate {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub struct AppliedDiff<'r> {
-    account_configs: __sdk::TableAppliedDiff<'r, AccountConfig>,
     active_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     active_unsubscribe_tokens: __sdk::TableAppliedDiff<'r, SubscriptionUnsubscribeToken>,
     admin_stalwart_config: __sdk::TableAppliedDiff<'r, StalwartConfig>,
@@ -1368,6 +1369,7 @@ pub struct AppliedDiff<'r> {
     visible_admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
     visible_category_app_passwords: __sdk::TableAppliedDiff<'r, CategoryAppPassword>,
     visible_domains: __sdk::TableAppliedDiff<'r, Domain>,
+    visible_mail_messages: __sdk::TableAppliedDiff<'r, MailMessage>,
     visible_message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
     visible_message_category_topics: __sdk::TableAppliedDiff<'r, MessageCategoryTopic>,
     visible_messages: __sdk::TableAppliedDiff<'r, ReceivedMessage>,
@@ -1387,11 +1389,6 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         event: &EventContext,
         callbacks: &mut __sdk::DbCallbacks<RemoteModule>,
     ) {
-        callbacks.invoke_table_row_callbacks::<AccountConfig>(
-            "account_configs",
-            &self.account_configs,
-            event,
-        );
         callbacks.invoke_table_row_callbacks::<Subscription>(
             "active_subscriptions",
             &self.active_subscriptions,
@@ -1510,6 +1507,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<Domain>(
             "visible_domains",
             &self.visible_domains,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<MailMessage>(
+            "visible_mail_messages",
+            &self.visible_mail_messages,
             event,
         );
         callbacks.invoke_table_row_callbacks::<MessageCategory>(
@@ -2202,7 +2204,6 @@ impl __sdk::SpacetimeModule for RemoteModule {
     type QueryBuilder = __sdk::QueryBuilder;
 
     fn register_tables(client_cache: &mut __sdk::ClientCache<Self>) {
-        account_configs_table::register_table(client_cache);
         active_subscriptions_table::register_table(client_cache);
         active_unsubscribe_tokens_table::register_table(client_cache);
         admin_stalwart_config_table::register_table(client_cache);
@@ -2227,6 +2228,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         visible_admin_identities_table::register_table(client_cache);
         visible_category_app_passwords_table::register_table(client_cache);
         visible_domains_table::register_table(client_cache);
+        visible_mail_messages_table::register_table(client_cache);
         visible_message_categories_table::register_table(client_cache);
         visible_message_category_topics_table::register_table(client_cache);
         visible_messages_table::register_table(client_cache);
@@ -2235,7 +2237,6 @@ impl __sdk::SpacetimeModule for RemoteModule {
         visible_webhook_tokens_table::register_table(client_cache);
     }
     const ALL_TABLE_NAMES: &'static [&'static str] = &[
-        "account_configs",
         "active_subscriptions",
         "active_unsubscribe_tokens",
         "admin_stalwart_config",
@@ -2260,6 +2261,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "visible_admin_identities",
         "visible_category_app_passwords",
         "visible_domains",
+        "visible_mail_messages",
         "visible_message_categories",
         "visible_message_category_topics",
         "visible_messages",
