@@ -5,11 +5,7 @@ use crate::common::auth::{is_admin_identity, is_admin_user};
 use crate::models::account::{account, account_emails, Account};
 use crate::models::category::*;
 use crate::models::domain::domains;
-use crate::services::stalwart::category::{
-    jmap_check_not_created, jmap_created_id, jmap_method_result_by_name,
-    provision_stalwart_app_password,
-};
-use crate::services::stalwart::client::send_stalwart_jmap_request;
+use crate::services::stalwart::category::provision_stalwart_category_mailbox;
 
 #[spacetimedb::reducer]
 pub fn add_message_category(
@@ -789,80 +785,71 @@ pub fn provision_message_category(
         ));
     }
 
-    // 4) Create the Stalwart mailbox account
-    let create_map = serde_json::json!({
-        "create": {
-            "create-1": {
-                "@type": "User",
-                "name": base.trim(),
-                "description": name.trim(),
-                "domainId": domain_id,
-                "roles": {
-                  "@type": "User"
-                },
-                "permissions": {
-                  "@type": "Inherit"
-                },
-                "aliases": {},
-                "memberGroupIds": {},
-                "quotas": {},
-                "credentials": {},
-                "encryptionAtRest": {
-                  "@type": "Disabled"
-                }
-            }
-        }
-    });
-
-    let account_payload = serde_json::json!({
-        "using": [
-            "urn:ietf:params:jmap:core",
-            "urn:stalwart:jmap"
-        ],
-        "methodCalls": [
-            ["x:Account/set", create_map, "call-id-1"]
-        ]
-    });
-
-    let account_res = send_stalwart_jmap_request(ctx, account_payload)?;
-    let account_result = jmap_method_result_by_name(&account_res, "x:Account/set")?;
-    jmap_check_not_created(account_result, "x:Account/set")?;
-
-    let account_id = account_result
-        .get("created")
-        .and_then(|created| created.get("create-1"))
-        .and_then(jmap_created_id)
-        .ok_or_else(|| {
-            format!(
-                "Missing created account id in JMAP response: {}",
-                account_res
-            )
-        })?;
-
-    // 5) Create an app password for SMTP submission from this category mailbox
-    let app_password_description = format!("kommunikationszentrum sender ({email_address})");
-    let (stalwart_id, secret) =
-        provision_stalwart_app_password(ctx, &account_id, &app_password_description)?;
-
-    // 6) Persist the category and its app password
-    ctx.with_tx(|tx| {
-        let app_password = tx.db.category_app_passwords().insert(CategoryAppPassword {
-            id: 0,
-            secret: secret.clone(),
-            stalwart_id: stalwart_id.clone(),
-            created_at: tx.timestamp,
-        });
-        tx.db.message_categories().insert(MessageCategory {
-            id: 0,
-            name: name.clone(),
-            email_address: email_address.clone(),
-            description: description.clone(),
-            active: true,
-            visibility,
-            app_password_id: Some(app_password.id),
-            default_permission: SubscriptionPermission::Read,
-        });
-    });
+    provision_stalwart_category_mailbox(
+        ctx,
+        &name,
+        &email_address,
+        &description,
+        visibility,
+    )?;
 
     Ok(())
+}
+
+/// Admin Procedure: Provisions all existing categories in message_categories that have app_password_id == None.
+#[spacetimedb::procedure]
+pub fn provision_all_unprovisioned_categories(
+    ctx: &mut spacetimedb::ProcedureContext,
+) -> Result<u32, String> {
+    info!("Executing provision_all_unprovisioned_categories procedure");
+
+    let caller = ctx.sender();
+    let is_admin: bool = ctx.with_tx(|tx| is_admin_identity(tx, caller));
+    if !is_admin {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+
+    // Collect all unprovisioned categories in a transaction
+    let unprovisioned: Vec<(String, String, String, CategoryVisibility)> = ctx.with_tx(|tx| {
+        tx.db
+            .message_categories()
+            .iter()
+            .filter(|c| c.app_password_id.is_none())
+            .map(|c| (c.name.clone(), c.email_address.clone(), c.description.clone(), c.visibility))
+            .collect()
+    });
+
+    info!("Found {} unprovisioned categories", unprovisioned.len());
+    let mut provisioned_count = 0u32;
+
+    for (name, email_address, description, visibility) in unprovisioned {
+        info!("Provisioning category '{}' ({})", name, email_address);
+        match provision_stalwart_category_mailbox(
+            ctx,
+            &name,
+            &email_address,
+            &description,
+            visibility,
+        ) {
+            Ok(_) => {
+                provisioned_count += 1;
+            }
+            Err(e) => {
+                error!(
+                    "Failed to provision category '{}' ({}): {}",
+                    name, email_address, e
+                );
+                return Err(format!(
+                    "Failed to provision category '{}' ({}): {}. (Successfully provisioned {} before failure)",
+                    name, email_address, e, provisioned_count
+                ));
+            }
+        }
+    }
+
+    info!(
+        "Successfully provisioned {} unprovisioned categories",
+        provisioned_count
+    );
+    Ok(provisioned_count)
 }

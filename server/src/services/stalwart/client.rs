@@ -1,10 +1,32 @@
 use log::error;
-use spacetimedb::ProcedureContext;
 
 use crate::models::config::stalwart_config;
 
+pub trait StalwartContext {
+    fn http(&self) -> &spacetimedb::http::HttpClient;
+    fn with_tx<T>(&mut self, body: impl Fn(&spacetimedb::TxContext) -> T) -> T;
+}
+
+impl StalwartContext for spacetimedb::ProcedureContext {
+    fn http(&self) -> &spacetimedb::http::HttpClient {
+        &self.http
+    }
+    fn with_tx<T>(&mut self, body: impl Fn(&spacetimedb::TxContext) -> T) -> T {
+        self.with_tx(body)
+    }
+}
+
+impl StalwartContext for spacetimedb::http::HandlerContext {
+    fn http(&self) -> &spacetimedb::http::HttpClient {
+        &self.http
+    }
+    fn with_tx<T>(&mut self, body: impl Fn(&spacetimedb::TxContext) -> T) -> T {
+        self.with_tx(body)
+    }
+}
+
 pub fn resolve_stalwart_credentials(
-    ctx: &mut ProcedureContext,
+    ctx: &mut impl StalwartContext,
 ) -> Result<(String, String), String> {
     let config = ctx.with_tx(|tx| tx.db.stalwart_config().id().find(&0));
     if let Some(config) = config {
@@ -32,7 +54,7 @@ pub fn resolve_stalwart_credentials(
 }
 
 pub fn send_stalwart_jmap_request(
-    ctx: &mut ProcedureContext,
+    ctx: &mut impl StalwartContext,
     payload: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let (endpoint, admin_token) = resolve_stalwart_credentials(ctx)?;
@@ -52,7 +74,7 @@ pub fn send_stalwart_jmap_request(
         .body(body)
         .map_err(|e| format!("Failed to build HTTP request: {:?}", e))?;
 
-    let response = ctx.http.send(request).map_err(|e| {
+    let response = ctx.http().send(request).map_err(|e| {
         error!("Failed to perform request: {}", e);
         format!("HTTP send failed: {:?}", e)
     })?;

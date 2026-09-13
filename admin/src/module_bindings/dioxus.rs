@@ -5656,6 +5656,70 @@ pub fn use_reducer_user_verify_email_async(
 
 // --- Procedure hooks ---
 
+/// Invoke the `provision_all_unprovisioned_categories` procedure and get a reactive signal for its result.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the procedure call to the server.
+/// The `result` signal is updated to `Some(Ok(value))` on success or `Some(Err(message))`
+/// on failure once the server responds.
+#[must_use]
+pub fn use_procedure_provision_all_unprovisioned_categories() -> (
+    impl Fn() + Clone + 'static,
+    SyncSignal<Option<Result<Result<u32, String>, String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<Result<u32, String>, String>>> =
+        use_signal_sync(|| None);
+
+    let invoke = move || {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            conn.procedures
+                .provision_all_unprovisioned_categories_then(move |_ctx, res| {
+                    let _ = tx.send(res);
+                });
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    result.set(Some(res.map_err(|e| e.to_string())));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `provision_all_unprovisioned_categories` procedure asynchronously.
+///
+/// Returns a closure that can be called to invoke the procedure and `await` the response directly.
+#[must_use]
+pub fn use_procedure_provision_all_unprovisioned_categories_async() -> impl Fn() -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>,
+> + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move || -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            conn.procedures.provision_all_unprovisioned_categories_then(move |_ctx, res| {
+                let _ = tx.send(res);
+            });
+            match rx.await {
+                Ok(res) => res.map_err(|e| e.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
 /// Invoke the `provision_message_category` procedure and get a reactive signal for its result.
 ///
 /// Returns `(invoke, result)`. Calling `invoke(...)` sends the procedure call to the server.
