@@ -95,7 +95,7 @@ pub fn AddSubscriberModal(
             trimmed_filter.is_empty()
                 || a.name.to_lowercase().contains(trimmed_filter)
                 || a.id.to_string().contains(trimmed_filter)
-                || available_emails.iter().any(|e| e.account_id == a.id && e.email.to_lowercase().contains(trimmed_filter))
+                || available_emails.iter().any(|e| e.account_id == a.id && e.is_verified && e.email.to_lowercase().contains(trimmed_filter))
         })
         .cloned()
         .collect();
@@ -124,7 +124,7 @@ pub fn AddSubscriberModal(
 
     let selectable_emails: Vec<_> = available_emails
         .iter()
-        .filter(|e| e.account_id == effective_account_id && !subscribed_email_ids.contains(&e.id))
+        .filter(|e| e.account_id == effective_account_id && e.is_verified && !subscribed_email_ids.contains(&e.id))
         .cloned()
         .collect();
 

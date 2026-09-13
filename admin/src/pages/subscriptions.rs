@@ -137,18 +137,34 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                         for email in &my_emails {
                             {
                                 let email_id = email.id;
+                                let is_unverified = !email.is_verified;
                                 let remove_email_for_row = remove_email.clone();
                                 rsx! {
-                                    li { class: "list-group-item d-flex justify-content-between align-items-center px-0",
+                                    li {
+                                        class: if is_unverified {
+                                            "list-group-item d-flex justify-content-between align-items-center px-0 text-muted"
+                                        } else {
+                                            "list-group-item d-flex justify-content-between align-items-center px-0"
+                                        },
+                                        style: if is_unverified { "opacity: 0.65;" } else { "" },
                                         div {
                                             if email.id == my_primary_email_id {
                                                 strong { "{email.email} " }
                                                 span { class: "text-muted", {tid!("subscriptions-primary-badge")} }
+                                            } else if is_unverified {
+                                                span { class: "text-muted fst-italic", "{email.email}" }
                                             } else {
                                                 span { "{email.email}" }
                                             }
-                                            if !email.is_verified {
-                                                Badge { color: Color::Warning, class: "ms-2", {tid!("subscriptions-email-pending-verification")} }
+                                            if is_unverified {
+                                                span {
+                                                    title: tid!("subscriptions-email-unconfirmed-tooltip"),
+                                                    Badge {
+                                                        color: Color::Warning,
+                                                        class: "ms-2",
+                                                        {tid!("subscriptions-email-not-confirmed")}
+                                                    }
+                                                }
                                             }
                                         }
                                         if email.source != EmailSource::DjangoSync && email.id != my_primary_email_id {
@@ -344,7 +360,11 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                                         }
                                                                     }
                                                                     label {
-                                                                        class: "form-check-label small d-flex align-items-center flex-wrap gap-1",
+                                                                        class: if !email.is_verified {
+                                                                            "form-check-label small d-flex align-items-center flex-wrap gap-1 text-muted"
+                                                                        } else {
+                                                                            "form-check-label small d-flex align-items-center flex-wrap gap-1"
+                                                                        },
                                                                         r#for: "{input_id}",
                                                                         if email.id == my_primary_email_id {
                                                                             strong { "{email.email} " }
@@ -353,7 +373,10 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                                             span { "{email.email}" }
                                                                         }
                                                                         if !email.is_verified {
-                                                                            Badge { color: Color::Secondary, class: "ms-1", {tid!("subscriptions-email-unverified")} }
+                                                                            span {
+                                                                                title: tid!("subscriptions-email-unconfirmed-tooltip"),
+                                                                                Badge { color: Color::Secondary, class: "ms-1", {tid!("subscriptions-email-not-confirmed")} }
+                                                                            }
                                                                         }
                                                                         if is_required {
                                                                             Badge { color: Color::Info, class: "ms-1", {tid!("subscriptions-required")} }

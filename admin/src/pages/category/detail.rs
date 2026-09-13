@@ -199,7 +199,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                 .iter()
                 .filter(|e| e.account_id == a.id)
                 .collect();
-            acct_emails.iter().any(|e| !category_subscribed_email_ids.contains(&e.id))
+            acct_emails.iter().any(|e| e.is_verified && !category_subscribed_email_ids.contains(&e.id))
         })
         .collect();
 

@@ -463,8 +463,37 @@ pub fn user_request_email_verification(ctx: &ReducerContext, email: String) -> R
     let account = ctx.db.account().identity().find(&ctx.sender())
         .ok_or_else(|| "Account not found for sender".to_string())?;
 
-    if ctx.db.account_emails().account_id().filter(&account.id).any(|e| e.email == email) {
-        return Err("Email already registered for this account".into());
+    let existing_email = ctx
+        .db
+        .account_emails()
+        .account_id()
+        .filter(&account.id)
+        .find(|e| e.email == email);
+
+    if let Some(existing) = existing_email {
+        if existing.is_verified {
+            return Err("Email already registered for this account".into());
+        }
+        // Email exists but is unverified: clean up previous tokens for this email before issuing a new one
+        let old_tokens: Vec<_> = ctx
+            .db
+            .email_verification_tokens()
+            .iter()
+            .filter(|t| t.account_id == account.id && t.email == email)
+            .collect();
+        for t in old_tokens {
+            ctx.db.email_verification_tokens().token().delete(&t.token);
+        }
+    } else {
+        // Insert unverified email so it immediately appears in the member's list
+        ctx.db.account_emails().insert(AccountEmail {
+            id: 0,
+            account_id: account.id,
+            email: email.clone(),
+            source: EmailSource::Native,
+            is_verified: false,
+            added_at: ctx.timestamp,
+        });
     }
 
     // Generate token
@@ -482,9 +511,10 @@ pub fn user_request_email_verification(ctx: &ReducerContext, email: String) -> R
         expires_at: ctx.timestamp + spacetimedb::TimeDuration::from_micros(86400 * 1_000_000),
     });
 
-    // Queue system email
+    // Queue system email to the newly added address only
     let subject = "Verify your email for Kommunikationszentrum".to_string();
-    let link = format!("{}/verify?token={}", DJANGO_OAUTH_BASE_URL, token); // or frontend URL
+    let base_url = option_env!("FRONTEND_BASE_URL").unwrap_or(FRONTEND_BASE_URL);
+    let link = format!("{}/?token={}", base_url.trim_end_matches('/'), token);
     let body_text = format!("Please verify your email address by clicking the following link:\n\n{}", link);
 
     ctx.db.system_mail_pending().insert(SystemMailPending {
@@ -509,8 +539,17 @@ pub fn user_verify_email(ctx: &ReducerContext, token: String) -> Result<(), Stri
         return Err("Token expired".into());
     }
 
-    // Insert the email if not already present for this account
-    if !ctx.db.account_emails().account_id().filter(&verification.account_id).any(|e| e.email == verification.email) {
+    // Mark existing unverified email as verified, or insert if not present
+    if let Some(mut existing) = ctx
+        .db
+        .account_emails()
+        .account_id()
+        .filter(&verification.account_id)
+        .find(|e| e.email == verification.email)
+    {
+        existing.is_verified = true;
+        ctx.db.account_emails().id().update(existing);
+    } else {
         ctx.db.account_emails().insert(AccountEmail {
             id: 0,
             account_id: verification.account_id,
@@ -570,6 +609,17 @@ pub fn remove_account_email(ctx: &ReducerContext, account_email_id: u64) -> Resu
                 .delete(&tok.token);
         }
         ctx.db.subscriptions().id().delete(&sub.id);
+    }
+
+    // Also remove any pending verification tokens for this email & account
+    let tokens: Vec<_> = ctx
+        .db
+        .email_verification_tokens()
+        .iter()
+        .filter(|t| t.account_id == email_row.account_id && t.email == email_row.email)
+        .collect();
+    for t in tokens {
+        ctx.db.email_verification_tokens().token().delete(&t.token);
     }
 
     ctx.db.account_emails().id().delete(&account_email_id);

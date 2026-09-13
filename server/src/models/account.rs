@@ -6,6 +6,14 @@ pub const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
     None => "http://127.0.0.1:8000",
 };
 
+pub const FRONTEND_BASE_URL: &str = match option_env!("FRONTEND_BASE_URL") {
+    Some(url) => url,
+    None => match option_env!("APP_BASE_URL") {
+        Some(url) => url,
+        None => "http://127.0.0.1:8080",
+    },
+};
+
 pub const DJANGO_OAUTH_ISSUER_PATH: &str = "/o";
 
 #[derive(spacetimedb::SpacetimeType, Debug, Clone, PartialEq)]

@@ -201,6 +201,10 @@ pub(crate) fn do_add_subscription(
         return Err("Email does not belong to the subscriber account".to_string());
     }
 
+    if !email.is_verified {
+        return Err("Cannot subscribe an unverified email address".to_string());
+    }
+
     let category = ctx.db.message_categories().id().find(&category_id).ok_or("Category not found")?;
 
     let existing = ctx

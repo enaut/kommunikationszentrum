@@ -144,6 +144,7 @@ pub fn handle_data_stage(
                 .account_emails()
                 .email()
                 .filter(&from_address.to_string())
+                .filter(|ae| ae.is_verified)
                 .map(|ae| ae.account_id)
                 .filter(|acc_id| {
                     ctx.db.account().id().find(acc_id).map_or(false, |acc| acc.is_active)
