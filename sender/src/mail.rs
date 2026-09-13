@@ -20,7 +20,7 @@ use crate::module_bindings::{
 macro_rules! custom_header {
     ($type_name:ident, $header_str:literal) => {
         #[derive(Debug, Clone)]
-        struct $type_name(String);
+        pub struct $type_name(pub String);
 
         impl Header for $type_name {
             fn name() -> HeaderName {
@@ -49,6 +49,7 @@ custom_header!(PrecedenceHeader, "Precedence");
 custom_header!(SenderHeader, "Sender");
 custom_header!(XMailingList, "X-Mailing-List");
 custom_header!(XBeenThere, "X-BeenThere");
+custom_header!(AutoSubmitted, "Auto-Submitted");
 
 // ---------------------------------------------------------------------------
 // SMTP transport (async with connection pooling)

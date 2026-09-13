@@ -7,6 +7,7 @@ use config::SenderConfig;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use mail::{
     build_transport, compose_delivery, is_permanent_error, resolve_category_smtp_credentials,
+    AutoSubmitted,
 };
 use module_bindings::{
     claim_next_mail_delivery, claim_next_mail_ingress, claim_system_mail, complete_mail_ingress,
@@ -912,6 +913,8 @@ async fn send_system_mail_jobs(
             .from(from_addr.into())
             .to(to_addr.into())
             .subject(mail.subject.clone())
+            .header(lettre::message::header::ContentType::TEXT_PLAIN)
+            .header(AutoSubmitted("auto-replied".to_string()))
             .body(mail.body_text.clone())
         {
             Ok(message) => message,
