@@ -63,6 +63,8 @@ pub struct MessageCategory {
     pub app_password_id: Option<u64>,
     #[default(SubscriptionPermission::Read)]
     pub default_permission: SubscriptionPermission,
+    #[default(false)]
+    pub locked_is_provisioning: bool,
 }
 
 // Private: clients never subscribe to this table directly. `visible_category_app_passwords`

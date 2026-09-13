@@ -1,5 +1,6 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use ::dioxus::{
     logger::tracing::{error, info},
@@ -49,6 +50,7 @@ pub fn AddSubscriberModal(
     let admin_add_subscription = use_reducer_admin_add_subscription();
     let update_config = use_reducer_update_account_config();
     let total_accounts_table = use_table_total_accounts();
+    let account_configs_table = use_table_visible_account_configs();
 
     let mut selected_account_id = use_signal(|| 0u64);
     let mut selected_email_id = use_signal(|| 0u64);
@@ -56,10 +58,39 @@ pub fn AddSubscriberModal(
     let mut selected_status = use_signal(|| SubscriptionStatus::ManuallySubscribed);
     let mut add_sub_error: Signal<Option<String>> = use_signal(|| None);
 
+    // Save previous member filters to restore when modal closes
+    let saved_member_offset = use_hook(|| Rc::new(Cell::new(None::<u32>)));
+    let saved_member_search_query = use_hook(|| Rc::new(RefCell::new(None::<Option<String>>)));
+
+    let restore_filters = {
+        let update_config = update_config.clone();
+        let saved_offset = saved_member_offset.clone();
+        let saved_query = saved_member_search_query.clone();
+        move || {
+            let offset = saved_offset.take();
+            let query = saved_query.borrow_mut().take();
+            if let Some(offset_val) = offset {
+                if let Some(query_opt) = query {
+                    match query_opt {
+                        Some(q) => {
+                            let _ = update_config(None, None, None, false, Some(offset_val), None, Some(q), false, None, false, None, None);
+                        }
+                        None => {
+                            let _ = update_config(None, None, None, false, Some(offset_val), None, None, true, None, false, None, None);
+                        }
+                    }
+                }
+            }
+        }
+    };
+
     // Track show transitions using a non-reactive Cell to avoid feedback loops
     let was_open = use_hook(|| Cell::new(false));
     use_effect({
         let update_config = update_config.clone();
+        let saved_offset = saved_member_offset.clone();
+        let saved_query = saved_member_search_query.clone();
+        let mut restore = restore_filters.clone();
         move || {
             let is_open = show();
             let had_open = was_open.get();
@@ -69,20 +100,25 @@ pub fn AddSubscriberModal(
                 account_filter.set(String::new());
                 selected_status.set(SubscriptionStatus::ManuallySubscribed);
                 add_sub_error.set(None);
-                // Clear server-side search query when opening
+                // Snapshot current member filter state
+                if let Some(config) = account_configs_table().into_iter().next() {
+                    saved_offset.set(Some(config.member_offset));
+                    *saved_query.borrow_mut() = Some(config.member_search_query);
+                }
+                // Clear server-side search query while searching in modal
                 let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
             } else if !is_open && had_open {
-                // Clear server-side search query when closing
-                let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+                // Restore original member filters when closing
+                restore();
             }
             was_open.set(is_open);
         }
     });
 
     use_drop({
-        let update_config = update_config.clone();
+        let mut restore = restore_filters.clone();
         move || {
-            let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+            restore();
         }
     });
 

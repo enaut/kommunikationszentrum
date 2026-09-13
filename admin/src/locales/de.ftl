@@ -68,6 +68,8 @@ messages-header-date = Datum
 messages-header-message-id = Message-ID
 messages-header-reply-to = Reply-To
 messages-body-empty = Nachrichteninhalt nicht gespeichert (Nachricht zu groß).
+messages-view-rendered = Formatiert
+messages-view-raw = Quelltext
 
 # Subscriptions
 subscriptions-page-title = Meine Themen

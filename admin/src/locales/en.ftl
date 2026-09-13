@@ -68,6 +68,8 @@ messages-header-date = Date
 messages-header-message-id = Message-ID
 messages-header-reply-to = Reply-To
 messages-body-empty = Message content was not saved (message too large).
+messages-view-rendered = Formatted
+messages-view-raw = Raw
 
 # Subscriptions
 subscriptions-page-title = My Topics

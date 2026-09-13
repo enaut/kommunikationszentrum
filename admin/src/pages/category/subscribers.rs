@@ -95,7 +95,7 @@ pub fn CategorySubscribersCard(
     use_drop({
         let uc = update_config.clone();
         move || {
-            let _ = uc(None, None, None, false, Some(0), None, None, true, None, true, None, None);
+            let _ = uc(None, None, None, false, None, None, None, false, None, true, None, None);
         }
     });
 

@@ -28,6 +28,7 @@ pub fn add_message_category(
         visibility,
         app_password_id: None,
         default_permission: SubscriptionPermission::Read,
+        locked_is_provisioning: false,
     });
     log::info!(
         "Added new message category (by identity: {:?})",
@@ -471,6 +472,7 @@ pub(crate) fn do_add_and_subscribe_category(
                 app_password_id: None,
                 default_permission: parsed_default_permission
                     .unwrap_or(SubscriptionPermission::Read),
+                locked_is_provisioning: false,
             });
             ctx.db
                 .message_categories()

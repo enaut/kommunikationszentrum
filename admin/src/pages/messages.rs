@@ -69,6 +69,10 @@ impl MessageWithContent {
     fn body_decoded(&self) -> String {
         crate::mime_parser::decode_body(&self.mail_message.body_raw, &self.mail_message.headers_raw)
     }
+
+    fn body_html_rendered(&self) -> String {
+        crate::mime_parser::render_markdown_to_html(&self.body_decoded())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +152,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         .collect();
 
     let mut selected_id: Signal<Option<u64>> = use_signal(|| None);
+    let mut show_raw_body: Signal<bool> = use_signal(|| false);
 
     // Only offer filter chips for categories the current account is actively
     // subscribed to
@@ -408,10 +413,34 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                             {tid!("messages-body-empty")}
                                         }
                                     } else {
-                                        pre {
-                                            class: "small bg-body-secondary rounded p-3 mb-0 overflow-auto",
-                                            style: "max-height: 28rem; white-space: pre-wrap; word-break: break-word;",
-                                            "{msg.body_decoded()}"
+                                        div { class: "d-flex justify-content-end mb-2",
+                                            div { class: "btn-group btn-group-sm",
+                                                button {
+                                                    r#type: "button",
+                                                    class: if !show_raw_body() { "btn btn-outline-primary active" } else { "btn btn-outline-secondary" },
+                                                    onclick: move |_| show_raw_body.set(false),
+                                                    {tid!("messages-view-rendered")}
+                                                }
+                                                button {
+                                                    r#type: "button",
+                                                    class: if show_raw_body() { "btn btn-outline-primary active" } else { "btn btn-outline-secondary" },
+                                                    onclick: move |_| show_raw_body.set(true),
+                                                    {tid!("messages-view-raw")}
+                                                }
+                                            }
+                                        }
+                                        if show_raw_body() {
+                                            pre {
+                                                class: "small bg-body-secondary rounded p-3 mb-0 overflow-auto font-monospace",
+                                                style: "max-height: 28rem; white-space: pre-wrap; word-break: break-word;",
+                                                "{msg.body_raw()}"
+                                            }
+                                        } else {
+                                            div {
+                                                class: "small bg-body-secondary rounded p-3 mb-0 overflow-auto markdown-body",
+                                                style: "max-height: 28rem; word-break: break-word;",
+                                                dangerous_inner_html: "{msg.body_html_rendered()}"
+                                            }
                                         }
                                     }
                                 },

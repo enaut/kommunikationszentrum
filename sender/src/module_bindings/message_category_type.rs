@@ -18,6 +18,7 @@ pub struct MessageCategory {
     pub visibility: CategoryVisibility,
     pub app_password_id: Option<u64>,
     pub default_permission: SubscriptionPermission,
+    pub locked_is_provisioning: bool,
 }
 
 impl __sdk::InModule for MessageCategory {
@@ -36,6 +37,7 @@ pub struct MessageCategoryCols {
     pub visibility: __sdk::__query_builder::Col<MessageCategory, CategoryVisibility>,
     pub app_password_id: __sdk::__query_builder::Col<MessageCategory, Option<u64>>,
     pub default_permission: __sdk::__query_builder::Col<MessageCategory, SubscriptionPermission>,
+    pub locked_is_provisioning: __sdk::__query_builder::Col<MessageCategory, bool>,
 }
 
 impl __sdk::__query_builder::HasCols for MessageCategory {
@@ -50,6 +52,10 @@ impl __sdk::__query_builder::HasCols for MessageCategory {
             visibility: __sdk::__query_builder::Col::new(table_name, "visibility"),
             app_password_id: __sdk::__query_builder::Col::new(table_name, "app_password_id"),
             default_permission: __sdk::__query_builder::Col::new(table_name, "default_permission"),
+            locked_is_provisioning: __sdk::__query_builder::Col::new(
+                table_name,
+                "locked_is_provisioning",
+            ),
         }
     }
 }
