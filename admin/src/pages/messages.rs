@@ -24,11 +24,11 @@ struct MessageWithContent {
 
 impl MessageWithContent {
     fn subject(&self) -> String {
-        self.mail_message.subject.clone()
+        crate::mime_parser::decode_header_value("Subject", &self.mail_message.subject)
     }
 
     fn from_header(&self) -> String {
-        self.mail_message.from_header.clone()
+        crate::mime_parser::decode_header_value("From", &self.mail_message.from_header)
     }
 
     fn category_email(&self) -> String {
@@ -44,7 +44,10 @@ impl MessageWithContent {
     }
 
     fn cc_header(&self) -> Option<String> {
-        self.mail_message.cc_header.clone()
+        self.mail_message
+            .cc_header
+            .as_deref()
+            .map(|cc| crate::mime_parser::decode_header_value("Cc", cc))
     }
 
     fn date_header(&self) -> Option<String> {
@@ -61,6 +64,10 @@ impl MessageWithContent {
 
     fn body_raw(&self) -> String {
         self.mail_message.body_raw.clone()
+    }
+
+    fn body_decoded(&self) -> String {
+        crate::mime_parser::decode_body(&self.mail_message.body_raw, &self.mail_message.headers_raw)
     }
 }
 
@@ -404,7 +411,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                         pre {
                                             class: "small bg-body-secondary rounded p-3 mb-0 overflow-auto",
                                             style: "max-height: 28rem; white-space: pre-wrap; word-break: break-word;",
-                                            "{msg.body_raw()}"
+                                            "{msg.body_decoded()}"
                                         }
                                     }
                                 },

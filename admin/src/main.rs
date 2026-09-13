@@ -1,6 +1,7 @@
 mod components;
 mod config;
 mod i18n;
+pub mod mime_parser;
 mod module_bindings;
 mod oauth;
 mod pages;
