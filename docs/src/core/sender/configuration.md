@@ -26,7 +26,7 @@ All sender daemon configuration is loaded at startup from **environment variable
 | `RUST_LOG` | `sender=info` | Tracing log filter directive |
 
 > [!NOTE]
-> **SMTP Credentials**: Global `SMTP_USERNAME` and `SMTP_PASSWORD` environment variables are **not** used. SMTP authentication credentials (username and app password) are configured per message category and stored securely in SpacetimeDB (`CategoryAppPassword` table), managed through the Admin Web UI.
+> **SMTP Credentials**: Global `SMTP_USERNAME` and `SMTP_PASSWORD` environment variables are **not** used. SMTP authentication credentials (username and app password) are configured per message topic and stored securely in SpacetimeDB (`TopicAppPassword` table), managed through the Admin Web UI.
 
 ## Environment Profiles
 

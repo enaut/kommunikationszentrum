@@ -60,7 +60,7 @@ To enable automated mailbox creation and domain synchronization, the SpacetimeDB
 
 ## 4. Domain Management & Synchronization
 
-Mailing list categories must belong to an active domain configured in the mail server. The **Domains** card synchronizes domains directly from Stalwart:
+Mailing list topics must belong to an active domain configured in the mail server. The **Domains** card synchronizes domains directly from Stalwart:
 
 ![Domain Synchronization](../../email/img/admin-url-sync.png)
 
@@ -69,4 +69,5 @@ Mailing list categories must belong to an active domain configured in the mail s
   - SpacetimeDB contacts Stalwart's JMAP API, queries all configured domains, and updates the `domains` table.
 - **Domain List**:
   - Displays all active domains (e.g. `solawis.de`) with their internal IDs and descriptions.
-  - Newly synchronized domains immediately become selectable in the category creation interface.
+  - Newly synchronized domains immediately become selectable in the topic creation interface.
+

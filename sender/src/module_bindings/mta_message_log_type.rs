@@ -12,7 +12,7 @@ pub struct MtaMessageLog {
     pub action: String,
     pub timestamp: __sdk::Timestamp,
     pub queue_id: Option<String>,
-    pub category_count: u32,
+    pub topic_count: u32,
 }
 
 impl __sdk::InModule for MtaMessageLog {
@@ -28,7 +28,7 @@ pub struct MtaMessageLogCols {
     pub action: __sdk::__query_builder::Col<MtaMessageLog, String>,
     pub timestamp: __sdk::__query_builder::Col<MtaMessageLog, __sdk::Timestamp>,
     pub queue_id: __sdk::__query_builder::Col<MtaMessageLog, Option<String>>,
-    pub category_count: __sdk::__query_builder::Col<MtaMessageLog, u32>,
+    pub topic_count: __sdk::__query_builder::Col<MtaMessageLog, u32>,
 }
 
 impl __sdk::__query_builder::HasCols for MtaMessageLog {
@@ -40,7 +40,7 @@ impl __sdk::__query_builder::HasCols for MtaMessageLog {
             action: __sdk::__query_builder::Col::new(table_name, "action"),
             timestamp: __sdk::__query_builder::Col::new(table_name, "timestamp"),
             queue_id: __sdk::__query_builder::Col::new(table_name, "queue_id"),
-            category_count: __sdk::__query_builder::Col::new(table_name, "category_count"),
+            topic_count: __sdk::__query_builder::Col::new(table_name, "topic_count"),
         }
     }
 }

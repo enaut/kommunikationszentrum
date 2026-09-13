@@ -15,8 +15,8 @@ pub struct MailIngress {
     #[index(btree)]
     pub mail_message_id: u64,
     #[index(btree)]
-    pub category_id: u64,
-    pub category_email: String,
+    pub topic_id: u64,
+    pub topic_email: String,
     pub claim: ClaimState,
     pub recipient_count: u32,
     pub delivery_count: u32,

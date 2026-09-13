@@ -10,13 +10,13 @@ use crate::{
         use_reducer_admin_add_account_email, use_reducer_admin_add_subscription,
         use_reducer_remove_account_email, use_reducer_remove_subscription, use_subscription,
         use_table_visible_account_emails, use_table_visible_accounts,
-        use_table_visible_message_categories, use_table_visible_subscriptions,
+        use_table_visible_message_topics, use_table_visible_subscriptions,
         use_table_visible_account_configs, use_reducer_update_account_config,
         use_table_total_accounts,
     },
     module_bindings::{EmailSource, SubscriptionStatus},
     oauth::UserInfo,
-    pages::category::status_color,
+    pages::topic::status_color,
 };
 
 /// Admin-only view: all members with their current subscriptions.
@@ -26,7 +26,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
         "SELECT * FROM visible_account_emails",
-        "SELECT * FROM visible_message_categories",
+        "SELECT * FROM visible_message_topics",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_account_configs",
         "SELECT * FROM total_accounts",
@@ -34,7 +34,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
     let accounts = use_table_visible_accounts();
     let account_emails = use_table_visible_account_emails();
     let subscriptions = use_table_visible_subscriptions();
-    let categories = use_table_visible_message_categories();
+    let topics = use_table_visible_message_topics();
     let configs = use_table_visible_account_configs();
     let total_accounts_table = use_table_total_accounts();
     let update_config = use_reducer_update_account_config();
@@ -43,8 +43,8 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
 
     // Which account's inline add-subscription form is currently open.
     let mut add_form_account: Signal<Option<u64>> = use_signal(|| None);
-    // Selected category id in that form (0 = nothing selected).
-    let mut add_form_category: Signal<u64> = use_signal(|| 0);
+    // Selected topic id in that form (0 = nothing selected).
+    let mut add_form_topic: Signal<u64> = use_signal(|| 0);
     // Selected account_email_id in that form.
     let mut add_form_email_id: Signal<u64> = use_signal(|| 0);
 
@@ -102,9 +102,9 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                     move |e: FormEvent| {
                                         let val = e.value();
                                         if val.is_empty() {
-                                            update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+                                            let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
                                         } else {
-                                            update_config(None, None, None, false, Some(0), None, Some(val), false, None, false, None, None);
+                                            let _ = update_config(None, None, None, false, Some(0), None, Some(val), false, None, false, None, None);
                                         }
                                     }
                                 },
@@ -120,9 +120,9 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                     let update_config = update_config.clone();
                                     move |_| {
                                         if current_offset >= current_limit {
-                                            update_config(None, None, None, false, Some(current_offset - current_limit), None, None, false, None, false, None, None);
+                                            let _ = update_config(None, None, None, false, Some(current_offset - current_limit), None, None, false, None, false, None, None);
                                         } else {
-                                            update_config(None, None, None, false, Some(0), None, None, false, None, false, None, None);
+                                            let _ = update_config(None, None, None, false, Some(0), None, None, false, None, false, None, None);
                                         }
                                     }
                                 },
@@ -139,7 +139,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                 onclick: {
                                     let update_config = update_config.clone();
                                     move |_| {
-                                        update_config(None, None, None, false, Some(current_offset + current_limit), None, None, false, None, false, None, None);
+                                        let _ = update_config(None, None, None, false, Some(current_offset + current_limit), None, None, false, None, false, None, None);
                                     }
                                 },
                                 Icon { name: "chevron-right" }
@@ -288,19 +288,19 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                                     for sub in &member_subs {
                                                         {
                                                             let sub_id = sub.id;
-                                                            let cat_color = status_color(&sub.status);
-                                                            let cat = categories()
+                                                            let topic_color = status_color(&sub.status);
+                                                            let top = topics()
                                                                 .into_iter()
-                                                                .find(|c| c.id == sub.category_id);
-                                                            let cat_name = cat
-                                                                .map(|c| c.name)
-                                                                .unwrap_or_else(|| { format!("#{}", sub.category_id) });
+                                                                .find(|t| t.id == sub.topic_id);
+                                                            let topic_name = top
+                                                                .map(|t| t.name)
+                                                                .unwrap_or_else(|| { format!("#{}", sub.topic_id) });
                                                             let email = emails.iter().find(|e| e.id == sub.account_email_id).map(|e| e.email.clone()).unwrap_or_default();
-                                                            let display_name = format!("{} ({})", cat_name, email);
+                                                            let display_name = format!("{} ({})", topic_name, email);
                                                             let remove = remove_subscription.clone();
                                                             rsx! {
                                                                 Badge {
-                                                                    color: cat_color,
+                                                                    color: topic_color,
                                                                     class: "me-1 mb-1 d-inline-flex align-items-center gap-1",
                                                                     "{display_name}"
                                                                     button {
@@ -327,15 +327,15 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                                                 style: "width: auto; min-width: 10rem;",
                                                                 onchange: move |e: FormEvent| {
                                                                     if let Ok(id) = e.value().parse::<u64>() {
-                                                                        add_form_category.set(id);
+                                                                        add_form_topic.set(id);
                                                                     }
                                                                 },
                                                                 option { value: "0", {tid!("general-no-topic-selected")} }
-                                                                for cat in categories().into_iter().filter(|c| c.active) {
+                                                                for top in topics().into_iter().filter(|t| t.active) {
                                                                     {
-                                                                        let val = cat.id.to_string();
+                                                                        let val = top.id.to_string();
                                                                         rsx! {
-                                                                            option { value: "{val}", "{cat.name}" }
+                                                                            option { value: "{val}", "{top.name}" }
                                                                         }
                                                                     }
                                                                 }
@@ -362,22 +362,22 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                                                     Button {
                                                                         color: Color::Success,
                                                                         size: Size::Sm,
-                                                                        disabled: add_form_category() == 0,
+                                                                        disabled: add_form_topic() == 0,
                                                                         onclick: move |_| {
-                                                                            let cat_id = add_form_category();
+                                                                            let topic_id = add_form_topic();
                                                                             let mut email_id = add_form_email_id();
                                                                             if email_id == 0 {
                                                                                 email_id = primary_email_id;
                                                                             }
-                                                                            if cat_id == 0 {
+                                                                            if topic_id == 0 {
                                                                                 return;
                                                                             }
-                                                                            info!("Adding subscription: account={acct_id}, email_id={email_id}, category={cat_id}");
-                                                                            if let Err(e) = add(acct_id, email_id, cat_id, SubscriptionStatus::ManuallySubscribed) {
+                                                                            info!("Adding subscription: account={acct_id}, email_id={email_id}, topic={topic_id}");
+                                                                            if let Err(e) = add(acct_id, email_id, topic_id, SubscriptionStatus::ManuallySubscribed) {
                                                                                 error!("add_subscription failed: {e:?}");
                                                                             } else {
                                                                                 add_form_account.set(None);
-                                                                                add_form_category.set(0);
+                                                                                add_form_topic.set(0);
                                                                                 add_form_email_id.set(0);
                                                                             }
                                                                         },
@@ -388,7 +388,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                                                         size: Size::Sm,
                                                                         onclick: move |_| {
                                                                             add_form_account.set(None);
-                                                                            add_form_category.set(0);
+                                                                            add_form_topic.set(0);
                                                                             add_form_email_id.set(0);
                                                                         },
                                                                         Icon { name: "x-lg" }
@@ -402,7 +402,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                                             size: Size::Sm,
                                                             onclick: move |_| {
                                                                 add_form_account.set(Some(acct_id));
-                                                                add_form_category.set(0);
+                                                                add_form_topic.set(0);
                                                                 add_form_email_id.set(0);
                                                             },
                                                             Icon { name: "plus-lg", class: "me-1" }

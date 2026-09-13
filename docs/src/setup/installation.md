@@ -24,7 +24,7 @@ systemctl restart stalwart # restart stalwart after initial setup
 
 Follow the complete [Stalwart MTA Setup](../email/stalwart-setup.md) guide for configuration with screenshots:
 * **Listeners**: [Change HTTP listener port to 8093](../email/stalwart-setup.md#listeners-configuration-port-8093) (avoids port collisions; targets Prometheus scraping).
-* **Admin API Key**: [Create `webportal admin` API key](../email/stalwart-setup.md#admin-api-key-configuration-stalwart_admin_token) (provides `STALWART_ADMIN_TOKEN` for SpacetimeDB JMAP domain and category sync).
+* **Admin API Key**: [Create `webportal admin` API key](../email/stalwart-setup.md#admin-api-key-configuration-stalwart_admin_token) (provides `STALWART_ADMIN_TOKEN` for SpacetimeDB JMAP domain and topic sync).
 * **MTA Webhook**: [Configure MTA Hook in Stalwart UI](../email/stalwart-setup.md#mta-hook-configuration) (using a bearer token generated via [Managing Webhook Tokens](../core/spacetimedb/module-publishing.md#managing-webhook-tokens)).
 * **Telemetry**: [Enable Prometheus metrics & OpenTelemetry tracing](../email/stalwart-setup.md#monitoring--telemetry).
 

@@ -15,24 +15,24 @@ The Kommunikationszentrum is built from project-owned runtime services and exter
 ```
 
 **Current flow:**
-- **1: Inbound mail** – Stalwart posts MTA hook data to SpacetimeDB, which normalizes the message and validates category, account, and recipient state.
-- **2: Identity sync** – Django pushes user, subscription, and category data into the module so the canonical membership model stays current.
-- **3: Domain and mailbox state** – Stalwart domain records and category mailbox metadata are synchronized into the module to keep list addressing and credentials aligned.
+- **1: Inbound mail** – Stalwart posts MTA hook data to SpacetimeDB, which normalizes the message and validates topic, account, and recipient state.
+- **2: Identity sync** – Django pushes user, topic, category, and subscription data into the module so the canonical membership model stays current.
+- **3: Domain and mailbox state** – Stalwart domain records and topic mailbox metadata are synchronized into the module to keep list addressing and credentials aligned.
 - **4: Outbound delivery** – The `sender` daemon claims pending deliveries, sends them over SMTP, and tracks transient failures for automatic retry.
 - **5: Admin and member access** – The Dioxus UI reads scoped views from SpacetimeDB and updates state through reducer calls.
 
 ## Components
 
 ### SpacetimeDB Server (crate: `server`)
-- Canonical database for accounts, categories, subscriptions, domains, and delivery state
-- Reducers and HTTP handlers for user sync, MTA hooks, and admin workflows
+- Canonical database for accounts, topics, categories, subscriptions, domains, and delivery state
+- Reducers and HTTP handlers for user/topic sync, MTA hooks, and admin workflows
 - Scoped views that restrict data based on admin or member identity
 - Temporary retry scheduling and delivery-lease recovery for SMTP resilience
 
 ### Admin Web Interface (crate: `admin`)
 - Dioxus WebAssembly frontend for member and admin workflows
 - OAuth login against Django and real-time updates from SpacetimeDB
-- Management of subscriptions, categories, domains, and SMTP app-password metadata
+- Management of subscriptions, topics, categories, domains, and SMTP app-password metadata
 
 ### Sender Daemon (crate: `sender`)
 - Claims pending fan-out work from SpacetimeDB

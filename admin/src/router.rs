@@ -6,7 +6,7 @@ use crate::module_bindings::dioxus::{
 pub enum ActiveView {
     MySubscriptions,
     Messages,
-    Categories,
+    Topics,
     Members,
     ManagementConfiguration,
     ManagementStatus,

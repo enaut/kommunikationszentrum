@@ -6,7 +6,7 @@ mod tracing_util;
 use config::SenderConfig;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use mail::{
-    build_transport, compose_delivery, is_permanent_error, resolve_category_smtp_credentials,
+    build_transport, compose_delivery, is_permanent_error, resolve_topic_smtp_credentials,
     AutoSubmitted,
 };
 use module_bindings::{
@@ -14,7 +14,7 @@ use module_bindings::{
     complete_system_mail, enqueue_mail_delivery, ensure_subscription_unsubscribe_token,
     fail_mail_delivery, fail_mail_ingress, mark_mail_delivery_sent, release_system_mail,
     retry_mail_ingress, schedule_mail_delivery_retry, DbConnection, MailDeliveryClaimed,
-    MailIngress, MailMessage, MessageCategory, Subscription, SubscriptionStatus,
+    MailIngress, MailMessage, MessageTopic, Subscription, SubscriptionStatus,
 };
 use spacetimedb_sdk::{DbContext, Table, TableWithPrimaryKey as _};
 use std::{error::Error, sync::Arc};
@@ -25,7 +25,7 @@ use crate::module_bindings::{
     SenderAccountEmailsTableAccess as _, SenderMailDeliveryClaimedTableAccess as _,
     SenderMailDeliveryDoneTableAccess as _, SenderMailDeliveryMessagesTableAccess as _,
     SenderMailDeliveryPendingTableAccess as _, SenderMailIngressTableAccess as _,
-    SenderMailMessagesTableAccess as _, SenderMessageCategoriesTableAccess as _,
+    SenderMailMessagesTableAccess as _, SenderMessageTopicsTableAccess as _,
     SenderSubscriptionsTableAccess as _, SenderSystemMailPendingTableAccess as _,
     VisibleAdminIdentitiesTableAccess as _,
 };
@@ -343,8 +343,8 @@ fn subscribe_to_spacetime_tables(
             "SELECT * FROM sender_system_mail_pending",
             "SELECT * FROM sender_subscriptions",
             "SELECT * FROM sender_account_emails",
-            "SELECT * FROM sender_message_categories",
-            "SELECT * FROM sender_category_app_passwords",
+            "SELECT * FROM sender_message_topics",
+            "SELECT * FROM sender_topic_app_passwords",
             "SELECT * FROM active_unsubscribe_tokens",
             "SELECT * FROM visible_admin_identities",
         ]);
@@ -558,13 +558,13 @@ enum SubscriptionJobError {
 }
 
 /// Process a single subscription job for a given mail ingress and message. Do not reprocess when already queued or sent. If the subscription does not have an unsubscribe token, request one and return `AwaitingToken`.
-#[instrument(skip(connection, config, ingress, message, category), fields(subscription_id = %subscription.id, subscription_job = true))]
+#[instrument(skip(connection, config, ingress, message, topic), fields(subscription_id = %subscription.id, subscription_job = true))]
 fn process_subscription_job(
     connection: &DbConnection,
     config: &SenderConfig,
     ingress: &MailIngress,
     message: &MailMessage,
-    category: &MessageCategory,
+    topic: &MessageTopic,
     subscription: Subscription,
     subscriber_email: String,
 ) -> Result<SubscriptionJobOutcome, SubscriptionJobError> {
@@ -621,7 +621,7 @@ fn process_subscription_job(
         &ingress.id,
         message,
         &subscription,
-        category,
+        topic,
         &token_row,
         &subscriber_email,
     )
@@ -635,7 +635,7 @@ fn process_subscription_job(
             subscription.id,
             subscriber_email.clone(),
             Some(subscription.subscriber_account_id),
-            category.email_address.clone(),
+            topic.email_address.clone(),
             message.sender_email.clone(),
             raw_message,
         )
@@ -682,7 +682,7 @@ fn process_ingress_job(
             ingress_id = %ingress.id,
             queue_id = queue_id.as_str(),
             from = message.sender_email.as_str(),
-            to_list = ingress.category_email.as_str(),
+            to_list = ingress.topic_email.as_str(),
             subject = message.subject.as_str(),
             // Explicit field so it lands in Loki structured metadata with the
             // Stalwart-derived value regardless of bridge auto-injection.
@@ -699,38 +699,38 @@ fn process_ingress_job(
         None
     };
 
-    // Lookup the category
-    let category = match connection
+    // Lookup the topic
+    let topic = match connection
         .db
-        .sender_message_categories()
+        .sender_message_topics()
         .id()
-        .find(&ingress.category_id)
+        .find(&ingress.topic_id)
     {
-        Some(category) => {
-            trace!("Category found {category:?}");
-            category
+        Some(topic) => {
+            trace!("Topic found {topic:?}");
+            topic
         }
         None => {
             trace!(
-                "Category not found for category_id: {}",
-                ingress.category_id
+                "Topic not found for topic_id: {}",
+                ingress.topic_id
             );
             let _ = connection.reducers().fail_mail_ingress(
                 ingress.id.clone(),
                 instance_id.to_string(),
-                "missing message category".to_string(),
+                "missing message topic".to_string(),
             );
-            return Err("Missing message category".into());
+            return Err("Missing message topic".into());
         }
     };
 
-    // Find all subscriptions for the category and resolve each to the
+    // Find all subscriptions for the topic and resolve each to the
     // currently active email address tied to the account_email_id.
     let mut subscribers: Vec<(String, Subscription)> = connection
         .db
         .sender_subscriptions()
         .iter()
-        .filter(|row| row.category_id == ingress.category_id && is_active_subscription(&row.status))
+        .filter(|row| row.topic_id == ingress.topic_id && is_active_subscription(&row.status))
         .filter_map(|subscription| {
             let email_row = connection
                 .db
@@ -760,7 +760,7 @@ fn process_ingress_job(
             config,
             &ingress,
             &message,
-            &category,
+            &topic,
             subscription,
             sub_email.clone(),
         ) {
@@ -976,20 +976,20 @@ async fn send_delivery_jobs(
         return Ok(());
     }
 
-    // One transport per category — reuses the underlying connection pool across
+    // One transport per topic — reuses the underlying connection pool across
     // all deliveries that share the same SMTP credentials.
     let mut transports: HashMap<u64, AsyncSmtpTransport<Tokio1Executor>> = HashMap::new();
 
     for delivery in owned_jobs {
-        // Look up the category for this delivery so we can get/build a transport.
-        let category_id = connection
+        // Look up the topic for this delivery so we can get/build a transport.
+        let topic_id = connection
             .db
             .sender_mail_ingress()
             .id()
             .find(&delivery.ingress_id)
-            .map(|i| i.category_id);
+            .map(|i| i.topic_id);
 
-        let transport = match category_id {
+        let transport = match topic_id {
             None => {
                 warn!(
                     "delivery {}: ingress {} not in local cache, skipping until cache updates",
@@ -997,16 +997,16 @@ async fn send_delivery_jobs(
                 );
                 continue;
             }
-            Some(cid) => {
-                if !transports.contains_key(&cid) {
-                    match resolve_category_smtp_credentials(connection, cid)
+            Some(tid) => {
+                if !transports.contains_key(&tid) {
+                    match resolve_topic_smtp_credentials(connection, tid)
                         .and_then(|(u, p)| build_transport(config, &u, &p))
                     {
                         Ok(t) => {
-                            transports.insert(cid, t);
+                            transports.insert(tid, t);
                         }
                         Err(e) => {
-                            warn!("Failed to build transport for category {cid}: {e}");
+                            warn!("Failed to build transport for topic {tid}: {e}");
                             // Mark this delivery as permanently failed — bad SMTP config
                             // will not self-heal, so no point retrying.
                             let _ = connection.reducers().fail_mail_delivery(
@@ -1020,7 +1020,7 @@ async fn send_delivery_jobs(
                         }
                     }
                 }
-                transports.get(&cid).unwrap()
+                transports.get(&tid).unwrap()
             }
         };
 
@@ -1093,7 +1093,7 @@ async fn send_delivery(
         );
     };
 
-    let from = match ingress.category_email.parse() {
+    let from = match ingress.topic_email.parse() {
         Ok(a) => a,
         Err(e) => {
             let msg = format!("{e}");

@@ -31,7 +31,7 @@ server/
 └── src/
     ├── lib.rs             # Module entry-point, lifecycle reducers
     ├── account.rs         # Account, AdminIdentity, WebhookToken tables + reducers
-    ├── mailing.rs         # MessageCategory, Subscription, UnsubscribeToken + reducers
+    ├── topics.rs          # MessageTopic, Category, Subscription, UnsubscribeToken + reducers
     ├── mta.rs             # MTA tables + stage handlers
     ├── delivery.rs        # MailIngress, MailDelivery, MailDeliveryEvent + pipeline reducers
     └── http_handlers.rs   # HTTP router and endpoint handlers
@@ -192,9 +192,9 @@ cd docs/testscripts
 ### Manual Testing via CLI
 
 ```bash
-# Add a test category
-spacetime call kommunikationszentrum add_message_category \
-  "Test List" "test@example.org" "Test category"
+# Add a test topic
+spacetime call kommunikationszentrum add_message_topic \
+  "Test List" "test@example.org" "Test topic"
 
 # Add a test subscription
 spacetime call kommunikationszentrum add_subscription 42 "user@example.org" 1
@@ -236,7 +236,7 @@ Stalwart credentials (`STALWART_JMAP_URL` and `STALWART_ADMIN_TOKEN`) can be set
 
 ### Subscription Check in DATA Stage
 External senders (not present in `account`) are always rejected at the DATA stage, even if the
-recipient category exists. Only known accounts with active subscriptions (or admins) can post.
+recipient topic exists. Only known accounts with active subscriptions (or admins) can post.
 
 ---
 

@@ -4,14 +4,14 @@ start: "DATA hook received" {
   shape: oval
   style.fill: lightcoral
 }
-resolve: "Resolve recipients\nto message_categories\n(envelope To -> header To fallback)"
+resolve: "Resolve recipients\nto message_topics\n(envelope To -> header To fallback)"
 sender: "Look up sender accounts\nby email in account_emails\n(filter active accounts)"
-filter: "Authorize categories:\nAdmin identity OR\nActive Write subscription"
+filter: "Authorize topics:\nAdmin identity OR\nActive Write subscription"
 reject_notice: "Queue rejection email\nin system_mail_pending\n(via SMTP_SYSTEM_USER)" {
   shape: rectangle
   style.fill: lightpink
 }
-persist: "For each authorized category:\n• INSERT received_message\n• INSERT mail_ingress (pending)"
+persist: "For each authorized topic:\n• INSERT received_message\n• INSERT mail_ingress (pending)"
 resp: "Return accept response\nto Stalwart" {
   shape: oval
   style.fill: lightgreen
@@ -20,7 +20,7 @@ resp: "Return accept response\nto Stalwart" {
 start -> resolve
 resolve -> sender
 sender -> filter
-filter -> reject_notice: "unauthorized category"
-filter -> persist: "≥1 authorized category"
+filter -> reject_notice: "unauthorized topic"
+filter -> persist: "≥1 authorized topic"
 persist -> resp
 reject_notice -> resp

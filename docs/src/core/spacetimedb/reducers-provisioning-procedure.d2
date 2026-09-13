@@ -1,6 +1,6 @@
 direction: right
 
-Client -> SpacetimeDB: "Call provision_message_category()"
+Client -> SpacetimeDB: "Call provision_message_topic()"
 
 SpacetimeDB: {
   Auth_Check: "Verify admin identity & unique email"
@@ -9,10 +9,10 @@ SpacetimeDB: {
     label: "Stalwart JMAP API\nCreate mailbox + app password"
   }
   DB_Insert: {
-    label: "Insert message_categories\n+ category_app_passwords rows"
+    label: "Insert message_topics\n+ topic_app_passwords rows"
   }
   Auth_Check -> Stalwart_HTTP: "Create mailbox"
   Stalwart_HTTP -> DB_Insert: "Mailbox and credential created"
 }
 
-SpacetimeDB -> Client: "Result: Ok(category_id)"
+SpacetimeDB -> Client: "Result: Ok(topic_id)"

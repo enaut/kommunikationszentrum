@@ -94,7 +94,7 @@ Work coordination across instances relies on atomic server-side reducers with le
 
 `compose_delivery` in `mail.rs` uses the `lettre::Message::builder()` API:
 - Custom mailing-list headers implement `lettre::message::header::Header` via the `custom_header!` macro.
-- Outgoing `From` is set to the category list address, while `Reply-To` points to the author.
+- Outgoing `From` is set to the topic list address, while `Reply-To` points to the author.
 - Subject lines are parsed through `rewrite_subject()`, normalizing locale-specific reply and forward tags (`Re:`, `Fwd:`, `AW:`, `WG:`, etc.) and ensuring the canonical `[ListName]: ` prefix.
 - If email addresses cannot be parsed as valid RFC 5322 addresses, the function falls back to `render_fallback_raw_message()` to ensure mail delivery is not halted by header formatting issues.
 

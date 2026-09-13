@@ -76,8 +76,8 @@ SpacetimeDB persists audit records for every MTA connection attempt and message 
 
 | Table | Stage | Content |
 |---|---|---|
-| `mta_connection_log` | `CONNECT`, `EHLO`, `MAIL`, `RCPT`, `AUTH` | Client IP, reverse PTR, HELO argument, sender address, recipient category match, acceptance/rejection action, timestamp. |
-| `mta_message_log` | `DATA` | Message ID, sender, matched categories, subscriber status, delivery disposition (accepted / quarantined / rejected), timestamp. |
+| `mta_connection_log` | `CONNECT`, `EHLO`, `MAIL`, `RCPT`, `AUTH` | Client IP, reverse PTR, HELO argument, sender address, recipient topic match, acceptance/rejection action, timestamp. |
+| `mta_message_log` | `DATA` | Message ID, sender, matched topics, subscriber status, delivery disposition (accepted / quarantined / rejected), timestamp. |
 
 ### Inspecting Logs via CLI
 

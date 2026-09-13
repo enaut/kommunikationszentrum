@@ -48,7 +48,7 @@ pub fn Navbar(
                         AppNavLink {
                             label: tid!("navbar-topics"),
                             icon: "tags-fill",
-                            view: ActiveView::Categories,
+                            view: ActiveView::Topics,
                             active_view,
                         }
                         AppNavLink {

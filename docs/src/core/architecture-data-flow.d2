@@ -16,7 +16,7 @@ external_recipients: "External recipients" { shape: cloud; style.fill: "#ede9fe"
 incoming_email -> stalwart_mta -> spacetimedb: "1. MTA hook" { style.stroke: "#ef4444" }
 user_sync -> django -> spacetimedb: "2. accounts + subscriptions" { style.stroke: "#3b82f6" }
 domain_sync -> stalwart_mta -> spacetimedb: "3. domain inventory" { style.stroke: "#a855f7" }
-admin_actions -> admin_ui -> spacetimedb: "4. category + policy changes" { style.stroke: "#22c55e" }
+admin_actions -> admin_ui -> spacetimedb: "4. topic + category changes" { style.stroke: "#22c55e" }
 admin_ui -> django: "OAuth" { style.stroke: "#f59e0b"; style.stroke-dash: 5 }
 spacetimedb -> sender: "5. delivery fan-out" { style.stroke: "#10b981" }
 sender -> retry_queue: "6. transient SMTP errors" { style.stroke: "#f97316" }

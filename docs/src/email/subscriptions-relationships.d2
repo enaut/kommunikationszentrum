@@ -22,12 +22,12 @@ Schema: {
     id: u64 (PK)
     subscriber_account_id: u64 (FK)
     account_email_id: u64 (FK)
-    category_id: u64 (FK)
+    topic_id: u64 (FK)
     subscribed_at: i64
     status: SubscriptionStatus
     permission: SubscriptionPermission
   }
-  categories: "MessageCategory" {
+  topics: "MessageTopic" {
     shape: sql_table
     id: u64 (PK)
     name: String
@@ -46,7 +46,7 @@ Schema: {
   subscriptions.account_email_id -> account_emails.id: "account_email_id → id" {
     style.stroke: blue
   }
-  subscriptions.category_id -> categories.id: "category_id → id" {
+  subscriptions.topic_id -> topics.id: "topic_id → id" {
     style.stroke: red
   }
 }
@@ -81,7 +81,7 @@ example_data: "Example Data (Multi-Email per Account & Category)" {
     id: 101
     subscriber_account_id: 1
     account_email_id: 10
-    category_id: 1
+    topic_id: 1
     subscribed_at: 1672531200
     status: ManuallySubscribed
     permission: Read
@@ -92,12 +92,12 @@ example_data: "Example Data (Multi-Email per Account & Category)" {
     id: 102
     subscriber_account_id: 1
     account_email_id: 11
-    category_id: 1
+    topic_id: 1
     subscribed_at: 1672531300
     status: ManuallySubscribed
     permission: Write
   }
-  category_example: "MessageCategory (Example)" {
+  topic_example: "MessageTopic (Example)" {
     shape: sql_table
     style.fill: lightyellow
     id: 1
@@ -132,11 +132,11 @@ example_data: "Example Data (Multi-Email per Account & Category)" {
     style.stroke: blue
     style.stroke-dash: 5
   }
-  subscription_example.category_id -> category_example.id: "references" {
+  subscription_example.topic_id -> topic_example.id: "references" {
     style.stroke: red
     style.stroke-dash: 5
   }
-  subscription_example_2.category_id -> category_example.id: "references" {
+  subscription_example_2.topic_id -> topic_example.id: "references" {
     style.stroke: red
     style.stroke-dash: 5
   }

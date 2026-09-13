@@ -33,7 +33,7 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `unregister_admin_identity` | Admin | `identity_hex: String` | Revokes admin privileges from identity hex string. |
 | `create_webhook_token` | Admin | `token_hash: String, label: String, permissions: Vec<String>` | Registers a BLAKE3 hashed bearer token for external webhooks (see [Managing Webhook Tokens](./module-publishing.md#managing-webhook-tokens)). |
 | `revoke_webhook_token` | Admin | `token_hash: String` | Deactivates a bearer webhook token by token hash. |
-| `sync_user` | Admin/Webhook | `action: String, user_data: String` | Upserts/deletes user account & syncs category subscriptions from Django. |
+| `sync_user` | Admin/Webhook | `action: String, user_data: String` | Upserts/deletes user account & syncs topic subscriptions from Django. |
 | `set_stalwart_config` | Admin | `jmap_url: String, admin_token: String` | Configures or updates Stalwart MTA JMAP REST API endpoint URL and admin bearer token in `stalwart_config`. |
 
 ### Account & Multi-Email Reducers
@@ -45,20 +45,22 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `user_verify_email` | User/Public | `token: String` | Validates verification token, inserts `AccountEmail` marked verified, and cleans up token. |
 | `remove_account_email` | User/Admin | `account_email_id: u64` | Removes an email from the account. Cascades deletion to associated subscriptions and unsubscribe tokens. Cannot delete primary email. |
 
-### Category & Subscription Reducers
+### Topic, Category & Subscription Reducers
 
 | Function | Visibility | Parameters | Description |
 |---|---|---|---|
-| `add_message_category` | Admin | `name: String, email_address: String, description: String, visibility: CategoryVisibility` | Creates new mailing list category. |
-| `update_message_category` | Admin | `category_id: u64, name: String, description: String, visibility: Option<CategoryVisibility>` | Updates display metadata and visibility of an existing category. |
-| `remove_message_category` | Admin | `category_id: u64` | Removes message category and deletes any linked app password. |
-| `set_category_topics` | Admin | `category_id: u64, topic_names: Vec<String>` | Replaces a category's topic assignments, creating missing `topics` rows as needed. |
-| `rename_topic` | Admin | `topic_id: u64, new_name: String` | Renames an existing topic. |
-| `provision_message_category` **`[Procedure]`** | Admin | `name: String, base: String, domain_id: String, description: String, visibility: CategoryVisibility` | Inserts category into DB **and** calls Stalwart JMAP REST API to create mailbox and app password credential. |
+| `add_message_topic` | Admin | `name: String, email_address: String, description: String, visibility: TopicVisibility` | Creates new message topic (mailing list). |
+| `update_message_topic` | Admin | `topic_id: u64, name: String, description: String, visibility: Option<TopicVisibility>, default_permission: Option<SubscriptionPermission>, clear_provisioning_lock: Option<bool>` | Updates display metadata, permission, and visibility of an existing topic. |
+| `remove_message_topic` | Admin | `topic_id: u64` | Removes message topic and deletes any linked app password. |
+| `clear_topic_provisioning_lock` | Admin | `topic_id: u64` | Clears provisioning lock on topic. |
+| `set_topic_categories` | Admin | `topic_id: u64, category_names: Vec<String>` | Replaces a topic's category assignments, creating missing `categories` rows as needed. |
+| `rename_category` | Admin | `category_id: u64, new_name: String` | Renames an existing category tag. |
+| `provision_message_topic` **`[Procedure]`** | Admin | `name: String, base: String, domain_id: String, description: String, visibility: TopicVisibility` | Inserts topic into DB **and** calls Stalwart JMAP REST API to create mailbox and app password credential. |
+| `provision_all_unprovisioned_topics` **`[Procedure]`** | Admin | _(none)_ | Provisions Stalwart mailboxes and app passwords for all existing topics lacking credentials. |
 | `sync_stalwart_domains` **`[Procedure]`** | Admin/Owner | _(none)_ | Queries Stalwart JMAP REST API (`x:Domain/query`, `x:Domain/get`) and synchronizes domains into the `domains` table. |
-| `add_subscription` | User/Admin | `subscriber_account_id: u64, account_email_id: u64, category_id: u64` | Subscribes account's verified email to a category (`ManuallySubscribed`). Enforces email verification and private category access rules. |
-| `admin_add_subscription` | Admin | `subscriber_account_id: u64, account_email_id: u64, category_id: u64, status: SubscriptionStatus` | Adds or updates a subscription with an explicitly chosen status. |
-| `add_and_subscribe_category` | Admin | `subscriber_account_id: u64, account_email_id: u64, name: String, email_address: String, description: String, visibility: CategoryVisibility` | Idempotently creates category if not present and subscribes the specified account email. |
+| `add_subscription` | User/Admin | `subscriber_account_id: u64, account_email_id: u64, topic_id: u64` | Subscribes account's verified email to a topic (`ManuallySubscribed`). Enforces email verification and private topic access rules. |
+| `admin_add_subscription` | Admin | `subscriber_account_id: u64, account_email_id: u64, topic_id: u64, status: SubscriptionStatus` | Adds or updates a subscription with an explicitly chosen status. |
+| `add_and_subscribe_topic` | Admin | `subscriber_account_id: u64, account_email_id: u64, name: String, email_address: String, description: String, visibility: TopicVisibility` | Idempotently creates topic if not present and subscribes the specified account email. |
 | `update_subscription_permission` | Admin | `subscription_id: u64, permission: SubscriptionPermission` | Updates subscription permission mode (`Read` or `Write`). |
 | `remove_subscription` | User/Admin | `subscription_id: u64` | Unsubscribes account email (`ManuallyUnsubscribed`). Non-admins cannot remove `RequiredSubscribed`. |
 | `ensure_subscription_unsubscribe_token` | Admin/System | `subscription_id: u64` | Ensures an active unsubscribe token exists for the given subscription, reactivating or generating a new one. |

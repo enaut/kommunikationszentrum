@@ -36,6 +36,11 @@ direction: right
       label: "user-sync handler\nPOST …/route/user-sync\nperm: \"sync-user\""
     }
 
+    TopicSyncHandler: {
+      shape: rectangle
+      label: "topic-sync handler\nPOST …/route/topic-sync\nperm: \"sync-user\""
+    }
+
     UnsubscribeHandler: {
       shape: rectangle
       label: "unsubscribe handler\nPOST …/route/mailing-list/unsubscribe\ntoken in query"
@@ -58,6 +63,11 @@ direction: right
     SyncLogic: {
       shape: rectangle
       label: "Upsert / Delete\nAccount & Subscriptions"
+    }
+
+    TopicSyncLogic: {
+      shape: rectangle
+      label: "Upsert Topic,\nCategories & Mailbox"
     }
 
     UnsubscribeLogic: {
@@ -84,7 +94,7 @@ direction: right
   }
   accounts: {
     shape: cylinder
-    label: "account\nsubscriptions\nmessage_categories"
+    label: "account\nsubscriptions\nmessage_topics\ncategories"
   }
   tokens: {
     shape: cylinder
@@ -95,24 +105,29 @@ direction: right
 # Ingress routing
 "External Callers".Stalwart -> "SpacetimeDB Module".Router: "POST /route/mta-hook\nAuthorization: Bearer <token>"
 "External Callers".Django -> "SpacetimeDB Module".Router: "POST /route/user-sync\nAuthorization: Bearer <token>"
+"External Callers".Django -> "SpacetimeDB Module".Router: "POST /route/topic-sync\nAuthorization: Bearer <token>"
 "External Callers".EmailClient -> "SpacetimeDB Module".Router: "POST /route/mailing-list/unsubscribe?token=…"
 
-"SpacetimeDB Module".Router -> "SpacetimeDB Module".TokenAuth: "mta-hook & user-sync"
+"SpacetimeDB Module".Router -> "SpacetimeDB Module".TokenAuth: "mta-hook, user-sync, topic-sync"
 "SpacetimeDB Module".Router -> "SpacetimeDB Module"."HTTP Handlers".UnsubscribeHandler: "mailing-list/unsubscribe"
 
 # Auth gate
 "SpacetimeDB Module".TokenAuth -> "SpacetimeDB Module"."HTTP Handlers".MtaHandler: "perm ok"
 "SpacetimeDB Module".TokenAuth -> "SpacetimeDB Module"."HTTP Handlers".UserSyncHandler: "perm ok"
+"SpacetimeDB Module".TokenAuth -> "SpacetimeDB Module"."HTTP Handlers".TopicSyncHandler: "perm ok"
 "SpacetimeDB Module".TokenAuth -> "Database Tables".webhook_tokens: "Lookup & verify hash"
 
 # Handler → logic
 "SpacetimeDB Module"."HTTP Handlers".MtaHandler -> "SpacetimeDB Module"."Transactional Context".MtaLogic: "ctx.with_tx(...)"
 "SpacetimeDB Module"."HTTP Handlers".UserSyncHandler -> "SpacetimeDB Module"."Transactional Context".SyncLogic: "ctx.with_tx(...)"
+"SpacetimeDB Module"."HTTP Handlers".TopicSyncHandler -> "SpacetimeDB Module"."Transactional Context".TopicSyncLogic: "ctx.with_tx(...)"
 "SpacetimeDB Module"."HTTP Handlers".UnsubscribeHandler -> "SpacetimeDB Module"."Transactional Context".UnsubscribeLogic: "ctx.with_tx(...)"
 
 # Logic → DB writes
 "SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mta_logs: "Audit log"
 "SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mail_ingress: "Persist message"
 "SpacetimeDB Module"."Transactional Context".SyncLogic -> "Database Tables".accounts: "Upsert / delete"
+"SpacetimeDB Module"."Transactional Context".TopicSyncLogic -> "Database Tables".accounts: "Upsert topics / categories"
 "SpacetimeDB Module"."Transactional Context".UnsubscribeLogic -> "Database Tables".tokens: "Check & revoke token"
 "SpacetimeDB Module"."Transactional Context".UnsubscribeLogic -> "Database Tables".accounts: "Deactivate subscription"
+

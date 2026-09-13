@@ -29,20 +29,20 @@ The email processing flow in the Kommunikationszentrum follows a multi-stage val
 - **Actions**: ACCEPT for valid format, REJECT for invalid
 
 ### 4. RCPT TO Stage
-- **Purpose**: Recipient and category validation
+- **Purpose**: Recipient and topic validation
 - **Checks**: 
   - Email address format
-  - Category exists in `message_categories`
-  - Category is active
+  - Topic exists in `message_topics`
+  - Topic is active
 - **Logging**: `mta_connection_log`
-- **Actions**: ACCEPT for valid categories, REJECT for unknown
+- **Actions**: ACCEPT for valid topics, REJECT for unknown
 
 ### 5. DATA Stage
 - **Purpose**: Full message processing, sender account resolution, and permission validation
 - **Checks**:
   - Sender address is looked up across `account_emails` (supports shared addresses across multiple accounts)
   - Admin privileges: sender is authorized if *any* matching account has an admin identity
-  - Write permissions: for regular members, verifies that the account is active (`is_active == true`) and holds an active subscription with `SubscriptionPermission::Write` for the category
+  - Write permissions: for regular members, verifies that the account is active (`is_active == true`) and holds an active subscription with `SubscriptionPermission::Write` for the topic
 - **Logging**: `mta_message_log` (detailed message information)
 - **Actions**: 
   - ACCEPT: Admin sender or member with active `Write` subscription; persists `mail_message`, archives `received_message`, and queues `mail_ingress` fan-out
@@ -64,9 +64,9 @@ if blocked_ip.active && blocked_ip.ip == client_ip {
 }
 ```
 
-### Category Validation (RCPT)
+### Topic Validation (RCPT)
 ```rust
-if !message_categories.contains(recipient_email) || !category.active {
+if !message_topics.contains(recipient_email) || !topic.active {
     return REJECT;
 }
 ```
@@ -85,19 +85,19 @@ let sender_account_ids: Vec<u64> = ctx
     })
     .collect();
 
-// 2. Administrators are authorized to post to any valid category
+// 2. Administrators are authorized to post to any valid topic
 let sender_is_admin = sender_account_ids.iter().any(|id| {
     ctx.db.account().id().find(id).map_or(false, |acc| {
         ctx.db.admin_identities().identity().find(&acc.identity).is_some()
     })
 });
 
-// 3. For non-admins, check subscriptions and permissions per category:
-//    - If sender has Write permission: deliver to category
+// 3. For non-admins, check subscriptions and permissions per topic:
+//    - If sender has Write permission: deliver to topic
 //    - If sender has Read-only permission: reject (NoWritePermission)
 //    - If sender is not subscribed: reject (NotSubscribed)
 //    - If sender email is not registered/active: reject (NotRegistered)
 //
-// 4. For any rejected categories, an explanatory rejection email is queued
+// 4. For any rejected topics, an explanatory rejection email is queued
 //    in `system_mail_pending` and dispatched by the sender daemon via SMTP_SYSTEM_USER.
 ```

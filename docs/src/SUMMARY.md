@@ -43,7 +43,7 @@
 - [Email System Integration](./email/overview.md)
   - [Stalwart MTA Setup](./email/stalwart-setup.md)
   - [MTA Hook Configuration](./email/mta-hook-config.md)
-  - [Email Categories](./email/categories.md)
+  - [Email Topics & Categories](./email/topics.md)
   - [Subscription System](./email/subscriptions.md)
   - [Processing Flow](./email/processing-flow.md)
   - [Trigger Flow](./email/flow-email-triggers.md)

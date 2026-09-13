@@ -1,9 +1,9 @@
 use crate::common::auth::is_admin_user;
 use crate::models::account::*;
-use crate::models::category::*;
 use crate::models::domain::*;
 use crate::models::mail_message::*;
 use crate::models::mta::*;
+use crate::models::topic::*;
 use spacetimedb::{Query, Timestamp, ViewContext};
 
 #[spacetimedb::view(accessor = visible_domains, public)]
@@ -23,11 +23,11 @@ pub fn get_account_config(ctx: &ViewContext) -> AccountConfig {
             account_id: 0,
             message_offset: 0,
             message_limit: 50,
-            selected_message_category: None,
+            selected_message_topic: None,
             member_offset: 0,
             member_limit: 50,
             member_search_query: None,
-            viewing_category_id: None,
+            viewing_topic_id: None,
             language: None,
             theme: None,
             search_matching_accounts: 0,
@@ -76,40 +76,40 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
     let config = get_account_config(ctx);
 
     let mut messages = if is_admin {
-        if let Some(cat_id) = config.selected_message_category {
-            ctx.db.received_message().category_id().filter(&cat_id).collect::<Vec<_>>()
+        if let Some(topic_id) = config.selected_message_topic {
+            ctx.db.received_message().topic_id().filter(&topic_id).collect::<Vec<_>>()
         } else {
             ctx.db.received_message().received_at().filter(Timestamp::UNIX_EPOCH..).collect::<Vec<_>>()
         }
     } else {
         match ctx.db.account().identity().find(&sender) {
             Some(acc) => {
-                let mut subscribed_category_ids: Vec<u64> = ctx
+                let mut subscribed_topic_ids: Vec<u64> = ctx
                     .db
                     .subscriptions()
                     .subscriber_account_id()
                     .filter(&acc.id)
                     .filter(|s| s.status.is_active())
-                    .map(|s| s.category_id)
+                    .map(|s| s.topic_id)
                     .collect();
                 
-                if let Some(cat_id) = config.selected_message_category {
-                    if subscribed_category_ids.contains(&cat_id) {
-                        subscribed_category_ids = vec![cat_id];
+                if let Some(topic_id) = config.selected_message_topic {
+                    if subscribed_topic_ids.contains(&topic_id) {
+                        subscribed_topic_ids = vec![topic_id];
                     } else {
-                        subscribed_category_ids = vec![];
+                        subscribed_topic_ids = vec![];
                     }
                 }
 
-                subscribed_category_ids.sort_unstable();
-                subscribed_category_ids.dedup();
-                subscribed_category_ids
+                subscribed_topic_ids.sort_unstable();
+                subscribed_topic_ids.dedup();
+                subscribed_topic_ids
                     .into_iter()
-                    .flat_map(|cat_id| {
+                    .flat_map(|topic_id| {
                         ctx.db
                             .received_message()
-                            .category_id()
-                            .filter(&cat_id)
+                            .topic_id()
+                            .filter(&topic_id)
                             .collect::<Vec<_>>()
                     })
                     .collect()
@@ -156,8 +156,8 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
         }
         
         let config = get_account_config(ctx);
-        if let Some(cat_id) = config.viewing_category_id {
-            for sub in ctx.db.subscriptions().category_id().filter(&cat_id) {
+        if let Some(topic_id) = config.viewing_topic_id {
+            for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
                 account_ids.insert(sub.subscriber_account_id);
             }
         }
@@ -186,26 +186,24 @@ pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
         .collect()
 }
 
-
-
-#[spacetimedb::view(accessor = visible_message_categories, public)]
-pub fn visible_message_categories(ctx: &ViewContext) -> Vec<MessageCategory> {
+#[spacetimedb::view(accessor = visible_message_topics, public)]
+pub fn visible_message_topics(ctx: &ViewContext) -> Vec<MessageTopic> {
     let sender = ctx.sender();
     let is_admin = is_admin_user(ctx);
 
-    let all_categories = ctx.db.message_categories().visibility();
+    let all_topics = ctx.db.message_topics().visibility();
 
-    let public_categories = all_categories
-        .filter(CategoryVisibility::Public)
+    let public_topics = all_topics
+        .filter(TopicVisibility::Public)
         .collect::<Vec<_>>();
 
     if is_admin {
-        // Admins see all categories
-        let private_categories = all_categories
-            .filter(CategoryVisibility::Private)
+        // Admins see all topics
+        let private_topics = all_topics
+            .filter(TopicVisibility::Private)
             .collect::<Vec<_>>();
-        let mut result = public_categories;
-        result.extend(private_categories);
+        let mut result = public_topics;
+        result.extend(private_topics);
         return result;
     }
 
@@ -214,39 +212,39 @@ pub fn visible_message_categories(ctx: &ViewContext) -> Vec<MessageCategory> {
         return vec![];
     }
 
-    // For regular users: show public categories + private categories they're subscribed to
+    // For regular users: show public topics + private topics they're subscribed to
     let account = ctx
         .db
         .account()
         .identity()
         .find(&sender)
         .expect("Account must exist");
-    let subscribed_category_ids: Vec<u64> = ctx
+    let subscribed_topic_ids: Vec<u64> = ctx
         .db
         .subscriptions()
         .subscriber_account_id()
         .filter(&account.id)
-        .map(|sub| sub.category_id)
+        .map(|sub| sub.topic_id)
         .collect();
 
-    let mut result = public_categories;
-    let private_categories: Vec<MessageCategory> = all_categories
-        .filter(CategoryVisibility::Private)
-        .filter(|cat| subscribed_category_ids.contains(&cat.id))
+    let mut result = public_topics;
+    let private_topics: Vec<MessageTopic> = all_topics
+        .filter(TopicVisibility::Private)
+        .filter(|t| subscribed_topic_ids.contains(&t.id))
         .collect();
-    result.extend(private_categories);
+    result.extend(private_topics);
 
     result
 }
 
-#[spacetimedb::view(accessor = visible_topics, public)]
-pub fn visible_topics(ctx: &ViewContext) -> impl Query<Topic> {
-    ctx.from.topics()
+#[spacetimedb::view(accessor = visible_categories, public)]
+pub fn visible_categories(ctx: &ViewContext) -> impl Query<Category> {
+    ctx.from.categories()
 }
 
-#[spacetimedb::view(accessor = visible_message_category_topics, public)]
-pub fn visible_message_category_topics(ctx: &ViewContext) -> impl Query<MessageCategoryTopic> {
-    ctx.from.message_category_topics()
+#[spacetimedb::view(accessor = visible_message_topic_categories, public)]
+pub fn visible_message_topic_categories(ctx: &ViewContext) -> impl Query<MessageTopicCategory> {
+    ctx.from.message_topic_categories()
 }
 
 #[spacetimedb::view(accessor = visible_messages, public)]
@@ -265,4 +263,3 @@ pub fn visible_mail_messages(ctx: &ViewContext) -> Vec<MailMessage> {
         .filter_map(|id| ctx.db.mail_message().id().find(&id))
         .collect()
 }
-

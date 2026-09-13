@@ -49,7 +49,7 @@ The SpacetimeDB handler executes validation and persistence logic for each SMTP 
 | `CONNECT` | IP blocklist check against `blocked_ips` table | [Processing Flow — CONNECT](./processing-flow.md#1-connect-stage) |
 | `EHLO` | HELO/EHLO argument syntax validation | [Processing Flow — EHLO](./processing-flow.md#2-ehlohelo-stage) |
 | `MAIL FROM` | Sender address syntax validation | [Processing Flow — MAIL FROM](./processing-flow.md#3-mail-from-stage) |
-| `RCPT TO` | Category recipient check against `message_categories.email_address` | [Processing Flow — RCPT TO](./processing-flow.md#4-rcpt-to-stage) |
+| `RCPT TO` | Topic recipient check against `message_topics.email_address` | [Processing Flow — RCPT TO](./processing-flow.md#4-rcpt-to-stage) |
 | `DATA` | Content extraction, subscriber verification, `received_message` & `mail_ingress` persistence | [Processing Flow — DATA](./processing-flow.md#5-data-stage) |
 | `AUTH` | Connection audit logging (pass-through) | [Processing Flow — AUTH](./processing-flow.md#6-auth-stage) |
 

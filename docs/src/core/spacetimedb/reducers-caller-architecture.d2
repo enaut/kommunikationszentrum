@@ -33,14 +33,14 @@ direction: down
     set_stalwart_config
   }
 
-  "Category Management": {
-    add_message_category
-    update_message_category
-    remove_message_category
-    set_category_topics
-    rename_topic
-    add_and_subscribe_category
-    provision_message_category: "Procedure (JMAP + app password)"
+  "Topic & Category Management": {
+    add_message_topic
+    update_message_topic
+    remove_message_topic
+    set_topic_categories
+    rename_category
+    add_and_subscribe_topic
+    provision_message_topic: "Procedure (JMAP + app password)"
     sync_stalwart_domains: "Procedure (JMAP sync)"
   }
 
@@ -79,10 +79,10 @@ direction: down
   admin_identities
   webhook_tokens
   stalwart_config
-  message_categories
-  category_app_passwords
-  topics
-  message_category_topics
+  message_topics
+  topic_app_passwords
+  categories
+  message_topic_categories
   subscriptions
   subscription_unsubscribe_tokens
   domains
@@ -103,12 +103,12 @@ direction: down
 }
 
 "Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Auth & Identity": "Admin actions & config"
-"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Category Management": "Manage categories"
+"Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."Topic & Category Management": "Manage topics & categories"
 "Client & Integration Callers".AdminUI -> "SpacetimeDB Reducers & Procedures"."MTA Diagnostics": "Inspect logs"
 
 "Client & Integration Callers".UserClient -> "SpacetimeDB Reducers & Procedures"."Subscription Flow".add_subscription: "User opt-in"
 
-"Client & Integration Callers".DjangoWebhook -> "SpacetimeDB Reducers & Procedures"."Auth & Identity".sync_user: "User / category sync"
+"Client & Integration Callers".DjangoWebhook -> "SpacetimeDB Reducers & Procedures"."Auth & Identity".sync_user: "User / topic sync"
 
 "Client & Integration Callers".SenderDaemon -> "SpacetimeDB Reducers & Procedures"."Delivery Pipeline": "Lease, retry, and finalize work"
 

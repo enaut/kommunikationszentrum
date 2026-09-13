@@ -2,10 +2,10 @@ use spacetimedb::{ReducerContext, Table, Timestamp};
 use stalwart_mta_hook_types::Request as MtaHookRequest;
 
 use crate::models::account::{account, account_emails, admin_identities};
-use crate::models::category::{message_categories, subscriptions};
 use crate::models::delivery::{system_mail_pending, SystemMailPending};
 use crate::models::mail_message::{mail_message, MailMessage};
 use crate::models::mta::*;
+use crate::models::topic::{message_topics, subscriptions, SubscriptionPermission};
 use crate::reducers::delivery::upsert_mail_ingress;
 use crate::services::mta::envelope_parser::{
     extract_header, extract_subject_from_request, parse_email_addresses,
@@ -74,7 +74,7 @@ pub fn handle_data_stage(
         subject
     );
 
-    let mut target_categories: Vec<(u64, String, String)> = Vec::new();
+    let mut target_topics: Vec<(u64, String, String)> = Vec::new();
 
     log::trace!(
         "envelope: {}",
@@ -86,18 +86,18 @@ pub fn handle_data_stage(
         for recipient in &envelope.to {
             let to_address = recipient.address.to_lowercase();
 
-            if let Some(category) = ctx
+            if let Some(topic) = ctx
                 .db
-                .message_categories()
+                .message_topics()
                 .email_address()
                 .find(&to_address)
                 .filter(|c| c.active)
             {
-                if !target_categories.iter().any(|(id, _, _)| *id == category.id) {
-                    target_categories.push((
-                        category.id,
-                        category.email_address.clone(),
-                        category.name.clone(),
+                if !target_topics.iter().any(|(id, _, _)| *id == topic.id) {
+                    target_topics.push((
+                        topic.id,
+                        topic.email_address.clone(),
+                        topic.name.clone(),
                     ));
                 }
             }
@@ -105,25 +105,25 @@ pub fn handle_data_stage(
     }
 
     // Fallback: some MTAs rewrite the envelope and only preserve the `To` header.
-    if target_categories.is_empty() {
+    if target_topics.is_empty() {
         if let Some(message) = &request.message {
             if let Some(to_header) = extract_header(&message.headers, "to") {
                 let header_addrs = parse_email_addresses(&to_header);
                 if !header_addrs.is_empty() {
                     for to_address in header_addrs {
                         let to_address_lower = to_address.to_lowercase();
-                        if let Some(category) = ctx
+                        if let Some(topic) = ctx
                             .db
-                            .message_categories()
+                            .message_topics()
                             .email_address()
                             .find(&to_address_lower)
                             .filter(|c| c.active)
                         {
-                            if !target_categories.iter().any(|(id, _, _)| *id == category.id) {
-                                target_categories.push((
-                                    category.id,
-                                    category.email_address.clone(),
-                                    category.name.clone(),
+                            if !target_topics.iter().any(|(id, _, _)| *id == topic.id) {
+                                target_topics.push((
+                                    topic.id,
+                                    topic.email_address.clone(),
+                                    topic.name.clone(),
                                 ));
                             }
                         }
@@ -160,25 +160,25 @@ pub fn handle_data_stage(
         })
     });
 
-    let mut authorized_categories: Vec<(u64, String)> = Vec::new();
+    let mut authorized_topics: Vec<(u64, String)> = Vec::new();
     let mut rejected_topics: Vec<RejectedTopic> = Vec::new();
 
-    for (cat_id, cat_email, cat_name) in target_categories {
+    for (topic_id, topic_email, topic_name) in target_topics {
         if sender_is_admin {
-            authorized_categories.push((cat_id, cat_email));
+            authorized_topics.push((topic_id, topic_email));
             continue;
         }
 
         if sender_account_emails.is_empty() {
             log::warn!(
-                "External/unregistered sender {} attempted to post to category {} ({})",
+                "External/unregistered sender {} attempted to post to topic {} ({})",
                 from_address,
-                cat_id,
-                cat_email
+                topic_id,
+                topic_email
             );
             rejected_topics.push(RejectedTopic {
-                topic_name: cat_name,
-                topic_email: cat_email,
+                topic_name,
+                topic_email,
                 reason: TopicRejectionReason::NotRegistered,
             });
             continue;
@@ -189,11 +189,11 @@ pub fn handle_data_stage(
 
         for ae in &sender_account_emails {
             for s in ctx.db.subscriptions().account_email_id().filter(&ae.id) {
-                if s.category_id == cat_id && s.status.is_active() {
+                if s.topic_id == topic_id && s.status.is_active() {
                     found_subscription = true;
                     if matches!(
                         s.permission,
-                        crate::models::category::SubscriptionPermission::Write
+                        SubscriptionPermission::Write
                     ) {
                         has_write = true;
                         break;
@@ -206,37 +206,37 @@ pub fn handle_data_stage(
         }
 
         if has_write {
-            authorized_categories.push((cat_id, cat_email));
+            authorized_topics.push((topic_id, topic_email));
         } else if found_subscription {
             log::warn!(
-                "Sender {} (accounts {:?}) is NOT authorized to write to category {} ({})",
+                "Sender {} (accounts {:?}) is NOT authorized to write to topic {} ({})",
                 from_address,
                 sender_account_ids,
-                cat_id,
-                cat_email
+                topic_id,
+                topic_email
             );
             rejected_topics.push(RejectedTopic {
-                topic_name: cat_name,
-                topic_email: cat_email,
+                topic_name,
+                topic_email,
                 reason: TopicRejectionReason::NoWritePermission,
             });
         } else {
             log::warn!(
-                "Sender {} (accounts {:?}) is not subscribed to category {} ({})",
+                "Sender {} (accounts {:?}) is not subscribed to topic {} ({})",
                 from_address,
                 sender_account_ids,
-                cat_id,
-                cat_email
+                topic_id,
+                topic_email
             );
             rejected_topics.push(RejectedTopic {
-                topic_name: cat_name,
-                topic_email: cat_email,
+                topic_name,
+                topic_email,
                 reason: TopicRejectionReason::NotSubscribed,
             });
         }
     }
 
-    // If any categories were rejected, queue a rejection response from SMTP_SYSTEM_USER
+    // If any topics were rejected, queue a rejection response from SMTP_SYSTEM_USER
     if !rejected_topics.is_empty() && is_valid_bounce_recipient(from_address) {
         let (rejection_subject, rejection_body) = build_rejection_email(
             &subject,
@@ -261,12 +261,12 @@ pub fn handle_data_stage(
         );
     }
 
-    let (action, cat_count) = if !authorized_categories.is_empty() {
+    let (action, topic_count) = if !authorized_topics.is_empty() {
         log::info!(
-            "Accepting message for {} valid category deliveries",
-            authorized_categories.len()
+            "Accepting message for {} valid topic deliveries",
+            authorized_topics.len()
         );
-        ("accept", authorized_categories.len() as u32)
+        ("accept", authorized_topics.len() as u32)
     } else if !rejected_topics.is_empty() {
         log::warn!(
             "Rejecting message: sender {} unauthorized for {} topic(s)",
@@ -275,7 +275,7 @@ pub fn handle_data_stage(
         );
         ("reject", 0)
     } else {
-        log::warn!("No valid category deliveries found, quarantining message");
+        log::warn!("No valid topic deliveries found, quarantining message");
         ("quarantine", 0)
     };
 
@@ -285,11 +285,11 @@ pub fn handle_data_stage(
         action: action.to_string(),
         timestamp,
         queue_id: request.context.queue.as_ref().map(|q| q.id.clone()),
-        category_count: cat_count,
+        topic_count,
     });
 
-    // Persist the full message for each accepted category delivery
-    if !authorized_categories.is_empty() {
+    // Persist the full message for each accepted topic delivery
+    if !authorized_topics.is_empty() {
         if let Some(message) = &request.message {
             let from_header = extract_header(&message.headers, "from")
                 .unwrap_or_else(|| from_address.to_string());
@@ -335,29 +335,28 @@ pub fn handle_data_stage(
                 message_size,
             );
 
-            for (category_id, category_email) in &authorized_categories {
+            for (topic_id, topic_email) in &authorized_topics {
                 ctx.db.received_message().insert(ReceivedMessage {
                     id: 0,
                     mail_message_id,
-                    category_id: *category_id,
-                    category_email: category_email.clone(),
+                    topic_id: *topic_id,
+                    topic_email: topic_email.clone(),
                     received_at: timestamp,
                 });
 
                 let ingress_id = upsert_mail_ingress(
                     ctx,
                     mail_message_id,
-                    *category_id,
-                    category_email.clone(),
+                    *topic_id,
+                    topic_email.clone(),
                 );
                 log::info!(
-                    "Queued ingress {} for category {} ({})",
+                    "Queued ingress {} for topic {} ({})",
                     ingress_id,
-                    category_id,
-                    category_email
+                    topic_id,
+                    topic_email
                 );
             }
         }
     }
 }
-

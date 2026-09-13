@@ -1,14 +1,14 @@
 direction: right
 
-delivery: "Claimed Delivery\n(ingress.category_id)"
+delivery: "Claimed Delivery\n(ingress.topic_id)"
 
-resolve: "resolve_category_smtp_credentials()" {
+resolve: "resolve_topic_smtp_credentials()" {
   shape: diamond
 }
 
 tables: "SpacetimeDB Tables" {
-  cat: "visible_message_categories\n(app_password_id, email_address)"
-  pass: "visible_category_app_passwords\n(secret)"
+  topic: "visible_message_topics\n(app_password_id, email_address)"
+  pass: "visible_topic_app_passwords\n(secret)"
 }
 
 cache: "transports Cache\nHashMap<u64, AsyncSmtpTransport>" {
@@ -18,7 +18,8 @@ cache: "transports Cache\nHashMap<u64, AsyncSmtpTransport>" {
 send: "transport.send_raw().await\n(Reused TLS connection pool)"
 
 delivery -> resolve
-resolve -> tables.cat: "Lookup category"
-tables.cat -> tables.pass: "Lookup secret"
+resolve -> tables.topic: "Lookup topic"
+tables.topic -> tables.pass: "Lookup secret"
 tables.pass -> cache: "Get or build transport"
 cache -> send: "Dispatch email"
+

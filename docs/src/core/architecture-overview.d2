@@ -31,7 +31,7 @@ retry: "Temporary failure queue" {
   style.fill: "#ffe8c6"
 }
 
-domains: "Domain registry\ncategory app passwords" {
+domains: "Domain registry\ntopic app passwords" {
   style.fill: "#f4e3ff"
 }
 
@@ -41,7 +41,7 @@ core.admin <-> core.db: "live views\nand reducer calls" {
 core.admin -> external.django: "OIDC / OAuth" {
   style.stroke: "#f59e0b"
 }
-external.django -> core.db: "user sync\ncategory subscriptions" {
+external.django -> core.db: "user sync\ntopic subscriptions" {
   style.stroke: "#22c55e"
 }
 external.stalwart -> core.db: "MTA hooks\ndomain sync" {
@@ -65,7 +65,7 @@ core.sender -> external.stalwart: "submission via list SMTP auth" {
 core.sender -> external.relay: "final SMTP delivery" {
   style.stroke: "#7c3aed"
 }
-core.db -> domains: "category and domain state" {
+core.db -> domains: "topic and domain state" {
   style.stroke: "#a855f7"
 }
 domains -> core.sender: "per-list credentials" {

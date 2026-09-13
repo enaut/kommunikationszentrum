@@ -8,11 +8,11 @@ The permission system in Kommunikationszentrum implements role-based access cont
 
 Regular users have access to basic functionality:
 
-**Subscription Management**: Users can view and modify their own email category subscriptions.
+**Subscription Management**: Users can view and modify their own email topic subscriptions.
 
 **Personal Data**: Access to view and update their own account information.
 
-**Category Browsing**: View available email categories and their descriptions.
+**Topic Browsing**: View available email topics and their descriptions.
 
 Regular users are identified by the absence of administrative flags in their JWT claims (`is_staff: false`, `is_superuser: false`).
 
@@ -22,7 +22,7 @@ Django staff members have elevated permissions:
 
 **User Management**: View and modify other user accounts and subscriptions.
 
-**Category Management**: Create, modify, and deactivate email categories.
+**Topic & Category Management**: Create, modify, and deactivate email topics and categories.
 
 **System Monitoring**: Access to MTA logs and system status information.
 
@@ -75,10 +75,10 @@ fn is_admin_user(_ctx: &ReducerContext) -> bool {
 }
 ```
 
-**Category Management Example**:
+**Topic Management Example**:
 ```rust
 #[spacetimedb::reducer]
-pub fn add_message_category(
+pub fn add_message_topic(
     ctx: &ReducerContext,
     name: String,
     email_address: String,
@@ -87,7 +87,7 @@ pub fn add_message_category(
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
     }
-    // Category creation logic...
+    // Topic creation logic...
     Ok(())
 }
 ```
@@ -108,7 +108,7 @@ The admin interface respects user permissions for UI rendering:
 
 Django groups provide fine-grained permission control:
 
-**Category Editors**: Users who can create and modify email categories
+**Topic Editors**: Users who can create and modify email topics and categories  
 **Subscription Managers**: Users who can manage subscriptions for other users  
 **System Administrators**: Users with full system access
 

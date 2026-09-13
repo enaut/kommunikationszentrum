@@ -1,6 +1,6 @@
 # Stalwart MTA Setup
 
-The Kommunikationszentrum integrates with the Stalwart MTA (Mail Transfer Agent) to handle inbound email via HTTP webhooks, outbound delivery via SMTP submission with per-category app passwords, and domain/mailbox provisioning via the JMAP REST API.
+The Kommunikationszentrum integrates with the Stalwart MTA (Mail Transfer Agent) to handle inbound email via HTTP webhooks, outbound delivery via SMTP submission with per-topic app passwords, and domain/mailbox provisioning via the JMAP REST API.
 
 ---
 
@@ -54,7 +54,7 @@ By default, Stalwart may listen for HTTP on port 8080. In this environment, the 
 
 ## Admin API Key Configuration (`STALWART_ADMIN_TOKEN`)
 
-The SpacetimeDB module calls Stalwart's JMAP REST API for automated domain synchronization (`sync_stalwart_domains`) and category mailbox provisioning (`provision_message_category`). To allow the module to authenticate with Stalwart, create an Admin API key:
+The SpacetimeDB module calls Stalwart's JMAP REST API for automated domain synchronization (`sync_stalwart_domains`) and topic mailbox provisioning (`provision_message_topic`). To allow the module to authenticate with Stalwart, create an Admin API key:
 
 1. In the Stalwart Web Admin UI, navigate to **Management → API Keys** (or **Directory → API Keys**).
 2. Click **Create API key**.
@@ -98,7 +98,7 @@ Once the Stalwart mailserver connection is saved, SpacetimeDB can synchronize th
 1. In the Admin UI, navigate to the **Domains** card.
 2. Click **Jetzt synchronisieren**.
 3. SpacetimeDB calls Stalwart's JMAP API (`sync_stalwart_domains` procedure), fetching all domains (e.g. `solawis.de`) and writing them to the `domains` table.
-4. Synchronized domains are then available when creating and provisioning new message categories.
+4. Synchronized domains are then available when creating and provisioning new message topics.
 
 You can also trigger domain synchronization via the CLI:
 

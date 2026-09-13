@@ -11,7 +11,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 pub(super) struct AddSubscriptionArgs {
     pub subscriber_account_id: u64,
     pub account_email_id: u64,
-    pub category_id: u64,
+    pub topic_id: u64,
 }
 
 impl From<AddSubscriptionArgs> for super::Reducer {
@@ -19,7 +19,7 @@ impl From<AddSubscriptionArgs> for super::Reducer {
         Self::AddSubscription {
             subscriber_account_id: args.subscriber_account_id,
             account_email_id: args.account_email_id,
-            category_id: args.category_id,
+            topic_id: args.topic_id,
         }
     }
 }
@@ -44,14 +44,9 @@ pub trait add_subscription {
         &self,
         subscriber_account_id: u64,
         account_email_id: u64,
-        category_id: u64,
+        topic_id: u64,
     ) -> __sdk::Result<()> {
-        self.add_subscription_then(
-            subscriber_account_id,
-            account_email_id,
-            category_id,
-            |_, _| {},
-        )
+        self.add_subscription_then(subscriber_account_id, account_email_id, topic_id, |_, _| {})
     }
 
     /// Request that the remote module invoke the reducer `add_subscription` to run as soon as possible,
@@ -64,7 +59,7 @@ pub trait add_subscription {
         &self,
         subscriber_account_id: u64,
         account_email_id: u64,
-        category_id: u64,
+        topic_id: u64,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
@@ -76,7 +71,7 @@ impl add_subscription for super::RemoteReducers {
         &self,
         subscriber_account_id: u64,
         account_email_id: u64,
-        category_id: u64,
+        topic_id: u64,
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
             + 'static,
@@ -85,7 +80,7 @@ impl add_subscription for super::RemoteReducers {
             AddSubscriptionArgs {
                 subscriber_account_id,
                 account_email_id,
-                category_id,
+                topic_id,
             },
             callback,
         )

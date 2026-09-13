@@ -21,10 +21,16 @@ mta_message_log: "MtaMessageLog\n(MTA Processing)" {
 blocked_ips: "BlockedIp\n(MTA Security)" {
   style.fill: lightcoral
 }
-message_categories: "MessageCategory\n(Category System)" {
+message_topics: "MessageTopic\n(Topic System)" {
   style.fill: lightgreen
 }
-subscriptions: "Subscription\n(Category System)" {
+categories: "Category\n(Classification)" {
+  style.fill: lightgreen
+}
+message_topic_categories: "MessageTopicCategory\n(Topic Categories)" {
+  style.fill: lightgreen
+}
+subscriptions: "Subscription\n(Topic System)" {
   style.fill: lightgreen
 }
 
@@ -34,7 +40,7 @@ account_emails -> account: "belongs to" {
 account_configs -> account: "configures" {
   style.stroke: blue
 }
-subscriptions -> message_categories: "belongs to" {
+subscriptions -> message_topics: "subscribes to" {
   style.stroke: blue
 }
 subscriptions -> account_emails: "subscriber email" {
@@ -43,12 +49,18 @@ subscriptions -> account_emails: "subscriber email" {
 subscriptions -> account: "subscriber" {
   style.stroke: blue
 }
+message_topic_categories -> message_topics: "tags" {
+  style.stroke: blue
+}
+message_topic_categories -> categories: "categorizes" {
+  style.stroke: blue
+}
 
 mta_connection_log -> blocked_ips: "checks" {
   style.stroke: red
   style.stroke-dash: 5
 }
-mta_message_log -> message_categories: "validates" {
+mta_message_log -> message_topics: "validates" {
   style.stroke: green
   style.stroke-dash: 5
 }
@@ -56,3 +68,4 @@ mta_message_log -> subscriptions: "verifies" {
   style.stroke: green
   style.stroke-dash: 5
 }
+

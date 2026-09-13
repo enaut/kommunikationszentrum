@@ -45,7 +45,7 @@ All components support environment-based configuration with sensible defaults fo
 | `OTLP_ENDPOINT` | `http://localhost:4317` | sender | OpenTelemetry collector endpoint |
 
 > [!NOTE]
-> Outbound SMTP authentication is per-category via app passwords stored in SpacetimeDB (`CategoryAppPassword` table), not global environment variables.
+> Outbound SMTP authentication is per-topic via app passwords stored in SpacetimeDB (`TopicAppPassword` table), not global environment variables.
 
 ### Stalwart Mailserver Fallback Configuration
 

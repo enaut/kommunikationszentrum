@@ -12,40 +12,40 @@ use crate::module_bindings::{
     dioxus::{
         use_reducer_add_subscription, use_reducer_remove_account_email,
         use_reducer_remove_subscription, use_reducer_user_request_email_verification,
-        use_subscription, use_table_visible_message_categories,
-        use_table_visible_message_category_topics, use_table_visible_subscriptions,
-        use_table_visible_topics,
+        use_subscription, use_table_visible_categories,
+        use_table_visible_message_topic_categories, use_table_visible_subscriptions,
+        use_table_visible_message_topics,
     },
-    CategoryVisibility, EmailSource, MessageCategory,
+    EmailSource, MessageTopic, TopicVisibility,
 };
 use crate::oauth::UserInfo;
 
 /// Tab identity for the member subscriptions page.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum TopicTab {
-    Topic(u64),
+enum CategoryTab {
+    Category(u64),
     Sonstige,
 }
 
-/// Default view for all users: lists all active message categories and lets the
-/// user subscribe or unsubscribe with a single button click. Categories are
-/// grouped into tabs by topic; categories without topics appear under "Sonstige".
+/// Default view for all users: lists all active message topics and lets the
+/// user subscribe or unsubscribe with a single button click. Topics are
+/// grouped into tabs by category; topics without categories appear under "Sonstige".
 #[component]
 pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
         "SELECT * FROM visible_account_emails",
-        "SELECT * FROM visible_message_categories",
+        "SELECT * FROM visible_message_topics",
         "SELECT * FROM visible_subscriptions",
-        "SELECT * FROM visible_topics",
-        "SELECT * FROM visible_message_category_topics",
+        "SELECT * FROM visible_categories",
+        "SELECT * FROM visible_message_topic_categories",
     ]);
     let accounts = crate::module_bindings::dioxus::use_table_visible_accounts();
     let account_emails = crate::module_bindings::dioxus::use_table_visible_account_emails();
-    let categories = use_table_visible_message_categories();
+    let topics = use_table_visible_message_topics();
     let subscriptions = use_table_visible_subscriptions();
-    let topics = use_table_visible_topics();
-    let category_topics = use_table_visible_message_category_topics();
+    let categories = use_table_visible_categories();
+    let topic_categories = use_table_visible_message_topic_categories();
     let add_subscription = use_reducer_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
 
@@ -62,54 +62,54 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
         .filter(|e| e.account_id == account_id)
         .collect();
 
-    let mut active_tab = use_signal(|| TopicTab::Sonstige);
+    let mut active_tab = use_signal(|| CategoryTab::Sonstige);
     let mut user_picked_tab = use_signal(|| false);
 
-    let active_cats: Vec<MessageCategory> = categories().into_iter().filter(|c| c.active).collect();
+    let active_topics: Vec<MessageTopic> = topics().into_iter().filter(|t| t.active).collect();
 
-    let topic_ids: Vec<u64> = {
-        let mut rows = topics();
+    let category_ids: Vec<u64> = {
+        let mut rows = categories();
         rows.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-        rows.into_iter().map(|t| t.id).collect()
+        rows.into_iter().map(|c| c.id).collect()
     };
 
-    let links = category_topics();
-    let categorized_ids: HashSet<u64> = links.iter().map(|l| l.category_id).collect();
+    let links = topic_categories();
+    let categorized_topic_ids: HashSet<u64> = links.iter().map(|l| l.topic_id).collect();
 
-    let sonstige_cats: Vec<MessageCategory> = active_cats
+    let sonstige_topics: Vec<MessageTopic> = active_topics
         .iter()
-        .filter(|c| !categorized_ids.contains(&c.id))
+        .filter(|t| !categorized_topic_ids.contains(&t.id))
         .cloned()
         .collect();
 
-    let show_sonstige = !sonstige_cats.is_empty() || topic_ids.is_empty();
+    let show_sonstige = !sonstige_topics.is_empty() || category_ids.is_empty();
 
     // Keep the default tab in sync with loaded data until the user picks one.
     use_effect(move || {
         if user_picked_tab() {
             return;
         }
-        let mut topics_sorted = topics();
-        topics_sorted.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-        if let Some(first) = topics_sorted.first() {
-            active_tab.set(TopicTab::Topic(first.id));
+        let mut categories_sorted = categories();
+        categories_sorted.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        if let Some(first) = categories_sorted.first() {
+            active_tab.set(CategoryTab::Category(first.id));
         } else {
-            active_tab.set(TopicTab::Sonstige);
+            active_tab.set(CategoryTab::Sonstige);
         }
     });
 
     let current = active_tab();
-    let visible_cats: Vec<MessageCategory> = match current {
-        TopicTab::Sonstige => sonstige_cats.clone(),
-        TopicTab::Topic(topic_id) => {
-            let cat_ids: HashSet<u64> = links
+    let visible_topics: Vec<MessageTopic> = match current {
+        CategoryTab::Sonstige => sonstige_topics.clone(),
+        CategoryTab::Category(cat_id) => {
+            let topic_ids: HashSet<u64> = links
                 .iter()
-                .filter(|l| l.topic_id == topic_id)
-                .map(|l| l.category_id)
+                .filter(|l| l.category_id == cat_id)
+                .map(|l| l.topic_id)
                 .collect();
-            active_cats
+            active_topics
                 .into_iter()
-                .filter(|c| cat_ids.contains(&c.id))
+                .filter(|t| topic_ids.contains(&t.id))
                 .collect()
         }
     };
@@ -241,29 +241,29 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 },
             }
 
-            if !topic_ids.is_empty() || show_sonstige {
+            if !category_ids.is_empty() || show_sonstige {
                 Nav {
                     tabs: true,
                     class: "mb-3",
-                    for topic_id in topic_ids.iter().copied() {
-                        TopicTabButton {
-                            key: "{topic_id}",
-                            topic_id,
-                            active: current == TopicTab::Topic(topic_id),
+                    for cat_id in category_ids.iter().copied() {
+                        CategoryTabButton {
+                            key: "{cat_id}",
+                            category_id: cat_id,
+                            active: current == CategoryTab::Category(cat_id),
                             on_select: move |_| {
                                 user_picked_tab.set(true);
-                                active_tab.set(TopicTab::Topic(topic_id));
+                                active_tab.set(CategoryTab::Category(cat_id));
                             },
                         }
                     }
                     if show_sonstige {
                         NavItem {
                             NavLink {
-                                active: current == TopicTab::Sonstige,
+                                active: current == CategoryTab::Sonstige,
                                 prevent_default: true,
                                 onclick: move |_| {
                                     user_picked_tab.set(true);
-                                    active_tab.set(TopicTab::Sonstige);
+                                    active_tab.set(CategoryTab::Sonstige);
                                 },
                                 {tid!("subscriptions-tab-other")}
                             }
@@ -272,10 +272,10 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 }
             }
 
-            if visible_cats.is_empty() {
+            if visible_topics.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "info-circle", class: "me-2" }
-                    if topic_ids.is_empty() && sonstige_cats.is_empty() {
+                    if category_ids.is_empty() && sonstige_topics.is_empty() {
                         {tid!("subscriptions-empty")}
                     } else {
                         {tid!("subscriptions-empty-category")}
@@ -283,15 +283,15 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 }
             } else {
                 Row {
-                    for cat in visible_cats {
+                    for top in visible_topics {
                         {
-                            let cat_subscriptions: Vec<_> = subscriptions().into_iter().filter(|s| {
-                                s.category_id == cat.id
+                            let top_subscriptions: Vec<_> = subscriptions().into_iter().filter(|s| {
+                                s.topic_id == top.id
                                     && s.subscriber_account_id == account_id
                                     && crate::pages::is_active_subscription(&s.status)
                             }).collect();
-                            let is_subscribed_any = !cat_subscriptions.is_empty();
-                            let cat_id = cat.id;
+                            let is_subscribed_any = !top_subscriptions.is_empty();
+                            let topic_id = top.id;
                             let add = add_subscription.clone();
                             let remove = remove_subscription.clone();
                             let my_emails_clone = my_emails.clone();
@@ -302,23 +302,23 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                         class: if is_subscribed_any { "h-100 border-dark bg-light" } else { "h-100 border-light" },
                                         body_class: "d-flex flex-column",
                                         header: rsx! {
-                                            h5 { class: "card-title mb-0", "{cat.name}" }
+                                            h5 { class: "card-title mb-0", "{top.name}" }
                                             if is_subscribed_any {
                                                 Badge { color: Color::Success, class: "ms-2", {tid!("subscriptions-subscribed")} }
                                             }
 
-                                            if cat.visibility == CategoryVisibility::Public {
+                                            if top.visibility == TopicVisibility::Public {
                                                 Badge { color: Color::Info, class: "ms-2 align-middle", {tid!("subscriptions-public")} }
                                             } else {
                                                 Badge { color: Color::Warning, class: "ms-2 align-middle", {tid!("subscriptions-private")} }
                                             }
                                         },
                                         body: rsx! {
-                                            p { class: "card-text text-muted small flex-grow-1", "{cat.description}" }
+                                            p { class: "card-text text-muted small flex-grow-1", "{top.description}" }
                                             p { class: "card-text mb-3",
                                                 small { class: "text-muted",
                                                     Icon { name: "envelope", class: "me-1" }
-                                                    "{cat.email_address}"
+                                                    "{top.email_address}"
                                                 }
                                             }
                                             div { class: "mt-auto pt-2 border-top",
@@ -327,13 +327,13 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                     for email in my_emails_clone {
                                                         {
                                                             let email_id = email.id;
-                                                            let sub_for_email = cat_subscriptions.iter().find(|s| s.account_email_id == email_id);
+                                                            let sub_for_email = top_subscriptions.iter().find(|s| s.account_email_id == email_id);
                                                             let is_subbed = sub_for_email.is_some();
                                                             let is_required = sub_for_email.is_some_and(|s| matches!(s.status, SubscriptionStatus::RequiredSubscribed));
                                                             let sub_id = sub_for_email.map(|s| s.id);
                                                             let add_fn = add.clone();
                                                             let remove_fn = remove.clone();
-                                                            let input_id = format!("sub-check-{cat_id}-{email_id}");
+                                                            let input_id = format!("sub-check-{topic_id}-{email_id}");
 
                                                             rsx! {
                                                                 div { class: "form-check",
@@ -346,14 +346,14 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                                         onchange: move |_| {
                                                                             if is_subbed {
                                                                                 if let Some(id) = sub_id {
-                                                                                    info!("Unsubscribing {email_id} from category {cat_id}");
+                                                                                    info!("Unsubscribing {email_id} from topic {topic_id}");
                                                                                     if let Err(err) = remove_fn(id) {
                                                                                         error!("remove_subscription failed: {err:?}");
                                                                                     }
                                                                                 }
                                                                             } else {
-                                                                                info!("Subscribing {email_id} to category {cat_id}");
-                                                                                if let Err(err) = add_fn(account_id, email_id, cat_id) {
+                                                                                info!("Subscribing {email_id} to topic {topic_id}");
+                                                                                if let Err(err) = add_fn(account_id, email_id, topic_id) {
                                                                                     error!("add_subscription failed: {err:?}");
                                                                                 }
                                                                             }
@@ -400,15 +400,15 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
     }
 }
 
-/// Tab button that always reads the topic name from the live `visible_topics` signal.
+/// Tab button that always reads the category name from the live `visible_categories` signal.
 #[component]
-fn TopicTabButton(topic_id: u64, active: bool, on_select: EventHandler<()>) -> Element {
-    let topics = use_table_visible_topics();
+fn CategoryTabButton(category_id: u64, active: bool, on_select: EventHandler<()>) -> Element {
+    let categories = use_table_visible_categories();
     let name = use_memo(move || {
-        topics()
+        categories()
             .into_iter()
-            .find(|t| t.id == topic_id)
-            .map(|t| t.name)
+            .find(|c| c.id == category_id)
+            .map(|c| c.name)
             .unwrap_or_default()
     });
     let label = name();

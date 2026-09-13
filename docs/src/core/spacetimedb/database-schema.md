@@ -1,10 +1,10 @@
 # Database Schema
 
-The SpacetimeDB module for Kommunikationszentrum is the canonical state for user identity, category subscriptions, domain metadata, MTA audit records, Stalwart JMAP configuration, and the outbound delivery pipeline. The schema is intentionally private to the module; client access is restricted to scoped public views.
+The SpacetimeDB module for Kommunikationszentrum is the canonical state for user identity, topic subscriptions, category tags, domain metadata, MTA audit records, Stalwart JMAP configuration, and the outbound delivery pipeline. The schema is intentionally private to the module; client access is restricted to scoped public views.
 
 ## Full Entity-Relationship Schema
 
-The module stores identity, category, Stalwart configuration, and delivery state in private tables, while admin/member/sender visibility is enforced by scoped public views such as `visible_accounts`, `visible_message_categories`, `visible_domains`, `admin_stalwart_config`, and `sender_mail_delivery_messages`.
+The module stores identity, topics, categories, Stalwart configuration, and delivery state in private tables, while admin/member/sender visibility is enforced by scoped public views such as `visible_accounts`, `visible_message_topics`, `visible_categories`, `visible_message_topic_categories`, `visible_domains`, `admin_stalwart_config`, and `sender_mail_delivery_messages`.
 
 ```d2
 {{#include database-schema-er.d2}}

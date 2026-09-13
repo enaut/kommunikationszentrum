@@ -14,7 +14,7 @@ monitors the delivery pipeline tables, and dispatches outgoing emails over SMTP.
 
 1. **Ingress Fan-Out** — Expands each inbound `MailIngress` record into individual per-subscriber deliveries and enqueues them into `mail_delivery_pending`, storing full RFC 5322 payloads in `mail_delivery_messages`.
 2. **Transactional System Mail Dispatch** — Claims pending system emails (`sender_system_mail_pending`) such as user email verification tokens and dispatches them via dedicated system SMTP credentials with atomic distributed leasing.
-3. **SMTP Submission** — Claims queued deliveries (`mail_delivery_claimed`) with atomic leases and transmits RFC 5322 formatted emails over TLS using category-specific credentials and pooled connections.
+3. **SMTP Submission** — Claims queued deliveries (`mail_delivery_claimed`) with atomic leases and transmits RFC 5322 formatted emails over TLS using topic-specific credentials and pooled connections.
 4. **State Management & Auditing** — Transitions completed deliveries to `mail_delivery_done` (sent/failed/bounced) or `mail_delivery_temporary_failed` (transient errors) and writes immutable audit logs to `mail_delivery_events`.
 5. **Distributed Trace Correlation** — Bridges inbound Stalwart SMTP queue IDs with outbound sender delivery spans via BLAKE3 deterministic W3C traceparents.
 6. **Lease Expiration & Recovery** — Automatically re-claims expired processing or delivery leases in case of worker failure.
@@ -57,7 +57,7 @@ Work is distributed safely across instances using atomic server-side reducers:
 sender/src/
 ├── main.rs             Entry point, event loop, fan-out logic, delivery dispatch
 ├── config.rs           SenderConfig — runtime configuration loaded from environment
-├── mail.rs             SMTP transport setup, lettre message builder, per-category credentials
+├── mail.rs             SMTP transport setup, lettre message builder, per-topic credentials
 ├── tracing_util.rs     BLAKE3 traceparent synthesis from Stalwart queue_id & OTel context
 └── module_bindings/    Auto-generated SpacetimeDB SDK bindings (do not edit)
     ├── mod.rs          Re-exports all types, table accessors, and reducer stubs

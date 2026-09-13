@@ -229,8 +229,8 @@ fn AuthenticatedApp(
                         ActiveView::Messages => rsx! {
                             pages::messages::MessagesPage { user_info: user_info.clone() }
                         },
-                        ActiveView::Categories => rsx! {
-                            pages::category::CategoriesPage {}
+                        ActiveView::Topics => rsx! {
+                            pages::topic::TopicsPage {}
                         },
                         ActiveView::Members => rsx! {
                             pages::members::MembersPage { user_info: user_info.clone() }

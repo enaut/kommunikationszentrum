@@ -44,7 +44,7 @@ tables: "Database Tables" {
     message_size: "message_size"
   }
 
-  categories_tbl: "message_categories" {
+  topics_tbl: "message_topics" {
     shape: sql_table
     style.fill: yellow
     id: "id (PK)"
@@ -58,7 +58,7 @@ tables: "Database Tables" {
     style.fill: lavender
     id: "id (PK)"
     account_email_id: "account_email_id"
-    category_id: "category_id (FK)"
+    topic_id: "topic_id (FK)"
     status: "status"
     permission: "permission"
   }
@@ -68,7 +68,7 @@ logic: "Processing Logic" {
   style.fill: "#fffde7"
   ip_check: "IP Blocking\nCheck"
   email_validation: "Email Format\nValidation"
-  category_check: "Category\nValidation"
+  topic_check: "Topic\nValidation"
   subscription_check: "Subscription\nCheck"
   final_decision: "Final\nDecision" {
     shape: diamond
@@ -97,20 +97,20 @@ logic.email_validation -> tables.mta_conn_log_tbl: "log result" { style.stroke: 
 
 stages.mail -> logic.email_validation
 
-stages.rcpt -> logic.category_check
-logic.category_check -> tables.categories_tbl: "lookup" { style.stroke: green }
-logic.category_check -> tables.mta_conn_log_tbl: "log result" { style.stroke: blue }
+stages.rcpt -> logic.topic_check
+logic.topic_check -> tables.topics_tbl: "lookup" { style.stroke: green }
+logic.topic_check -> tables.mta_conn_log_tbl: "log result" { style.stroke: blue }
 
 stages.data -> logic.subscription_check
 logic.subscription_check -> tables.subscriptions_tbl: "lookup" { style.stroke: green }
-logic.subscription_check -> tables.categories_tbl: "lookup" { style.stroke: green }
+logic.subscription_check -> tables.topics_tbl: "lookup" { style.stroke: green }
 logic.subscription_check -> logic.final_decision
 
 logic.final_decision -> tables.mta_msg_log_tbl: "log message" { style.stroke: blue }
 
 stages.auth -> tables.mta_conn_log_tbl: "log auth" { style.stroke: blue }
 
-tables.subscriptions_tbl -> tables.categories_tbl: "category_id → id" {
+tables.subscriptions_tbl -> tables.topics_tbl: "topic_id → id" {
   style.stroke: purple
 }
 
@@ -118,4 +118,5 @@ logic.final_decision -> actions.accept: "subscribed" { style.stroke: green }
 logic.final_decision -> actions.quarantine: "not subscribed" { style.stroke: orange }
 logic.ip_check -> actions.reject: "blocked IP" { style.stroke: red }
 logic.email_validation -> actions.reject: "invalid format" { style.stroke: red }
-logic.category_check -> actions.reject: "invalid category" { style.stroke: red }
+logic.topic_check -> actions.reject: "invalid topic" { style.stroke: red }
+

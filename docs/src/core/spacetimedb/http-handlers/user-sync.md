@@ -38,17 +38,17 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
     "is_admin": false,
     "updated_at": "2024-01-01T12:00:00Z",
     "account_emails": ["alt1@example.org", "alt2@example.org"],
-    "categories": [
+    "topics": [
       {
         "name": "VP Reyerhof",
         "email_address": "vp-reyerhof@example.org",
         "description": "Verteilpunkt Reyerhof",
-        "topics": ["Verteilpunkt"],
+        "categories": ["Verteilpunkt"],
         "required": true,
         "default_permission": "write"
       }
     ],
-    "unsubscribe_category_emails": ["vp-old@example.org"]
+    "unsubscribe_topic_emails": ["vp-old@example.org"]
   }
 }
 ```
@@ -67,8 +67,8 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 | `user.is_admin` | — | Grants admin privileges when `true`. |
 | `user.updated_at` | — | ISO 8601 timestamp of last modification in Django. |
 | `user.account_emails` | — | Array of alternative email addresses synchronized from Django. |
-| `user.categories` | — | Mailing-list categories the account should be subscribed to. Each entry is created in `message_categories` if missing. Subscriptions are created or activated. May specify `topics` (e.g. `["Verteilpunkt"]`) and `default_permission` (`"read"` or `"write"`). |
-| `user.unsubscribe_category_emails` | — | Email addresses of categories whose subscription should be deactivated for this account. Deactivates all active subscriptions of that account for the category. |
+| `user.topics` | — | Mailing-list topics the account should be subscribed to (accepted alias: `categories`). Each entry is created in `message_topics` if missing. Subscriptions are created or activated. May specify `categories` (e.g. `["Verteilpunkt"]`, accepted alias: `topics`) and `default_permission` (`"read"` or `"write"`). |
+| `user.unsubscribe_topic_emails` | — | Email addresses of topics whose subscription should be deactivated for this account (accepted alias: `unsubscribe_category_emails`). Deactivates all active subscriptions of that account for the topic. |
 
 ---
 
@@ -79,7 +79,7 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 2. **Alternative Emails**: Synchronizes any emails in `account_emails` payload under `DjangoSync`.
 3. **Removed Emails**: When a previously synced email is no longer present in the sync payload:
    - Identifies subscriptions tied to that removed address.
-   - If the user already has a subscription to that category on `primary_email_id`, the duplicate subscription and its unsubscribe token are safely deleted.
+   - If the user already has a subscription to that topic on `primary_email_id`, the duplicate subscription and its unsubscribe token are safely deleted.
    - If no subscription on `primary_email_id` exists (e.g. primary address changed), the subscription is migrated to `primary_email_id`.
    - The obsolete `AccountEmail` row is deleted.
 
