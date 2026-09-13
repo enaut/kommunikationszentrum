@@ -43,7 +43,9 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
         "name": "VP Reyerhof",
         "email_address": "vp-reyerhof@example.org",
         "description": "Verteilpunkt Reyerhof",
-        "required": true
+        "topics": ["Verteilpunkt"],
+        "required": true,
+        "default_permission": "write"
       }
     ],
     "unsubscribe_category_emails": ["vp-old@example.org"]
@@ -65,7 +67,7 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 | `user.is_admin` | — | Grants admin privileges when `true`. |
 | `user.updated_at` | — | ISO 8601 timestamp of last modification in Django. |
 | `user.account_emails` | — | Array of alternative email addresses synchronized from Django. |
-| `user.categories` | — | Mailing-list categories the account should be subscribed to. Each entry is created in `message_categories` if missing. Subscriptions are created or activated. |
+| `user.categories` | — | Mailing-list categories the account should be subscribed to. Each entry is created in `message_categories` if missing. Subscriptions are created or activated. May specify `topics` (e.g. `["Verteilpunkt"]`) and `default_permission` (`"read"` or `"write"`). |
 | `user.unsubscribe_category_emails` | — | Email addresses of categories whose subscription should be deactivated for this account. Deactivates all active subscriptions of that account for the category. |
 
 ---

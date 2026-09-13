@@ -7,6 +7,7 @@ use crate::models::mail_message::*;
 use log::info;
 use spacetimedb::{Query, ViewContext};
 
+
 #[spacetimedb::view(accessor = admin_stalwart_config, public)]
 pub fn admin_stalwart_config(ctx: &ViewContext) -> impl Query<StalwartConfig> {
     let is_admin = is_admin_user(ctx);
@@ -126,3 +127,36 @@ pub fn sender_system_mail_pending(ctx: &ViewContext) -> impl Query<SystemMailPen
     let is_admin = is_admin_user(ctx);
     ctx.from.system_mail_pending().r#filter(move |_| is_admin)
 }
+
+#[spacetimedb::view(accessor = sender_account_emails, public)]
+pub fn sender_account_emails(ctx: &ViewContext) -> impl Query<AccountEmail> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.account_emails().r#filter(move |_| is_admin)
+}
+
+#[spacetimedb::view(accessor = sender_subscriptions, public)]
+pub fn sender_subscriptions(ctx: &ViewContext) -> impl Query<Subscription> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.subscriptions().r#filter(move |_| is_admin)
+}
+
+#[spacetimedb::view(accessor = sender_message_categories, public)]
+pub fn sender_message_categories(ctx: &ViewContext) -> impl Query<MessageCategory> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.message_categories().r#filter(move |_| is_admin)
+}
+
+#[spacetimedb::view(accessor = sender_category_app_passwords, public)]
+pub fn sender_category_app_passwords(ctx: &ViewContext) -> impl Query<CategoryAppPassword> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from
+        .category_app_passwords()
+        .r#filter(move |_| is_admin)
+}
+
+#[spacetimedb::view(accessor = sender_accounts, public)]
+pub fn sender_accounts(ctx: &ViewContext) -> impl Query<Account> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.account().r#filter(move |_| is_admin)
+}
+

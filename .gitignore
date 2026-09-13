@@ -18,3 +18,4 @@ Cargo.lock
 /.spacetime
 /admin/assets/static
 /kommunikationszentrum.code-workspace
+/test-data/

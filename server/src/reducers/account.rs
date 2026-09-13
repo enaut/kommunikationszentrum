@@ -170,6 +170,22 @@ pub(crate) fn do_sync_user(
                     log::info!("Inserted new account: {}", data.mitgliedsnr);
                 }
 
+                if ctx.db.account_configs().account_id().find(&data.mitgliedsnr).is_none() {
+                    ctx.db.account_configs().insert(crate::models::account::AccountConfig {
+                        account_id: data.mitgliedsnr,
+                        message_offset: 0,
+                        message_limit: 50,
+                        selected_message_category: None,
+                        member_offset: 0,
+                        member_limit: 50,
+                        member_search_query: None,
+                        viewing_category_id: None,
+                        language: None,
+                        theme: None,
+                        search_matching_accounts: 0,
+                    });
+                }
+
                 if is_admin {
                     if ctx
                         .db
@@ -297,6 +313,7 @@ pub(crate) fn do_sync_user(
                         category.visibility,
                         category.topics,
                         category.required,
+                        category.default_permission,
                     ) {
                         log::error!(
                             "Failed to add/subscribe category '{}' for account {}: {}",
@@ -447,8 +464,37 @@ pub fn user_request_email_verification(ctx: &ReducerContext, email: String) -> R
     let account = ctx.db.account().identity().find(&ctx.sender())
         .ok_or_else(|| "Account not found for sender".to_string())?;
 
-    if ctx.db.account_emails().account_id().filter(&account.id).any(|e| e.email == email) {
-        return Err("Email already registered for this account".into());
+    let existing_email = ctx
+        .db
+        .account_emails()
+        .account_id()
+        .filter(&account.id)
+        .find(|e| e.email == email);
+
+    if let Some(existing) = existing_email {
+        if existing.is_verified {
+            return Err("Email already registered for this account".into());
+        }
+        // Email exists but is unverified: clean up previous tokens for this email before issuing a new one
+        let old_tokens: Vec<_> = ctx
+            .db
+            .email_verification_tokens()
+            .iter()
+            .filter(|t| t.account_id == account.id && t.email == email)
+            .collect();
+        for t in old_tokens {
+            ctx.db.email_verification_tokens().token().delete(&t.token);
+        }
+    } else {
+        // Insert unverified email so it immediately appears in the member's list
+        ctx.db.account_emails().insert(AccountEmail {
+            id: 0,
+            account_id: account.id,
+            email: email.clone(),
+            source: EmailSource::Native,
+            is_verified: false,
+            added_at: ctx.timestamp,
+        });
     }
 
     // Generate token
@@ -466,9 +512,10 @@ pub fn user_request_email_verification(ctx: &ReducerContext, email: String) -> R
         expires_at: ctx.timestamp + spacetimedb::TimeDuration::from_micros(86400 * 1_000_000),
     });
 
-    // Queue system email
+    // Queue system email to the newly added address only
     let subject = "Verify your email for Kommunikationszentrum".to_string();
-    let link = format!("{}/verify?token={}", DJANGO_OAUTH_BASE_URL, token); // or frontend URL
+    let base_url = option_env!("FRONTEND_BASE_URL").unwrap_or(FRONTEND_BASE_URL);
+    let link = format!("{}/?token={}", base_url.trim_end_matches('/'), token);
     let body_text = format!("Please verify your email address by clicking the following link:\n\n{}", link);
 
     ctx.db.system_mail_pending().insert(SystemMailPending {
@@ -493,8 +540,17 @@ pub fn user_verify_email(ctx: &ReducerContext, token: String) -> Result<(), Stri
         return Err("Token expired".into());
     }
 
-    // Insert the email if not already present for this account
-    if !ctx.db.account_emails().account_id().filter(&verification.account_id).any(|e| e.email == verification.email) {
+    // Mark existing unverified email as verified, or insert if not present
+    if let Some(mut existing) = ctx
+        .db
+        .account_emails()
+        .account_id()
+        .filter(&verification.account_id)
+        .find(|e| e.email == verification.email)
+    {
+        existing.is_verified = true;
+        ctx.db.account_emails().id().update(existing);
+    } else {
         ctx.db.account_emails().insert(AccountEmail {
             id: 0,
             account_id: verification.account_id,
@@ -556,6 +612,17 @@ pub fn remove_account_email(ctx: &ReducerContext, account_email_id: u64) -> Resu
         ctx.db.subscriptions().id().delete(&sub.id);
     }
 
+    // Also remove any pending verification tokens for this email & account
+    let tokens: Vec<_> = ctx
+        .db
+        .email_verification_tokens()
+        .iter()
+        .filter(|t| t.account_id == email_row.account_id && t.email == email_row.email)
+        .collect();
+    for t in tokens {
+        ctx.db.email_verification_tokens().token().delete(&t.token);
+    }
+
     ctx.db.account_emails().id().delete(&account_email_id);
     Ok(())
 }
@@ -614,3 +681,107 @@ pub fn complete_system_mail(ctx: &ReducerContext, mail_id: u64) -> Result<(), St
     Ok(())
 }
 
+#[spacetimedb::reducer]
+pub fn update_account_config(
+    ctx: &ReducerContext,
+    message_offset: Option<u32>,
+    message_limit: Option<u32>,
+    selected_message_category: Option<u64>,
+    clear_selected_message_category: bool,
+    member_offset: Option<u32>,
+    member_limit: Option<u32>,
+    member_search_query: Option<String>,
+    clear_member_search_query: bool,
+    viewing_category_id: Option<u64>,
+    clear_viewing_category_id: bool,
+    language: Option<String>,
+    theme: Option<String>,
+) -> Result<(), String> {
+    let sender = ctx.sender();
+    let account = ctx
+        .db
+        .account()
+        .identity()
+        .find(&sender)
+        .ok_or_else(|| "Account not found for sender".to_string())?;
+
+    let mut config = ctx
+        .db
+        .account_configs()
+        .account_id()
+        .find(&account.id)
+        .unwrap_or_else(|| AccountConfig {
+            account_id: account.id,
+            message_offset: 0,
+            message_limit: 50,
+            selected_message_category: None,
+            member_offset: 0,
+            member_limit: 50,
+            member_search_query: None,
+            viewing_category_id: None,
+            language: None,
+            theme: None,
+            search_matching_accounts: 0,
+        });
+
+    if let Some(mo) = message_offset {
+        config.message_offset = mo;
+    }
+    if let Some(ml) = message_limit {
+        config.message_limit = ml;
+    }
+    if clear_selected_message_category {
+        config.selected_message_category = None;
+    } else if let Some(smc) = selected_message_category {
+        config.selected_message_category = Some(smc);
+    }
+    
+    if let Some(mo) = member_offset {
+        config.member_offset = mo;
+    }
+    if let Some(ml) = member_limit {
+        config.member_limit = ml;
+    }
+    if clear_member_search_query {
+        config.member_search_query = None;
+    } else if let Some(msq) = member_search_query {
+        config.member_search_query = Some(msq);
+    }
+    
+    if clear_viewing_category_id {
+        config.viewing_category_id = None;
+    } else if let Some(vcid) = viewing_category_id {
+        config.viewing_category_id = Some(vcid);
+    }
+
+    if let Some(val) = language { config.language = Some(val); }
+    if let Some(val) = theme { config.theme = Some(val); }
+
+    // Update search matching accounts metric for the user
+    config.search_matching_accounts = if let Some(query) = &config.member_search_query {
+        let q = query.to_lowercase();
+        ctx.db
+            .account()
+            .iter()
+            .filter(|acc| {
+                account_matches_search_query(acc, &q, || {
+                    ctx.db
+                        .account_emails()
+                        .account_id()
+                        .filter(&acc.id)
+                        .any(|e| e.email.to_lowercase().contains(&q))
+                })
+            })
+            .count() as u32
+    } else {
+        ctx.db.account().count() as u32
+    };
+
+    if ctx.db.account_configs().account_id().find(&account.id).is_some() {
+        ctx.db.account_configs().account_id().update(config);
+    } else {
+        ctx.db.account_configs().insert(config);
+    }
+
+    Ok(())
+}

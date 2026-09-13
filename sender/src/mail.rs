@@ -4,14 +4,13 @@ use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::transport::smtp::Error as SmtpError;
 use lettre::{AsyncSmtpTransport, Message, Tokio1Executor};
 use regex::Regex;
-use spacetimedb_sdk::Table as _;
 use std::error::Error;
 use tracing::{trace, warn};
 
 use crate::config::SenderConfig;
 use crate::module_bindings::{
     DbConnection, MailMessage, MessageCategory, Subscription, SubscriptionUnsubscribeToken,
-    VisibleCategoryAppPasswordsTableAccess as _, VisibleMessageCategoriesTableAccess as _,
+    SenderCategoryAppPasswordsTableAccess as _, SenderMessageCategoriesTableAccess as _,
 };
 
 // ---------------------------------------------------------------------------
@@ -21,7 +20,7 @@ use crate::module_bindings::{
 macro_rules! custom_header {
     ($type_name:ident, $header_str:literal) => {
         #[derive(Debug, Clone)]
-        struct $type_name(String);
+        pub struct $type_name(pub String);
 
         impl Header for $type_name {
             fn name() -> HeaderName {
@@ -50,6 +49,7 @@ custom_header!(PrecedenceHeader, "Precedence");
 custom_header!(SenderHeader, "Sender");
 custom_header!(XMailingList, "X-Mailing-List");
 custom_header!(XBeenThere, "X-BeenThere");
+custom_header!(AutoSubmitted, "Auto-Submitted");
 
 // ---------------------------------------------------------------------------
 // SMTP transport (async with connection pooling)
@@ -95,9 +95,9 @@ pub fn resolve_category_smtp_credentials(
 ) -> Result<(String, String), Box<dyn Error>> {
     let category = connection
         .db
-        .visible_message_categories()
-        .iter()
-        .find(|category| category.id == category_id)
+        .sender_message_categories()
+        .id()
+        .find(&category_id)
         .ok_or_else(|| format!("Category {category_id} not in local cache"))?;
 
     let app_password_id = category
@@ -106,7 +106,7 @@ pub fn resolve_category_smtp_credentials(
 
     let app_password = connection
         .db
-        .visible_category_app_passwords()
+        .sender_category_app_passwords()
         .id()
         .find(&app_password_id)
         .ok_or_else(|| {

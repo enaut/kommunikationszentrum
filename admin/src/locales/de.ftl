@@ -32,6 +32,7 @@ general-no-topic-selected = – Kein Thema gewählt –
 general-none = –
 general-cancel = Abbrechen
 general-unknown = Unbekannt
+pagination-page = Seite { $page }
 
 # Members
 members-page-title = Mitglieder
@@ -67,6 +68,8 @@ messages-header-date = Datum
 messages-header-message-id = Message-ID
 messages-header-reply-to = Reply-To
 messages-body-empty = Nachrichteninhalt nicht gespeichert (Nachricht zu groß).
+messages-view-rendered = Formatiert
+messages-view-raw = Quelltext
 
 # Subscriptions
 subscriptions-page-title = Meine Themen
@@ -84,6 +87,8 @@ subscriptions-linked-emails-title = Verknüpfte E-Mail-Adressen
 subscriptions-primary-badge = (Hauptadresse)
 subscriptions-email-pending-verification = Verifizierung ausstehend
 subscriptions-email-unverified = Nicht verifiziert
+subscriptions-email-not-confirmed = nicht bestätigt
+subscriptions-email-unconfirmed-tooltip = Bitte klicke auf den Bestätigungslink in der an diese Adresse gesendeten E-Mail, um sie freizuschalten.
 subscriptions-add-email-placeholder = Neue E-Mail-Adresse
 subscriptions-send-verification = Verifizierungslink senden
 subscriptions-add-email-button = E-Mail-Adresse hinzufügen
@@ -123,6 +128,14 @@ category-detail-visibility = Sichtbarkeit
 category-detail-visibility-help = Öffentliche Themen sind für alle Mitglieder sichtbar. Private Themen sind nur für Administratoren und abonnierte Mitglieder sichtbar.
 category-detail-email = E-Mail-Adresse
 category-detail-email-help = Die E-Mail-Adresse ist fest mit dem Thema verknüpft und kann nicht geändert werden.
+category-status-provisioning-locked = Provisioning-Sperre
+category-provisioning-locked-warning = Diese Kategorie ist für die Mailbox-Bereitstellung gesperrt (z. B. durch einen vorherigen Abbruch oder Fehler).
+category-clear-provisioning-lock = Sperre aufheben
+category-clear-provisioning-lock-success = Provisioning-Sperre erfolgreich aufgehoben.
+category-detail-default-permission = Standardberechtigung
+category-detail-default-permission-help = Standardberechtigung für neue Abonnenten. „Lesen“: nur E-Mails empfangen. „Schreiben“: an die Mailingliste senden und empfangen.
+category-permission-read = Lesen (nur Empfang)
+category-permission-write = Schreiben (Senden & Empfang)
 category-detail-save = Speichern
 category-detail-saved = Änderungen gespeichert.
 category-detail-save-error = Fehler beim Speichern: { $error }

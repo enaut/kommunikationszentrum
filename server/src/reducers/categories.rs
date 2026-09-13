@@ -5,11 +5,7 @@ use crate::common::auth::{is_admin_identity, is_admin_user};
 use crate::models::account::{account, account_emails, Account};
 use crate::models::category::*;
 use crate::models::domain::domains;
-use crate::services::stalwart::category::{
-    jmap_check_not_created, jmap_created_id, jmap_method_result_by_name,
-    provision_stalwart_app_password,
-};
-use crate::services::stalwart::client::send_stalwart_jmap_request;
+use crate::services::stalwart::category::provision_stalwart_category_mailbox;
 
 #[spacetimedb::reducer]
 pub fn add_message_category(
@@ -32,6 +28,7 @@ pub fn add_message_category(
         visibility,
         app_password_id: None,
         default_permission: SubscriptionPermission::Read,
+        locked_is_provisioning: false,
     });
     log::info!(
         "Added new message category (by identity: {:?})",
@@ -66,8 +63,8 @@ pub fn remove_message_category(ctx: &ReducerContext, category_id: u64) -> Result
     Ok(())
 }
 
-/// Updates the editable fields (name, description, visibility) of an existing message
-/// category. The `email_address` is immutable via this reducer since it is
+/// Updates the editable fields (name, description, visibility, default_permission, locked_is_provisioning)
+/// of an existing message category. The `email_address` is immutable via this reducer since it is
 /// used to route incoming mail and to match categories during user sync.
 #[spacetimedb::reducer]
 pub fn update_message_category(
@@ -76,6 +73,8 @@ pub fn update_message_category(
     name: String,
     description: String,
     visibility: Option<CategoryVisibility>,
+    default_permission: Option<SubscriptionPermission>,
+    clear_provisioning_lock: Option<bool>,
 ) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
@@ -91,18 +90,53 @@ pub fn update_message_category(
         return Err("Name must not be empty".to_string());
     }
 
-    let updated = MessageCategory {
+    let mut updated = MessageCategory {
         name,
         description,
         visibility: visibility.unwrap_or(existing.visibility),
+        default_permission: default_permission.unwrap_or(existing.default_permission),
         ..existing
     };
+
+    if clear_provisioning_lock.unwrap_or(false) {
+        updated.locked_is_provisioning = false;
+    }
+
     ctx.db.message_categories().id().update(updated);
     log::info!(
         "Updated message category {} (by identity: {:?})",
         category_id,
         ctx.sender()
     );
+    Ok(())
+}
+
+/// Clears the `locked_is_provisioning` flag on a category if it is set.
+/// Useful if an earlier provisioning run was interrupted or crashed.
+#[spacetimedb::reducer]
+pub fn clear_category_provisioning_lock(
+    ctx: &ReducerContext,
+    category_id: u64,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+    let mut category = ctx
+        .db
+        .message_categories()
+        .id()
+        .find(&category_id)
+        .ok_or_else(|| format!("Message category {} not found", category_id))?;
+
+    if category.locked_is_provisioning {
+        category.locked_is_provisioning = false;
+        ctx.db.message_categories().id().update(category);
+        log::info!(
+            "Cleared provisioning lock on category {} (by identity: {:?})",
+            category_id,
+            ctx.sender()
+        );
+    }
     Ok(())
 }
 
@@ -205,6 +239,10 @@ pub(crate) fn do_add_subscription(
         return Err("Email does not belong to the subscriber account".to_string());
     }
 
+    if !email.is_verified {
+        return Err("Cannot subscribe an unverified email address".to_string());
+    }
+
     let category = ctx.db.message_categories().id().find(&category_id).ok_or("Category not found")?;
 
     let existing = ctx
@@ -215,14 +253,22 @@ pub(crate) fn do_add_subscription(
         .find(|sub| sub.category_id == category_id && sub.account_email_id == account_email_id);
 
     let subscription = if let Some(existing) = existing {
-        // When not forced and the new status is automatic, protect manual/link-unsubscribed state.
+        // When not forced and the new status is automatic, protect manual/link-unsubscribed status.
         if !force && status.is_automatic() && !existing.status.is_automatic() {
             return Ok(existing);
         }
+        let permission = if category.default_permission == SubscriptionPermission::Write
+            && existing.permission == SubscriptionPermission::Read
+        {
+            SubscriptionPermission::Write
+        } else {
+            existing.permission
+        };
         let updated = Subscription {
             account_email_id,
             subscribed_at: timestamp,
             status,
+            permission,
             ..existing
         };
         ctx.db.subscriptions().id().update(updated.clone());
@@ -347,7 +393,7 @@ pub fn admin_add_subscription(
 /// subscribes the given account to it. Categories are only ever added by this
 /// path, never updated or removed, so manual admin edits to an existing
 /// category are never overwritten by a sync.
-fn sync_category_topics(
+pub(crate) fn sync_category_topics(
     ctx: &ReducerContext,
     category_id: u64,
     topic_names: Vec<String>,
@@ -416,8 +462,13 @@ pub(crate) fn do_add_and_subscribe_category(
     visibility: String,
     topics: Option<Vec<String>>,
     required: bool,
+    default_permission: Option<String>,
 ) -> Result<(), String> {
     let visibility = CategoryVisibility::parse(&visibility)?;
+    let parsed_default_permission = match default_permission.as_deref() {
+        Some(p) => Some(SubscriptionPermission::parse(p)?),
+        None => None,
+    };
     let category = match ctx
         .db
         .message_categories()
@@ -425,13 +476,22 @@ pub(crate) fn do_add_and_subscribe_category(
         .find(&email_address)
     {
         Some(existing) => {
+            let mut updated = existing.clone();
+            let mut changed = false;
             // Visibility comes from the authoritative Django sync, unlike the
             // manually editable category content.
             if existing.visibility != visibility {
-                ctx.db.message_categories().id().update(MessageCategory {
-                    visibility,
-                    ..existing
-                });
+                updated.visibility = visibility;
+                changed = true;
+            }
+            if let Some(perm) = parsed_default_permission {
+                if existing.default_permission != perm {
+                    updated.default_permission = perm;
+                    changed = true;
+                }
+            }
+            if changed {
+                ctx.db.message_categories().id().update(updated);
             }
             ctx.db
                 .message_categories()
@@ -448,7 +508,9 @@ pub(crate) fn do_add_and_subscribe_category(
                 active: true,
                 visibility,
                 app_password_id: None,
-                default_permission: SubscriptionPermission::Read,
+                default_permission: parsed_default_permission
+                    .unwrap_or(SubscriptionPermission::Read),
+                locked_is_provisioning: false,
             });
             ctx.db
                 .message_categories()
@@ -506,6 +568,7 @@ pub fn add_and_subscribe_category(
         visibility_str,
         None,
         false,
+        None,
     )
 }
 
@@ -789,80 +852,73 @@ pub fn provision_message_category(
         ));
     }
 
-    // 4) Create the Stalwart mailbox account
-    let create_map = serde_json::json!({
-        "create": {
-            "create-1": {
-                "@type": "User",
-                "name": base.trim(),
-                "description": name.trim(),
-                "domainId": domain_id,
-                "roles": {
-                  "@type": "User"
-                },
-                "permissions": {
-                  "@type": "Inherit"
-                },
-                "aliases": {},
-                "memberGroupIds": {},
-                "quotas": {},
-                "credentials": {},
-                "encryptionAtRest": {
-                  "@type": "Disabled"
-                }
-            }
-        }
-    });
-
-    let account_payload = serde_json::json!({
-        "using": [
-            "urn:ietf:params:jmap:core",
-            "urn:stalwart:jmap"
-        ],
-        "methodCalls": [
-            ["x:Account/set", create_map, "call-id-1"]
-        ]
-    });
-
-    let account_res = send_stalwart_jmap_request(ctx, account_payload)?;
-    let account_result = jmap_method_result_by_name(&account_res, "x:Account/set")?;
-    jmap_check_not_created(account_result, "x:Account/set")?;
-
-    let account_id = account_result
-        .get("created")
-        .and_then(|created| created.get("create-1"))
-        .and_then(jmap_created_id)
-        .ok_or_else(|| {
-            format!(
-                "Missing created account id in JMAP response: {}",
-                account_res
-            )
-        })?;
-
-    // 5) Create an app password for SMTP submission from this category mailbox
-    let app_password_description = format!("kommunikationszentrum sender ({email_address})");
-    let (stalwart_id, secret) =
-        provision_stalwart_app_password(ctx, &account_id, &app_password_description)?;
-
-    // 6) Persist the category and its app password
-    ctx.with_tx(|tx| {
-        let app_password = tx.db.category_app_passwords().insert(CategoryAppPassword {
-            id: 0,
-            secret: secret.clone(),
-            stalwart_id: stalwart_id.clone(),
-            created_at: tx.timestamp,
-        });
-        tx.db.message_categories().insert(MessageCategory {
-            id: 0,
-            name: name.clone(),
-            email_address: email_address.clone(),
-            description: description.clone(),
-            active: true,
-            visibility,
-            app_password_id: Some(app_password.id),
-            default_permission: SubscriptionPermission::Read,
-        });
-    });
+    provision_stalwart_category_mailbox(
+        ctx,
+        &name,
+        &email_address,
+        &description,
+        visibility,
+        SubscriptionPermission::Read,
+    )?;
 
     Ok(())
+}
+
+/// Admin Procedure: Provisions all existing categories in message_categories that have app_password_id == None.
+#[spacetimedb::procedure]
+pub fn provision_all_unprovisioned_categories(
+    ctx: &mut spacetimedb::ProcedureContext,
+) -> Result<u32, String> {
+    info!("Executing provision_all_unprovisioned_categories procedure");
+
+    let caller = ctx.sender();
+    let is_admin: bool = ctx.with_tx(|tx| is_admin_identity(tx, caller));
+    if !is_admin {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+
+    // Collect all unprovisioned categories in a transaction
+    let unprovisioned: Vec<(String, String, String, CategoryVisibility, SubscriptionPermission)> = ctx.with_tx(|tx| {
+        tx.db
+            .message_categories()
+            .iter()
+            .filter(|c| c.app_password_id.is_none())
+            .map(|c| (c.name.clone(), c.email_address.clone(), c.description.clone(), c.visibility, c.default_permission))
+            .collect()
+    });
+
+    info!("Found {} unprovisioned categories", unprovisioned.len());
+    let mut provisioned_count = 0u32;
+
+    for (name, email_address, description, visibility, default_permission) in unprovisioned {
+        info!("Provisioning category '{}' ({})", name, email_address);
+        match provision_stalwart_category_mailbox(
+            ctx,
+            &name,
+            &email_address,
+            &description,
+            visibility,
+            default_permission,
+        ) {
+            Ok(_) => {
+                provisioned_count += 1;
+            }
+            Err(e) => {
+                error!(
+                    "Failed to provision category '{}' ({}): {}",
+                    name, email_address, e
+                );
+                return Err(format!(
+                    "Failed to provision category '{}' ({}): {}. (Successfully provisioned {} before failure)",
+                    name, email_address, e, provisioned_count
+                ));
+            }
+        }
+    }
+
+    info!(
+        "Successfully provisioned {} unprovisioned categories",
+        provisioned_count
+    );
+    Ok(provisioned_count)
 }

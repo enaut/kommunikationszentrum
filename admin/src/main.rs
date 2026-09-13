@@ -1,6 +1,7 @@
 mod components;
 mod config;
 mod i18n;
+pub mod mime_parser;
 mod module_bindings;
 mod oauth;
 mod pages;
@@ -232,7 +233,7 @@ fn AuthenticatedApp(
                             pages::category::CategoriesPage {}
                         },
                         ActiveView::Members => rsx! {
-                            pages::members::MembersPage {}
+                            pages::members::MembersPage { user_info: user_info.clone() }
                         },
                         ActiveView::ManagementConfiguration => rsx! {
                             pages::management::configuration::ManagementConfigurationPage {}

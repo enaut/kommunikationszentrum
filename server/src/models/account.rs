@@ -6,6 +6,14 @@ pub const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
     None => "http://127.0.0.1:8000",
 };
 
+pub const FRONTEND_BASE_URL: &str = match option_env!("FRONTEND_BASE_URL") {
+    Some(url) => url,
+    None => match option_env!("APP_BASE_URL") {
+        Some(url) => url,
+        None => "http://127.0.0.1:8080",
+    },
+};
+
 pub const DJANGO_OAUTH_ISSUER_PATH: &str = "/o";
 
 #[derive(spacetimedb::SpacetimeType, Debug, Clone, PartialEq)]
@@ -46,6 +54,28 @@ pub struct Account {
 }
 
 #[derive(Debug, Clone)]
+#[spacetimedb::table(accessor = account_configs)]
+pub struct AccountConfig {
+    #[primary_key]
+    pub account_id: u64,
+
+    pub message_offset: u32,
+    pub message_limit: u32,
+    pub selected_message_category: Option<u64>,
+
+    pub member_offset: u32,
+    pub member_limit: u32,
+    pub member_search_query: Option<String>,
+    
+    pub viewing_category_id: Option<u64>,
+
+    pub language: Option<String>,
+    pub theme: Option<String>,
+
+    pub search_matching_accounts: u32,
+}
+
+#[derive(Debug, Clone)]
 #[spacetimedb::table(accessor = admin_identities)]
 pub struct AdminIdentity {
     #[primary_key]
@@ -79,3 +109,13 @@ pub struct EmailVerificationToken {
     #[index(btree)]
     pub expires_at: Timestamp,
 }
+
+pub fn account_matches_search_query<F>(acc: &Account, q: &str, mut has_matching_email: F) -> bool
+where
+    F: FnMut() -> bool,
+{
+    acc.id.to_string().contains(q)
+        || acc.name.to_lowercase().contains(q)
+        || has_matching_email()
+}
+

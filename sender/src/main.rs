@@ -7,6 +7,7 @@ use config::SenderConfig;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use mail::{
     build_transport, compose_delivery, is_permanent_error, resolve_category_smtp_credentials,
+    AutoSubmitted,
 };
 use module_bindings::{
     claim_next_mail_delivery, claim_next_mail_ingress, claim_system_mail, complete_mail_ingress,
@@ -20,13 +21,13 @@ use std::{error::Error, sync::Arc};
 use uuid::Uuid;
 
 use crate::module_bindings::{
-    increment_mail_ingress_delivery_count, ActiveSubscriptionsTableAccess as _,
-    ActiveUnsubscribeTokensTableAccess as _, SenderMailDeliveryClaimedTableAccess as _,
+    increment_mail_ingress_delivery_count, ActiveUnsubscribeTokensTableAccess as _,
+    SenderAccountEmailsTableAccess as _, SenderMailDeliveryClaimedTableAccess as _,
     SenderMailDeliveryDoneTableAccess as _, SenderMailDeliveryMessagesTableAccess as _,
     SenderMailDeliveryPendingTableAccess as _, SenderMailIngressTableAccess as _,
-    SenderMailMessagesTableAccess as _, SenderSystemMailPendingTableAccess as _,
-    VisibleAccountEmailsTableAccess as _, VisibleAdminIdentitiesTableAccess as _,
-    VisibleMessageCategoriesTableAccess as _,
+    SenderMailMessagesTableAccess as _, SenderMessageCategoriesTableAccess as _,
+    SenderSubscriptionsTableAccess as _, SenderSystemMailPendingTableAccess as _,
+    VisibleAdminIdentitiesTableAccess as _,
 };
 use opentelemetry::global;
 use opentelemetry::KeyValue;
@@ -336,13 +337,14 @@ fn subscribe_to_spacetime_tables(
             "SELECT * FROM sender_mail_ingress",
             "SELECT * FROM sender_mail_delivery_pending",
             "SELECT * FROM sender_mail_delivery_claimed",
+            "SELECT * FROM sender_mail_delivery_done",
             "SELECT * FROM sender_mail_delivery_messages",
             "SELECT * FROM sender_mail_messages",
             "SELECT * FROM sender_system_mail_pending",
-            "SELECT * FROM active_subscriptions",
-            "SELECT * FROM visible_account_emails",
-            "SELECT * FROM visible_message_categories",
-            "SELECT * FROM visible_category_app_passwords",
+            "SELECT * FROM sender_subscriptions",
+            "SELECT * FROM sender_account_emails",
+            "SELECT * FROM sender_message_categories",
+            "SELECT * FROM sender_category_app_passwords",
             "SELECT * FROM active_unsubscribe_tokens",
             "SELECT * FROM visible_admin_identities",
         ]);
@@ -700,9 +702,9 @@ fn process_ingress_job(
     // Lookup the category
     let category = match connection
         .db
-        .visible_message_categories()
-        .iter()
-        .find(|category| category.id == ingress.category_id)
+        .sender_message_categories()
+        .id()
+        .find(&ingress.category_id)
     {
         Some(category) => {
             trace!("Category found {category:?}");
@@ -726,21 +728,20 @@ fn process_ingress_job(
     // currently active email address tied to the account_email_id.
     let mut subscribers: Vec<(String, Subscription)> = connection
         .db
-        .active_subscriptions()
+        .sender_subscriptions()
         .iter()
         .filter(|row| row.category_id == ingress.category_id && is_active_subscription(&row.status))
         .filter_map(|subscription| {
-            let subscriber_email = connection
+            let email_row = connection
                 .db
-                .visible_account_emails()
-                .iter()
-                .find(|row| {
-                    row.id == subscription.account_email_id
-                        && row.account_id == subscription.subscriber_account_id
-                        && row.is_verified
-                })
-                .map(|row| row.email.clone())?;
-            Some((subscriber_email, subscription))
+                .sender_account_emails()
+                .id()
+                .find(&subscription.account_email_id)?;
+            if email_row.account_id == subscription.subscriber_account_id && email_row.is_verified {
+                Some((email_row.email, subscription))
+            } else {
+                None
+            }
         })
         .collect();
 
@@ -912,6 +913,8 @@ async fn send_system_mail_jobs(
             .from(from_addr.into())
             .to(to_addr.into())
             .subject(mail.subject.clone())
+            .header(lettre::message::header::ContentType::TEXT_PLAIN)
+            .header(AutoSubmitted("auto-replied".to_string()))
             .body(mail.body_text.clone())
         {
             Ok(message) => message,

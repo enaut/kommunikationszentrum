@@ -92,18 +92,12 @@ let sender_is_admin = sender_account_ids.iter().any(|id| {
     })
 });
 
-// 3. For non-admins, at least one matching active account must have an active Write subscription
-let is_authorized = sender_is_admin || sender_account_ids.iter().any(|acc_id| {
-    ctx.db.subscriptions().subscriber_account_id().filter(acc_id).any(|s| {
-        s.category_id == target_category.id
-            && s.status.is_active()
-            && s.permission == SubscriptionPermission::Write
-    })
-});
-
-if is_authorized {
-    return ACCEPT;
-} else {
-    return QUARANTINE;
-}
+// 3. For non-admins, check subscriptions and permissions per category:
+//    - If sender has Write permission: deliver to category
+//    - If sender has Read-only permission: reject (NoWritePermission)
+//    - If sender is not subscribed: reject (NotSubscribed)
+//    - If sender email is not registered/active: reject (NotRegistered)
+//
+// 4. For any rejected categories, an explanatory rejection email is queued
+//    in `system_mail_pending` and dispatched by the sender daemon via SMTP_SYSTEM_USER.
 ```

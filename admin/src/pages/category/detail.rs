@@ -5,11 +5,12 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_reducer_update_message_category, use_subscription, use_table_visible_accounts,
+    use_reducer_clear_category_provisioning_lock, use_reducer_update_message_category,
+    use_subscription, use_table_visible_account_emails, use_table_visible_accounts,
     use_table_visible_message_categories, use_table_visible_message_category_topics,
-    use_table_visible_subscriptions, use_table_visible_topics, use_table_visible_account_emails,
+    use_table_visible_subscriptions, use_table_visible_topics,
 };
-use crate::module_bindings::{CategoryVisibility, MessageCategory};
+use crate::module_bindings::{CategoryVisibility, MessageCategory, SubscriptionPermission};
 use crate::pages::category::modals::{
     AddSubscriberModal, EditSubscriptionModal, EditSubscriptionTarget,
 };
@@ -23,13 +24,19 @@ pub fn CategoryDetailsCard(
     mut name: Signal<String>,
     mut description: Signal<String>,
     mut visibility: Signal<CategoryVisibility>,
+    mut default_permission: Signal<SubscriptionPermission>,
     mut save_message: Signal<Option<(String, Color)>>,
 ) -> Element {
     let update_category = use_reducer_update_message_category();
+    let clear_lock = use_reducer_clear_category_provisioning_lock();
     let category_id = category.id;
     let visibility_value = match visibility() {
         CategoryVisibility::Public => "Public",
         CategoryVisibility::Private => "Private",
+    };
+    let default_permission_value = match default_permission() {
+        SubscriptionPermission::Read => "Read",
+        SubscriptionPermission::Write => "Write",
     };
 
     rsx! {
@@ -43,6 +50,33 @@ pub fn CategoryDetailsCard(
                 }
             },
             body: rsx! {
+                if category.locked_is_provisioning {
+                    Alert {
+                        color: Color::Warning,
+                        class: "d-flex justify-content-between align-items-center mb-3",
+                        div {
+                            Icon { name: "lock-fill", class: "me-2" }
+                            {tid!("category-provisioning-locked-warning")}
+                        }
+                        Button {
+                            color: Color::Warning,
+                            size: Size::Sm,
+                            onclick: move |_| {
+                                match clear_lock(category_id) {
+                                    Ok(()) => {
+                                        save_message.set(Some((tid!("category-clear-provisioning-lock-success"), Color::Success)));
+                                    }
+                                    Err(e) => {
+                                        error!("clear_category_provisioning_lock failed: {e:?}");
+                                        save_message.set(Some((tid!("category-detail-save-error", error: format!("{e:?}")), Color::Danger)));
+                                    }
+                                }
+                            },
+                            Icon { name: "unlock-fill", class: "me-1" }
+                            {tid!("category-clear-provisioning-lock")}
+                        }
+                    }
+                }
                 if let Some((msg, color)) = save_message.read().clone() {
                     Alert { color, class: "mb-3", "{msg}" }
                 }
@@ -77,6 +111,23 @@ pub fn CategoryDetailsCard(
                         {tid!("category-detail-visibility-help")}
                     }
                 }
+                FormGroup { label: tid!("category-detail-default-permission"),
+                    Select {
+                        value: default_permission_value,
+                        onchange: move |e: FormEvent| {
+                            match e.value().as_str() {
+                                "Read" => default_permission.set(SubscriptionPermission::Read),
+                                "Write" => default_permission.set(SubscriptionPermission::Write),
+                                _ => {}
+                            }
+                        },
+                        option { value: "Read", {tid!("category-permission-read")} }
+                        option { value: "Write", {tid!("category-permission-write")} }
+                    }
+                    FormText {
+                        {tid!("category-detail-default-permission-help")}
+                    }
+                }
                 FormGroup { label: tid!("category-detail-email"),
                     Input {
                         r#type: "text",
@@ -93,7 +144,8 @@ pub fn CategoryDetailsCard(
                         let n = name.read().clone();
                         let d = description.read().clone();
                         let v = visibility.read().clone();
-                        match update_category(category_id, n, d, Some(v)) {
+                        let p = default_permission.read().clone();
+                        match update_category(category_id, n, d, Some(v), Some(p), None) {
                             Ok(()) => {
                                 save_message
                                     .set(Some((tid!("category-detail-saved"), Color::Success)));
@@ -123,6 +175,9 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_topics",
         "SELECT * FROM visible_message_category_topics",
+        "SELECT * FROM category_subscriber_counts",
+        "SELECT * FROM visible_account_configs",
+        "SELECT * FROM total_accounts",
     ]);
     let categories = use_table_visible_message_categories();
     let subscriptions = use_table_visible_subscriptions();
@@ -137,6 +192,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
     let mut name = use_signal(String::new);
     let mut description = use_signal(String::new);
     let mut visibility = use_signal(|| CategoryVisibility::Public);
+    let mut default_permission = use_signal(|| SubscriptionPermission::Read);
     let mut initialized = use_signal(|| false);
     let save_message: Signal<Option<(String, Color)>> = use_signal(|| None);
     let topics_message: Signal<Option<(String, Color)>> = use_signal(|| None);
@@ -150,6 +206,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                 name.set(cat.name.clone());
                 description.set(cat.description.clone());
                 visibility.set(cat.visibility);
+                default_permission.set(cat.default_permission);
                 initialized.set(true);
             }
         }
@@ -196,7 +253,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                 .iter()
                 .filter(|e| e.account_id == a.id)
                 .collect();
-            acct_emails.iter().any(|e| !category_subscribed_email_ids.contains(&e.id))
+            acct_emails.iter().any(|e| e.is_verified && !category_subscribed_email_ids.contains(&e.id))
         })
         .collect();
 
@@ -254,6 +311,13 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                                 {tid!("category-visibility-private")}
                             }
                         }
+                        if cat.locked_is_provisioning {
+                            Badge {
+                                color: Color::Danger,
+                                class: "ms-2 align-middle",
+                                {tid!("category-status-provisioning-locked")}
+                            }
+                        }
                     }
                 }
             }
@@ -265,6 +329,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                         name,
                         description,
                         visibility,
+                        default_permission,
                         save_message,
                     }
                 }
@@ -297,6 +362,7 @@ pub fn CategoryDetailPage(category_id: u64, on_back: EventHandler<()>) -> Elemen
                 category_id,
                 available_accounts,
                 available_emails: account_emails(),
+                subscribed_email_ids: category_subscribed_email_ids,
             }
 
             EditSubscriptionModal { show: show_edit_modal, category_id, target: edit_target }

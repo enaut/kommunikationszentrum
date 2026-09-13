@@ -1,7 +1,11 @@
 use crate::models::account::webhook_tokens;
-use crate::models::category::message_categories;
+use crate::models::category::{
+    message_categories, CategorySyncData, CategoryVisibility, MessageCategory,
+    SubscriptionPermission,
+};
 use crate::models::mta::{blocked_ips, mta_connection_log, MtaConnectionLog};
 use crate::reducers::{do_sync_user, unsubscribe_subscription_by_token, UserSyncData};
+use crate::services::stalwart::category::provision_stalwart_category_mailbox;
 use log::info;
 use serde::Deserialize;
 use serde_json::json;
@@ -354,6 +358,71 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
         Err(_) => return json_response(500, json!({"error":"serialization failed"})),
     };
 
+    // Ensure any new or unprovisioned categories in the user's assignment are provisioned in Stalwart
+    if payload.action == "upsert" {
+        if let Some(categories) = &payload.user.categories {
+            for cat in categories {
+                let needs_provisioning = ctx.with_tx(|tx| {
+                    match tx.db.message_categories().email_address().find(&cat.email_address) {
+                        None => true,
+                        Some(existing) => existing.app_password_id.is_none(),
+                    }
+                });
+
+                if needs_provisioning {
+                    info!(
+                        "Provisioning Stalwart mailbox for category '{}' ({})",
+                        cat.name, cat.email_address
+                    );
+                    let visibility = match CategoryVisibility::parse(&cat.visibility) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return json_response(
+                                400,
+                                json!({"error": format!("Invalid category visibility: {}", e)}),
+                            );
+                        }
+                    };
+                    let default_perm = match &cat.default_permission {
+                        Some(p) => match SubscriptionPermission::parse(p) {
+                            Ok(perm) => perm,
+                            Err(e) => {
+                                return json_response(
+                                    400,
+                                    json!({"error": format!("Invalid category default_permission: {}", e)}),
+                                );
+                            }
+                        },
+                        None => SubscriptionPermission::Read,
+                    };
+                    if let Err(err) = provision_stalwart_category_mailbox(
+                        ctx,
+                        &cat.name,
+                        &cat.email_address,
+                        &cat.description,
+                        visibility,
+                        default_perm,
+                    ) {
+                        log::error!(
+                            "Failed to provision Stalwart mailbox for category '{}': {}",
+                            cat.email_address,
+                            err
+                        );
+                        return json_response(
+                            500,
+                            json!({
+                                "error": format!(
+                                    "Failed to provision category '{}': {}",
+                                    cat.email_address, err
+                                )
+                            }),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     let result: Result<(), String> =
         ctx.with_tx(|tx| do_sync_user(tx, payload.action.clone(), user_data_str.clone()));
 
@@ -372,11 +441,156 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
     }
 }
 
+#[derive(Deserialize)]
+struct CategorySyncPayload {
+    action: String,
+    category: CategorySyncData,
+}
+
+#[spacetimedb::http::handler]
+fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResponse {
+    let token = match request
+        .headers()
+        .get("authorization")
+        .and_then(|hv| hv.to_str().ok())
+        .and_then(|s| {
+            s.strip_prefix("Bearer ")
+                .or_else(|| s.strip_prefix("bearer "))
+        })
+        .map(|s| s.trim().to_string())
+    {
+        Some(t) => t,
+        None => return json_response(401, json!({"error":"missing Authorization bearer token"})),
+    };
+    if !token_has_permission(ctx, &token, "sync-user") {
+        return json_response(403, json!({"error":"forbidden"}));
+    }
+
+    let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
+    let payload: CategorySyncPayload = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(_) => return json_response(400, json!({"error":"invalid JSON"})),
+    };
+
+    match payload.action.as_str() {
+        "upsert" => {
+            let cat = &payload.category;
+            let visibility = match CategoryVisibility::parse(&cat.visibility) {
+                Ok(v) => v,
+                Err(e) => {
+                    return json_response(
+                        400,
+                        json!({"error": format!("Invalid category visibility: {}", e)}),
+                    );
+                }
+            };
+            let default_perm = match &cat.default_permission {
+                Some(p) => match SubscriptionPermission::parse(p) {
+                    Ok(perm) => perm,
+                    Err(e) => {
+                        return json_response(
+                            400,
+                            json!({"error": format!("Invalid category default_permission: {}", e)}),
+                        );
+                    }
+                },
+                None => SubscriptionPermission::Read,
+            };
+
+            let needs_provisioning = ctx.with_tx(|tx| {
+                match tx.db.message_categories().email_address().find(&cat.email_address) {
+                    None => true,
+                    Some(existing) => existing.app_password_id.is_none(),
+                }
+            });
+
+            if needs_provisioning {
+                if let Err(err) = provision_stalwart_category_mailbox(
+                    ctx,
+                    &cat.name,
+                    &cat.email_address,
+                    &cat.description,
+                    visibility,
+                    default_perm,
+                ) {
+                    log::error!(
+                        "Failed to provision Stalwart mailbox for category '{}': {}",
+                        cat.email_address,
+                        err
+                    );
+                    return json_response(
+                        500,
+                        json!({"error": format!("Failed to provision category: {}", err)}),
+                    );
+                }
+            } else {
+                // Category already has an app password; update editable metadata if changed
+                ctx.with_tx(|tx| {
+                    if let Some(existing) = tx
+                        .db
+                        .message_categories()
+                        .email_address()
+                        .find(&cat.email_address)
+                    {
+                        let mut updated = MessageCategory {
+                            name: cat.name.clone(),
+                            description: cat.description.clone(),
+                            visibility,
+                            ..existing
+                        };
+                        if cat.default_permission.is_some() {
+                            updated.default_permission = default_perm;
+                        }
+                        tx.db.message_categories().id().update(updated);
+                    }
+                });
+            }
+
+            if let Some(topics) = &cat.topics {
+                let cat_id = ctx.with_tx(|tx| {
+                    tx.db
+                        .message_categories()
+                        .email_address()
+                        .find(&cat.email_address)
+                        .map(|c| c.id)
+                });
+                if let Some(category_id) = cat_id {
+                    let res = ctx.with_tx(|tx| {
+                        crate::reducers::categories::sync_category_topics(
+                            tx,
+                            category_id,
+                            topics.clone(),
+                        )
+                    });
+                    if let Err(err) = res {
+                        log::error!(
+                            "Failed to sync topics for category '{}': {}",
+                            cat.email_address,
+                            err
+                        );
+                    }
+                }
+            }
+
+            json_response(
+                200,
+                json!({
+                    "status": "success",
+                    "action": "upsert",
+                    "email_address": cat.email_address
+                }),
+            )
+        }
+        _ => json_response(400, json!({"error": format!("unsupported action '{}'", payload.action)})),
+    }
+}
+
 #[spacetimedb::http::router]
 fn router() -> Router {
     Router::new()
         .post("/mta-hook", mta_hook_handler)
         .post("/user-sync", user_sync_handler)
+        .post("/category-sync", category_sync_handler)
         .post(
             "/mailing-list/unsubscribe",
             mailing_list_unsubscribe_handler,

@@ -18,6 +18,20 @@ direction: down
     last_synced: "Timestamp" {constraint: BTree}
   }
 
+  account_configs: {
+    shape: sql_table
+    label: "account_configs [Private]"
+    account_id: "u64" {constraint: [primary_key; foreign_key]}
+    message_offset: "u32"
+    message_limit: "u32"
+    selected_message_category: "Option<u64>"
+    member_offset: "u32"
+    member_limit: "u32"
+    member_search_query: "Option<String>"
+    language: "Option<String>"
+    theme: "Option<String>"
+  }
+
   account_emails: {
     shape: sql_table
     label: "account_emails [Private]"
@@ -350,6 +364,7 @@ delivery_final_state: {
 }
 
 "User Management & Auth".admin_identities.identity -> "User Management & Auth".account.identity
+"User Management & Auth".account_configs.account_id -> "User Management & Auth".account.id
 "User Management & Auth".account_emails.account_id -> "User Management & Auth".account.id
 "User Management & Auth".email_verification_tokens.account_id -> "User Management & Auth".account.id
 "User Management & Auth".account.primary_email_id -> "User Management & Auth".account_emails.id

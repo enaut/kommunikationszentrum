@@ -32,6 +32,7 @@ general-no-topic-selected = – No topic selected –
 general-none = –
 general-cancel = Cancel
 general-unknown = Unknown
+pagination-page = Page { $page }
 
 # Members
 members-page-title = Members
@@ -67,6 +68,8 @@ messages-header-date = Date
 messages-header-message-id = Message-ID
 messages-header-reply-to = Reply-To
 messages-body-empty = Message content was not saved (message too large).
+messages-view-rendered = Formatted
+messages-view-raw = Raw
 
 # Subscriptions
 subscriptions-page-title = My Topics
@@ -84,6 +87,8 @@ subscriptions-linked-emails-title = Linked Email Addresses
 subscriptions-primary-badge = (Primary)
 subscriptions-email-pending-verification = Pending Verification
 subscriptions-email-unverified = Unverified
+subscriptions-email-not-confirmed = not confirmed
+subscriptions-email-unconfirmed-tooltip = Please click the confirmation link in the email sent to this address to activate it.
 subscriptions-add-email-placeholder = New email address
 subscriptions-send-verification = Send Verification Link
 subscriptions-add-email-button = Add Email Address
@@ -123,6 +128,14 @@ category-detail-visibility = Visibility
 category-detail-visibility-help = Public topics are visible to all members. Private topics are visible only to administrators and subscribed members.
 category-detail-email = Email address
 category-detail-email-help = The email address is fixed to the topic and cannot be changed.
+category-status-provisioning-locked = Provisioning Locked
+category-provisioning-locked-warning = This category is locked for mailbox provisioning (e.g. from an earlier interrupted run or error).
+category-clear-provisioning-lock = Clear Lock
+category-clear-provisioning-lock-success = Provisioning lock cleared successfully.
+category-detail-default-permission = Default Permission
+category-detail-default-permission-help = Default permission for new subscribers. "Read": receive emails only. "Write": send and receive emails.
+category-permission-read = Read (receive only)
+category-permission-write = Write (send & receive)
 category-detail-save = Save
 category-detail-saved = Changes saved.
 category-detail-save-error = Save failed: { $error }

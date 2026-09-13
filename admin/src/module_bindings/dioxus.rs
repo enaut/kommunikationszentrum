@@ -23,9 +23,14 @@ pub struct TableSignals {
     pub active_subscriptions: SyncSignal<Vec<Subscription>>,
     pub active_unsubscribe_tokens: SyncSignal<Vec<SubscriptionUnsubscribeToken>>,
     pub admin_stalwart_config: SyncSignal<Vec<StalwartConfig>>,
+    pub category_message_counts: SyncSignal<Vec<CategoryMessageCount>>,
+    pub category_subscriber_counts: SyncSignal<Vec<CategorySubscriberCount>>,
     pub expire_stale_delivery_claims_schedule: SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>>,
     pub requeue_temporary_failed_mails_schedule:
         SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>>,
+    pub sender_account_emails: SyncSignal<Vec<AccountEmail>>,
+    pub sender_accounts: SyncSignal<Vec<Account>>,
+    pub sender_category_app_passwords: SyncSignal<Vec<CategoryAppPassword>>,
     pub sender_mail_delivery_claimed: SyncSignal<Vec<MailDeliveryClaimed>>,
     pub sender_mail_delivery_done: SyncSignal<Vec<MailDeliveryDone>>,
     pub sender_mail_delivery_events: SyncSignal<Vec<MailDeliveryEvent>>,
@@ -34,12 +39,18 @@ pub struct TableSignals {
     pub sender_mail_delivery_temporary_failed: SyncSignal<Vec<MailDeliveryTemporaryFailed>>,
     pub sender_mail_ingress: SyncSignal<Vec<MailIngress>>,
     pub sender_mail_messages: SyncSignal<Vec<MailMessage>>,
+    pub sender_message_categories: SyncSignal<Vec<MessageCategory>>,
+    pub sender_subscriptions: SyncSignal<Vec<Subscription>>,
     pub sender_system_mail_pending: SyncSignal<Vec<SystemMailPending>>,
+    pub total_accounts: SyncSignal<Vec<CountRow>>,
+    pub total_messages: SyncSignal<Vec<CountRow>>,
+    pub visible_account_configs: SyncSignal<Vec<AccountConfig>>,
     pub visible_account_emails: SyncSignal<Vec<AccountEmail>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
     pub visible_admin_identities: SyncSignal<Vec<AdminIdentity>>,
     pub visible_category_app_passwords: SyncSignal<Vec<CategoryAppPassword>>,
     pub visible_domains: SyncSignal<Vec<Domain>>,
+    pub visible_mail_messages: SyncSignal<Vec<MailMessage>>,
     pub visible_message_categories: SyncSignal<Vec<MessageCategory>>,
     pub visible_message_category_topics: SyncSignal<Vec<MessageCategoryTopic>>,
     pub visible_messages: SyncSignal<Vec<ReceivedMessage>>,
@@ -195,8 +206,13 @@ pub fn use_spacetimedb_context_provider(
         active_subscriptions: use_signal_sync(Vec::new),
         active_unsubscribe_tokens: use_signal_sync(Vec::new),
         admin_stalwart_config: use_signal_sync(Vec::new),
+        category_message_counts: use_signal_sync(Vec::new),
+        category_subscriber_counts: use_signal_sync(Vec::new),
         expire_stale_delivery_claims_schedule: use_signal_sync(Vec::new),
         requeue_temporary_failed_mails_schedule: use_signal_sync(Vec::new),
+        sender_account_emails: use_signal_sync(Vec::new),
+        sender_accounts: use_signal_sync(Vec::new),
+        sender_category_app_passwords: use_signal_sync(Vec::new),
         sender_mail_delivery_claimed: use_signal_sync(Vec::new),
         sender_mail_delivery_done: use_signal_sync(Vec::new),
         sender_mail_delivery_events: use_signal_sync(Vec::new),
@@ -205,12 +221,18 @@ pub fn use_spacetimedb_context_provider(
         sender_mail_delivery_temporary_failed: use_signal_sync(Vec::new),
         sender_mail_ingress: use_signal_sync(Vec::new),
         sender_mail_messages: use_signal_sync(Vec::new),
+        sender_message_categories: use_signal_sync(Vec::new),
+        sender_subscriptions: use_signal_sync(Vec::new),
         sender_system_mail_pending: use_signal_sync(Vec::new),
+        total_accounts: use_signal_sync(Vec::new),
+        total_messages: use_signal_sync(Vec::new),
+        visible_account_configs: use_signal_sync(Vec::new),
         visible_account_emails: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
         visible_admin_identities: use_signal_sync(Vec::new),
         visible_category_app_passwords: use_signal_sync(Vec::new),
         visible_domains: use_signal_sync(Vec::new),
+        visible_mail_messages: use_signal_sync(Vec::new),
         visible_message_categories: use_signal_sync(Vec::new),
         visible_message_category_topics: use_signal_sync(Vec::new),
         visible_messages: use_signal_sync(Vec::new),
@@ -343,6 +365,58 @@ pub fn use_spacetimedb_context_provider(
                                 ctx.db.admin_stalwart_config().iter().collect();
                             table_signals_on_connect.admin_stalwart_config.set(updated);
                         });
+                        // Populate initial rows for category_message_counts
+                        let current: Vec<CategoryMessageCount> =
+                            conn.db.category_message_counts().iter().collect();
+                        table_signals_on_connect
+                            .category_message_counts
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .category_message_counts()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategoryMessageCount> =
+                                    ctx.db.category_message_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_message_counts
+                                    .set(updated);
+                            });
+                        conn.db
+                            .category_message_counts()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategoryMessageCount> =
+                                    ctx.db.category_message_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_message_counts
+                                    .set(updated);
+                            });
+                        // Populate initial rows for category_subscriber_counts
+                        let current: Vec<CategorySubscriberCount> =
+                            conn.db.category_subscriber_counts().iter().collect();
+                        table_signals_on_connect
+                            .category_subscriber_counts
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .category_subscriber_counts()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategorySubscriberCount> =
+                                    ctx.db.category_subscriber_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_subscriber_counts
+                                    .set(updated);
+                            });
+                        conn.db
+                            .category_subscriber_counts()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategorySubscriberCount> =
+                                    ctx.db.category_subscriber_counts().iter().collect();
+                                table_signals_on_connect
+                                    .category_subscriber_counts
+                                    .set(updated);
+                            });
                         // Populate initial rows for expire_stale_delivery_claims_schedule
                         let current: Vec<ExpireStaleDeliveryClaimsSchedule> = conn
                             .db
@@ -437,6 +511,81 @@ pub fn use_spacetimedb_context_provider(
                                     .set(updated);
                             },
                         );
+                        // Populate initial rows for sender_account_emails
+                        let current: Vec<AccountEmail> =
+                            conn.db.sender_account_emails().iter().collect();
+                        table_signals_on_connect.sender_account_emails.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.sender_account_emails().on_insert(move |ctx, _row| {
+                            let updated: Vec<AccountEmail> =
+                                ctx.db.sender_account_emails().iter().collect();
+                            table_signals_on_connect.sender_account_emails.set(updated);
+                        });
+                        conn.db
+                            .sender_account_emails()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<AccountEmail> =
+                                    ctx.db.sender_account_emails().iter().collect();
+                                table_signals_on_connect.sender_account_emails.set(updated);
+                            });
+                        conn.db.sender_account_emails().on_delete(move |ctx, _row| {
+                            let updated: Vec<AccountEmail> =
+                                ctx.db.sender_account_emails().iter().collect();
+                            table_signals_on_connect.sender_account_emails.set(updated);
+                        });
+                        // Populate initial rows for sender_accounts
+                        let current: Vec<Account> = conn.db.sender_accounts().iter().collect();
+                        table_signals_on_connect.sender_accounts.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.sender_accounts().on_insert(move |ctx, _row| {
+                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
+                            table_signals_on_connect.sender_accounts.set(updated);
+                        });
+                        conn.db.sender_accounts().on_update(move |ctx, _old, _new| {
+                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
+                            table_signals_on_connect.sender_accounts.set(updated);
+                        });
+                        conn.db.sender_accounts().on_delete(move |ctx, _row| {
+                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
+                            table_signals_on_connect.sender_accounts.set(updated);
+                        });
+                        // Populate initial rows for sender_category_app_passwords
+                        let current: Vec<CategoryAppPassword> =
+                            conn.db.sender_category_app_passwords().iter().collect();
+                        table_signals_on_connect
+                            .sender_category_app_passwords
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .sender_category_app_passwords()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.sender_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .sender_category_app_passwords
+                                    .set(updated);
+                            });
+                        conn.db.sender_category_app_passwords().on_update(
+                            move |ctx, _old, _new| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.sender_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .sender_category_app_passwords
+                                    .set(updated);
+                            },
+                        );
+                        conn.db
+                            .sender_category_app_passwords()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<CategoryAppPassword> =
+                                    ctx.db.sender_category_app_passwords().iter().collect();
+                                table_signals_on_connect
+                                    .sender_category_app_passwords
+                                    .set(updated);
+                            });
                         // Populate initial rows for sender_mail_delivery_claimed
                         let current: Vec<MailDeliveryClaimed> =
                             conn.db.sender_mail_delivery_claimed().iter().collect();
@@ -705,6 +854,64 @@ pub fn use_spacetimedb_context_provider(
                                 ctx.db.sender_mail_messages().iter().collect();
                             table_signals_on_connect.sender_mail_messages.set(updated);
                         });
+                        // Populate initial rows for sender_message_categories
+                        let current: Vec<MessageCategory> =
+                            conn.db.sender_message_categories().iter().collect();
+                        table_signals_on_connect
+                            .sender_message_categories
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .sender_message_categories()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<MessageCategory> =
+                                    ctx.db.sender_message_categories().iter().collect();
+                                table_signals_on_connect
+                                    .sender_message_categories
+                                    .set(updated);
+                            });
+                        conn.db
+                            .sender_message_categories()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<MessageCategory> =
+                                    ctx.db.sender_message_categories().iter().collect();
+                                table_signals_on_connect
+                                    .sender_message_categories
+                                    .set(updated);
+                            });
+                        conn.db
+                            .sender_message_categories()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<MessageCategory> =
+                                    ctx.db.sender_message_categories().iter().collect();
+                                table_signals_on_connect
+                                    .sender_message_categories
+                                    .set(updated);
+                            });
+                        // Populate initial rows for sender_subscriptions
+                        let current: Vec<Subscription> =
+                            conn.db.sender_subscriptions().iter().collect();
+                        table_signals_on_connect.sender_subscriptions.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.sender_subscriptions().on_insert(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.sender_subscriptions().iter().collect();
+                            table_signals_on_connect.sender_subscriptions.set(updated);
+                        });
+                        conn.db
+                            .sender_subscriptions()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<Subscription> =
+                                    ctx.db.sender_subscriptions().iter().collect();
+                                table_signals_on_connect.sender_subscriptions.set(updated);
+                            });
+                        conn.db.sender_subscriptions().on_delete(move |ctx, _row| {
+                            let updated: Vec<Subscription> =
+                                ctx.db.sender_subscriptions().iter().collect();
+                            table_signals_on_connect.sender_subscriptions.set(updated);
+                        });
                         // Populate initial rows for sender_system_mail_pending
                         let current: Vec<SystemMailPending> =
                             conn.db.sender_system_mail_pending().iter().collect();
@@ -738,6 +945,58 @@ pub fn use_spacetimedb_context_provider(
                                     ctx.db.sender_system_mail_pending().iter().collect();
                                 table_signals_on_connect
                                     .sender_system_mail_pending
+                                    .set(updated);
+                            });
+                        // Populate initial rows for total_accounts
+                        let current: Vec<CountRow> = conn.db.total_accounts().iter().collect();
+                        table_signals_on_connect.total_accounts.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.total_accounts().on_insert(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_accounts().iter().collect();
+                            table_signals_on_connect.total_accounts.set(updated);
+                        });
+                        conn.db.total_accounts().on_delete(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_accounts().iter().collect();
+                            table_signals_on_connect.total_accounts.set(updated);
+                        });
+                        // Populate initial rows for total_messages
+                        let current: Vec<CountRow> = conn.db.total_messages().iter().collect();
+                        table_signals_on_connect.total_messages.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.total_messages().on_insert(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_messages().iter().collect();
+                            table_signals_on_connect.total_messages.set(updated);
+                        });
+                        conn.db.total_messages().on_delete(move |ctx, _row| {
+                            let updated: Vec<CountRow> = ctx.db.total_messages().iter().collect();
+                            table_signals_on_connect.total_messages.set(updated);
+                        });
+                        // Populate initial rows for visible_account_configs
+                        let current: Vec<AccountConfig> =
+                            conn.db.visible_account_configs().iter().collect();
+                        table_signals_on_connect
+                            .visible_account_configs
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .visible_account_configs()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<AccountConfig> =
+                                    ctx.db.visible_account_configs().iter().collect();
+                                table_signals_on_connect
+                                    .visible_account_configs
+                                    .set(updated);
+                            });
+                        conn.db
+                            .visible_account_configs()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<AccountConfig> =
+                                    ctx.db.visible_account_configs().iter().collect();
+                                table_signals_on_connect
+                                    .visible_account_configs
                                     .set(updated);
                             });
                         // Populate initial rows for visible_account_emails
@@ -859,6 +1118,22 @@ pub fn use_spacetimedb_context_provider(
                         conn.db.visible_domains().on_delete(move |ctx, _row| {
                             let updated: Vec<Domain> = ctx.db.visible_domains().iter().collect();
                             table_signals_on_connect.visible_domains.set(updated);
+                        });
+                        // Populate initial rows for visible_mail_messages
+                        let current: Vec<MailMessage> =
+                            conn.db.visible_mail_messages().iter().collect();
+                        table_signals_on_connect.visible_mail_messages.set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db.visible_mail_messages().on_insert(move |ctx, _row| {
+                            let updated: Vec<MailMessage> =
+                                ctx.db.visible_mail_messages().iter().collect();
+                            table_signals_on_connect.visible_mail_messages.set(updated);
+                        });
+                        conn.db.visible_mail_messages().on_delete(move |ctx, _row| {
+                            let updated: Vec<MailMessage> =
+                                ctx.db.visible_mail_messages().iter().collect();
+                            table_signals_on_connect.visible_mail_messages.set(updated);
                         });
                         // Populate initial rows for visible_message_categories
                         let current: Vec<MessageCategory> =
@@ -1178,6 +1453,20 @@ pub fn use_table_admin_stalwart_config() -> SyncSignal<Vec<StalwartConfig>> {
     ctx.tables.admin_stalwart_config
 }
 
+/// Get a reactive signal containing all rows of the `category_message_counts` table.
+#[must_use]
+pub fn use_table_category_message_counts() -> SyncSignal<Vec<CategoryMessageCount>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.category_message_counts
+}
+
+/// Get a reactive signal containing all rows of the `category_subscriber_counts` table.
+#[must_use]
+pub fn use_table_category_subscriber_counts() -> SyncSignal<Vec<CategorySubscriberCount>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.category_subscriber_counts
+}
+
 /// Get a reactive signal containing all rows of the `expire_stale_delivery_claims_schedule` table.
 #[must_use]
 pub fn use_table_expire_stale_delivery_claims_schedule(
@@ -1192,6 +1481,27 @@ pub fn use_table_requeue_temporary_failed_mails_schedule(
 ) -> SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.requeue_temporary_failed_mails_schedule
+}
+
+/// Get a reactive signal containing all rows of the `sender_account_emails` table.
+#[must_use]
+pub fn use_table_sender_account_emails() -> SyncSignal<Vec<AccountEmail>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_account_emails
+}
+
+/// Get a reactive signal containing all rows of the `sender_accounts` table.
+#[must_use]
+pub fn use_table_sender_accounts() -> SyncSignal<Vec<Account>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_accounts
+}
+
+/// Get a reactive signal containing all rows of the `sender_category_app_passwords` table.
+#[must_use]
+pub fn use_table_sender_category_app_passwords() -> SyncSignal<Vec<CategoryAppPassword>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_category_app_passwords
 }
 
 /// Get a reactive signal containing all rows of the `sender_mail_delivery_claimed` table.
@@ -1251,11 +1561,46 @@ pub fn use_table_sender_mail_messages() -> SyncSignal<Vec<MailMessage>> {
     ctx.tables.sender_mail_messages
 }
 
+/// Get a reactive signal containing all rows of the `sender_message_categories` table.
+#[must_use]
+pub fn use_table_sender_message_categories() -> SyncSignal<Vec<MessageCategory>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_message_categories
+}
+
+/// Get a reactive signal containing all rows of the `sender_subscriptions` table.
+#[must_use]
+pub fn use_table_sender_subscriptions() -> SyncSignal<Vec<Subscription>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_subscriptions
+}
+
 /// Get a reactive signal containing all rows of the `sender_system_mail_pending` table.
 #[must_use]
 pub fn use_table_sender_system_mail_pending() -> SyncSignal<Vec<SystemMailPending>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.sender_system_mail_pending
+}
+
+/// Get a reactive signal containing all rows of the `total_accounts` table.
+#[must_use]
+pub fn use_table_total_accounts() -> SyncSignal<Vec<CountRow>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.total_accounts
+}
+
+/// Get a reactive signal containing all rows of the `total_messages` table.
+#[must_use]
+pub fn use_table_total_messages() -> SyncSignal<Vec<CountRow>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.total_messages
+}
+
+/// Get a reactive signal containing all rows of the `visible_account_configs` table.
+#[must_use]
+pub fn use_table_visible_account_configs() -> SyncSignal<Vec<AccountConfig>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_account_configs
 }
 
 /// Get a reactive signal containing all rows of the `visible_account_emails` table.
@@ -1291,6 +1636,13 @@ pub fn use_table_visible_category_app_passwords() -> SyncSignal<Vec<CategoryAppP
 pub fn use_table_visible_domains() -> SyncSignal<Vec<Domain>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.visible_domains
+}
+
+/// Get a reactive signal containing all rows of the `visible_mail_messages` table.
+#[must_use]
+pub fn use_table_visible_mail_messages() -> SyncSignal<Vec<MailMessage>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.visible_mail_messages
 }
 
 /// Get a reactive signal containing all rows of the `visible_message_categories` table.
@@ -2271,6 +2623,98 @@ pub fn use_reducer_claim_system_mail_async(
                         let _ = tx.send(res);
                     })
             {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
+/// Get a callback to invoke the `clear_category_provisioning_lock` reducer.
+#[must_use]
+pub fn use_reducer_clear_category_provisioning_lock(
+) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |category_id: u64| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.clear_category_provisioning_lock(category_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `clear_category_provisioning_lock` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_clear_category_provisioning_lock_then() -> (
+    impl Fn(u64) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |category_id: u64| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.clear_category_provisioning_lock_then(
+                category_id,
+                move |_ctx, res| {
+                    let _ = tx.send(res);
+                },
+            ) {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `clear_category_provisioning_lock` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_clear_category_provisioning_lock_async(
+) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |category_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.clear_category_provisioning_lock_then(category_id, move |_ctx, res| {
+                let _ = tx.send(res);
+            }) {
                 return Err(e.to_string());
             }
             match rx.await {
@@ -4872,10 +5316,220 @@ pub fn use_reducer_unregister_admin_identity_async(
     }
 }
 
+/// Get a callback to invoke the `update_account_config` reducer.
+#[must_use]
+pub fn use_reducer_update_account_config() -> impl Fn(
+    Option<u32>,
+    Option<u32>,
+    Option<u64>,
+    bool,
+    Option<u32>,
+    Option<u32>,
+    Option<String>,
+    bool,
+    Option<u64>,
+    bool,
+    Option<String>,
+    Option<String>,
+) -> spacetimedb_sdk::Result<()>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |message_offset: Option<u32>,
+          message_limit: Option<u32>,
+          selected_message_category: Option<u64>,
+          clear_selected_message_category: bool,
+          member_offset: Option<u32>,
+          member_limit: Option<u32>,
+          member_search_query: Option<String>,
+          clear_member_search_query: bool,
+          viewing_category_id: Option<u64>,
+          clear_viewing_category_id: bool,
+          language: Option<String>,
+          theme: Option<String>| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.update_account_config(
+                message_offset,
+                message_limit,
+                selected_message_category,
+                clear_selected_message_category,
+                member_offset,
+                member_limit,
+                member_search_query,
+                clear_member_search_query,
+                viewing_category_id,
+                clear_viewing_category_id,
+                language,
+                theme,
+            )
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `update_account_config` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_update_account_config_then() -> (
+    impl Fn(
+            Option<u32>,
+            Option<u32>,
+            Option<u64>,
+            bool,
+            Option<u32>,
+            Option<u32>,
+            Option<String>,
+            bool,
+            Option<u64>,
+            bool,
+            Option<String>,
+            Option<String>,
+        ) + Clone
+        + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |message_offset: Option<u32>,
+                       message_limit: Option<u32>,
+                       selected_message_category: Option<u64>,
+                       clear_selected_message_category: bool,
+                       member_offset: Option<u32>,
+                       member_limit: Option<u32>,
+                       member_search_query: Option<String>,
+                       clear_member_search_query: bool,
+                       viewing_category_id: Option<u64>,
+                       clear_viewing_category_id: bool,
+                       language: Option<String>,
+                       theme: Option<String>| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.update_account_config_then(
+                message_offset,
+                message_limit,
+                selected_message_category,
+                clear_selected_message_category,
+                member_offset,
+                member_limit,
+                member_search_query,
+                clear_member_search_query,
+                viewing_category_id,
+                clear_viewing_category_id,
+                language,
+                theme,
+                move |_ctx, res| {
+                    let _ = tx.send(res);
+                },
+            ) {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `update_account_config` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_update_account_config_async() -> impl Fn(
+    Option<u32>,
+    Option<u32>,
+    Option<u64>,
+    bool,
+    Option<u32>,
+    Option<u32>,
+    Option<String>,
+    bool,
+    Option<u64>,
+    bool,
+    Option<String>,
+    Option<String>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |message_offset: Option<u32>,
+          message_limit: Option<u32>,
+          selected_message_category: Option<u64>,
+          clear_selected_message_category: bool,
+          member_offset: Option<u32>,
+          member_limit: Option<u32>,
+          member_search_query: Option<String>,
+          clear_member_search_query: bool,
+          viewing_category_id: Option<u64>,
+          clear_viewing_category_id: bool,
+          language: Option<String>,
+          theme: Option<String>|
+          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.update_account_config_then(
+                message_offset,
+                message_limit,
+                selected_message_category,
+                clear_selected_message_category,
+                member_offset,
+                member_limit,
+                member_search_query,
+                clear_member_search_query,
+                viewing_category_id,
+                clear_viewing_category_id,
+                language,
+                theme,
+                move |_ctx, res| {
+                    let _ = tx.send(res);
+                },
+            ) {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
 /// Get a callback to invoke the `update_message_category` reducer.
 #[must_use]
-pub fn use_reducer_update_message_category(
-) -> impl Fn(u64, String, String, Option<CategoryVisibility>) -> spacetimedb_sdk::Result<()>
+pub fn use_reducer_update_message_category() -> impl Fn(
+    u64,
+    String,
+    String,
+    Option<CategoryVisibility>,
+    Option<SubscriptionPermission>,
+    Option<bool>,
+) -> spacetimedb_sdk::Result<()>
        + Clone
        + 'static {
     let conn_signal = use_connection();
@@ -4883,10 +5537,18 @@ pub fn use_reducer_update_message_category(
     move |category_id: u64,
           name: String,
           description: String,
-          visibility: Option<CategoryVisibility>| {
+          visibility: Option<CategoryVisibility>,
+          default_permission: Option<SubscriptionPermission>,
+          clear_provisioning_lock: Option<bool>| {
         if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers
-                .update_message_category(category_id, name, description, visibility)
+            conn.reducers.update_message_category(
+                category_id,
+                name,
+                description,
+                visibility,
+                default_permission,
+                clear_provisioning_lock,
+            )
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
@@ -4900,7 +5562,15 @@ pub fn use_reducer_update_message_category(
 /// on failure once the server notifies completion.
 #[must_use]
 pub fn use_reducer_update_message_category_then() -> (
-    impl Fn(u64, String, String, Option<CategoryVisibility>) + Clone + 'static,
+    impl Fn(
+            u64,
+            String,
+            String,
+            Option<CategoryVisibility>,
+            Option<SubscriptionPermission>,
+            Option<bool>,
+        ) + Clone
+        + 'static,
     SyncSignal<Option<Result<(), String>>>,
 ) {
     let conn_signal = use_connection();
@@ -4909,7 +5579,9 @@ pub fn use_reducer_update_message_category_then() -> (
     let invoke = move |category_id: u64,
                        name: String,
                        description: String,
-                       visibility: Option<CategoryVisibility>| {
+                       visibility: Option<CategoryVisibility>,
+                       default_permission: Option<SubscriptionPermission>,
+                       clear_provisioning_lock: Option<bool>| {
         let mut result = result;
         result.set(None);
         if let Some(conn) = conn_signal().as_ref() {
@@ -4919,6 +5591,8 @@ pub fn use_reducer_update_message_category_then() -> (
                 name,
                 description,
                 visibility,
+                default_permission,
+                clear_provisioning_lock,
                 move |_ctx, res| {
                     let _ = tx.send(res);
                 },
@@ -4953,6 +5627,8 @@ pub fn use_reducer_update_message_category_async() -> impl Fn(
     String,
     String,
     Option<CategoryVisibility>,
+    Option<SubscriptionPermission>,
+    Option<bool>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
        + Clone
        + 'static {
@@ -4961,7 +5637,9 @@ pub fn use_reducer_update_message_category_async() -> impl Fn(
     move |category_id: u64,
           name: String,
           description: String,
-          visibility: Option<CategoryVisibility>|
+          visibility: Option<CategoryVisibility>,
+          default_permission: Option<SubscriptionPermission>,
+          clear_provisioning_lock: Option<bool>|
           -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
         let conn = conn_signal();
         Box::pin(async move {
@@ -4974,6 +5652,8 @@ pub fn use_reducer_update_message_category_async() -> impl Fn(
                 name,
                 description,
                 visibility,
+                default_permission,
+                clear_provisioning_lock,
                 move |_ctx, res| {
                     let _ = tx.send(res);
                 },
@@ -5277,6 +5957,70 @@ pub fn use_reducer_user_verify_email_async(
 }
 
 // --- Procedure hooks ---
+
+/// Invoke the `provision_all_unprovisioned_categories` procedure and get a reactive signal for its result.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the procedure call to the server.
+/// The `result` signal is updated to `Some(Ok(value))` on success or `Some(Err(message))`
+/// on failure once the server responds.
+#[must_use]
+pub fn use_procedure_provision_all_unprovisioned_categories() -> (
+    impl Fn() + Clone + 'static,
+    SyncSignal<Option<Result<Result<u32, String>, String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<Result<u32, String>, String>>> =
+        use_signal_sync(|| None);
+
+    let invoke = move || {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            conn.procedures
+                .provision_all_unprovisioned_categories_then(move |_ctx, res| {
+                    let _ = tx.send(res);
+                });
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    result.set(Some(res.map_err(|e| e.to_string())));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `provision_all_unprovisioned_categories` procedure asynchronously.
+///
+/// Returns a closure that can be called to invoke the procedure and `await` the response directly.
+#[must_use]
+pub fn use_procedure_provision_all_unprovisioned_categories_async() -> impl Fn() -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>,
+> + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move || -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            conn.procedures.provision_all_unprovisioned_categories_then(move |_ctx, res| {
+                let _ = tx.send(res);
+            });
+            match rx.await {
+                Ok(res) => res.map_err(|e| e.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
 
 /// Invoke the `provision_message_category` procedure and get a reactive signal for its result.
 ///

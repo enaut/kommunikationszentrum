@@ -3,27 +3,14 @@ use spacetimedb::{ProcedureContext, Table};
 
 use crate::common::auth::is_admin_identity;
 use crate::models::domain::*;
-use crate::services::stalwart::client::send_stalwart_jmap_request;
+use crate::services::stalwart::client::{send_stalwart_jmap_request, StalwartContext};
 use crate::services::stalwart::domain::*;
 
-/// SpacetimeDB Procedure: Synchronizes domains configured in Stalwart into the SpacetimeDB database.
-/// Only callable by module owner/admins.
-#[spacetimedb::procedure]
-pub fn sync_stalwart_domains(ctx: &mut ProcedureContext) -> Result<SyncDomainsResult, String> {
-    info!("Executing sync_stalwart_domains procedure");
+/// Synchronizes domains configured in Stalwart into the SpacetimeDB database using any StalwartContext.
+pub fn do_sync_stalwart_domains(ctx: &mut impl StalwartContext) -> Result<SyncDomainsResult, String> {
+    info!("Executing do_sync_stalwart_domains");
 
-    // 1) Authorization check: only owner/admin identity
-    let caller = ctx.sender();
-    let is_admin: bool = ctx.with_tx(|tx| is_admin_identity(tx, caller));
-    if !is_admin {
-        warn!("Unauthorized sync_stalwart_domains call from {:?}", caller);
-        return Err(format!(
-            "Unauthorized: caller {:?} is not a module owner/admin",
-            caller
-        ));
-    }
-
-    // 2) Build single JMAP request with x:Domain/query and referenced x:Domain/get
+    // 1) Build single JMAP request with x:Domain/query and referenced x:Domain/get
     let payload = serde_json::json!({
         "using": [
             "urn:ietf:params:jmap:core",
@@ -49,13 +36,13 @@ pub fn sync_stalwart_domains(ctx: &mut ProcedureContext) -> Result<SyncDomainsRe
         ]
     });
 
-    // 3) Perform HTTP request via unified Stalwart JMAP client
+    // 2) Perform HTTP request via unified Stalwart JMAP client
     let res_body = send_stalwart_jmap_request(ctx, payload)?;
 
-    // 4) Parse JMAP response
+    // 3) Parse JMAP response
     let stalwart_domains = parse_jmap_domain_response(&res_body)?;
 
-    // 6) Transactional database update
+    // 4) Transactional database update
     let result = ctx.with_tx(|tx| {
         let current_domains: Vec<Domain> = tx.db.domains().iter().collect();
         let (actions, result) = calculate_domain_sync(&current_domains, &stalwart_domains)?;
@@ -83,6 +70,26 @@ pub fn sync_stalwart_domains(ctx: &mut ProcedureContext) -> Result<SyncDomainsRe
     );
 
     Ok(result)
+}
+
+/// SpacetimeDB Procedure: Synchronizes domains configured in Stalwart into the SpacetimeDB database.
+/// Only callable by module owner/admins.
+#[spacetimedb::procedure]
+pub fn sync_stalwart_domains(ctx: &mut ProcedureContext) -> Result<SyncDomainsResult, String> {
+    info!("Executing sync_stalwart_domains procedure");
+
+    // 1) Authorization check: only owner/admin identity
+    let caller = ctx.sender();
+    let is_admin: bool = ctx.with_tx(|tx| is_admin_identity(tx, caller));
+    if !is_admin {
+        warn!("Unauthorized sync_stalwart_domains call from {:?}", caller);
+        return Err(format!(
+            "Unauthorized: caller {:?} is not a module owner/admin",
+            caller
+        ));
+    }
+
+    do_sync_stalwart_domains(ctx)
 }
 
 #[cfg(test)]

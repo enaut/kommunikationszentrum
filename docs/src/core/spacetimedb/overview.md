@@ -41,6 +41,7 @@ The Admin UI and sender daemon connect to SpacetimeDB over WebSocket and subscri
 ```
 
 **Current view selection by identity:**
-- Admin clients receive access to `visible_accounts`, `visible_admin_identities`, `visible_webhook_tokens`, `admin_stalwart_config`, `visible_domains`, `visible_category_app_passwords`, and the full `visible_messages` stream.
-- Regular members receive a filtered `visible_accounts` row, their own `visible_subscriptions`, their visible mailing-list metadata, and message rows for subscribed categories only.
+- Admin clients receive access to `visible_accounts`, `visible_admin_identities`, `visible_webhook_tokens`, `admin_stalwart_config`, `visible_domains`, `visible_category_app_passwords`, and the `visible_messages` stream (paginated).
+- Regular members receive a filtered `visible_accounts` row, their own `visible_account_configs` (for pagination and UI state), their own `visible_subscriptions`, their visible mailing-list metadata, and message rows for subscribed categories only (paginated).
+- Pagination and user preferences (like language and theme) are managed via an `AccountConfig` table. The client calls the `update_account_config` reducer, mutating their specific config row, which causes the server to evaluate and push the correct paginated subset of messages and members via the views.
 - The sender daemon connects as an admin identity and subscribes to outbound worker views such as `sender_mail_ingress`, `sender_mail_delivery_messages`, `sender_mail_delivery_pending`, `sender_mail_delivery_claimed`, `sender_mail_delivery_done`, `sender_mail_delivery_events`, `sender_mail_delivery_temporary_failed`, and `sender_mail_messages`.

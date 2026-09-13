@@ -1,4 +1,37 @@
+use mail_parser::MessageParser;
 use stalwart_mta_hook_types::Request as MtaHookRequest;
+
+/// Decode an RFC 2047 header value using mail_parser.
+pub fn decode_rfc2047_header(header_name: &str, raw_value: &str) -> String {
+    if !raw_value.contains("=?") {
+        return raw_value.to_string();
+    }
+    let raw_mime = format!("{header_name}: {raw_value}\r\n\r\n");
+    if let Some(msg) = MessageParser::default().parse(raw_mime.as_bytes()) {
+        if header_name.eq_ignore_ascii_case("subject") {
+            if let Some(subject) = msg.subject() {
+                return subject.to_string();
+            }
+        } else if header_name.eq_ignore_ascii_case("from") {
+            if let Some(from_list) = msg.from() {
+                if let Some(addr) = from_list.first() {
+                    match (addr.name(), addr.address()) {
+                        (Some(name), Some(email)) => return format!("{name} <{email}>"),
+                        (Some(name), None) => return name.to_string(),
+                        (None, Some(email)) => return email.to_string(),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        if let Some(hdr) = msg.header(header_name) {
+            if let Some(val) = hdr.as_text() {
+                return val.to_string();
+            }
+        }
+    }
+    raw_value.to_string()
+}
 
 /// Find the first header whose name (case-insensitive) matches `name` and return its trimmed value.
 pub fn extract_header(headers: &[(String, String)], name: &str) -> Option<String> {
@@ -9,11 +42,12 @@ pub fn extract_header(headers: &[(String, String)], name: &str) -> Option<String
 }
 
 pub fn extract_subject_from_request(request: &MtaHookRequest) -> String {
-    request
+    let raw = request
         .message
         .as_ref()
         .and_then(|m| extract_header(&m.headers, "subject"))
-        .unwrap_or_else(|| "No subject".to_string())
+        .unwrap_or_else(|| "No subject".to_string());
+    decode_rfc2047_header("Subject", &raw)
 }
 
 /// Parse a `To`-style header value into individual email addresses.

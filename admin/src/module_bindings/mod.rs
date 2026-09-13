@@ -8,6 +8,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 pub mod dioxus;
 
+pub mod account_config_type;
 pub mod account_email_type;
 pub mod account_type;
 pub mod active_subscriptions_table;
@@ -22,13 +23,19 @@ pub mod admin_stalwart_config_table;
 pub mod blocked_ip_type;
 pub mod cancel_mail_delivery_retry_reducer;
 pub mod category_app_password_type;
+pub mod category_message_count_type;
+pub mod category_message_counts_table;
+pub mod category_subscriber_count_type;
+pub mod category_subscriber_counts_table;
 pub mod category_visibility_type;
 pub mod claim_next_mail_delivery_reducer;
 pub mod claim_next_mail_ingress_reducer;
 pub mod claim_state_type;
 pub mod claim_system_mail_reducer;
+pub mod clear_category_provisioning_lock_reducer;
 pub mod complete_mail_ingress_reducer;
 pub mod complete_system_mail_reducer;
+pub mod count_row_type;
 pub mod create_webhook_token_reducer;
 pub mod delivery_final_state_type;
 pub mod delivery_status_type;
@@ -58,6 +65,7 @@ pub mod message_category_topic_type;
 pub mod message_category_type;
 pub mod mta_connection_log_type;
 pub mod mta_message_log_type;
+pub mod provision_all_unprovisioned_categories_procedure;
 pub mod provision_message_category_procedure;
 pub mod received_message_type;
 pub mod register_admin_identity_reducer;
@@ -71,6 +79,9 @@ pub mod requeue_temporary_failed_mails_schedule_type;
 pub mod retry_mail_ingress_reducer;
 pub mod revoke_webhook_token_reducer;
 pub mod schedule_mail_delivery_retry_reducer;
+pub mod sender_account_emails_table;
+pub mod sender_accounts_table;
+pub mod sender_category_app_passwords_table;
 pub mod sender_mail_delivery_claimed_table;
 pub mod sender_mail_delivery_done_table;
 pub mod sender_mail_delivery_events_table;
@@ -79,6 +90,8 @@ pub mod sender_mail_delivery_pending_table;
 pub mod sender_mail_delivery_temporary_failed_table;
 pub mod sender_mail_ingress_table;
 pub mod sender_mail_messages_table;
+pub mod sender_message_categories_table;
+pub mod sender_subscriptions_table;
 pub mod sender_system_mail_pending_table;
 pub mod set_category_topics_reducer;
 pub mod set_stalwart_config_reducer;
@@ -92,16 +105,21 @@ pub mod sync_stalwart_domains_procedure;
 pub mod sync_user_reducer;
 pub mod system_mail_pending_type;
 pub mod topic_type;
+pub mod total_accounts_table;
+pub mod total_messages_table;
 pub mod unregister_admin_identity_reducer;
+pub mod update_account_config_reducer;
 pub mod update_message_category_reducer;
 pub mod update_subscription_permission_reducer;
 pub mod user_request_email_verification_reducer;
 pub mod user_verify_email_reducer;
+pub mod visible_account_configs_table;
 pub mod visible_account_emails_table;
 pub mod visible_accounts_table;
 pub mod visible_admin_identities_table;
 pub mod visible_category_app_passwords_table;
 pub mod visible_domains_table;
+pub mod visible_mail_messages_table;
 pub mod visible_message_categories_table;
 pub mod visible_message_category_topics_table;
 pub mod visible_messages_table;
@@ -110,6 +128,7 @@ pub mod visible_topics_table;
 pub mod visible_webhook_tokens_table;
 pub mod webhook_token_type;
 
+pub use account_config_type::AccountConfig;
 pub use account_email_type::AccountEmail;
 pub use account_type::Account;
 pub use active_subscriptions_table::*;
@@ -124,13 +143,19 @@ pub use admin_stalwart_config_table::*;
 pub use blocked_ip_type::BlockedIp;
 pub use cancel_mail_delivery_retry_reducer::cancel_mail_delivery_retry;
 pub use category_app_password_type::CategoryAppPassword;
+pub use category_message_count_type::CategoryMessageCount;
+pub use category_message_counts_table::*;
+pub use category_subscriber_count_type::CategorySubscriberCount;
+pub use category_subscriber_counts_table::*;
 pub use category_visibility_type::CategoryVisibility;
 pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
 pub use claim_next_mail_ingress_reducer::claim_next_mail_ingress;
 pub use claim_state_type::ClaimState;
 pub use claim_system_mail_reducer::claim_system_mail;
+pub use clear_category_provisioning_lock_reducer::clear_category_provisioning_lock;
 pub use complete_mail_ingress_reducer::complete_mail_ingress;
 pub use complete_system_mail_reducer::complete_system_mail;
+pub use count_row_type::CountRow;
 pub use create_webhook_token_reducer::create_webhook_token;
 pub use delivery_final_state_type::DeliveryFinalState;
 pub use delivery_status_type::DeliveryStatus;
@@ -160,6 +185,7 @@ pub use message_category_topic_type::MessageCategoryTopic;
 pub use message_category_type::MessageCategory;
 pub use mta_connection_log_type::MtaConnectionLog;
 pub use mta_message_log_type::MtaMessageLog;
+pub use provision_all_unprovisioned_categories_procedure::provision_all_unprovisioned_categories;
 pub use provision_message_category_procedure::provision_message_category;
 pub use received_message_type::ReceivedMessage;
 pub use register_admin_identity_reducer::register_admin_identity;
@@ -173,6 +199,9 @@ pub use requeue_temporary_failed_mails_schedule_type::RequeueTemporaryFailedMail
 pub use retry_mail_ingress_reducer::retry_mail_ingress;
 pub use revoke_webhook_token_reducer::revoke_webhook_token;
 pub use schedule_mail_delivery_retry_reducer::schedule_mail_delivery_retry;
+pub use sender_account_emails_table::*;
+pub use sender_accounts_table::*;
+pub use sender_category_app_passwords_table::*;
 pub use sender_mail_delivery_claimed_table::*;
 pub use sender_mail_delivery_done_table::*;
 pub use sender_mail_delivery_events_table::*;
@@ -181,6 +210,8 @@ pub use sender_mail_delivery_pending_table::*;
 pub use sender_mail_delivery_temporary_failed_table::*;
 pub use sender_mail_ingress_table::*;
 pub use sender_mail_messages_table::*;
+pub use sender_message_categories_table::*;
+pub use sender_subscriptions_table::*;
 pub use sender_system_mail_pending_table::*;
 pub use set_category_topics_reducer::set_category_topics;
 pub use set_stalwart_config_reducer::set_stalwart_config;
@@ -194,16 +225,21 @@ pub use sync_stalwart_domains_procedure::sync_stalwart_domains;
 pub use sync_user_reducer::sync_user;
 pub use system_mail_pending_type::SystemMailPending;
 pub use topic_type::Topic;
+pub use total_accounts_table::*;
+pub use total_messages_table::*;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
+pub use update_account_config_reducer::update_account_config;
 pub use update_message_category_reducer::update_message_category;
 pub use update_subscription_permission_reducer::update_subscription_permission;
 pub use user_request_email_verification_reducer::user_request_email_verification;
 pub use user_verify_email_reducer::user_verify_email;
+pub use visible_account_configs_table::*;
 pub use visible_account_emails_table::*;
 pub use visible_accounts_table::*;
 pub use visible_admin_identities_table::*;
 pub use visible_category_app_passwords_table::*;
 pub use visible_domains_table::*;
+pub use visible_mail_messages_table::*;
 pub use visible_message_categories_table::*;
 pub use visible_message_category_topics_table::*;
 pub use visible_messages_table::*;
@@ -261,6 +297,9 @@ pub enum Reducer {
     ClaimSystemMail {
         mail_id: u64,
         instance_id: String,
+    },
+    ClearCategoryProvisioningLock {
+        category_id: u64,
     },
     CompleteMailIngress {
         ingress_id: String,
@@ -368,11 +407,27 @@ pub enum Reducer {
     UnregisterAdminIdentity {
         identity_hex: String,
     },
+    UpdateAccountConfig {
+        message_offset: Option<u32>,
+        message_limit: Option<u32>,
+        selected_message_category: Option<u64>,
+        clear_selected_message_category: bool,
+        member_offset: Option<u32>,
+        member_limit: Option<u32>,
+        member_search_query: Option<String>,
+        clear_member_search_query: bool,
+        viewing_category_id: Option<u64>,
+        clear_viewing_category_id: bool,
+        language: Option<String>,
+        theme: Option<String>,
+    },
     UpdateMessageCategory {
         category_id: u64,
         name: String,
         description: String,
         visibility: Option<CategoryVisibility>,
+        default_permission: Option<SubscriptionPermission>,
+        clear_provisioning_lock: Option<bool>,
     },
     UpdateSubscriptionPermission {
         subscription_id: u64,
@@ -402,6 +457,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::ClaimNextMailDelivery { .. } => "claim_next_mail_delivery",
             Reducer::ClaimNextMailIngress { .. } => "claim_next_mail_ingress",
             Reducer::ClaimSystemMail { .. } => "claim_system_mail",
+            Reducer::ClearCategoryProvisioningLock { .. } => "clear_category_provisioning_lock",
             Reducer::CompleteMailIngress { .. } => "complete_mail_ingress",
             Reducer::CompleteSystemMail { .. } => "complete_system_mail",
             Reducer::CreateWebhookToken { .. } => "create_webhook_token",
@@ -433,6 +489,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::SetStalwartConfig { .. } => "set_stalwart_config",
             Reducer::SyncUser { .. } => "sync_user",
             Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
+            Reducer::UpdateAccountConfig { .. } => "update_account_config",
             Reducer::UpdateMessageCategory { .. } => "update_message_category",
             Reducer::UpdateSubscriptionPermission { .. } => "update_subscription_permission",
             Reducer::UserRequestEmailVerification { .. } => "user_request_email_verification",
@@ -517,6 +574,11 @@ impl __sdk::Reducer for Reducer {
 }             => __sats::bsatn::to_vec(&claim_system_mail_reducer::ClaimSystemMailArgs {
                 mail_id: mail_id.clone(),
                 instance_id: instance_id.clone(),
+}),
+            Reducer::ClearCategoryProvisioningLock{
+                category_id,
+}             => __sats::bsatn::to_vec(&clear_category_provisioning_lock_reducer::ClearCategoryProvisioningLockArgs {
+                category_id: category_id.clone(),
 }),
             Reducer::CompleteMailIngress{
                 ingress_id,
@@ -706,16 +768,47 @@ Reducer::EnqueueMailDelivery{
 }             => __sats::bsatn::to_vec(&unregister_admin_identity_reducer::UnregisterAdminIdentityArgs {
                 identity_hex: identity_hex.clone(),
 }),
+            Reducer::UpdateAccountConfig{
+                message_offset,
+                message_limit,
+                selected_message_category,
+                clear_selected_message_category,
+                member_offset,
+                member_limit,
+                member_search_query,
+                clear_member_search_query,
+                viewing_category_id,
+                clear_viewing_category_id,
+                language,
+                theme,
+}             => __sats::bsatn::to_vec(&update_account_config_reducer::UpdateAccountConfigArgs {
+                message_offset: message_offset.clone(),
+                message_limit: message_limit.clone(),
+                selected_message_category: selected_message_category.clone(),
+                clear_selected_message_category: clear_selected_message_category.clone(),
+                member_offset: member_offset.clone(),
+                member_limit: member_limit.clone(),
+                member_search_query: member_search_query.clone(),
+                clear_member_search_query: clear_member_search_query.clone(),
+                viewing_category_id: viewing_category_id.clone(),
+                clear_viewing_category_id: clear_viewing_category_id.clone(),
+                language: language.clone(),
+                theme: theme.clone(),
+}),
             Reducer::UpdateMessageCategory{
                 category_id,
                 name,
                 description,
                 visibility,
+                default_permission,
+                clear_provisioning_lock,
 }             => __sats::bsatn::to_vec(&update_message_category_reducer::UpdateMessageCategoryArgs {
                 category_id: category_id.clone(),
                 name: name.clone(),
                 description: description.clone(),
                 visibility: visibility.clone(),
+                default_permission: default_permission.clone(),
+                clear_provisioning_lock: clear_provisioning_lock.clone(),
 }),
             Reducer::UpdateSubscriptionPermission{
                 subscription_id,
@@ -746,9 +839,14 @@ pub struct DbUpdate {
     active_subscriptions: __sdk::TableUpdate<Subscription>,
     active_unsubscribe_tokens: __sdk::TableUpdate<SubscriptionUnsubscribeToken>,
     admin_stalwart_config: __sdk::TableUpdate<StalwartConfig>,
+    category_message_counts: __sdk::TableUpdate<CategoryMessageCount>,
+    category_subscriber_counts: __sdk::TableUpdate<CategorySubscriberCount>,
     expire_stale_delivery_claims_schedule: __sdk::TableUpdate<ExpireStaleDeliveryClaimsSchedule>,
     requeue_temporary_failed_mails_schedule:
         __sdk::TableUpdate<RequeueTemporaryFailedMailsSchedule>,
+    sender_account_emails: __sdk::TableUpdate<AccountEmail>,
+    sender_accounts: __sdk::TableUpdate<Account>,
+    sender_category_app_passwords: __sdk::TableUpdate<CategoryAppPassword>,
     sender_mail_delivery_claimed: __sdk::TableUpdate<MailDeliveryClaimed>,
     sender_mail_delivery_done: __sdk::TableUpdate<MailDeliveryDone>,
     sender_mail_delivery_events: __sdk::TableUpdate<MailDeliveryEvent>,
@@ -757,12 +855,18 @@ pub struct DbUpdate {
     sender_mail_delivery_temporary_failed: __sdk::TableUpdate<MailDeliveryTemporaryFailed>,
     sender_mail_ingress: __sdk::TableUpdate<MailIngress>,
     sender_mail_messages: __sdk::TableUpdate<MailMessage>,
+    sender_message_categories: __sdk::TableUpdate<MessageCategory>,
+    sender_subscriptions: __sdk::TableUpdate<Subscription>,
     sender_system_mail_pending: __sdk::TableUpdate<SystemMailPending>,
+    total_accounts: __sdk::TableUpdate<CountRow>,
+    total_messages: __sdk::TableUpdate<CountRow>,
+    visible_account_configs: __sdk::TableUpdate<AccountConfig>,
     visible_account_emails: __sdk::TableUpdate<AccountEmail>,
     visible_accounts: __sdk::TableUpdate<Account>,
     visible_admin_identities: __sdk::TableUpdate<AdminIdentity>,
     visible_category_app_passwords: __sdk::TableUpdate<CategoryAppPassword>,
     visible_domains: __sdk::TableUpdate<Domain>,
+    visible_mail_messages: __sdk::TableUpdate<MailMessage>,
     visible_message_categories: __sdk::TableUpdate<MessageCategory>,
     visible_message_category_topics: __sdk::TableUpdate<MessageCategoryTopic>,
     visible_messages: __sdk::TableUpdate<ReceivedMessage>,
@@ -786,6 +890,12 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "admin_stalwart_config" => db_update.admin_stalwart_config.append(
                     admin_stalwart_config_table::parse_table_update(table_update)?,
                 ),
+                "category_message_counts" => db_update.category_message_counts.append(
+                    category_message_counts_table::parse_table_update(table_update)?,
+                ),
+                "category_subscriber_counts" => db_update.category_subscriber_counts.append(
+                    category_subscriber_counts_table::parse_table_update(table_update)?,
+                ),
                 "expire_stale_delivery_claims_schedule" => {
                     db_update.expire_stale_delivery_claims_schedule.append(
                         expire_stale_delivery_claims_schedule_table::parse_table_update(
@@ -800,6 +910,15 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                         )?,
                     )
                 }
+                "sender_account_emails" => db_update.sender_account_emails.append(
+                    sender_account_emails_table::parse_table_update(table_update)?,
+                ),
+                "sender_accounts" => db_update
+                    .sender_accounts
+                    .append(sender_accounts_table::parse_table_update(table_update)?),
+                "sender_category_app_passwords" => db_update.sender_category_app_passwords.append(
+                    sender_category_app_passwords_table::parse_table_update(table_update)?,
+                ),
                 "sender_mail_delivery_claimed" => db_update.sender_mail_delivery_claimed.append(
                     sender_mail_delivery_claimed_table::parse_table_update(table_update)?,
                 ),
@@ -828,8 +947,23 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "sender_mail_messages" => db_update.sender_mail_messages.append(
                     sender_mail_messages_table::parse_table_update(table_update)?,
                 ),
+                "sender_message_categories" => db_update.sender_message_categories.append(
+                    sender_message_categories_table::parse_table_update(table_update)?,
+                ),
+                "sender_subscriptions" => db_update.sender_subscriptions.append(
+                    sender_subscriptions_table::parse_table_update(table_update)?,
+                ),
                 "sender_system_mail_pending" => db_update.sender_system_mail_pending.append(
                     sender_system_mail_pending_table::parse_table_update(table_update)?,
+                ),
+                "total_accounts" => db_update
+                    .total_accounts
+                    .append(total_accounts_table::parse_table_update(table_update)?),
+                "total_messages" => db_update
+                    .total_messages
+                    .append(total_messages_table::parse_table_update(table_update)?),
+                "visible_account_configs" => db_update.visible_account_configs.append(
+                    visible_account_configs_table::parse_table_update(table_update)?,
                 ),
                 "visible_account_emails" => db_update.visible_account_emails.append(
                     visible_account_emails_table::parse_table_update(table_update)?,
@@ -848,6 +982,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "visible_domains" => db_update
                     .visible_domains
                     .append(visible_domains_table::parse_table_update(table_update)?),
+                "visible_mail_messages" => db_update.visible_mail_messages.append(
+                    visible_mail_messages_table::parse_table_update(table_update)?,
+                ),
                 "visible_message_categories" => db_update.visible_message_categories.append(
                     visible_message_categories_table::parse_table_update(table_update)?,
                 ),
@@ -922,6 +1059,29 @@ impl __sdk::DbUpdate for DbUpdate {
                 &self.admin_stalwart_config,
             )
             .with_updates_by_pk(|row| &row.id);
+        diff.category_message_counts = cache.apply_diff_to_table::<CategoryMessageCount>(
+            "category_message_counts",
+            &self.category_message_counts,
+        );
+        diff.category_subscriber_counts = cache.apply_diff_to_table::<CategorySubscriberCount>(
+            "category_subscriber_counts",
+            &self.category_subscriber_counts,
+        );
+        diff.sender_account_emails = cache
+            .apply_diff_to_table::<AccountEmail>(
+                "sender_account_emails",
+                &self.sender_account_emails,
+            )
+            .with_updates_by_pk(|row| &row.id);
+        diff.sender_accounts = cache
+            .apply_diff_to_table::<Account>("sender_accounts", &self.sender_accounts)
+            .with_updates_by_pk(|row| &row.id);
+        diff.sender_category_app_passwords = cache
+            .apply_diff_to_table::<CategoryAppPassword>(
+                "sender_category_app_passwords",
+                &self.sender_category_app_passwords,
+            )
+            .with_updates_by_pk(|row| &row.id);
         diff.sender_mail_delivery_claimed = cache
             .apply_diff_to_table::<MailDeliveryClaimed>(
                 "sender_mail_delivery_claimed",
@@ -964,12 +1124,29 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.sender_mail_messages = cache
             .apply_diff_to_table::<MailMessage>("sender_mail_messages", &self.sender_mail_messages)
             .with_updates_by_pk(|row| &row.id);
+        diff.sender_message_categories = cache
+            .apply_diff_to_table::<MessageCategory>(
+                "sender_message_categories",
+                &self.sender_message_categories,
+            )
+            .with_updates_by_pk(|row| &row.id);
+        diff.sender_subscriptions = cache
+            .apply_diff_to_table::<Subscription>("sender_subscriptions", &self.sender_subscriptions)
+            .with_updates_by_pk(|row| &row.id);
         diff.sender_system_mail_pending = cache
             .apply_diff_to_table::<SystemMailPending>(
                 "sender_system_mail_pending",
                 &self.sender_system_mail_pending,
             )
             .with_updates_by_pk(|row| &row.id);
+        diff.total_accounts =
+            cache.apply_diff_to_table::<CountRow>("total_accounts", &self.total_accounts);
+        diff.total_messages =
+            cache.apply_diff_to_table::<CountRow>("total_messages", &self.total_messages);
+        diff.visible_account_configs = cache.apply_diff_to_table::<AccountConfig>(
+            "visible_account_configs",
+            &self.visible_account_configs,
+        );
         diff.visible_account_emails = cache.apply_diff_to_table::<AccountEmail>(
             "visible_account_emails",
             &self.visible_account_emails,
@@ -991,6 +1168,10 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.visible_domains = cache
             .apply_diff_to_table::<Domain>("visible_domains", &self.visible_domains)
             .with_updates_by_pk(|row| &row.id);
+        diff.visible_mail_messages = cache.apply_diff_to_table::<MailMessage>(
+            "visible_mail_messages",
+            &self.visible_mail_messages,
+        );
         diff.visible_message_categories = cache.apply_diff_to_table::<MessageCategory>(
             "visible_message_categories",
             &self.visible_message_categories,
@@ -1032,11 +1213,26 @@ impl __sdk::DbUpdate for DbUpdate {
                 "admin_stalwart_config" => db_update
                     .admin_stalwart_config
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "category_message_counts" => db_update
+                    .category_message_counts
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "category_subscriber_counts" => db_update
+                    .category_subscriber_counts
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "expire_stale_delivery_claims_schedule" => db_update
                     .expire_stale_delivery_claims_schedule
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "requeue_temporary_failed_mails_schedule" => db_update
                     .requeue_temporary_failed_mails_schedule
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_account_emails" => db_update
+                    .sender_account_emails
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_accounts" => db_update
+                    .sender_accounts
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_category_app_passwords" => db_update
+                    .sender_category_app_passwords
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_mail_delivery_claimed" => db_update
                     .sender_mail_delivery_claimed
@@ -1062,8 +1258,23 @@ impl __sdk::DbUpdate for DbUpdate {
                 "sender_mail_messages" => db_update
                     .sender_mail_messages
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_message_categories" => db_update
+                    .sender_message_categories
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_subscriptions" => db_update
+                    .sender_subscriptions
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_system_mail_pending" => db_update
                     .sender_system_mail_pending
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "total_accounts" => db_update
+                    .total_accounts
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "total_messages" => db_update
+                    .total_messages
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_account_configs" => db_update
+                    .visible_account_configs
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_account_emails" => db_update
                     .visible_account_emails
@@ -1079,6 +1290,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_domains" => db_update
                     .visible_domains
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "visible_mail_messages" => db_update
+                    .visible_mail_messages
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_message_categories" => db_update
                     .visible_message_categories
@@ -1120,11 +1334,26 @@ impl __sdk::DbUpdate for DbUpdate {
                 "admin_stalwart_config" => db_update
                     .admin_stalwart_config
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "category_message_counts" => db_update
+                    .category_message_counts
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "category_subscriber_counts" => db_update
+                    .category_subscriber_counts
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "expire_stale_delivery_claims_schedule" => db_update
                     .expire_stale_delivery_claims_schedule
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "requeue_temporary_failed_mails_schedule" => db_update
                     .requeue_temporary_failed_mails_schedule
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_account_emails" => db_update
+                    .sender_account_emails
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_accounts" => db_update
+                    .sender_accounts
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_category_app_passwords" => db_update
+                    .sender_category_app_passwords
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_mail_delivery_claimed" => db_update
                     .sender_mail_delivery_claimed
@@ -1150,8 +1379,23 @@ impl __sdk::DbUpdate for DbUpdate {
                 "sender_mail_messages" => db_update
                     .sender_mail_messages
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_message_categories" => db_update
+                    .sender_message_categories
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_subscriptions" => db_update
+                    .sender_subscriptions
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_system_mail_pending" => db_update
                     .sender_system_mail_pending
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "total_accounts" => db_update
+                    .total_accounts
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "total_messages" => db_update
+                    .total_messages
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_account_configs" => db_update
+                    .visible_account_configs
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_account_emails" => db_update
                     .visible_account_emails
@@ -1167,6 +1411,9 @@ impl __sdk::DbUpdate for DbUpdate {
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_domains" => db_update
                     .visible_domains
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "visible_mail_messages" => db_update
+                    .visible_mail_messages
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_message_categories" => db_update
                     .visible_message_categories
@@ -1204,10 +1451,15 @@ pub struct AppliedDiff<'r> {
     active_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     active_unsubscribe_tokens: __sdk::TableAppliedDiff<'r, SubscriptionUnsubscribeToken>,
     admin_stalwart_config: __sdk::TableAppliedDiff<'r, StalwartConfig>,
+    category_message_counts: __sdk::TableAppliedDiff<'r, CategoryMessageCount>,
+    category_subscriber_counts: __sdk::TableAppliedDiff<'r, CategorySubscriberCount>,
     expire_stale_delivery_claims_schedule:
         __sdk::TableAppliedDiff<'r, ExpireStaleDeliveryClaimsSchedule>,
     requeue_temporary_failed_mails_schedule:
         __sdk::TableAppliedDiff<'r, RequeueTemporaryFailedMailsSchedule>,
+    sender_account_emails: __sdk::TableAppliedDiff<'r, AccountEmail>,
+    sender_accounts: __sdk::TableAppliedDiff<'r, Account>,
+    sender_category_app_passwords: __sdk::TableAppliedDiff<'r, CategoryAppPassword>,
     sender_mail_delivery_claimed: __sdk::TableAppliedDiff<'r, MailDeliveryClaimed>,
     sender_mail_delivery_done: __sdk::TableAppliedDiff<'r, MailDeliveryDone>,
     sender_mail_delivery_events: __sdk::TableAppliedDiff<'r, MailDeliveryEvent>,
@@ -1216,12 +1468,18 @@ pub struct AppliedDiff<'r> {
     sender_mail_delivery_temporary_failed: __sdk::TableAppliedDiff<'r, MailDeliveryTemporaryFailed>,
     sender_mail_ingress: __sdk::TableAppliedDiff<'r, MailIngress>,
     sender_mail_messages: __sdk::TableAppliedDiff<'r, MailMessage>,
+    sender_message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
+    sender_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     sender_system_mail_pending: __sdk::TableAppliedDiff<'r, SystemMailPending>,
+    total_accounts: __sdk::TableAppliedDiff<'r, CountRow>,
+    total_messages: __sdk::TableAppliedDiff<'r, CountRow>,
+    visible_account_configs: __sdk::TableAppliedDiff<'r, AccountConfig>,
     visible_account_emails: __sdk::TableAppliedDiff<'r, AccountEmail>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
     visible_admin_identities: __sdk::TableAppliedDiff<'r, AdminIdentity>,
     visible_category_app_passwords: __sdk::TableAppliedDiff<'r, CategoryAppPassword>,
     visible_domains: __sdk::TableAppliedDiff<'r, Domain>,
+    visible_mail_messages: __sdk::TableAppliedDiff<'r, MailMessage>,
     visible_message_categories: __sdk::TableAppliedDiff<'r, MessageCategory>,
     visible_message_category_topics: __sdk::TableAppliedDiff<'r, MessageCategoryTopic>,
     visible_messages: __sdk::TableAppliedDiff<'r, ReceivedMessage>,
@@ -1256,6 +1514,16 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.admin_stalwart_config,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<CategoryMessageCount>(
+            "category_message_counts",
+            &self.category_message_counts,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<CategorySubscriberCount>(
+            "category_subscriber_counts",
+            &self.category_subscriber_counts,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<ExpireStaleDeliveryClaimsSchedule>(
             "expire_stale_delivery_claims_schedule",
             &self.expire_stale_delivery_claims_schedule,
@@ -1264,6 +1532,21 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<RequeueTemporaryFailedMailsSchedule>(
             "requeue_temporary_failed_mails_schedule",
             &self.requeue_temporary_failed_mails_schedule,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<AccountEmail>(
+            "sender_account_emails",
+            &self.sender_account_emails,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<Account>(
+            "sender_accounts",
+            &self.sender_accounts,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<CategoryAppPassword>(
+            "sender_category_app_passwords",
+            &self.sender_category_app_passwords,
             event,
         );
         callbacks.invoke_table_row_callbacks::<MailDeliveryClaimed>(
@@ -1306,9 +1589,34 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.sender_mail_messages,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<MessageCategory>(
+            "sender_message_categories",
+            &self.sender_message_categories,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<Subscription>(
+            "sender_subscriptions",
+            &self.sender_subscriptions,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<SystemMailPending>(
             "sender_system_mail_pending",
             &self.sender_system_mail_pending,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<CountRow>(
+            "total_accounts",
+            &self.total_accounts,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<CountRow>(
+            "total_messages",
+            &self.total_messages,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<AccountConfig>(
+            "visible_account_configs",
+            &self.visible_account_configs,
             event,
         );
         callbacks.invoke_table_row_callbacks::<AccountEmail>(
@@ -1334,6 +1642,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<Domain>(
             "visible_domains",
             &self.visible_domains,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<MailMessage>(
+            "visible_mail_messages",
+            &self.visible_mail_messages,
             event,
         );
         callbacks.invoke_table_row_callbacks::<MessageCategory>(
@@ -2029,8 +2342,13 @@ impl __sdk::SpacetimeModule for RemoteModule {
         active_subscriptions_table::register_table(client_cache);
         active_unsubscribe_tokens_table::register_table(client_cache);
         admin_stalwart_config_table::register_table(client_cache);
+        category_message_counts_table::register_table(client_cache);
+        category_subscriber_counts_table::register_table(client_cache);
         expire_stale_delivery_claims_schedule_table::register_table(client_cache);
         requeue_temporary_failed_mails_schedule_table::register_table(client_cache);
+        sender_account_emails_table::register_table(client_cache);
+        sender_accounts_table::register_table(client_cache);
+        sender_category_app_passwords_table::register_table(client_cache);
         sender_mail_delivery_claimed_table::register_table(client_cache);
         sender_mail_delivery_done_table::register_table(client_cache);
         sender_mail_delivery_events_table::register_table(client_cache);
@@ -2039,12 +2357,18 @@ impl __sdk::SpacetimeModule for RemoteModule {
         sender_mail_delivery_temporary_failed_table::register_table(client_cache);
         sender_mail_ingress_table::register_table(client_cache);
         sender_mail_messages_table::register_table(client_cache);
+        sender_message_categories_table::register_table(client_cache);
+        sender_subscriptions_table::register_table(client_cache);
         sender_system_mail_pending_table::register_table(client_cache);
+        total_accounts_table::register_table(client_cache);
+        total_messages_table::register_table(client_cache);
+        visible_account_configs_table::register_table(client_cache);
         visible_account_emails_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
         visible_admin_identities_table::register_table(client_cache);
         visible_category_app_passwords_table::register_table(client_cache);
         visible_domains_table::register_table(client_cache);
+        visible_mail_messages_table::register_table(client_cache);
         visible_message_categories_table::register_table(client_cache);
         visible_message_category_topics_table::register_table(client_cache);
         visible_messages_table::register_table(client_cache);
@@ -2056,8 +2380,13 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "active_subscriptions",
         "active_unsubscribe_tokens",
         "admin_stalwart_config",
+        "category_message_counts",
+        "category_subscriber_counts",
         "expire_stale_delivery_claims_schedule",
         "requeue_temporary_failed_mails_schedule",
+        "sender_account_emails",
+        "sender_accounts",
+        "sender_category_app_passwords",
         "sender_mail_delivery_claimed",
         "sender_mail_delivery_done",
         "sender_mail_delivery_events",
@@ -2066,12 +2395,18 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "sender_mail_delivery_temporary_failed",
         "sender_mail_ingress",
         "sender_mail_messages",
+        "sender_message_categories",
+        "sender_subscriptions",
         "sender_system_mail_pending",
+        "total_accounts",
+        "total_messages",
+        "visible_account_configs",
         "visible_account_emails",
         "visible_accounts",
         "visible_admin_identities",
         "visible_category_app_passwords",
         "visible_domains",
+        "visible_mail_messages",
         "visible_message_categories",
         "visible_message_category_topics",
         "visible_messages",
