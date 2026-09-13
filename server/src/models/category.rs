@@ -15,6 +15,18 @@ pub enum SubscriptionPermission {
     Write,
 }
 
+impl SubscriptionPermission {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "read" => Ok(Self::Read),
+            "write" => Ok(Self::Write),
+            _ => Err(format!(
+                "Invalid subscription permission '{value}'; expected 'read' or 'write'"
+            )),
+        }
+    }
+}
+
 impl CategoryVisibility {
     pub fn parse(value: &str) -> Result<Self, String> {
         match value {
@@ -29,6 +41,7 @@ impl CategoryVisibility {
 
 // Private: clients never subscribe to this table directly. `visible_message_categories`
 // is the way clients read category rows.
+#[derive(Clone)]
 #[spacetimedb::table(accessor = message_categories)]
 pub struct MessageCategory {
     #[primary_key]
@@ -91,7 +104,7 @@ pub struct MessageCategoryTopic {
 
 /// Category data as sent by the Django user-sync webhook for a single
 /// mailing-list assignment (e.g. a Verteilpunkt).
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CategorySyncData {
     pub name: String,
     pub email_address: String,
@@ -104,6 +117,8 @@ pub struct CategorySyncData {
     pub topics: Option<Vec<String>>,
     #[serde(default)]
     pub required: bool,
+    #[serde(default)]
+    pub default_permission: Option<String>,
 }
 
 pub fn default_category_visibility() -> String {
@@ -177,4 +192,53 @@ pub struct SubscriptionUnsubscribeToken {
     pub created_at: Timestamp,
     pub active: bool,
     pub revoked_at: Timestamp,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_subscription_permission_parse() {
+        assert_eq!(
+            SubscriptionPermission::parse("read").unwrap(),
+            SubscriptionPermission::Read
+        );
+        assert_eq!(
+            SubscriptionPermission::parse("Read").unwrap(),
+            SubscriptionPermission::Read
+        );
+        assert_eq!(
+            SubscriptionPermission::parse("write").unwrap(),
+            SubscriptionPermission::Write
+        );
+        assert_eq!(
+            SubscriptionPermission::parse("WRITE").unwrap(),
+            SubscriptionPermission::Write
+        );
+        assert!(SubscriptionPermission::parse("invalid").is_err());
+    }
+
+    #[test]
+    fn test_category_sync_data_deserialization() {
+        let json_str = r#"{
+            "name": "VP Nord",
+            "email_address": "vp-nord@solawi.org",
+            "description": "Verteilpunkt Nord",
+            "topics": ["Verteilpunkt"],
+            "required": true,
+            "default_permission": "write"
+        }"#;
+
+        let data: CategorySyncData = serde_json::from_str(json_str).unwrap();
+        assert_eq!(data.name, "VP Nord");
+        assert_eq!(data.email_address, "vp-nord@solawi.org");
+        assert_eq!(data.topics, Some(vec!["Verteilpunkt".to_string()]));
+        assert!(data.required);
+        assert_eq!(data.default_permission.as_deref(), Some("write"));
+        assert_eq!(
+            SubscriptionPermission::parse(data.default_permission.as_deref().unwrap()).unwrap(),
+            SubscriptionPermission::Write
+        );
+    }
 }

@@ -1,5 +1,8 @@
 use crate::models::account::webhook_tokens;
-use crate::models::category::{message_categories, CategorySyncData, CategoryVisibility, MessageCategory};
+use crate::models::category::{
+    message_categories, CategorySyncData, CategoryVisibility, MessageCategory,
+    SubscriptionPermission,
+};
 use crate::models::mta::{blocked_ips, mta_connection_log, MtaConnectionLog};
 use crate::reducers::{do_sync_user, unsubscribe_subscription_by_token, UserSyncData};
 use crate::services::stalwart::category::provision_stalwart_category_mailbox;
@@ -373,12 +376,18 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
                     );
                     let visibility = CategoryVisibility::parse(&cat.visibility)
                         .unwrap_or(CategoryVisibility::Public);
+                    let default_perm = cat
+                        .default_permission
+                        .as_deref()
+                        .and_then(|p| SubscriptionPermission::parse(p).ok())
+                        .unwrap_or(SubscriptionPermission::Read);
                     if let Err(err) = provision_stalwart_category_mailbox(
                         ctx,
                         &cat.name,
                         &cat.email_address,
                         &cat.description,
                         visibility,
+                        default_perm,
                     ) {
                         log::error!(
                             "Failed to provision Stalwart mailbox for category '{}': {}",
@@ -454,6 +463,11 @@ fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> Http
             let cat = &payload.category;
             let visibility = CategoryVisibility::parse(&cat.visibility)
                 .unwrap_or(CategoryVisibility::Public);
+            let default_perm = cat
+                .default_permission
+                .as_deref()
+                .and_then(|p| SubscriptionPermission::parse(p).ok())
+                .unwrap_or(SubscriptionPermission::Read);
 
             let needs_provisioning = ctx.with_tx(|tx| {
                 match tx.db.message_categories().email_address().find(&cat.email_address) {
@@ -469,6 +483,7 @@ fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> Http
                     &cat.email_address,
                     &cat.description,
                     visibility,
+                    default_perm,
                 ) {
                     log::error!(
                         "Failed to provision Stalwart mailbox for category '{}': {}",
@@ -489,15 +504,44 @@ fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> Http
                         .email_address()
                         .find(&cat.email_address)
                     {
-                        let updated = MessageCategory {
+                        let mut updated = MessageCategory {
                             name: cat.name.clone(),
                             description: cat.description.clone(),
                             visibility,
                             ..existing
                         };
+                        if cat.default_permission.is_some() {
+                            updated.default_permission = default_perm;
+                        }
                         tx.db.message_categories().id().update(updated);
                     }
                 });
+            }
+
+            if let Some(topics) = &cat.topics {
+                let cat_id = ctx.with_tx(|tx| {
+                    tx.db
+                        .message_categories()
+                        .email_address()
+                        .find(&cat.email_address)
+                        .map(|c| c.id)
+                });
+                if let Some(category_id) = cat_id {
+                    let res = ctx.with_tx(|tx| {
+                        crate::reducers::categories::sync_category_topics(
+                            tx,
+                            category_id,
+                            topics.clone(),
+                        )
+                    });
+                    if let Err(err) = res {
+                        log::error!(
+                            "Failed to sync topics for category '{}': {}",
+                            cat.email_address,
+                            err
+                        );
+                    }
+                }
             }
 
             json_response(

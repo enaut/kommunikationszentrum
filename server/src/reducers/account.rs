@@ -313,6 +313,7 @@ pub(crate) fn do_sync_user(
                         category.visibility,
                         category.topics,
                         category.required,
+                        category.default_permission,
                     ) {
                         log::error!(
                             "Failed to add/subscribe category '{}' for account {}: {}",

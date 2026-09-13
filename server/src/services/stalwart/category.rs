@@ -128,6 +128,7 @@ pub fn provision_stalwart_category_mailbox(
     email_address: &str,
     description: &str,
     visibility: CategoryVisibility,
+    default_permission: SubscriptionPermission,
 ) -> Result<u64, String> {
     info!(
         "Provisioning Stalwart mailbox for category: name='{}', email='{}'",
@@ -291,7 +292,7 @@ pub fn provision_stalwart_category_mailbox(
                 active: true,
                 visibility,
                 app_password_id: Some(app_password.id),
-                default_permission: SubscriptionPermission::Read,
+                default_permission,
             });
             info!(
                 "Inserted new category {} ({}) with app_password_id {}",

@@ -215,14 +215,22 @@ pub(crate) fn do_add_subscription(
         .find(|sub| sub.category_id == category_id && sub.account_email_id == account_email_id);
 
     let subscription = if let Some(existing) = existing {
-        // When not forced and the new status is automatic, protect manual/link-unsubscribed state.
+        // When not forced and the new status is automatic, protect manual/link-unsubscribed status.
         if !force && status.is_automatic() && !existing.status.is_automatic() {
             return Ok(existing);
         }
+        let permission = if category.default_permission == SubscriptionPermission::Write
+            && existing.permission == SubscriptionPermission::Read
+        {
+            SubscriptionPermission::Write
+        } else {
+            existing.permission
+        };
         let updated = Subscription {
             account_email_id,
             subscribed_at: timestamp,
             status,
+            permission,
             ..existing
         };
         ctx.db.subscriptions().id().update(updated.clone());
@@ -347,7 +355,7 @@ pub fn admin_add_subscription(
 /// subscribes the given account to it. Categories are only ever added by this
 /// path, never updated or removed, so manual admin edits to an existing
 /// category are never overwritten by a sync.
-fn sync_category_topics(
+pub(crate) fn sync_category_topics(
     ctx: &ReducerContext,
     category_id: u64,
     topic_names: Vec<String>,
@@ -416,8 +424,12 @@ pub(crate) fn do_add_and_subscribe_category(
     visibility: String,
     topics: Option<Vec<String>>,
     required: bool,
+    default_permission: Option<String>,
 ) -> Result<(), String> {
     let visibility = CategoryVisibility::parse(&visibility)?;
+    let parsed_default_permission = default_permission
+        .as_deref()
+        .and_then(|p| SubscriptionPermission::parse(p).ok());
     let category = match ctx
         .db
         .message_categories()
@@ -425,13 +437,22 @@ pub(crate) fn do_add_and_subscribe_category(
         .find(&email_address)
     {
         Some(existing) => {
+            let mut updated = existing.clone();
+            let mut changed = false;
             // Visibility comes from the authoritative Django sync, unlike the
             // manually editable category content.
             if existing.visibility != visibility {
-                ctx.db.message_categories().id().update(MessageCategory {
-                    visibility,
-                    ..existing
-                });
+                updated.visibility = visibility;
+                changed = true;
+            }
+            if let Some(perm) = parsed_default_permission {
+                if existing.default_permission != perm {
+                    updated.default_permission = perm;
+                    changed = true;
+                }
+            }
+            if changed {
+                ctx.db.message_categories().id().update(updated);
             }
             ctx.db
                 .message_categories()
@@ -448,7 +469,8 @@ pub(crate) fn do_add_and_subscribe_category(
                 active: true,
                 visibility,
                 app_password_id: None,
-                default_permission: SubscriptionPermission::Read,
+                default_permission: parsed_default_permission
+                    .unwrap_or(SubscriptionPermission::Read),
             });
             ctx.db
                 .message_categories()
@@ -506,6 +528,7 @@ pub fn add_and_subscribe_category(
         visibility_str,
         None,
         false,
+        None,
     )
 }
 
@@ -795,6 +818,7 @@ pub fn provision_message_category(
         &email_address,
         &description,
         visibility,
+        SubscriptionPermission::Read,
     )?;
 
     Ok(())
@@ -814,19 +838,19 @@ pub fn provision_all_unprovisioned_categories(
     }
 
     // Collect all unprovisioned categories in a transaction
-    let unprovisioned: Vec<(String, String, String, CategoryVisibility)> = ctx.with_tx(|tx| {
+    let unprovisioned: Vec<(String, String, String, CategoryVisibility, SubscriptionPermission)> = ctx.with_tx(|tx| {
         tx.db
             .message_categories()
             .iter()
             .filter(|c| c.app_password_id.is_none())
-            .map(|c| (c.name.clone(), c.email_address.clone(), c.description.clone(), c.visibility))
+            .map(|c| (c.name.clone(), c.email_address.clone(), c.description.clone(), c.visibility, c.default_permission))
             .collect()
     });
 
     info!("Found {} unprovisioned categories", unprovisioned.len());
     let mut provisioned_count = 0u32;
 
-    for (name, email_address, description, visibility) in unprovisioned {
+    for (name, email_address, description, visibility, default_permission) in unprovisioned {
         info!("Provisioning category '{}' ({})", name, email_address);
         match provision_stalwart_category_mailbox(
             ctx,
@@ -834,6 +858,7 @@ pub fn provision_all_unprovisioned_categories(
             &email_address,
             &description,
             visibility,
+            default_permission,
         ) {
             Ok(_) => {
                 provisioned_count += 1;
