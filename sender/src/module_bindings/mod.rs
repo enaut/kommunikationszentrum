@@ -30,6 +30,7 @@ pub mod claim_next_mail_delivery_reducer;
 pub mod claim_next_mail_ingress_reducer;
 pub mod claim_state_type;
 pub mod claim_system_mail_reducer;
+pub mod clear_category_provisioning_lock_reducer;
 pub mod complete_mail_ingress_reducer;
 pub mod complete_system_mail_reducer;
 pub mod count_row_type;
@@ -149,6 +150,7 @@ pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
 pub use claim_next_mail_ingress_reducer::claim_next_mail_ingress;
 pub use claim_state_type::ClaimState;
 pub use claim_system_mail_reducer::claim_system_mail;
+pub use clear_category_provisioning_lock_reducer::clear_category_provisioning_lock;
 pub use complete_mail_ingress_reducer::complete_mail_ingress;
 pub use complete_system_mail_reducer::complete_system_mail;
 pub use count_row_type::CountRow;
@@ -294,6 +296,9 @@ pub enum Reducer {
         mail_id: u64,
         instance_id: String,
     },
+    ClearCategoryProvisioningLock {
+        category_id: u64,
+    },
     CompleteMailIngress {
         ingress_id: String,
         instance_id: String,
@@ -419,6 +424,8 @@ pub enum Reducer {
         name: String,
         description: String,
         visibility: Option<CategoryVisibility>,
+        default_permission: Option<SubscriptionPermission>,
+        clear_provisioning_lock: Option<bool>,
     },
     UpdateSubscriptionPermission {
         subscription_id: u64,
@@ -448,6 +455,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::ClaimNextMailDelivery { .. } => "claim_next_mail_delivery",
             Reducer::ClaimNextMailIngress { .. } => "claim_next_mail_ingress",
             Reducer::ClaimSystemMail { .. } => "claim_system_mail",
+            Reducer::ClearCategoryProvisioningLock { .. } => "clear_category_provisioning_lock",
             Reducer::CompleteMailIngress { .. } => "complete_mail_ingress",
             Reducer::CompleteSystemMail { .. } => "complete_system_mail",
             Reducer::CreateWebhookToken { .. } => "create_webhook_token",
@@ -564,6 +572,11 @@ impl __sdk::Reducer for Reducer {
 }             => __sats::bsatn::to_vec(&claim_system_mail_reducer::ClaimSystemMailArgs {
                 mail_id: mail_id.clone(),
                 instance_id: instance_id.clone(),
+}),
+            Reducer::ClearCategoryProvisioningLock{
+                category_id,
+}             => __sats::bsatn::to_vec(&clear_category_provisioning_lock_reducer::ClearCategoryProvisioningLockArgs {
+                category_id: category_id.clone(),
 }),
             Reducer::CompleteMailIngress{
                 ingress_id,
@@ -785,11 +798,15 @@ Reducer::EnqueueMailDelivery{
                 name,
                 description,
                 visibility,
+                default_permission,
+                clear_provisioning_lock,
 }             => __sats::bsatn::to_vec(&update_message_category_reducer::UpdateMessageCategoryArgs {
                 category_id: category_id.clone(),
                 name: name.clone(),
                 description: description.clone(),
                 visibility: visibility.clone(),
+                default_permission: default_permission.clone(),
+                clear_provisioning_lock: clear_provisioning_lock.clone(),
 }),
             Reducer::UpdateSubscriptionPermission{
                 subscription_id,

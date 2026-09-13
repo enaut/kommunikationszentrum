@@ -374,13 +374,27 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
                         "Provisioning Stalwart mailbox for category '{}' ({})",
                         cat.name, cat.email_address
                     );
-                    let visibility = CategoryVisibility::parse(&cat.visibility)
-                        .unwrap_or(CategoryVisibility::Public);
-                    let default_perm = cat
-                        .default_permission
-                        .as_deref()
-                        .and_then(|p| SubscriptionPermission::parse(p).ok())
-                        .unwrap_or(SubscriptionPermission::Read);
+                    let visibility = match CategoryVisibility::parse(&cat.visibility) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return json_response(
+                                400,
+                                json!({"error": format!("Invalid category visibility: {}", e)}),
+                            );
+                        }
+                    };
+                    let default_perm = match &cat.default_permission {
+                        Some(p) => match SubscriptionPermission::parse(p) {
+                            Ok(perm) => perm,
+                            Err(e) => {
+                                return json_response(
+                                    400,
+                                    json!({"error": format!("Invalid category default_permission: {}", e)}),
+                                );
+                            }
+                        },
+                        None => SubscriptionPermission::Read,
+                    };
                     if let Err(err) = provision_stalwart_category_mailbox(
                         ctx,
                         &cat.name,
@@ -461,13 +475,27 @@ fn category_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> Http
     match payload.action.as_str() {
         "upsert" => {
             let cat = &payload.category;
-            let visibility = CategoryVisibility::parse(&cat.visibility)
-                .unwrap_or(CategoryVisibility::Public);
-            let default_perm = cat
-                .default_permission
-                .as_deref()
-                .and_then(|p| SubscriptionPermission::parse(p).ok())
-                .unwrap_or(SubscriptionPermission::Read);
+            let visibility = match CategoryVisibility::parse(&cat.visibility) {
+                Ok(v) => v,
+                Err(e) => {
+                    return json_response(
+                        400,
+                        json!({"error": format!("Invalid category visibility: {}", e)}),
+                    );
+                }
+            };
+            let default_perm = match &cat.default_permission {
+                Some(p) => match SubscriptionPermission::parse(p) {
+                    Ok(perm) => perm,
+                    Err(e) => {
+                        return json_response(
+                            400,
+                            json!({"error": format!("Invalid category default_permission: {}", e)}),
+                        );
+                    }
+                },
+                None => SubscriptionPermission::Read,
+            };
 
             let needs_provisioning = ctx.with_tx(|tx| {
                 match tx.db.message_categories().email_address().find(&cat.email_address) {

@@ -2635,6 +2635,98 @@ pub fn use_reducer_claim_system_mail_async(
     }
 }
 
+/// Get a callback to invoke the `clear_category_provisioning_lock` reducer.
+#[must_use]
+pub fn use_reducer_clear_category_provisioning_lock(
+) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |category_id: u64| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.clear_category_provisioning_lock(category_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `clear_category_provisioning_lock` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_clear_category_provisioning_lock_then() -> (
+    impl Fn(u64) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |category_id: u64| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.clear_category_provisioning_lock_then(
+                category_id,
+                move |_ctx, res| {
+                    let _ = tx.send(res);
+                },
+            ) {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `clear_category_provisioning_lock` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_clear_category_provisioning_lock_async(
+) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |category_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.clear_category_provisioning_lock_then(category_id, move |_ctx, res| {
+                let _ = tx.send(res);
+            }) {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
 /// Get a callback to invoke the `complete_mail_ingress` reducer.
 #[must_use]
 pub fn use_reducer_complete_mail_ingress(
@@ -5430,8 +5522,14 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
 
 /// Get a callback to invoke the `update_message_category` reducer.
 #[must_use]
-pub fn use_reducer_update_message_category(
-) -> impl Fn(u64, String, String, Option<CategoryVisibility>) -> spacetimedb_sdk::Result<()>
+pub fn use_reducer_update_message_category() -> impl Fn(
+    u64,
+    String,
+    String,
+    Option<CategoryVisibility>,
+    Option<SubscriptionPermission>,
+    Option<bool>,
+) -> spacetimedb_sdk::Result<()>
        + Clone
        + 'static {
     let conn_signal = use_connection();
@@ -5439,10 +5537,18 @@ pub fn use_reducer_update_message_category(
     move |category_id: u64,
           name: String,
           description: String,
-          visibility: Option<CategoryVisibility>| {
+          visibility: Option<CategoryVisibility>,
+          default_permission: Option<SubscriptionPermission>,
+          clear_provisioning_lock: Option<bool>| {
         if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers
-                .update_message_category(category_id, name, description, visibility)
+            conn.reducers.update_message_category(
+                category_id,
+                name,
+                description,
+                visibility,
+                default_permission,
+                clear_provisioning_lock,
+            )
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
@@ -5456,7 +5562,15 @@ pub fn use_reducer_update_message_category(
 /// on failure once the server notifies completion.
 #[must_use]
 pub fn use_reducer_update_message_category_then() -> (
-    impl Fn(u64, String, String, Option<CategoryVisibility>) + Clone + 'static,
+    impl Fn(
+            u64,
+            String,
+            String,
+            Option<CategoryVisibility>,
+            Option<SubscriptionPermission>,
+            Option<bool>,
+        ) + Clone
+        + 'static,
     SyncSignal<Option<Result<(), String>>>,
 ) {
     let conn_signal = use_connection();
@@ -5465,7 +5579,9 @@ pub fn use_reducer_update_message_category_then() -> (
     let invoke = move |category_id: u64,
                        name: String,
                        description: String,
-                       visibility: Option<CategoryVisibility>| {
+                       visibility: Option<CategoryVisibility>,
+                       default_permission: Option<SubscriptionPermission>,
+                       clear_provisioning_lock: Option<bool>| {
         let mut result = result;
         result.set(None);
         if let Some(conn) = conn_signal().as_ref() {
@@ -5475,6 +5591,8 @@ pub fn use_reducer_update_message_category_then() -> (
                 name,
                 description,
                 visibility,
+                default_permission,
+                clear_provisioning_lock,
                 move |_ctx, res| {
                     let _ = tx.send(res);
                 },
@@ -5509,6 +5627,8 @@ pub fn use_reducer_update_message_category_async() -> impl Fn(
     String,
     String,
     Option<CategoryVisibility>,
+    Option<SubscriptionPermission>,
+    Option<bool>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
        + Clone
        + 'static {
@@ -5517,7 +5637,9 @@ pub fn use_reducer_update_message_category_async() -> impl Fn(
     move |category_id: u64,
           name: String,
           description: String,
-          visibility: Option<CategoryVisibility>|
+          visibility: Option<CategoryVisibility>,
+          default_permission: Option<SubscriptionPermission>,
+          clear_provisioning_lock: Option<bool>|
           -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
         let conn = conn_signal();
         Box::pin(async move {
@@ -5530,6 +5652,8 @@ pub fn use_reducer_update_message_category_async() -> impl Fn(
                 name,
                 description,
                 visibility,
+                default_permission,
+                clear_provisioning_lock,
                 move |_ctx, res| {
                     let _ = tx.send(res);
                 },

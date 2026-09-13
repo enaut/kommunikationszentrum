@@ -63,8 +63,8 @@ pub fn remove_message_category(ctx: &ReducerContext, category_id: u64) -> Result
     Ok(())
 }
 
-/// Updates the editable fields (name, description, visibility) of an existing message
-/// category. The `email_address` is immutable via this reducer since it is
+/// Updates the editable fields (name, description, visibility, default_permission, locked_is_provisioning)
+/// of an existing message category. The `email_address` is immutable via this reducer since it is
 /// used to route incoming mail and to match categories during user sync.
 #[spacetimedb::reducer]
 pub fn update_message_category(
@@ -73,6 +73,8 @@ pub fn update_message_category(
     name: String,
     description: String,
     visibility: Option<CategoryVisibility>,
+    default_permission: Option<SubscriptionPermission>,
+    clear_provisioning_lock: Option<bool>,
 ) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
@@ -88,18 +90,53 @@ pub fn update_message_category(
         return Err("Name must not be empty".to_string());
     }
 
-    let updated = MessageCategory {
+    let mut updated = MessageCategory {
         name,
         description,
         visibility: visibility.unwrap_or(existing.visibility),
+        default_permission: default_permission.unwrap_or(existing.default_permission),
         ..existing
     };
+
+    if clear_provisioning_lock.unwrap_or(false) {
+        updated.locked_is_provisioning = false;
+    }
+
     ctx.db.message_categories().id().update(updated);
     log::info!(
         "Updated message category {} (by identity: {:?})",
         category_id,
         ctx.sender()
     );
+    Ok(())
+}
+
+/// Clears the `locked_is_provisioning` flag on a category if it is set.
+/// Useful if an earlier provisioning run was interrupted or crashed.
+#[spacetimedb::reducer]
+pub fn clear_category_provisioning_lock(
+    ctx: &ReducerContext,
+    category_id: u64,
+) -> Result<(), String> {
+    if !is_admin_user(ctx) {
+        return Err("Unauthorized: Admin access required".to_string());
+    }
+    let mut category = ctx
+        .db
+        .message_categories()
+        .id()
+        .find(&category_id)
+        .ok_or_else(|| format!("Message category {} not found", category_id))?;
+
+    if category.locked_is_provisioning {
+        category.locked_is_provisioning = false;
+        ctx.db.message_categories().id().update(category);
+        log::info!(
+            "Cleared provisioning lock on category {} (by identity: {:?})",
+            category_id,
+            ctx.sender()
+        );
+    }
     Ok(())
 }
 
@@ -428,9 +465,10 @@ pub(crate) fn do_add_and_subscribe_category(
     default_permission: Option<String>,
 ) -> Result<(), String> {
     let visibility = CategoryVisibility::parse(&visibility)?;
-    let parsed_default_permission = default_permission
-        .as_deref()
-        .and_then(|p| SubscriptionPermission::parse(p).ok());
+    let parsed_default_permission = match default_permission.as_deref() {
+        Some(p) => Some(SubscriptionPermission::parse(p)?),
+        None => None,
+    };
     let category = match ctx
         .db
         .message_categories()

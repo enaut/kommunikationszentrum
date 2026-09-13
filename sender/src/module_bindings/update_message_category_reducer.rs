@@ -5,6 +5,7 @@
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 use super::category_visibility_type::CategoryVisibility;
+use super::subscription_permission_type::SubscriptionPermission;
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
@@ -13,6 +14,8 @@ pub(super) struct UpdateMessageCategoryArgs {
     pub name: String,
     pub description: String,
     pub visibility: Option<CategoryVisibility>,
+    pub default_permission: Option<SubscriptionPermission>,
+    pub clear_provisioning_lock: Option<bool>,
 }
 
 impl From<UpdateMessageCategoryArgs> for super::Reducer {
@@ -22,6 +25,8 @@ impl From<UpdateMessageCategoryArgs> for super::Reducer {
             name: args.name,
             description: args.description,
             visibility: args.visibility,
+            default_permission: args.default_permission,
+            clear_provisioning_lock: args.clear_provisioning_lock,
         }
     }
 }
@@ -47,8 +52,18 @@ pub trait update_message_category {
         name: String,
         description: String,
         visibility: Option<CategoryVisibility>,
+        default_permission: Option<SubscriptionPermission>,
+        clear_provisioning_lock: Option<bool>,
     ) -> __sdk::Result<()> {
-        self.update_message_category_then(category_id, name, description, visibility, |_, _| {})
+        self.update_message_category_then(
+            category_id,
+            name,
+            description,
+            visibility,
+            default_permission,
+            clear_provisioning_lock,
+            |_, _| {},
+        )
     }
 
     /// Request that the remote module invoke the reducer `update_message_category` to run as soon as possible,
@@ -63,6 +78,8 @@ pub trait update_message_category {
         name: String,
         description: String,
         visibility: Option<CategoryVisibility>,
+        default_permission: Option<SubscriptionPermission>,
+        clear_provisioning_lock: Option<bool>,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -77,6 +94,8 @@ impl update_message_category for super::RemoteReducers {
         name: String,
         description: String,
         visibility: Option<CategoryVisibility>,
+        default_permission: Option<SubscriptionPermission>,
+        clear_provisioning_lock: Option<bool>,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -88,6 +107,8 @@ impl update_message_category for super::RemoteReducers {
                 name,
                 description,
                 visibility,
+                default_permission,
+                clear_provisioning_lock,
             },
             callback,
         )

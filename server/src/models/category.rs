@@ -219,6 +219,31 @@ mod tests {
             SubscriptionPermission::Write
         );
         assert!(SubscriptionPermission::parse("invalid").is_err());
+        assert!(SubscriptionPermission::parse("writ").is_err());
+        assert!(SubscriptionPermission::parse("").is_err());
+    }
+
+    #[test]
+    fn test_category_visibility_parse() {
+        assert_eq!(
+            CategoryVisibility::parse("public").unwrap(),
+            CategoryVisibility::Public
+        );
+        assert_eq!(
+            CategoryVisibility::parse("Public").unwrap(),
+            CategoryVisibility::Public
+        );
+        assert_eq!(
+            CategoryVisibility::parse("private").unwrap(),
+            CategoryVisibility::Private
+        );
+        assert_eq!(
+            CategoryVisibility::parse("Private").unwrap(),
+            CategoryVisibility::Private
+        );
+        assert!(CategoryVisibility::parse("publc").is_err());
+        assert!(CategoryVisibility::parse("invalid").is_err());
+        assert!(CategoryVisibility::parse("").is_err());
     }
 
     #[test]
@@ -242,5 +267,19 @@ mod tests {
             SubscriptionPermission::parse(data.default_permission.as_deref().unwrap()).unwrap(),
             SubscriptionPermission::Write
         );
+    }
+
+    #[test]
+    fn test_category_sync_data_invalid_permission_detected() {
+        let json_str = r#"{
+            "name": "VP Nord",
+            "email_address": "vp-nord@solawi.org",
+            "description": "Verteilpunkt Nord",
+            "default_permission": "writ"
+        }"#;
+
+        let data: CategorySyncData = serde_json::from_str(json_str).unwrap();
+        assert_eq!(data.default_permission.as_deref(), Some("writ"));
+        assert!(SubscriptionPermission::parse(data.default_permission.as_deref().unwrap()).is_err());
     }
 }
