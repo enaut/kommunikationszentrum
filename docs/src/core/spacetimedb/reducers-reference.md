@@ -64,8 +64,9 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `update_subscription_permission` | Admin | `subscription_id: u64, permission: SubscriptionPermission` | Updates subscription permission mode (`Read` or `Write`). |
 | `remove_subscription` | User/Admin | `subscription_id: u64` | Unsubscribes account email (`ManuallyUnsubscribed`). Non-admins cannot remove `RequiredSubscribed`. |
 | `ensure_subscription_unsubscribe_token` | Admin/System | `subscription_id: u64` | Ensures an active unsubscribe token exists for the given subscription, reactivating or generating a new one. |
+| `user_unsubscribe_by_token` | User/Public | `token: String` | Unsubscribes a subscription by its one-click unsubscribe token (`LinkUnsubscribed`). |
 
-> **Note on List-Unsubscribe:** One-click unsubscription (`LinkUnsubscribed`) is executed via the HTTP endpoint `POST /mailing-list/unsubscribe` rather than a direct client reducer.
+> **Note on List-Unsubscribe:** One-click unsubscription (`LinkUnsubscribed`) can be executed via the Dioxus Admin frontend using the `user_unsubscribe_by_token` reducer, or via the HTTP endpoint `/mailing-list/unsubscribe` (which accepts RFC 8058 `POST` requests and redirects browser `GET` requests to the frontend).
 
 ### MTA Diagnostics & Log Reducers
 

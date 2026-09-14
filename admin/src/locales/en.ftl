@@ -283,3 +283,13 @@ email-verification-success-desc = Your email address has been successfully verif
 email-verification-failed-title = Verification failed
 email-verification-failed-desc = The confirmation link is invalid or has expired.
 email-verification-continue = Continue to Communication Center
+
+# Unsubscribe
+unsubscribe-title = Mailing List Unsubscribe
+unsubscribe-processing = Unsubscribing…
+unsubscribe-please-wait = Please wait while your unsubscription is being processed.
+unsubscribe-success-title = Successfully unsubscribed!
+unsubscribe-success-desc = You have been successfully unsubscribed from this mailing list.
+unsubscribe-failed-title = Unsubscription failed
+unsubscribe-failed-desc = The unsubscribe link is invalid, expired, or the subscription could not be found.
+unsubscribe-continue = Continue to Communication Center

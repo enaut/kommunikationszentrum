@@ -79,11 +79,36 @@ fn App() -> Element {
     let config = use_signal(AdminConfig::load);
     let (auth_state, login, logout) = use_oauth(config.read().oauth.clone());
 
+    let mut unsubscribe_token = use_signal(|| {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let params = oauth::auth_flow::parse_url_params();
+            if let Some(token) = params.get("unsubscribe_token").or_else(|| params.get("unsubscribe")) {
+                Some(token.clone())
+            } else if params.get("action").map(|s| s.as_str()) == Some("unsubscribe") {
+                params.get("token").cloned()
+            } else {
+                None
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            None::<String>
+        }
+    });
+
     let mut verification_token = use_signal(|| {
         #[cfg(target_arch = "wasm32")]
         {
             let params = oauth::auth_flow::parse_url_params();
-            params.get("token").cloned()
+            if params.contains_key("unsubscribe_token")
+                || params.contains_key("unsubscribe")
+                || params.get("action").map(|s| s.as_str()) == Some("unsubscribe")
+            {
+                None
+            } else {
+                params.get("token").cloned()
+            }
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -99,7 +124,26 @@ fn App() -> Element {
         ThemeProvider { theme }
         BootstrapHead {}
         BootstrapThemeProvider { theme: solawi_theme() }
-        if let Some(token) = verification_token.cloned() {
+        if let Some(token) = unsubscribe_token.cloned() {
+            {
+                let (is_authenticated, id_token) = match &*auth_state.read() {
+                    AuthState::Authenticated(u) => (true, u.id_token.clone()),
+                    _ => (false, None),
+                };
+                rsx! {
+                    pages::unsubscribe::UnsubscribePage {
+                        token,
+                        on_login: login,
+                        on_continue: if is_authenticated {
+                            Some(Callback::new(move |_| unsubscribe_token.set(None)))
+                        } else {
+                            None
+                        },
+                        id_token,
+                    }
+                }
+            }
+        } else if let Some(token) = verification_token.cloned() {
             {
                 let (is_authenticated, id_token) = match &*auth_state.read() {
                     AuthState::Authenticated(u) => (true, u.id_token.clone()),

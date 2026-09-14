@@ -131,10 +131,10 @@ All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 - **Examples**: `solawis.de`, `mail.example.org`
 
 ### `MAIL_UNSUBSCRIBE_BASE_URL`
-- **Default**: `{SPACETIMEDB_URI}/v1/database/{SPACETIMEDB_DATABASE_NAME}/route/mailing-list/unsubscribe`
+- **Default**: `FRONTEND_BASE_URL` / `APP_BASE_URL` (default: `http://127.0.0.1:8080`)
 - **Used by**: `sender`
-- **Description**: Base URL for generating RFC 8058 one-click unsubscribe links included in outbound headers and footer.
-- **Format**: Full HTTP/HTTPS URL
+- **Description**: Base URL for generating one-click unsubscribe links included in outbound headers. Defaults to the Admin frontend interface where unsubscription is handled interactively via the `user_unsubscribe_by_token` reducer.
+- **Format**: Full HTTP/HTTPS URL (e.g. `http://localhost:8080` or `https://admin.your-domain.com`)
 
 ### `OTLP_ENDPOINT`
 - **Default**: `http://localhost:4317`
@@ -228,7 +228,7 @@ SMTP_USE_TLS=false
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
 MAIL_MESSAGE_ID_DOMAIN=localhost
-MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe
+MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:8080
 OTLP_ENDPOINT=http://localhost:4317
 
 STALWART_JMAP_URL=http://localhost:8093/jmap
@@ -256,7 +256,7 @@ SMTP_USE_TLS=true
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
 MAIL_MESSAGE_ID_DOMAIN=your-domain.com
-MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.your-domain.com/v1/database/kommunikation/route/mailing-list/unsubscribe
+MAIL_UNSUBSCRIBE_BASE_URL=https://admin.your-domain.com
 OTLP_ENDPOINT=http://alloy.internal:4317
 
 STALWART_JMAP_URL=https://mail.your-domain.com:8093/jmap

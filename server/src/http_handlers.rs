@@ -281,7 +281,7 @@ fn query_param_token_from_query(query: Option<&str>) -> Option<String> {
         let mut parts = pair.splitn(2, '=');
         let key = parts.next()?.trim();
         let value = parts.next().unwrap_or_default().trim();
-        if key == "token" && !value.is_empty() {
+        if (key == "token" || key == "unsubscribe_token") && !value.is_empty() {
             return Some(value.to_string());
         }
     }
@@ -330,6 +330,24 @@ fn mailing_list_unsubscribe_handler(
 ) -> HttpResponse {
     let method = request.method().as_str().to_string();
     let query = request.uri().query().map(|q| q.to_string());
+
+    if method == "GET" {
+        if let Some(raw_token) = query_param_token_from_query(query.as_deref()) {
+            let token = urlencoding::decode(&raw_token)
+                .map(|s| s.into_owned())
+                .unwrap_or(raw_token);
+            let base_url = option_env!("FRONTEND_BASE_URL")
+                .unwrap_or(crate::models::account::FRONTEND_BASE_URL);
+            let redirect_url =
+                format!("{}/?unsubscribe_token={}", base_url.trim_end_matches('/'), token);
+            return HttpResponse::builder()
+                .status(303)
+                .header("location", redirect_url)
+                .body(Body::from_bytes(Vec::new()))
+                .unwrap();
+        }
+    }
+
     let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
 
     let token = match parse_unsubscribe_token(&method, query.as_deref(), &body_bytes) {
@@ -635,6 +653,10 @@ fn router() -> Router {
             "/mailing-list/unsubscribe",
             mailing_list_unsubscribe_handler,
         )
+        .get(
+            "/mailing-list/unsubscribe",
+            mailing_list_unsubscribe_handler,
+        )
 }
 
 #[cfg(test)]
@@ -727,6 +749,20 @@ mod tests {
         )
         .expect_err("should reject non-POST request");
         assert_eq!(err, (405, "method not allowed"));
+    }
+
+    #[test]
+    fn test_query_param_token_from_query() {
+        assert_eq!(
+            query_param_token_from_query(Some("token=sub-123")),
+            Some("sub-123".to_string())
+        );
+        assert_eq!(
+            query_param_token_from_query(Some("foo=bar&token=sub-456&baz=qux")),
+            Some("sub-456".to_string())
+        );
+        assert_eq!(query_param_token_from_query(Some("token=")), None);
+        assert_eq!(query_param_token_from_query(None), None);
     }
 }
 

@@ -112,6 +112,7 @@ pub mod update_account_config_reducer;
 pub mod update_message_topic_reducer;
 pub mod update_subscription_permission_reducer;
 pub mod user_request_email_verification_reducer;
+pub mod user_unsubscribe_by_token_reducer;
 pub mod user_verify_email_reducer;
 pub mod visible_account_configs_table;
 pub mod visible_account_emails_table;
@@ -232,6 +233,7 @@ pub use update_account_config_reducer::update_account_config;
 pub use update_message_topic_reducer::update_message_topic;
 pub use update_subscription_permission_reducer::update_subscription_permission;
 pub use user_request_email_verification_reducer::user_request_email_verification;
+pub use user_unsubscribe_by_token_reducer::user_unsubscribe_by_token;
 pub use user_verify_email_reducer::user_verify_email;
 pub use visible_account_configs_table::*;
 pub use visible_account_emails_table::*;
@@ -436,6 +438,9 @@ pub enum Reducer {
     UserRequestEmailVerification {
         email: String,
     },
+    UserUnsubscribeByToken {
+        token: String,
+    },
     UserVerifyEmail {
         token: String,
     },
@@ -493,6 +498,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::UpdateMessageTopic { .. } => "update_message_topic",
             Reducer::UpdateSubscriptionPermission { .. } => "update_subscription_permission",
             Reducer::UserRequestEmailVerification { .. } => "user_request_email_verification",
+            Reducer::UserUnsubscribeByToken { .. } => "user_unsubscribe_by_token",
             Reducer::UserVerifyEmail { .. } => "user_verify_email",
             _ => unreachable!(),
         }
@@ -821,6 +827,11 @@ Reducer::EnqueueMailDelivery{
                 email,
 }             => __sats::bsatn::to_vec(&user_request_email_verification_reducer::UserRequestEmailVerificationArgs {
                 email: email.clone(),
+}),
+            Reducer::UserUnsubscribeByToken{
+                token,
+}             => __sats::bsatn::to_vec(&user_unsubscribe_by_token_reducer::UserUnsubscribeByTokenArgs {
+                token: token.clone(),
 }),
             Reducer::UserVerifyEmail{
                 token,
