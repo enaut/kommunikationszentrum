@@ -21,7 +21,7 @@ All sender daemon configuration is loaded at startup from **environment variable
 | `SMTP_ACCEPT_INVALID_CERTS` | `false` | Accept expired or self-signed SMTP server certificates when TLS is enabled |
 | `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | Accept mismatched certificate hostnames for SMTP TLS connections |
 | `MAIL_MESSAGE_ID_DOMAIN` | derived from `SPACETIMEDB_URI` / `solawis.de` | Domain used in generated `Message-ID` headers |
-| `MAIL_UNSUBSCRIBE_BASE_URL` | `FRONTEND_BASE_URL` (default: `http://127.0.0.1:8080`) | Base URL for one-click unsubscribe links in outbound mail |
+| `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | Endpoint for RFC 8058 HTTPS one-click unsubscribe links |
 | `OTLP_ENDPOINT` | `http://localhost:4317` | OpenTelemetry gRPC collector endpoint (Alloy / Jaeger) |
 | `RUST_LOG` | `sender=info` | Tracing log filter directive |
 
@@ -44,7 +44,7 @@ SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
 
 MAIL_MESSAGE_ID_DOMAIN=localhost
-MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:8080
+MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe
 
 OTLP_ENDPOINT=http://localhost:4317
 RUST_LOG=sender=debug
@@ -64,7 +64,7 @@ SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
 
 MAIL_MESSAGE_ID_DOMAIN=solawis.de
-MAIL_UNSUBSCRIBE_BASE_URL=https://admin.example.org
+MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.example.org/v1/database/kommunikation/route/mailing-list/unsubscribe
 
 OTLP_ENDPOINT=http://alloy.internal:4317
 RUST_LOG=sender=info

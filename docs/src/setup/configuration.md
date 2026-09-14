@@ -41,7 +41,7 @@ All components support environment-based configuration with sensible defaults fo
 | `SMTP_ACCEPT_INVALID_CERTS` | `false` | sender | Accept self-signed certificates (dev only) |
 | `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | sender | Accept mismatched hostnames (dev only) |
 | `MAIL_MESSAGE_ID_DOMAIN` | host of `SPACETIMEDB_URI` / `solawis.de` | sender | Domain for generated Message-ID headers |
-| `MAIL_UNSUBSCRIBE_BASE_URL` | `FRONTEND_BASE_URL` (`http://127.0.0.1:8080`) | sender | Base URL for one-click unsubscribe links (admin UI) |
+| `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | sender | Endpoint for RFC 8058 one-click unsubscribe links |
 | `OTLP_ENDPOINT` | `http://localhost:4317` | sender | OpenTelemetry collector endpoint |
 
 > [!NOTE]
@@ -103,7 +103,7 @@ SMTP_USE_TLS=false
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
 MAIL_MESSAGE_ID_DOMAIN=localhost
-MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:8080
+MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://localhost:4317
 
 # Stalwart JMAP Configuration (Server fallback)
@@ -136,7 +136,7 @@ SMTP_USE_TLS=true
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
 MAIL_MESSAGE_ID_DOMAIN=your-domain.com
-MAIL_UNSUBSCRIBE_BASE_URL=https://admin.your-domain.com
+MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.your-domain.com/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://alloy.internal:4317
 
 STALWART_JMAP_URL=https://mail.your-domain.com:8093/jmap
