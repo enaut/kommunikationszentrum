@@ -41,7 +41,7 @@ All components support environment-based configuration with sensible defaults fo
 | `SMTP_ACCEPT_INVALID_CERTS` | `false` | sender | Accept self-signed certificates (dev only) |
 | `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | sender | Accept mismatched hostnames (dev only) |
 | `MAIL_MESSAGE_ID_DOMAIN` | host of `SPACETIMEDB_URI` / `solawis.de` | sender | Domain for generated Message-ID headers |
-| `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | sender | Base URL for one-click unsubscribe links |
+| `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | sender | Endpoint for RFC 8058 one-click unsubscribe links |
 | `OTLP_ENDPOINT` | `http://localhost:4317` | sender | OpenTelemetry collector endpoint |
 
 > [!NOTE]

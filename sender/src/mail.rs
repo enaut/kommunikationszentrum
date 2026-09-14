@@ -158,7 +158,7 @@ pub fn compose_delivery(
         message_id_seed(ingress_id, recipient_email),
         config.message_id_domain
     );
-    let unsubscribe_url = format!("{}?token={}", config.unsubscribe_base_url, token.token);
+    let unsubscribe_url = build_unsubscribe_url(&config.unsubscribe_base_url, &token.token);
     trace!("Unsubscribe url {unsubscribe_url}");
 
     trace!("Building list-mail for {list_email} to {recipient_email}");
@@ -343,3 +343,70 @@ fn message_id_seed(ingress_id: &str, recipient_email: &str) -> String {
         recipient_email.replace('@', "-at-")
     )
 }
+
+pub fn build_unsubscribe_url(base_url: &str, token: &str) -> String {
+    if base_url.ends_with('=') {
+        format!("{base_url}{token}")
+    } else if base_url.contains('?') {
+        format!("{base_url}&token={token}")
+    } else {
+        let base = base_url.trim_end_matches('/');
+        if base.ends_with("/unsubscribe") {
+            format!("{base}?token={token}")
+        } else {
+            format!("{base}/?unsubscribe_token={token}")
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_unsubscribe_url_spacetimedb_route() {
+        assert_eq!(
+            build_unsubscribe_url(
+                "http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe",
+                "sub-1-abc"
+            ),
+            "http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe?token=sub-1-abc"
+        );
+        assert_eq!(
+            build_unsubscribe_url(
+                "http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe/",
+                "sub-1-abc"
+            ),
+            "http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe?token=sub-1-abc"
+        );
+    }
+
+    #[test]
+    fn test_build_unsubscribe_url_frontend_base() {
+        assert_eq!(
+            build_unsubscribe_url("http://127.0.0.1:8080", "sub-1-abc"),
+            "http://127.0.0.1:8080/?unsubscribe_token=sub-1-abc"
+        );
+        assert_eq!(
+            build_unsubscribe_url("http://127.0.0.1:8080/", "sub-1-abc"),
+            "http://127.0.0.1:8080/?unsubscribe_token=sub-1-abc"
+        );
+    }
+
+    #[test]
+    fn test_build_unsubscribe_url_with_existing_query() {
+        assert_eq!(
+            build_unsubscribe_url("https://admin.example.org/path?foo=bar", "sub-1-abc"),
+            "https://admin.example.org/path?foo=bar&token=sub-1-abc"
+        );
+    }
+
+    #[test]
+    fn test_build_unsubscribe_url_with_custom_param() {
+        assert_eq!(
+            build_unsubscribe_url("https://admin.example.org/?unsubscribe=", "sub-1-abc"),
+            "https://admin.example.org/?unsubscribe=sub-1-abc"
+        );
+    }
+}
+

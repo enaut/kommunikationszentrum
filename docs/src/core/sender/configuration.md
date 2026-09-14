@@ -21,7 +21,7 @@ All sender daemon configuration is loaded at startup from **environment variable
 | `SMTP_ACCEPT_INVALID_CERTS` | `false` | Accept expired or self-signed SMTP server certificates when TLS is enabled |
 | `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | Accept mismatched certificate hostnames for SMTP TLS connections |
 | `MAIL_MESSAGE_ID_DOMAIN` | derived from `SPACETIMEDB_URI` / `solawis.de` | Domain used in generated `Message-ID` headers |
-| `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | Endpoint for HTTPS one-click unsubscribe links |
+| `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | Endpoint for RFC 8058 HTTPS one-click unsubscribe links |
 | `OTLP_ENDPOINT` | `http://localhost:4317` | OpenTelemetry gRPC collector endpoint (Alloy / Jaeger) |
 | `RUST_LOG` | `sender=info` | Tracing log filter directive |
 

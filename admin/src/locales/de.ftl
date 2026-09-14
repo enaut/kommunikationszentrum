@@ -273,3 +273,23 @@ status-done-sent = gesendet
 status-done-failed = fehlgeschlagen
 status-done-bounced = gebounced
 status-done-cancelled = abgebrochen
+
+# Email verification
+email-verification-title = E-Mail-Bestätigung
+email-verification-verifying = E-Mail-Adresse wird bestätigt…
+email-verification-please-wait = Bitte warten, während der Bestätigungslink geprüft wird.
+email-verification-success-title = E-Mail-Adresse bestätigt!
+email-verification-success-desc = Deine E-Mail-Adresse wurde erfolgreich bestätigt und aktiviert.
+email-verification-failed-title = Bestätigung fehlgeschlagen
+email-verification-failed-desc = Der Bestätigungslink ist ungültig oder abgelaufen.
+email-verification-continue = Weiter zum Kommunikationszentrum
+
+# Unsubscribe
+unsubscribe-title = Mailingliste abbestellen
+unsubscribe-processing = Abmeldung wird durchgeführt…
+unsubscribe-please-wait = Bitte warten, während die Abmeldung durchgeführt wird.
+unsubscribe-success-title = Erfolgreich abgemeldet!
+unsubscribe-success-desc = Du wurdest erfolgreich von dieser Mailingliste abgemeldet.
+unsubscribe-failed-title = Abmeldung fehlgeschlagen
+unsubscribe-failed-desc = Der Abmeldelink ist ungültig, abgelaufen oder das Abonnement wurde nicht gefunden.
+unsubscribe-continue = Weiter zum Kommunikationszentrum

@@ -133,8 +133,8 @@ All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 ### `MAIL_UNSUBSCRIBE_BASE_URL`
 - **Default**: `{SPACETIMEDB_URI}/v1/database/{SPACETIMEDB_DATABASE_NAME}/route/mailing-list/unsubscribe`
 - **Used by**: `sender`
-- **Description**: Base URL for generating RFC 8058 one-click unsubscribe links included in outbound headers and footer.
-- **Format**: Full HTTP/HTTPS URL
+- **Description**: Base URL for generating RFC 8058 one-click unsubscribe links included in outbound `List-Unsubscribe` headers. Points to the SpacetimeDB HTTP endpoint, which processes RFC 8058 `POST` requests directly and redirects browser `GET` requests to the Admin frontend UI.
+- **Format**: Full HTTP/HTTPS URL (e.g. `http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe` or `https://spacetimedb.your-domain.com/v1/database/kommunikation/route/mailing-list/unsubscribe`)
 
 ### `OTLP_ENDPOINT`
 - **Default**: `http://localhost:4317`

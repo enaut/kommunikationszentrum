@@ -758,6 +758,11 @@ pub fn ensure_subscription_unsubscribe_token(ctx: &ReducerContext, subscription_
     upsert_subscription_unsubscribe_token(ctx, subscription_id);
 }
 
+#[spacetimedb::reducer]
+pub fn user_unsubscribe_by_token(ctx: &ReducerContext, token: String) -> Result<(), String> {
+    unsubscribe_subscription_by_token(ctx, token)
+}
+
 pub(crate) fn unsubscribe_subscription_by_token(
     ctx: &ReducerContext,
     token: String,

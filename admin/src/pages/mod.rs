@@ -5,6 +5,8 @@ pub mod management;
 pub mod members;
 pub mod messages;
 pub mod subscriptions;
+pub mod unsubscribe;
+pub mod verify_email;
 
 /// Whether a subscription with this status should currently receive mail.
 /// Mirrors `SubscriptionStatus::is_active` on the server.

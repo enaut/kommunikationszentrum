@@ -5838,6 +5838,98 @@ pub fn use_reducer_user_request_email_verification_async(
     }
 }
 
+/// Get a callback to invoke the `user_unsubscribe_by_token` reducer.
+#[must_use]
+pub fn use_reducer_user_unsubscribe_by_token(
+) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |token: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.user_unsubscribe_by_token(token)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `user_unsubscribe_by_token` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_user_unsubscribe_by_token_then() -> (
+    impl Fn(String) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |token: String| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn
+                .reducers
+                .user_unsubscribe_by_token_then(token, move |_ctx, res| {
+                    let _ = tx.send(res);
+                })
+            {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `user_unsubscribe_by_token` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_user_unsubscribe_by_token_async(
+) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |token: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.user_unsubscribe_by_token_then(token, move |_ctx, res| {
+                let _ = tx.send(res);
+            }) {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
 /// Get a callback to invoke the `user_verify_email` reducer.
 #[must_use]
 pub fn use_reducer_user_verify_email(
