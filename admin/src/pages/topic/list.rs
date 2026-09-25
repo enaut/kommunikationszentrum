@@ -6,9 +6,8 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_procedure_provision_message_topic, use_reducer_remove_message_topic,
-    use_subscription, use_table_visible_domains, use_table_visible_message_topics,
-    use_table_topic_subscriber_counts,
+    use_procedure_provision_message_topic, use_reducer_remove_message_topic, use_subscription,
+    use_table_topic_subscriber_counts, use_table_visible_domains, use_table_visible_message_topics,
 };
 use crate::module_bindings::TopicVisibility;
 use crate::pages::topic::detail::TopicDetailPage;
@@ -49,10 +48,7 @@ pub fn AddTopicCard() -> Element {
                             selected_domain.set(None);
                             description.set(String::new());
                             visibility.set(TopicVisibility::Public);
-                            add_error.set(Some((
-                                tid!("topic-add-success"),
-                                Color::Success,
-                            )));
+                            add_error.set(Some((tid!("topic-add-success"), Color::Success)));
                         }
                         Err(proc_err) => {
                             error!("provision_message_topic failed: {proc_err}");

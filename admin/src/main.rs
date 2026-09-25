@@ -83,7 +83,10 @@ fn App() -> Element {
         #[cfg(target_arch = "wasm32")]
         {
             let params = oauth::auth_flow::parse_url_params();
-            if let Some(token) = params.get("unsubscribe_token").or_else(|| params.get("unsubscribe")) {
+            if let Some(token) = params
+                .get("unsubscribe_token")
+                .or_else(|| params.get("unsubscribe"))
+            {
                 Some(token.clone())
             } else if params.get("action").map(|s| s.as_str()) == Some("unsubscribe") {
                 params.get("token").cloned()
@@ -252,11 +255,41 @@ fn AuthenticatedApp(
     let uri = config.read().spacetimedb_uri.clone();
     let module_name = config.read().spacetimedb_module_name.clone();
 
-    info!("Authenticated as: {}", user_info.mitgliedsnr);
+    info!("Authenticated as: {}", user_info.subject_id);
 
     let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.id_token.clone());
 
     let state = use_connection_state();
+    let register_self = module_bindings::dioxus::use_reducer_register_self();
+    let mut registered = use_signal(|| false);
+
+    let user_info_for_effect = user_info.clone();
+    use_effect(move || {
+        if matches!(state(), ConnectionState::Connected(_, _)) && !*registered.read() {
+            let name = user_info_for_effect
+                .name
+                .clone()
+                .or_else(|| {
+                    match (
+                        &user_info_for_effect.given_name,
+                        &user_info_for_effect.family_name,
+                    ) {
+                        (Some(g), Some(f)) => Some(format!("{} {}", g, f)),
+                        (Some(g), None) => Some(g.clone()),
+                        (None, Some(f)) => Some(f.clone()),
+                        (None, None) => None,
+                    }
+                })
+                .unwrap_or_else(|| user_info_for_effect.username.clone());
+            let email = user_info_for_effect.email.clone().unwrap_or_default();
+            if let Err(e) = register_self(user_info_for_effect.subject_id.clone(), name, email) {
+                ::dioxus::logger::tracing::warn!("Failed to call register_self: {:?}", e);
+            } else {
+                registered.set(true);
+            }
+        }
+    });
+
     let active_view = use_signal(|| ActiveView::MySubscriptions);
 
     rsx! {

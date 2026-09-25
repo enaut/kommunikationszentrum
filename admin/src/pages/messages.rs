@@ -5,11 +5,9 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_subscription, use_table_visible_mail_messages,
-    use_table_visible_message_topics, use_table_visible_messages,
-    use_table_visible_subscriptions, use_table_visible_account_configs,
-    use_reducer_update_account_config,
-    use_table_total_messages, use_table_topic_message_counts,
+    use_reducer_update_account_config, use_subscription, use_table_topic_message_counts,
+    use_table_total_messages, use_table_visible_account_configs, use_table_visible_mail_messages,
+    use_table_visible_message_topics, use_table_visible_messages, use_table_visible_subscriptions,
 };
 use crate::module_bindings::{MailMessage, ReceivedMessage};
 use crate::oauth::UserInfo;
@@ -95,9 +93,9 @@ fn topic_badge_color(topic_id: u64) -> Color {
 
 #[component]
 pub fn MessagesPage(user_info: UserInfo) -> Element {
-
     // We subscribe to messages and mail_messages instead of calling reducers
     use_subscription(&[
+        "SELECT * FROM visible_accounts",
         "SELECT * FROM visible_messages",
         "SELECT * FROM visible_mail_messages",
         "SELECT * FROM visible_message_topics",
@@ -117,12 +115,17 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let topic_message_counts_table = use_table_topic_message_counts();
     let update_config = use_reducer_update_account_config();
 
-    let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
+    let accounts = crate::module_bindings::dioxus::use_table_visible_accounts();
+    let account_id = accounts()
+        .into_iter()
+        .find(|a| a.external_id == user_info.subject_id)
+        .map(|a| a.id)
+        .unwrap_or(0);
     let config = configs().into_iter().next();
     let filter_topic = config.as_ref().and_then(|c| c.selected_message_topic);
     let current_offset = config.as_ref().map(|c| c.message_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.message_limit).unwrap_or(50);
-    
+
     let total_msgs = if let Some(top_id) = filter_topic {
         topic_message_counts_table()
             .into_iter()

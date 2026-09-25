@@ -204,9 +204,8 @@ pub fn provision_stalwart_topic_mailbox(
             let _ = do_sync_stalwart_domains(ctx);
             domain = ctx.with_tx(|tx| tx.db.domains().name().find(&domain_name.to_string()));
         }
-        let domain = domain.ok_or_else(|| {
-            format!("Domain '{}' not found in Stalwart domains", domain_name)
-        })?;
+        let domain = domain
+            .ok_or_else(|| format!("Domain '{}' not found in Stalwart domains", domain_name))?;
         let domain_id = domain.id;
 
         // 3) Check if account already exists in Stalwart
@@ -240,7 +239,10 @@ pub fn provision_stalwart_topic_mailbox(
 
         let account_id = match existing_account_id {
             Some(id) => {
-                info!("Found existing Stalwart account '{}' with id '{}'", base, id);
+                info!(
+                    "Found existing Stalwart account '{}' with id '{}'",
+                    base, id
+                );
                 id
             }
             None => {
@@ -282,18 +284,37 @@ pub fn provision_stalwart_topic_mailbox(
                 let account_res = send_stalwart_jmap_request(ctx, account_payload)?;
                 let account_result = jmap_method_result_by_name(&account_res, "x:Account/set")?;
 
-                if let Some(created) = account_result.get("created").and_then(|c| c.get("create-1")) {
+                if let Some(created) = account_result
+                    .get("created")
+                    .and_then(|c| c.get("create-1"))
+                {
                     jmap_created_id(created).ok_or_else(|| {
-                        format!("Missing created account id in JMAP response: {}", account_res)
+                        format!(
+                            "Missing created account id in JMAP response: {}",
+                            account_res
+                        )
                     })?
-                } else if let Some(not_created) = account_result.get("notCreated").and_then(|nc| nc.get("create-1")) {
-                    if let Some(id) = not_created.get("objectId").and_then(|o| o.get("id")).and_then(|id| id.as_str()) {
+                } else if let Some(not_created) = account_result
+                    .get("notCreated")
+                    .and_then(|nc| nc.get("create-1"))
+                {
+                    if let Some(id) = not_created
+                        .get("objectId")
+                        .and_then(|o| o.get("id"))
+                        .and_then(|id| id.as_str())
+                    {
                         id.to_string()
                     } else {
-                        return Err(format!("JMAP x:Account/set reported notCreated: {}", not_created));
+                        return Err(format!(
+                            "JMAP x:Account/set reported notCreated: {}",
+                            not_created
+                        ));
                     }
                 } else {
-                    return Err(format!("Invalid response from x:Account/set: {}", account_res));
+                    return Err(format!(
+                        "Invalid response from x:Account/set: {}",
+                        account_res
+                    ));
                 }
             }
         };

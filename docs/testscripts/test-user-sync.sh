@@ -46,7 +46,7 @@ print_status $BLUE "Testing user upsert..."
 UPSERT_PAYLOAD='{
     "action": "upsert",
     "user": {
-        "mitgliedsnr": 123456,
+        "external_id": "123456",
         "name": "Test User",
         "email": "test@example.com",
         "is_active": true,
@@ -79,7 +79,7 @@ print_status $BLUE "Testing user update..."
 UPDATE_PAYLOAD='{
     "action": "upsert",
     "user": {
-        "mitgliedsnr": 123456,
+        "external_id": "123456",
         "name": "Updated Test User",
         "email": "updated@example.com",
         "is_active": false,
@@ -112,7 +112,7 @@ print_status $BLUE "Testing user delete..."
 DELETE_PAYLOAD='{
     "action": "delete",
     "user": {
-        "mitgliedsnr": 123456,
+        "external_id": "123456",
         "name": null,
         "email": null,
         "is_active": null,

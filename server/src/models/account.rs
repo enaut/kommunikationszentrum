@@ -1,9 +1,9 @@
 use spacetimedb::{Identity, Timestamp};
 
 // Configuration constants that can be set at compile time via environment variables
-pub const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
+pub const OIDC_ISSUER_URL: &str = match option_env!("OIDC_ISSUER_URL") {
     Some(url) => url,
-    None => "http://127.0.0.1:8000",
+    None => "http://127.0.0.1:8000/o",
 };
 
 pub const FRONTEND_BASE_URL: &str = match option_env!("FRONTEND_BASE_URL") {
@@ -14,11 +14,9 @@ pub const FRONTEND_BASE_URL: &str = match option_env!("FRONTEND_BASE_URL") {
     },
 };
 
-pub const DJANGO_OAUTH_ISSUER_PATH: &str = "/o";
-
 #[derive(spacetimedb::SpacetimeType, Debug, Clone, PartialEq)]
 pub enum EmailSource {
-    DjangoSync,
+    ExternalSync,
     Native,
 }
 
@@ -42,7 +40,10 @@ pub struct AccountEmail {
 #[spacetimedb::table(accessor = account)]
 pub struct Account {
     #[primary_key]
-    pub id: u64, // mitgliedsnr from Django
+    #[auto_inc]
+    pub id: u64,
+    #[unique]
+    pub external_id: String, // OIDC sub claim
     #[unique]
     pub identity: Identity,
     pub name: String,
@@ -66,7 +67,7 @@ pub struct AccountConfig {
     pub member_offset: u32,
     pub member_limit: u32,
     pub member_search_query: Option<String>,
-    
+
     pub viewing_topic_id: Option<u64>,
 
     pub language: Option<String>,
@@ -115,7 +116,7 @@ where
     F: FnMut() -> bool,
 {
     acc.id.to_string().contains(q)
+        || acc.external_id.to_lowercase().contains(q)
         || acc.name.to_lowercase().contains(q)
         || has_matching_email()
 }
-

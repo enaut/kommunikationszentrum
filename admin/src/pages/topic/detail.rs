@@ -5,10 +5,10 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_reducer_clear_topic_provisioning_lock, use_reducer_update_message_topic,
-    use_subscription, use_table_visible_account_emails, use_table_visible_accounts,
-    use_table_visible_categories, use_table_visible_message_topic_categories,
-    use_table_visible_message_topics, use_table_visible_subscriptions,
+    use_reducer_clear_topic_provisioning_lock, use_reducer_update_message_topic, use_subscription,
+    use_table_visible_account_emails, use_table_visible_accounts, use_table_visible_categories,
+    use_table_visible_message_topic_categories, use_table_visible_message_topics,
+    use_table_visible_subscriptions,
 };
 use crate::module_bindings::{MessageTopic, SubscriptionPermission, TopicVisibility};
 use crate::pages::topic::categories::TopicCategoriesCard;
@@ -253,7 +253,9 @@ pub fn TopicDetailPage(topic_id: u64, on_back: EventHandler<()>) -> Element {
                 .iter()
                 .filter(|e| e.account_id == a.id)
                 .collect();
-            acct_emails.iter().any(|e| e.is_verified && !topic_subscribed_email_ids.contains(&e.id))
+            acct_emails
+                .iter()
+                .any(|e| e.is_verified && !topic_subscribed_email_ids.contains(&e.id))
         })
         .collect();
 

@@ -8,6 +8,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[sats(crate = __lib)]
 pub struct Account {
     pub id: u64,
+    pub external_id: String,
     pub identity: __sdk::Identity,
     pub name: String,
     pub primary_email_id: u64,
@@ -24,6 +25,7 @@ impl __sdk::InModule for Account {
 /// Provides typed access to columns for query building.
 pub struct AccountCols {
     pub id: __sdk::__query_builder::Col<Account, u64>,
+    pub external_id: __sdk::__query_builder::Col<Account, String>,
     pub identity: __sdk::__query_builder::Col<Account, __sdk::Identity>,
     pub name: __sdk::__query_builder::Col<Account, String>,
     pub primary_email_id: __sdk::__query_builder::Col<Account, u64>,
@@ -36,6 +38,7 @@ impl __sdk::__query_builder::HasCols for Account {
     fn cols(table_name: &'static str) -> Self::Cols {
         AccountCols {
             id: __sdk::__query_builder::Col::new(table_name, "id"),
+            external_id: __sdk::__query_builder::Col::new(table_name, "external_id"),
             identity: __sdk::__query_builder::Col::new(table_name, "identity"),
             name: __sdk::__query_builder::Col::new(table_name, "name"),
             primary_email_id: __sdk::__query_builder::Col::new(table_name, "primary_email_id"),
@@ -49,6 +52,7 @@ impl __sdk::__query_builder::HasCols for Account {
 ///
 /// Provides typed access to indexed columns for query building.
 pub struct AccountIxCols {
+    pub external_id: __sdk::__query_builder::IxCol<Account, String>,
     pub id: __sdk::__query_builder::IxCol<Account, u64>,
     pub identity: __sdk::__query_builder::IxCol<Account, __sdk::Identity>,
     pub last_synced: __sdk::__query_builder::IxCol<Account, __sdk::Timestamp>,
@@ -59,6 +63,7 @@ impl __sdk::__query_builder::HasIxCols for Account {
     type IxCols = AccountIxCols;
     fn ix_cols(table_name: &'static str) -> Self::IxCols {
         AccountIxCols {
+            external_id: __sdk::__query_builder::IxCol::new(table_name, "external_id"),
             id: __sdk::__query_builder::IxCol::new(table_name, "id"),
             identity: __sdk::__query_builder::IxCol::new(table_name, "identity"),
             last_synced: __sdk::__query_builder::IxCol::new(table_name, "last_synced"),

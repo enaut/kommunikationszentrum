@@ -21,6 +21,7 @@ pub mod admin_add_subscription_reducer;
 pub mod admin_identity_type;
 pub mod admin_stalwart_config_table;
 pub mod blocked_ip_type;
+pub mod bootstrap_admin_reducer;
 pub mod cancel_mail_delivery_retry_reducer;
 pub mod category_type;
 pub mod claim_next_mail_delivery_reducer;
@@ -64,6 +65,7 @@ pub mod provision_all_unprovisioned_topics_procedure;
 pub mod provision_message_topic_procedure;
 pub mod received_message_type;
 pub mod register_admin_identity_reducer;
+pub mod register_self_reducer;
 pub mod release_system_mail_reducer;
 pub mod remove_account_email_reducer;
 pub mod remove_message_topic_reducer;
@@ -142,6 +144,7 @@ pub use admin_add_subscription_reducer::admin_add_subscription;
 pub use admin_identity_type::AdminIdentity;
 pub use admin_stalwart_config_table::*;
 pub use blocked_ip_type::BlockedIp;
+pub use bootstrap_admin_reducer::bootstrap_admin;
 pub use cancel_mail_delivery_retry_reducer::cancel_mail_delivery_retry;
 pub use category_type::Category;
 pub use claim_next_mail_delivery_reducer::claim_next_mail_delivery;
@@ -185,6 +188,7 @@ pub use provision_all_unprovisioned_topics_procedure::provision_all_unprovisione
 pub use provision_message_topic_procedure::provision_message_topic;
 pub use received_message_type::ReceivedMessage;
 pub use register_admin_identity_reducer::register_admin_identity;
+pub use register_self_reducer::register_self;
 pub use release_system_mail_reducer::release_system_mail;
 pub use remove_account_email_reducer::remove_account_email;
 pub use remove_message_topic_reducer::remove_message_topic;
@@ -287,6 +291,9 @@ pub enum Reducer {
         topic_id: u64,
         status: SubscriptionStatus,
     },
+    BootstrapAdmin {
+        identity_hex: String,
+    },
     CancelMailDeliveryRetry {
         delivery_id: String,
     },
@@ -363,6 +370,11 @@ pub enum Reducer {
     },
     RegisterAdminIdentity {
         identity_hex: String,
+    },
+    RegisterSelf {
+        external_id: String,
+        name: String,
+        email: String,
     },
     ReleaseSystemMail {
         mail_id: u64,
@@ -458,6 +470,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::AddSubscription { .. } => "add_subscription",
             Reducer::AdminAddAccountEmail { .. } => "admin_add_account_email",
             Reducer::AdminAddSubscription { .. } => "admin_add_subscription",
+            Reducer::BootstrapAdmin { .. } => "bootstrap_admin",
             Reducer::CancelMailDeliveryRetry { .. } => "cancel_mail_delivery_retry",
             Reducer::ClaimNextMailDelivery { .. } => "claim_next_mail_delivery",
             Reducer::ClaimNextMailIngress { .. } => "claim_next_mail_ingress",
@@ -482,6 +495,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::MarkMailDeliveryBounced { .. } => "mark_mail_delivery_bounced",
             Reducer::MarkMailDeliverySent { .. } => "mark_mail_delivery_sent",
             Reducer::RegisterAdminIdentity { .. } => "register_admin_identity",
+            Reducer::RegisterSelf { .. } => "register_self",
             Reducer::ReleaseSystemMail { .. } => "release_system_mail",
             Reducer::RemoveAccountEmail { .. } => "remove_account_email",
             Reducer::RemoveMessageTopic { .. } => "remove_message_topic",
@@ -558,6 +572,11 @@ impl __sdk::Reducer for Reducer {
                 account_email_id: account_email_id.clone(),
                 topic_id: topic_id.clone(),
                 status: status.clone(),
+}),
+            Reducer::BootstrapAdmin{
+                identity_hex,
+}             => __sats::bsatn::to_vec(&bootstrap_admin_reducer::BootstrapAdminArgs {
+                identity_hex: identity_hex.clone(),
 }),
             Reducer::CancelMailDeliveryRetry{
                 delivery_id,
@@ -695,6 +714,15 @@ Reducer::EnqueueMailDelivery{
                 identity_hex,
 }             => __sats::bsatn::to_vec(&register_admin_identity_reducer::RegisterAdminIdentityArgs {
                 identity_hex: identity_hex.clone(),
+}),
+            Reducer::RegisterSelf{
+                external_id,
+                name,
+                email,
+}             => __sats::bsatn::to_vec(&register_self_reducer::RegisterSelfArgs {
+                external_id: external_id.clone(),
+                name: name.clone(),
+                email: email.clone(),
 }),
             Reducer::ReleaseSystemMail{
                 mail_id,

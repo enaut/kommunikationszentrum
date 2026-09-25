@@ -6,8 +6,9 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_reducer_remove_subscription, use_table_visible_accounts, use_table_visible_subscriptions, use_table_visible_account_emails,
-    use_reducer_update_account_config, use_table_topic_subscriber_counts,
+    use_reducer_remove_subscription, use_reducer_update_account_config,
+    use_table_topic_subscriber_counts, use_table_visible_account_emails,
+    use_table_visible_accounts, use_table_visible_subscriptions,
 };
 use crate::module_bindings::SubscriptionStatus;
 use crate::pages::topic::modals::EditSubscriptionTarget;
@@ -89,13 +90,28 @@ pub fn TopicSubscribersCard(
     use_effect({
         let uc = update_config.clone();
         move || {
-            let _ = uc(None, None, None, false, None, None, None, false, Some(topic_id), false, None, None);
+            let _ = uc(
+                None,
+                None,
+                None,
+                false,
+                None,
+                None,
+                None,
+                false,
+                Some(topic_id),
+                false,
+                None,
+                None,
+            );
         }
     });
     use_drop({
         let uc = update_config.clone();
         move || {
-            let _ = uc(None, None, None, false, None, None, None, false, None, true, None, None);
+            let _ = uc(
+                None, None, None, false, None, None, None, false, None, true, None, None,
+            );
         }
     });
 

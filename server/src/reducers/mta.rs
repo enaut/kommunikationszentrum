@@ -1,5 +1,5 @@
-use spacetimedb::{ReducerContext, Table};
 use crate::models::mta::{mta_connection_log, mta_message_log};
+use spacetimedb::{ReducerContext, Table};
 
 #[spacetimedb::reducer]
 pub fn dump_mta_logs_to_server_logs(ctx: &ReducerContext) {

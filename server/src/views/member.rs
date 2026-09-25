@@ -77,9 +77,17 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
 
     let mut messages = if is_admin {
         if let Some(topic_id) = config.selected_message_topic {
-            ctx.db.received_message().topic_id().filter(&topic_id).collect::<Vec<_>>()
+            ctx.db
+                .received_message()
+                .topic_id()
+                .filter(&topic_id)
+                .collect::<Vec<_>>()
         } else {
-            ctx.db.received_message().received_at().filter(Timestamp::UNIX_EPOCH..).collect::<Vec<_>>()
+            ctx.db
+                .received_message()
+                .received_at()
+                .filter(Timestamp::UNIX_EPOCH..)
+                .collect::<Vec<_>>()
         }
     } else {
         match ctx.db.account().identity().find(&sender) {
@@ -92,7 +100,7 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
                     .filter(|s| s.status.is_active())
                     .map(|s| s.topic_id)
                     .collect();
-                
+
                 if let Some(topic_id) = config.selected_message_topic {
                     if subscribed_topic_ids.contains(&topic_id) {
                         subscribed_topic_ids = vec![topic_id];
@@ -142,19 +150,19 @@ pub fn visible_account_configs(ctx: &ViewContext) -> Vec<AccountConfig> {
 pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
     let sender = ctx.sender();
     let is_admin = is_admin_user(ctx);
-    
+
     let mut account_ids = std::collections::HashSet::new();
     let my_account_id = ctx.db.account().identity().find(&sender).map(|a| a.id);
-    
+
     if let Some(id) = my_account_id {
         account_ids.insert(id);
     }
-    
+
     if is_admin {
         for id in get_paginated_account_ids(ctx) {
             account_ids.insert(id);
         }
-        
+
         let config = get_account_config(ctx);
         if let Some(topic_id) = config.viewing_topic_id {
             for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
@@ -162,10 +170,13 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
             }
         }
     }
-    
+
     let mut ids_vec: Vec<_> = account_ids.into_iter().collect();
     ids_vec.sort_unstable();
-    ids_vec.into_iter().filter_map(|id| ctx.db.account().id().find(&id)).collect()
+    ids_vec
+        .into_iter()
+        .filter_map(|id| ctx.db.account().id().find(&id))
+        .collect()
 }
 
 #[spacetimedb::view(accessor = visible_account_emails, public)]
@@ -173,7 +184,13 @@ pub fn visible_account_emails(ctx: &ViewContext) -> Vec<AccountEmail> {
     let accounts = visible_accounts(ctx);
     accounts
         .into_iter()
-        .flat_map(|acc| ctx.db.account_emails().account_id().filter(&acc.id).collect::<Vec<_>>())
+        .flat_map(|acc| {
+            ctx.db
+                .account_emails()
+                .account_id()
+                .filter(&acc.id)
+                .collect::<Vec<_>>()
+        })
         .collect()
 }
 
@@ -182,7 +199,13 @@ pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
     let accounts = visible_accounts(ctx);
     accounts
         .into_iter()
-        .flat_map(|acc| ctx.db.subscriptions().subscriber_account_id().filter(&acc.id).collect::<Vec<_>>())
+        .flat_map(|acc| {
+            ctx.db
+                .subscriptions()
+                .subscriber_account_id()
+                .filter(&acc.id)
+                .collect::<Vec<_>>()
+        })
         .collect()
 }
 

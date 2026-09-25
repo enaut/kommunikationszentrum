@@ -1,10 +1,10 @@
 use crate::module_bindings::SubscriptionStatus;
 
-pub mod topic;
 pub mod management;
 pub mod members;
 pub mod messages;
 pub mod subscriptions;
+pub mod topic;
 pub mod unsubscribe;
 pub mod verify_email;
 

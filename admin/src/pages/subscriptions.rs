@@ -12,9 +12,8 @@ use crate::module_bindings::{
     dioxus::{
         use_reducer_add_subscription, use_reducer_remove_account_email,
         use_reducer_remove_subscription, use_reducer_user_request_email_verification,
-        use_subscription, use_table_visible_categories,
-        use_table_visible_message_topic_categories, use_table_visible_subscriptions,
-        use_table_visible_message_topics,
+        use_subscription, use_table_visible_categories, use_table_visible_message_topic_categories,
+        use_table_visible_message_topics, use_table_visible_subscriptions,
     },
     EmailSource, MessageTopic, TopicVisibility,
 };
@@ -54,8 +53,10 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
     let mut show_add_email = use_signal(|| false);
     let mut add_email_input = use_signal(|| String::new());
 
-    let account_id: u64 = user_info.mitgliedsnr.parse().unwrap_or(0);
-    let my_account = accounts().into_iter().find(|a| a.id == account_id);
+    let my_account = accounts()
+        .into_iter()
+        .find(|a| a.external_id == user_info.subject_id);
+    let account_id = my_account.as_ref().map(|a| a.id).unwrap_or(0);
     let my_primary_email_id = my_account.map(|a| a.primary_email_id).unwrap_or(0);
     let my_emails: Vec<_> = account_emails()
         .into_iter()
@@ -167,7 +168,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                 }
                                             }
                                         }
-                                        if email.source != EmailSource::DjangoSync && email.id != my_primary_email_id {
+                                        if email.source != EmailSource::ExternalSync && email.id != my_primary_email_id {
                                             Button {
                                                 color: Color::Danger,
                                                 size: Size::Sm,

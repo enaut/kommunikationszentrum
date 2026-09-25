@@ -21,12 +21,11 @@ All components support environment-based configuration with sensible defaults fo
 | `SPACETIMEDB_DATABASE_NAME` | `kommunikation` | sender | SpacetimeDB module/database name |
 | `SPACETIMEDB_TOKEN` | _(none)_ | sender | Authentication token for sender's admin identity |
 
-### OAuth / Authentication Configuration
+### OpenID Connect (OIDC) / Authentication Configuration
 
 | Variable | Default | Used by | Description |
 |----------|---------|---------|-------------|
-| `DJANGO_BASE_URL` | `http://127.0.0.1:8000` | admin, server | Django OAuth provider base URL |
-| `OIDC_ISSUER_URL` | `http://127.0.0.1:8000/o` | admin | OAuth issuer discovery URL |
+| `OIDC_ISSUER_URL` | `http://127.0.0.1:8000/o` | admin, server | OIDC issuer discovery base URL |
 | `OIDC_CLIENT_ID` | `admin-app` | admin | OAuth client identifier |
 | `ADMIN_REDIRECT_URI` | `http://127.0.0.1:8080/callback` | admin | OAuth callback URL for admin UI |
 | `OAUTH_SCOPES` | `openid profile email` | admin | Requested OAuth scopes |
@@ -40,7 +39,7 @@ All components support environment-based configuration with sensible defaults fo
 | `SMTP_USE_TLS` | `true` | sender | Enable TLS for SMTP connection |
 | `SMTP_ACCEPT_INVALID_CERTS` | `false` | sender | Accept self-signed certificates (dev only) |
 | `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | sender | Accept mismatched hostnames (dev only) |
-| `MAIL_MESSAGE_ID_DOMAIN` | host of `SPACETIMEDB_URI` / `solawis.de` | sender | Domain for generated Message-ID headers |
+| `MAIL_MESSAGE_ID_DOMAIN` | host of `SPACETIMEDB_URI` / `localhost` | sender | Domain for generated Message-ID headers |
 | `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | sender | Endpoint for RFC 8058 one-click unsubscribe links |
 | `OTLP_ENDPOINT` | `http://localhost:4317` | sender | OpenTelemetry collector endpoint |
 

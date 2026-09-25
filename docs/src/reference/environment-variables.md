@@ -38,22 +38,17 @@ Complete reference of all environment variables supported by Kommunikationszentr
 
 ---
 
-## Authentication & OAuth Configuration
-
-### `DJANGO_BASE_URL`
-- **Default**: `http://127.0.0.1:8000`
-- **Used by**: `admin`, `server` (compile-time fallback via `option_env!`)
-- **Description**: Base URL of the Django backend serving as the OAuth 2.0 / OpenID Connect provider (solawispielplatz).
-- **Format**: `http://host:port` or `https://host:port`
-- **Examples**:
-  - Development: `http://127.0.0.1:8000`
-  - Production: `https://auth.example.org`
+## Authentication & OIDC Configuration
 
 ### `OIDC_ISSUER_URL`
-- **Default**: `{DJANGO_BASE_URL}/o` (e.g. `http://127.0.0.1:8000/o`)
-- **Used by**: `admin`
-- **Description**: OIDC discovery issuer URL. Usually `DJANGO_BASE_URL` appended with `/o` for Django OAuth Toolkit.
+- **Default**: `http://127.0.0.1:8000/o`
+- **Used by**: `admin`, `server` (compile-time fallback via `option_env!`)
+- **Description**: OpenID Connect discovery issuer URL. Points to the base path where `/.well-known/openid-configuration` can be discovered. Supports any standard OIDC provider (Nextcloud, Keycloak, Authentik, Django).
 - **Format**: `http://host:port/path` or `https://host:port/path`
+- **Examples**:
+  - Django: `http://127.0.0.1:8000/o`
+  - Nextcloud: `https://cloud.example.org`
+  - Keycloak: `https://auth.example.org/realms/myrealm`
 
 ### `OIDC_CLIENT_ID`
 - **Default**: `admin-app`

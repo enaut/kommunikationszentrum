@@ -8,8 +8,8 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
-    use_reducer_rename_category, use_reducer_set_topic_categories,
-    use_table_visible_categories, use_table_visible_message_topic_categories,
+    use_reducer_rename_category, use_reducer_set_topic_categories, use_table_visible_categories,
+    use_table_visible_message_topic_categories,
 };
 use crate::module_bindings::{Category, MessageTopicCategory};
 

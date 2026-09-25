@@ -1,52 +1,44 @@
-# OAuth Integration
+# OAuth / OpenID Connect Integration
 
-The OAuth integration connects the admin interface with the Django solawispielplatz system for user authentication. The implementation uses OAuth 2.0 Authorization Code Flow with PKCE (Proof Key for Code Exchange) plus OpenID Connect to obtain an ID token (JWT) and user info claims.
+The authentication integration connects the admin interface with any standard OpenID Connect (OIDC) provider (such as Nextcloud, Keycloak, Authentik, or Django) for user authentication. The implementation uses OAuth 2.0 Authorization Code Flow with PKCE (Proof Key for Code Exchange) plus OpenID Connect to obtain an ID token (JWT) and user info claims.
 
 ## Configuration
 
-### Django OAuth Provider
+### OIDC Provider Requirements
 
-The Django system acts as the OAuth 2.0 authorization server with these settings:
+The provider must support standard OpenID Connect discovery and authorization code flow with PKCE:
 
-**Base Configuration**:
-- **Issuer URL**: `http://127.0.0.1:8000/o`
-- **Client ID**: `admin-app` (configured as public client)
-- **Authorization Endpoint**: `/o/authorize/`
-- **Token Endpoint**: `/o/token/`
+**Base Requirements**:
+- **Discovery Endpoint**: `/.well-known/openid-configuration`
+- **JWKS Endpoint**: Defined in discovery metadata
+- **Authorization Endpoint**: Supports `response_type=code` with PKCE (S256)
+- **Token Endpoint**: Exchanges authorization code and refresh token
+- **UserInfo Endpoint**: Returns standard claims (`sub`, `email`, `name`, `preferred_username`)
 
 **Security Features**:
-- **PKCE Required**: Prevents authorization code interception
-- **OIDC Enabled**: Provides JWT ID tokens with user claims
-- **Public Client**: No client secret required (suitable for frontend applications)
-
-Required Django settings in `settings_local.py`:
-
-```python
-OAUTH2_PROVIDER = {
-    "OIDC_ENABLED": True,
-    "PKCE_REQUIRED": True,
-    "OIDC_ISS_ENDPOINT": "http://127.0.0.1:8000/o",
-    "OAUTH2_VALIDATOR_CLASS": "authentifizierung.oauth_validator.CustomOAuth2Validator",
-}
-```
+- **PKCE Required**: Enforced for public single-page clients
+- **OIDC Enabled**: Provides RS256 JWT ID tokens with user claims
+- **Public Client**: No client secret required in the browser frontend
 
 ### Admin Interface Configuration
 
-The Rust admin interface configures OAuth through the `OAuthConfig` structure:
+The Rust admin interface configures OIDC through the `OAuthConfig` structure:
 
 ```rust
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct OAuthConfig {
-    pub client_id: String,           // "admin-app"
-    pub redirect_uri: String,        // Local redirect URL
-    pub django_base_url: String,     // Django server base URL
+    pub issuer_url: String,   // OIDC issuer URL (discovery base)
+    pub client_id: String,    // "admin-app"
+    pub redirect_uri: String, // Callback URL
+    pub scope: String,        // "openid profile email"
 }
 ```
 
-Default configuration connects to local Django instance:
-- **Client ID**: `admin-app`
-- **Redirect URI**: `http://localhost:8080/callback`
-- **Django Base**: `http://127.0.0.1:8000`
+Configuration is loaded from environment variables:
+- `OIDC_ISSUER_URL`: e.g. `http://127.0.0.1:8000/o` or `https://cloud.example.org`
+- `OIDC_CLIENT_ID`: default `"admin-app"`
+- `ADMIN_REDIRECT_URI`: default `"http://127.0.0.1:8080/callback"`
+- `OAUTH_SCOPES`: default `"openid profile email"`
 
 ## OAuth Flow Implementation
 

@@ -77,7 +77,9 @@ pub fn decode_body(body_raw: &str, headers_raw: &str) -> String {
     }
 
     // If headers didn't include Content-Transfer-Encoding, but body looks like Quoted-Printable:
-    if !has_cte && (body_raw.contains("=\r\n") || body_raw.contains("=\n") || body_raw.contains("=C3=")) {
+    if !has_cte
+        && (body_raw.contains("=\r\n") || body_raw.contains("=\n") || body_raw.contains("=C3="))
+    {
         raw_mime.push_str("Content-Transfer-Encoding: quoted-printable\r\n");
         raw_mime.push_str("Content-Type: text/plain; charset=utf-8\r\n");
     }

@@ -18,10 +18,11 @@ The Kommunikationszentrum acts as an intelligent email gateway that:
 ## Key Features
 
 ### 🔐 **Authentication & Authorization**
-- OAuth integration with the Django solawispielplatz identity provider
+- OpenID Connect (OIDC) integration supporting any compliant provider (Nextcloud, Keycloak, Django, etc.)
+- Automatic user account provisioning on first OIDC login
 - JWT-based authorization for WebSocket and HTTP access
 - Role-based admin checks enforced in SpacetimeDB views and reducers
-- User synchronization from Django into the canonical subscription model
+- Optional external user synchronization via webhook API
 
 ### 📧 **Mail routing & topic management**
 - Stalwart MTA hooks are normalized and classified in SpacetimeDB

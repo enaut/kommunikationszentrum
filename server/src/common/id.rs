@@ -5,11 +5,7 @@ pub fn make_ingress_id(ctx: &ReducerContext, queue_id: &str, topic_id: u64) -> S
     format!("{queue_id}:{topic_id}:{entropy:032x}")
 }
 
-pub fn make_delivery_id(
-    ingress_id: &str,
-    subscription_id: u64,
-    recipient_email: &str,
-) -> String {
+pub fn make_delivery_id(ingress_id: &str, subscription_id: u64, recipient_email: &str) -> String {
     format!("{ingress_id}:{subscription_id}:{recipient_email}")
 }
 

@@ -33,15 +33,15 @@ pub fn decode_jwt(token: &str) -> Result<DecodedJwt, String> {
     }
     let (h_b64, c_b64, s_b64) = (parts[0], parts[1], parts[2]);
 
-    let header_raw = b64url_decode(h_b64)
-        .and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()))?;
-    let claims_raw = b64url_decode(c_b64)
-        .and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()))?;
+    let header_raw =
+        b64url_decode(h_b64).and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()))?;
+    let claims_raw =
+        b64url_decode(c_b64).and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()))?;
 
-    let header_json: serde_json::Value = serde_json::from_str(&header_raw)
-        .map_err(|e| format!("Header JSON parse error: {e}"))?;
-    let claims_json: serde_json::Value = serde_json::from_str(&claims_raw)
-        .map_err(|e| format!("Claims JSON parse error: {e}"))?;
+    let header_json: serde_json::Value =
+        serde_json::from_str(&header_raw).map_err(|e| format!("Header JSON parse error: {e}"))?;
+    let claims_json: serde_json::Value =
+        serde_json::from_str(&claims_raw).map_err(|e| format!("Claims JSON parse error: {e}"))?;
 
     Ok(DecodedJwt {
         header: header_json,
@@ -65,7 +65,10 @@ mod tests {
         assert_eq!(decoded.header["alg"], "HS256");
         assert_eq!(decoded.claims["sub"], "1234567890");
         assert_eq!(decoded.claims["name"], "John Doe");
-        assert_eq!(decoded.signature_b64, "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c");
+        assert_eq!(
+            decoded.signature_b64,
+            "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        );
     }
 
     #[test]
@@ -75,4 +78,3 @@ mod tests {
         assert!(decode_jwt("two.parts").is_err());
     }
 }
-

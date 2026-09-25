@@ -78,7 +78,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Entering main processing loop");
 
-    let mut in_flight_system_mails: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    let mut in_flight_system_mails: std::collections::HashSet<u64> =
+        std::collections::HashSet::new();
 
     loop {
         trace!("Main loop running: checking all work...");
@@ -89,7 +90,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         // Process system emails queued for verification/notification flows.
-        if let Err(e) = send_system_mail_jobs(&connection, &config, &instance_id, &mut in_flight_system_mails).await {
+        if let Err(e) = send_system_mail_jobs(
+            &connection,
+            &config,
+            &instance_id,
+            &mut in_flight_system_mails,
+        )
+        .await
+        {
             warn!("Error during send_system_mail_jobs: {e}");
         }
 
@@ -711,10 +719,7 @@ fn process_ingress_job(
             topic
         }
         None => {
-            trace!(
-                "Topic not found for topic_id: {}",
-                ingress.topic_id
-            );
+            trace!("Topic not found for topic_id: {}", ingress.topic_id);
             let _ = connection.reducers().fail_mail_ingress(
                 ingress.id.clone(),
                 instance_id.to_string(),

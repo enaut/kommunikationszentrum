@@ -22,9 +22,7 @@ pub fn sender_mail_ingress(ctx: &ViewContext) -> impl Query<MailIngress> {
 #[spacetimedb::view(accessor = sender_mail_delivery_messages, public)]
 pub fn sender_mail_delivery_messages(ctx: &ViewContext) -> impl Query<MailDeliveryMessage> {
     let is_admin = is_admin_user(ctx);
-    ctx.from
-        .mail_delivery_message()
-        .r#filter(move |_| is_admin)
+    ctx.from.mail_delivery_message().r#filter(move |_| is_admin)
 }
 
 #[spacetimedb::view(accessor = sender_mail_delivery_pending, public)]
@@ -116,9 +114,7 @@ pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
 #[spacetimedb::view(accessor = visible_topic_app_passwords, public)]
 pub fn visible_topic_app_passwords(ctx: &ViewContext) -> impl Query<TopicAppPassword> {
     let is_admin = is_admin_user(ctx);
-    ctx.from
-        .topic_app_passwords()
-        .r#filter(move |_| is_admin)
+    ctx.from.topic_app_passwords().r#filter(move |_| is_admin)
 }
 
 #[spacetimedb::view(accessor = sender_system_mail_pending, public)]
@@ -148,9 +144,7 @@ pub fn sender_message_topics(ctx: &ViewContext) -> impl Query<MessageTopic> {
 #[spacetimedb::view(accessor = sender_topic_app_passwords, public)]
 pub fn sender_topic_app_passwords(ctx: &ViewContext) -> impl Query<TopicAppPassword> {
     let is_admin = is_admin_user(ctx);
-    ctx.from
-        .topic_app_passwords()
-        .r#filter(move |_| is_admin)
+    ctx.from.topic_app_passwords().r#filter(move |_| is_admin)
 }
 
 #[spacetimedb::view(accessor = sender_accounts, public)]

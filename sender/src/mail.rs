@@ -9,8 +9,8 @@ use tracing::{trace, warn};
 
 use crate::config::SenderConfig;
 use crate::module_bindings::{
-    DbConnection, MailMessage, MessageTopic, Subscription, SubscriptionUnsubscribeToken,
-    SenderMessageTopicsTableAccess as _, SenderTopicAppPasswordsTableAccess as _,
+    DbConnection, MailMessage, MessageTopic, SenderMessageTopicsTableAccess as _,
+    SenderTopicAppPasswordsTableAccess as _, Subscription, SubscriptionUnsubscribeToken,
 };
 
 // ---------------------------------------------------------------------------
@@ -32,10 +32,7 @@ macro_rules! custom_header {
             }
 
             fn display(&self) -> HeaderValue {
-                HeaderValue::new(
-                    HeaderName::new_from_ascii_str($header_str),
-                    self.0.clone(),
-                )
+                HeaderValue::new(HeaderName::new_from_ascii_str($header_str), self.0.clone())
             }
         }
     };
@@ -409,4 +406,3 @@ mod tests {
         );
     }
 }
-

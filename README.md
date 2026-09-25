@@ -34,24 +34,24 @@ cp .env.example .env
 
 The system is organized around four cooperating layers:
 
-- Django provides user identity, OAuth, and membership data.
-- Stalwart owns the mail transfer layer, domain inventory, and mailbox provisioning.
-- SpacetimeDB stores the canonical routing state, subscriptions, and delivery pipeline.
-- The sender daemon claims outbound work, sends mail, and retries transient SMTP failures.
+- An **OIDC Provider** (Nextcloud, Keycloak, Authentik, or Django) provides user identity and authentication via OAuth 2.0 / OpenID Connect.
+- **Stalwart** owns the mail transfer layer, domain inventory, and mailbox provisioning.
+- **SpacetimeDB** stores the canonical routing state, accounts, subscriptions, and delivery pipeline.
+- The **sender daemon** claims outbound work, sends mail, and retries transient SMTP failures.
 
 ```mermaid
 graph TD
     Admin["Admin Web UI<br/>Dioxus<br/>Port 8080"]
     DB["SpacetimeDB<br/>Database + reducers<br/>Port 3000"]
-    Django["Django / OAuth<br/>solawispielplatz<br/>Port 8000"]
+    OIDC["OIDC Provider<br/>Nextcloud / Keycloak / Django<br/>Port 8000 / 443"]
     Stalwart["Stalwart MTA<br/>SMTP + JMAP + domains"]
     Sender["Sender Daemon<br/>delivery + retry queue"]
     Queue["Temporary failure queue"]
     Relay["Outbound SMTP relay"]
 
     Admin <--> DB
-    Admin --> Django
-    Django --> DB
+    Admin --> OIDC
+    OIDC -. Optional sync .-> DB
     Stalwart --> DB
     Stalwart <--> DB
     DB --> Sender
@@ -92,11 +92,12 @@ spacetime start
 spacetime publish --project-path server kommunikation
 ```
 
-#### 3. Start Django Backend
-
+#### 3. Start OIDC Provider (e.g. Django)
+If using local Django for development:
 ```bash
 /home/dietrich/.envs/Solawis/current/bin/python /home/dietrich/Projekte/Source/solawispielplatz/src/manage.py runserver
 ```
+*(Or use an external OIDC provider like Nextcloud or Keycloak by configuring `OIDC_ISSUER_URL`.)*
 
 #### 4. Start Admin Web UI
 
@@ -104,12 +105,14 @@ spacetime publish --project-path server kommunikation
 dx serve --package admin --platform web
 ```
 
-#### 5. Sync Users to SpacetimeDB
+#### 5. (Optional) Sync Users from External System
 
+If synchronizing accounts from Django or an external database:
 ```bash
 cd /home/dietrich/Projekte/Source/solawispielplatz
 /home/dietrich/.envs/Solawis/current/bin/python src/manage.py sync_users_to_spacetimedb
 ```
+*(Note: OIDC login will also auto-provision accounts on first connection via `register_self`.)*
 
 ## Documentation
 
