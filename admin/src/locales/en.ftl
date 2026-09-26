@@ -53,7 +53,6 @@ members-add-topic = Add topic
 members-remove-email = Remove email
 members-add-email-placeholder = New email
 members-add-email = + Add Email
-members-make-primary-button = Make Primary
 members-cannot-remove-primary-tooltip = A confirmed primary email cannot be removed unless another confirmed email replaces it.
 
 # Messages
@@ -97,7 +96,6 @@ subscriptions-email-unconfirmed-tooltip = Please click the confirmation link in 
 subscriptions-add-email-placeholder = New email address
 subscriptions-send-verification = Send Verification Link
 subscriptions-add-email-button = Add Email Address
-subscriptions-make-primary-button = Make Primary
 subscriptions-cannot-remove-primary-tooltip = A confirmed primary email cannot be removed unless another confirmed email replaces it.
 subscriptions-card-email-subscriptions = E-Mail Subscriptions:
 
