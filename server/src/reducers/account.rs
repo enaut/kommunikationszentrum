@@ -8,6 +8,7 @@ use crate::models::topic::{subscription_unsubscribe_tokens, subscriptions};
 use crate::models::delivery::*;
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UserSyncData {
     pub external_id: String,
     pub name: Option<String>,
@@ -53,25 +54,19 @@ pub fn unregister_admin_identity(ctx: &ReducerContext, identity_hex: String) -> 
     }
     let identity = Identity::from_hex(&identity_hex)
         .map_err(|e| format!("Invalid identity hex '{}': {}", identity_hex, e))?;
+
+    // Cannot remove database identity
+    if identity == ctx.database_identity() {
+        return Err("Cannot remove the database identity from administrators".into());
+    }
+
+    // Cannot remove the last administrator
+    if ctx.db.admin_identities().count() <= 1 {
+        return Err("Cannot remove the last administrator identity".into());
+    }
+
     ctx.db.admin_identities().identity().delete(&identity);
     log::info!("Unregistered admin identity: {:?}", identity);
-    Ok(())
-}
-
-/// Bootstrap the first admin identity. Only succeeds if admin_identities is currently empty.
-#[spacetimedb::reducer]
-pub fn bootstrap_admin(ctx: &ReducerContext, identity_hex: String) -> Result<(), String> {
-    if ctx.db.admin_identities().count() > 0 {
-        return Err("Bootstrap unauthorized: admin identities already exist".into());
-    }
-    let identity = if identity_hex.trim().is_empty() {
-        ctx.sender()
-    } else {
-        Identity::from_hex(&identity_hex)
-            .map_err(|e| format!("Invalid identity hex '{}': {}", identity_hex, e))?
-    };
-    ctx.db.admin_identities().insert(AdminIdentity { identity });
-    log::info!("Bootstrapped first admin identity: {:?}", identity);
     Ok(())
 }
 
@@ -82,7 +77,7 @@ pub fn register_self(
     ctx: &ReducerContext,
     external_id: String,
     name: String,
-    email: String,
+    _email: String,
 ) -> Result<(), String> {
     let sender = ctx.sender();
     let timestamp = ctx.timestamp;
@@ -91,20 +86,89 @@ pub fn register_self(
         return Err("external_id cannot be empty".into());
     }
 
+    let jwt = ctx
+        .sender_auth()
+        .jwt()
+        .ok_or_else(|| "register_self requires an authenticated OIDC connection".to_string())?;
+
+    let token_sub = jwt.subject();
+    if token_sub != external_id {
+        return Err(format!(
+            "Provided external_id '{}' does not match token subject '{}'",
+            external_id, token_sub
+        ));
+    }
+
+    let claims: serde_json::Value = serde_json::from_str(jwt.raw_payload())
+        .map_err(|e| format!("Invalid JWT payload: {}", e))?;
+
+    let token_email = claims
+        .get("email")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from);
+
+    let is_token_email_verified = claims
+        .get("email_verified")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
     // Check if an account already exists for this sender identity
     if let Some(mut existing_by_identity) = ctx.db.account().identity().find(&sender) {
+        if existing_by_identity.external_id != token_sub {
+            return Err("Account external_id mismatch".into());
+        }
+
         let mut changed = false;
         if !name.trim().is_empty() && existing_by_identity.name != name {
             existing_by_identity.name = name.clone();
             changed = true;
         }
-        if existing_by_identity.external_id != external_id {
-            if ctx.db.account().external_id().find(&external_id).is_some() {
-                return Err("Account with this external_id already exists".into());
+
+        if let Some(new_email) = token_email {
+            let current_primary = ctx
+                .db
+                .account_emails()
+                .id()
+                .find(&existing_by_identity.primary_email_id);
+            let email_changed = current_primary.as_ref().map(|e| &e.email) != Some(&new_email);
+
+            if email_changed {
+                let existing_email_row = ctx
+                    .db
+                    .account_emails()
+                    .account_id()
+                    .filter(&existing_by_identity.id)
+                    .find(|e| e.email == new_email);
+
+                if let Some(mut email_row) = existing_email_row {
+                    if is_token_email_verified && !email_row.is_verified {
+                        email_row.is_verified = true;
+                        ctx.db.account_emails().id().update(email_row.clone());
+                    }
+                    existing_by_identity.primary_email_id = email_row.id;
+                    changed = true;
+                } else {
+                    let new_email_row = ctx.db.account_emails().insert(AccountEmail {
+                        id: 0,
+                        account_id: existing_by_identity.id,
+                        email: new_email,
+                        source: EmailSource::Native,
+                        is_verified: is_token_email_verified,
+                        added_at: timestamp,
+                    });
+                    existing_by_identity.primary_email_id = new_email_row.id;
+                    changed = true;
+                }
+            } else if let Some(mut primary) = current_primary {
+                if is_token_email_verified && !primary.is_verified {
+                    primary.is_verified = true;
+                    ctx.db.account_emails().id().update(primary);
+                }
             }
-            existing_by_identity.external_id = external_id.clone();
-            changed = true;
         }
+
         if changed {
             existing_by_identity.last_synced = timestamp;
             ctx.db.account().id().update(existing_by_identity);
@@ -120,13 +184,16 @@ pub fn register_self(
         ));
     }
 
-    // Insert primary email
+    // New account: require non-empty email from verified token
+    let reg_email = token_email
+        .ok_or_else(|| "OIDC token does not contain a valid email claim".to_string())?;
+
     let primary_email = ctx.db.account_emails().insert(AccountEmail {
         id: 0,
         account_id: 0,
-        email: email.clone(),
+        email: reg_email,
         source: EmailSource::Native,
-        is_verified: true,
+        is_verified: is_token_email_verified,
         added_at: timestamp,
     });
 
@@ -1017,5 +1084,26 @@ mod tests {
             data.unsubscribe_topic_emails,
             Some(vec!["vp-nord@solawi.org".to_string()])
         );
+    }
+
+    #[test]
+    fn test_user_sync_data_rejects_legacy_fields() {
+        let payload_mitgliedsnr = r#"{
+            "mitgliedsnr": 43,
+            "name": "Max Mustermann"
+        }"#;
+        assert!(serde_json::from_str::<UserSyncData>(payload_mitgliedsnr).is_err());
+
+        let payload_categories = r#"{
+            "external_id": "43",
+            "categories": []
+        }"#;
+        assert!(serde_json::from_str::<UserSyncData>(payload_categories).is_err());
+
+        let payload_unsub = r#"{
+            "external_id": "43",
+            "unsubscribe_category_emails": ["vp@example.com"]
+        }"#;
+        assert!(serde_json::from_str::<UserSyncData>(payload_unsub).is_err());
     }
 }

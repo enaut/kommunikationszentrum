@@ -260,12 +260,17 @@ fn AuthenticatedApp(
     let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.id_token.clone());
 
     let state = use_connection_state();
-    let register_self = module_bindings::dioxus::use_reducer_register_self();
+    let register_self_async = module_bindings::dioxus::use_reducer_register_self_async();
     let mut registered = use_signal(|| false);
+    let mut is_registering = use_signal(|| false);
 
     let user_info_for_effect = user_info.clone();
     use_effect(move || {
-        if matches!(state(), ConnectionState::Connected(_, _)) && !*registered.read() {
+        if matches!(state(), ConnectionState::Connected(_, _))
+            && !*registered.read()
+            && !*is_registering.read()
+        {
+            is_registering.set(true);
             let name = user_info_for_effect
                 .name
                 .clone()
@@ -282,11 +287,22 @@ fn AuthenticatedApp(
                 })
                 .unwrap_or_else(|| user_info_for_effect.username.clone());
             let email = user_info_for_effect.email.clone().unwrap_or_default();
-            if let Err(e) = register_self(user_info_for_effect.subject_id.clone(), name, email) {
-                ::dioxus::logger::tracing::warn!("Failed to call register_self: {:?}", e);
-            } else {
-                registered.set(true);
-            }
+            let subject = user_info_for_effect.subject_id.clone();
+            let register_fn = register_self_async.clone();
+
+            spawn(async move {
+                match register_fn(subject, name, email).await {
+                    Ok(()) => {
+                        ::dioxus::logger::tracing::info!("Successfully registered self in SpacetimeDB");
+                        registered.set(true);
+                        is_registering.set(false);
+                    }
+                    Err(e) => {
+                        ::dioxus::logger::tracing::warn!("Failed to call register_self: {:?}", e);
+                        is_registering.set(false);
+                    }
+                }
+            });
         }
     });
 

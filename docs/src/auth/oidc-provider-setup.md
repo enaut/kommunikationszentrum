@@ -77,15 +77,21 @@ Set the following environment variables when building/deploying:
 
 ---
 
-## Bootstrapping the First Administrator
+## Registering Administrators
 
-When deploying a fresh instance without an external directory pushing admin flags:
+When deploying a fresh instance or adding new administrators:
 
-1. Log into the web application via OIDC. Your account is automatically provisioned via `register_self`.
-2. Inspect your assigned SpacetimeDB `Identity` in the application status page or via CLI logs.
-3. As the operator, run the `bootstrap_admin` reducer via SpacetimeDB CLI:
+1. When you publish the module with `spacetime publish`, your SpacetimeDB CLI identity is automatically seeded as an administrator in `admin_identities` by the `init` lifecycle reducer.
+2. Log into the web application via OIDC. Your account is automatically provisioned via `register_self`.
+3. Inspect your assigned SpacetimeDB `Identity` in the application status page or via CLI logs.
+4. As the operator, use your CLI identity to promote the web application identity:
    ```bash
-   spacetime call kommunikation bootstrap_admin "<your_identity_hex>"
+   spacetime call kommunikation register_admin_identity "<your_identity_hex>"
    ```
-   *(Note: `bootstrap_admin` only succeeds if no administrator identity has been registered yet.)*
-4. Once bootstrapped, you can promote other users to admin directly within the Admin UI.
+5. Once registered, you have administrative access in the Admin UI and can promote other users directly within the interface.
+
+> [!NOTE]
+> For deploying this release against an existing database, perform a schema reset via:
+> ```bash
+> spacetime publish -c -p server kommunikation
+> ```
