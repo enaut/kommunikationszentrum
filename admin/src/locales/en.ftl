@@ -19,11 +19,9 @@ app-login-button = Sign in with SoLaWi account
 app-loading = Loading…
 app-authenticating = Authentication is being processed…
 app-authentication-error = Authentication error
-app-retry = Retry
+app-retry = Try again
 app-connection-loading = Connecting to SpacetimeDB…
 app-connection-lost = Connection to SpacetimeDB is disconnected or failed.
-app-connection-error-desc = Could not connect to SpacetimeDB.
-app-registration-failed = Registration failed: { $error }
 
 # General UI
 general-filter = Filter:
@@ -53,8 +51,6 @@ members-add-topic = Add topic
 members-remove-email = Remove email
 members-add-email-placeholder = New email
 members-add-email = + Add Email
-members-make-primary-button = Make Primary
-members-cannot-remove-primary-tooltip = A confirmed primary email cannot be removed unless another confirmed email replaces it.
 
 # Messages
 messages-page-title = Messages
@@ -97,8 +93,6 @@ subscriptions-email-unconfirmed-tooltip = Please click the confirmation link in 
 subscriptions-add-email-placeholder = New email address
 subscriptions-send-verification = Send Verification Link
 subscriptions-add-email-button = Add Email Address
-subscriptions-make-primary-button = Make Primary
-subscriptions-cannot-remove-primary-tooltip = A confirmed primary email cannot be removed unless another confirmed email replaces it.
 subscriptions-card-email-subscriptions = E-Mail Subscriptions:
 
 # Topic list page

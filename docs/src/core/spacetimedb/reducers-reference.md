@@ -43,8 +43,7 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `admin_add_account_email` | Admin | `account_id: u64, email: String` | Directly adds an email address to a member account (pre-verified with `source = Native`). Enforces uniqueness per account. |
 | `user_request_email_verification` | User | `email: String` | Initiates email addition for caller's account. Generates a token and queues a verification email in `system_mail_pending`. |
 | `user_verify_email` | User/Public | `token: String` | Validates verification token, inserts `AccountEmail` marked verified, and cleans up token. |
-| `set_primary_account_email` | User/Admin | `account_email_id: u64` | Sets an email as the primary email for the account. A confirmed primary email can only be replaced with another confirmed email. |
-| `remove_account_email` | User/Admin | `account_email_id: u64` | Removes an email from the account. If the removed email was primary, it promotes a replacement (a confirmed primary email cannot be removed unless another confirmed email replaces it) and migrates subscriptions to the new primary. |
+| `remove_account_email` | User/Admin | `account_email_id: u64` | Removes an email from the account. Cascades deletion to associated subscriptions and unsubscribe tokens. Cannot delete primary email. |
 
 ### Topic, Category & Subscription Reducers
 

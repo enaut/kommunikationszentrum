@@ -81,41 +81,6 @@ pub fn unregister_admin_identity(ctx: &ReducerContext, identity_hex: String) -> 
     Ok(())
 }
 
-/// Returns whether an incoming email can replace the current primary email.
-/// A confirmed primary email can only be replaced with another confirmed email address.
-/// An unconfirmed primary email can be replaced with any email address.
-pub fn can_replace_primary_email(
-    current_primary_is_verified: bool,
-    replacement_is_verified: bool,
-) -> bool {
-    if current_primary_is_verified {
-        replacement_is_verified
-    } else {
-        true
-    }
-}
-
-/// Returns whether a primary email can be removed.
-/// A confirmed primary email cannot be removed if no other confirmed email replaces it.
-/// An unconfirmed primary email cannot be removed if no other email exists for the account.
-pub fn can_remove_primary_email(
-    primary_is_verified: bool,
-    other_confirmed_count: usize,
-    total_other_count: usize,
-) -> Result<(), &'static str> {
-    if primary_is_verified {
-        if other_confirmed_count > 0 {
-            Ok(())
-        } else {
-            Err("Cannot remove confirmed primary email: no other confirmed email address to replace it")
-        }
-    } else if total_other_count > 0 {
-        Ok(())
-    } else {
-        Err("Cannot remove primary email: account must have at least one email address")
-    }
-}
-
 /// Register or update an account for the currently connected user.
 /// Called by the web client after OIDC authentication.
 #[spacetimedb::reducer]
@@ -178,10 +143,6 @@ pub fn register_self(
                 .account_emails()
                 .id()
                 .find(&existing_by_identity.primary_email_id);
-            let current_primary_is_verified = current_primary
-                .as_ref()
-                .map(|e| e.is_verified)
-                .unwrap_or(false);
             let email_changed = current_primary.as_ref().map(|e| &e.email) != Some(&new_email);
 
             if email_changed {
@@ -192,29 +153,7 @@ pub fn register_self(
                     .filter(&existing_by_identity.id)
                     .find(|e| e.email == new_email);
 
-                let is_new_verified = is_token_email_verified
-                    || existing_email_row.as_ref().map(|e| e.is_verified).unwrap_or(false);
-
-                if !can_replace_primary_email(current_primary_is_verified, is_new_verified) {
-                    // A confirmed primary email cannot be replaced by an unconfirmed one.
-                    // Keep existing primary_email_id intact. If new_email is not registered,
-                    // add it as an unverified alternative email so the member can verify it.
-                    if existing_email_row.is_none() {
-                        ctx.db.account_emails().insert(AccountEmail {
-                            id: 0,
-                            account_id: existing_by_identity.id,
-                            email: new_email.clone(),
-                            source: EmailSource::Native,
-                            is_verified: false,
-                            added_at: timestamp,
-                        });
-                    }
-                    log::warn!(
-                        "Account {}: Cannot replace confirmed primary email with unconfirmed email '{}'. Preserved confirmed primary.",
-                        existing_by_identity.id,
-                        new_email
-                    );
-                } else if let Some(mut email_row) = existing_email_row {
+                if let Some(mut email_row) = existing_email_row {
                     if is_token_email_verified && !email_row.is_verified {
                         email_row.is_verified = true;
                         ctx.db.account_emails().id().update(email_row.clone());
@@ -395,42 +334,6 @@ pub(crate) fn do_sync_user(
                 let existing_account = ctx.db.account().external_id().find(&data.external_id);
                 let account_id = existing_account.as_ref().map(|a| a.id).unwrap_or(0);
 
-                if let Some(existing) = &existing_account {
-                    let current_primary = ctx
-                        .db
-                        .account_emails()
-                        .id()
-                        .find(&existing.primary_email_id);
-                    let current_primary_is_verified = current_primary
-                        .as_ref()
-                        .map(|e| e.is_verified)
-                        .unwrap_or(false);
-
-                    if current_primary_is_verified {
-                        let is_same_email = current_primary
-                            .as_ref()
-                            .map(|e| e.email == primary_sync.email)
-                            .unwrap_or(false);
-
-                        if !is_same_email {
-                            let existing_target = ctx
-                                .db
-                                .account_emails()
-                                .account_id()
-                                .filter(&existing.id)
-                                .find(|e| e.email == primary_sync.email);
-                            let replacement_is_verified = primary_sync.is_verified
-                                || existing_target.as_ref().map(|e| e.is_verified).unwrap_or(false);
-
-                            if !can_replace_primary_email(true, replacement_is_verified) {
-                                return Err(
-                                    "A confirmed primary email can only be replaced with another confirmed email address".into(),
-                                );
-                            }
-                        }
-                    }
-                }
-
                 // Synchronize all emails from data.emails
                 let mut primary_email_id = 0;
                 let mut new_email_ids = Vec::new();
@@ -448,9 +351,8 @@ pub(crate) fn do_sync_user(
                             existing.source = EmailSource::ExternalSync;
                             changed = true;
                         }
-                        // An email that is already verified must never be downgraded to unverified
-                        if !existing.is_verified && synced.is_verified {
-                            existing.is_verified = true;
+                        if existing.is_verified != synced.is_verified {
+                            existing.is_verified = synced.is_verified;
                             changed = true;
                         }
                         if changed {
@@ -940,122 +842,45 @@ pub fn remove_account_email(ctx: &ReducerContext, account_email_id: u64) -> Resu
     }
 
     let is_admin = is_admin_user(ctx);
-    let mut account = ctx
+    let is_self = ctx
         .db
         .account()
         .id()
         .find(&email_row.account_id)
-        .ok_or("Account not found")?;
-
-    let is_self = account.identity == ctx.sender();
+        .map(|a| a.identity == ctx.sender())
+        .unwrap_or(false);
 
     if !is_admin && !is_self {
         return Err("Unauthorized".into());
     }
 
-    let is_primary = account.primary_email_id == account_email_id;
-    let replacement_primary_id = if is_primary {
-        let other_confirmed = ctx
-            .db
-            .account_emails()
-            .account_id()
-            .filter(&account.id)
-            .find(|e| e.id != account_email_id && e.is_verified);
-
-        let other_count = ctx
-            .db
-            .account_emails()
-            .account_id()
-            .filter(&account.id)
-            .filter(|e| e.id != account_email_id)
-            .count();
-
-        can_remove_primary_email(
-            email_row.is_verified,
-            if other_confirmed.is_some() { 1 } else { 0 },
-            other_count,
-        )?;
-
-        if email_row.is_verified {
-            Some(other_confirmed.unwrap().id)
-        } else {
-            let replacement = ctx
-                .db
-                .account_emails()
-                .account_id()
-                .filter(&account.id)
-                .filter(|e| e.id != account_email_id)
-                .max_by_key(|e| e.is_verified)
-                .unwrap();
-            Some(replacement.id)
+    // Don't allow removing primary email
+    if let Some(acc) = ctx.db.account().id().find(&email_row.account_id) {
+        if acc.primary_email_id == account_email_id {
+            return Err("Cannot remove primary email".into());
         }
-    } else {
-        None
-    };
-
-    if let Some(new_primary_id) = replacement_primary_id {
-        account.primary_email_id = new_primary_id;
-        account.last_synced = ctx.timestamp;
-        ctx.db.account().id().update(account.clone());
-        log::info!(
-            "Account {}: Promoted email {} to primary replacing removed email {}",
-            account.id,
-            new_primary_id,
-            account_email_id
-        );
     }
 
-    // Remove subscriptions associated with this email and clean up tokens.
-    // If this was primary, migrate subscriptions to the new primary email.
+    // Remove subscriptions associated with this email and clean up tokens
     let subs: Vec<_> = ctx
         .db
         .subscriptions()
         .account_email_id()
         .filter(&account_email_id)
         .collect();
-    for mut sub in subs {
-        if let Some(target_primary_id) = replacement_primary_id {
-            let already_subbed_on_primary = ctx
-                .db
-                .subscriptions()
-                .subscriber_account_id()
-                .filter(&account.id)
-                .any(|s| {
-                    s.topic_id == sub.topic_id
-                        && s.account_email_id == target_primary_id
-                });
-
-            if already_subbed_on_primary {
-                if let Some(tok) = ctx
-                    .db
-                    .subscription_unsubscribe_tokens()
-                    .subscription_id()
-                    .find(&sub.id)
-                {
-                    ctx.db
-                        .subscription_unsubscribe_tokens()
-                        .token()
-                        .delete(&tok.token);
-                }
-                ctx.db.subscriptions().id().delete(&sub.id);
-            } else {
-                sub.account_email_id = target_primary_id;
-                ctx.db.subscriptions().id().update(sub);
-            }
-        } else {
-            if let Some(tok) = ctx
-                .db
+    for sub in subs {
+        if let Some(tok) = ctx
+            .db
+            .subscription_unsubscribe_tokens()
+            .subscription_id()
+            .find(&sub.id)
+        {
+            ctx.db
                 .subscription_unsubscribe_tokens()
-                .subscription_id()
-                .find(&sub.id)
-            {
-                ctx.db
-                    .subscription_unsubscribe_tokens()
-                    .token()
-                    .delete(&tok.token);
-            }
-            ctx.db.subscriptions().id().delete(&sub.id);
+                .token()
+                .delete(&tok.token);
         }
+        ctx.db.subscriptions().id().delete(&sub.id);
     }
 
     // Also remove any pending verification tokens for this email & account
@@ -1070,66 +895,6 @@ pub fn remove_account_email(ctx: &ReducerContext, account_email_id: u64) -> Resu
     }
 
     ctx.db.account_emails().id().delete(&account_email_id);
-    Ok(())
-}
-
-#[spacetimedb::reducer]
-pub fn set_primary_account_email(
-    ctx: &ReducerContext,
-    account_email_id: u64,
-) -> Result<(), String> {
-    let email_row = ctx
-        .db
-        .account_emails()
-        .id()
-        .find(&account_email_id)
-        .ok_or("Email not found")?;
-
-    let mut account = ctx
-        .db
-        .account()
-        .id()
-        .find(&email_row.account_id)
-        .ok_or("Account not found")?;
-
-    let is_admin = is_admin_user(ctx);
-    let is_self = account.identity == ctx.sender();
-
-    if !is_admin && !is_self {
-        return Err("Unauthorized".into());
-    }
-
-    if account.primary_email_id == account_email_id {
-        return Ok(());
-    }
-
-    let current_primary = ctx
-        .db
-        .account_emails()
-        .id()
-        .find(&account.primary_email_id);
-
-    let current_primary_is_verified = current_primary
-        .as_ref()
-        .map(|e| e.is_verified)
-        .unwrap_or(false);
-
-    if !can_replace_primary_email(current_primary_is_verified, email_row.is_verified) {
-        return Err("A confirmed primary email can only be replaced with another confirmed email address".into());
-    }
-
-    let account_id = account.id;
-    account.primary_email_id = account_email_id;
-    account.last_synced = ctx.timestamp;
-    ctx.db.account().id().update(account);
-
-    log::info!(
-        "Account {}: Set primary email to {} ({})",
-        account_id,
-        email_row.email,
-        email_row.id
-    );
-
     Ok(())
 }
 
@@ -1383,38 +1148,5 @@ mod tests {
             "unsubscribe_category_emails": ["vp@example.com"]
         }"#;
         assert!(serde_json::from_str::<UserSyncData>(payload_unsub).is_err());
-    }
-
-    #[test]
-    fn test_primary_email_replacement_rules() {
-        // Confirmed primary email CANNOT be replaced by unconfirmed email
-        assert!(!can_replace_primary_email(true, false));
-
-        // Confirmed primary email CAN be replaced by another confirmed email
-        assert!(can_replace_primary_email(true, true));
-
-        // Unconfirmed primary email CAN be replaced by an unconfirmed email
-        assert!(can_replace_primary_email(false, false));
-
-        // Unconfirmed primary email CAN be replaced by a confirmed email
-        assert!(can_replace_primary_email(false, true));
-    }
-
-    #[test]
-    fn test_primary_email_removal_rules() {
-        // Confirmed primary email CANNOT be removed if no other confirmed email exists
-        assert!(can_remove_primary_email(true, 0, 1).is_err());
-        assert!(can_remove_primary_email(true, 0, 0).is_err());
-
-        // Confirmed primary email CAN be removed if another confirmed email replaces it
-        assert!(can_remove_primary_email(true, 1, 1).is_ok());
-        assert!(can_remove_primary_email(true, 2, 3).is_ok());
-
-        // Unconfirmed primary email CAN be removed if another email (confirmed or unconfirmed) exists
-        assert!(can_remove_primary_email(false, 0, 1).is_ok());
-        assert!(can_remove_primary_email(false, 1, 1).is_ok());
-
-        // Unconfirmed primary email CANNOT be removed if no other email exists at all
-        assert!(can_remove_primary_email(false, 0, 0).is_err());
     }
 }

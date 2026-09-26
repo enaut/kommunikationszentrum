@@ -47,7 +47,7 @@ pub fn VerifyEmailPage(
                                 Icon { name: "exclamation-triangle-fill", class: "text-danger" }
                             }
                             h5 { class: "mt-2 text-danger", {tid!("app-connection-lost")} }
-                            p { class: "text-muted small mb-4", {tid!("app-connection-error-desc")} }
+                            p { class: "text-muted small mb-4", "Could not connect to SpacetimeDB." }
                             if let Some(on_continue) = on_continue {
                                 Button {
                                     color: Color::Primary,

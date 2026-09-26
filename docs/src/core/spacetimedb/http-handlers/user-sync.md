@@ -84,8 +84,8 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 ## Multi-Email Reconciliation & Cascading Deletions
 
 ### Upsert & Email Reconciliation
-1. **Email Synchronization & Verification**: Resolves or creates all entries in `emails` with `source = EmailSource::ExternalSync` and their authoritative `is_verified` status (updating existing rows if verification changed; verified status is never downgraded).
-2. **Primary Email Assignment & Confirmed Invariant**: The address with `is_primary = true` is assigned as the account's `primary_email_id`. If the account already had a confirmed primary email, it can only be replaced with another confirmed email address. A confirmed primary email cannot be removed unless another confirmed email replaces it.
+1. **Email Synchronization & Verification**: Resolves or creates all entries in `emails` with `source = EmailSource::ExternalSync` and their authoritative `is_verified` status (updating existing rows if verification changed).
+2. **Primary Email Assignment**: The address with `is_primary = true` is assigned as the account's `primary_email_id`.
 3. **Removed Emails**: When a previously synced `ExternalSync` email is no longer present in the `emails` array:
    - Identifies subscriptions tied to that removed address.
    - If the user already has a subscription to that topic on `primary_email_id`, the duplicate subscription and its unsubscribe token are safely deleted.
