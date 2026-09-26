@@ -30,10 +30,7 @@ pub fn add_message_topic(
         default_permission: SubscriptionPermission::Read,
         locked_is_provisioning: false,
     });
-    log::info!(
-        "Added new message topic (by identity: {:?})",
-        ctx.sender()
-    );
+    log::info!("Added new message topic (by identity: {:?})", ctx.sender());
     Ok(())
 }
 
@@ -49,10 +46,7 @@ pub fn remove_message_topic(ctx: &ReducerContext, topic_id: u64) -> Result<(), S
         .find(&topic_id)
         .ok_or_else(|| format!("Message topic {} not found", topic_id))?;
     if let Some(app_password_id) = topic.app_password_id {
-        ctx.db
-            .topic_app_passwords()
-            .id()
-            .delete(&app_password_id);
+        ctx.db.topic_app_passwords().id().delete(&app_password_id);
     }
     ctx.db.message_topics().id().delete(&topic_id);
     log::info!(
@@ -114,10 +108,7 @@ pub fn update_message_topic(
 /// Clears the `locked_is_provisioning` flag on a topic if it is set.
 /// Useful if an earlier provisioning run was interrupted or crashed.
 #[spacetimedb::reducer]
-pub fn clear_topic_provisioning_lock(
-    ctx: &ReducerContext,
-    topic_id: u64,
-) -> Result<(), String> {
+pub fn clear_topic_provisioning_lock(ctx: &ReducerContext, topic_id: u64) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
     }
@@ -152,13 +143,7 @@ pub fn set_topic_categories(
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
     }
-    if ctx
-        .db
-        .message_topics()
-        .id()
-        .find(&topic_id)
-        .is_none()
-    {
+    if ctx.db.message_topics().id().find(&topic_id).is_none() {
         return Err(format!("Message topic {} not found", topic_id));
     }
     sync_topic_categories(ctx, topic_id, category_names)?;
@@ -172,7 +157,11 @@ pub fn set_topic_categories(
 
 /// Renames an existing category. Admin-only; used by the category tag editor.
 #[spacetimedb::reducer]
-pub fn rename_category(ctx: &ReducerContext, category_id: u64, new_name: String) -> Result<(), String> {
+pub fn rename_category(
+    ctx: &ReducerContext,
+    category_id: u64,
+    new_name: String,
+) -> Result<(), String> {
     if !is_admin_user(ctx) {
         return Err("Unauthorized: Admin access required".to_string());
     }
@@ -236,7 +225,12 @@ pub(crate) fn do_add_subscription(
         return Err("Cannot subscribe an unverified email address".to_string());
     }
 
-    let topic = ctx.db.message_topics().id().find(&topic_id).ok_or("Topic not found")?;
+    let topic = ctx
+        .db
+        .message_topics()
+        .id()
+        .find(&topic_id)
+        .ok_or("Topic not found")?;
 
     let existing = ctx
         .db
@@ -425,7 +419,10 @@ pub(crate) fn sync_topic_categories(
         }
     }
     for category_id in desired_category_ids {
-        if !existing_links.iter().any(|link| link.category_id == category_id) {
+        if !existing_links
+            .iter()
+            .any(|link| link.category_id == category_id)
+        {
             ctx.db
                 .message_topic_categories()
                 .insert(MessageTopicCategory {
@@ -455,12 +452,7 @@ pub(crate) fn do_add_and_subscribe_topic(
         Some(p) => Some(SubscriptionPermission::parse(p)?),
         None => None,
     };
-    let topic = match ctx
-        .db
-        .message_topics()
-        .email_address()
-        .find(&email_address)
-    {
+    let topic = match ctx.db.message_topics().email_address().find(&email_address) {
         Some(existing) => {
             let mut updated = existing.clone();
             let mut changed = false;
@@ -833,10 +825,7 @@ pub fn provision_message_topic(
 
     if exists {
         error!("The topic with that email address already exists");
-        return Err(format!(
-            "Topic with email {} already exists",
-            email_address
-        ));
+        return Err(format!("Topic with email {} already exists", email_address));
     }
 
     provision_stalwart_topic_mailbox(
@@ -865,12 +854,26 @@ pub fn provision_all_unprovisioned_topics(
     }
 
     // Collect all unprovisioned topics in a transaction
-    let unprovisioned: Vec<(String, String, String, TopicVisibility, SubscriptionPermission)> = ctx.with_tx(|tx| {
+    let unprovisioned: Vec<(
+        String,
+        String,
+        String,
+        TopicVisibility,
+        SubscriptionPermission,
+    )> = ctx.with_tx(|tx| {
         tx.db
             .message_topics()
             .iter()
             .filter(|c| c.app_password_id.is_none())
-            .map(|c| (c.name.clone(), c.email_address.clone(), c.description.clone(), c.visibility, c.default_permission))
+            .map(|c| {
+                (
+                    c.name.clone(),
+                    c.email_address.clone(),
+                    c.description.clone(),
+                    c.visibility,
+                    c.default_permission,
+                )
+            })
             .collect()
     });
 

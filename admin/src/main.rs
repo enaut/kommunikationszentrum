@@ -83,7 +83,10 @@ fn App() -> Element {
         #[cfg(target_arch = "wasm32")]
         {
             let params = oauth::auth_flow::parse_url_params();
-            if let Some(token) = params.get("unsubscribe_token").or_else(|| params.get("unsubscribe")) {
+            if let Some(token) = params
+                .get("unsubscribe_token")
+                .or_else(|| params.get("unsubscribe"))
+            {
                 Some(token.clone())
             } else if params.get("action").map(|s| s.as_str()) == Some("unsubscribe") {
                 params.get("token").cloned()
@@ -252,11 +255,72 @@ fn AuthenticatedApp(
     let uri = config.read().spacetimedb_uri.clone();
     let module_name = config.read().spacetimedb_module_name.clone();
 
-    info!("Authenticated as: {}", user_info.mitgliedsnr);
+    info!("Authenticated as: {}", user_info.subject_id);
 
     let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.id_token.clone());
 
     let state = use_connection_state();
+    let register_self_async = module_bindings::dioxus::use_reducer_register_self_async();
+    let mut registered = use_signal(|| false);
+    let mut is_registering = use_signal(|| false);
+    let mut registration_error = use_signal(|| None::<String>);
+
+    let user_info_for_effect = user_info.clone();
+    use_effect(move || {
+        let conn_state = state();
+        if matches!(
+            conn_state,
+            ConnectionState::Connecting | ConnectionState::Reconnecting { .. }
+        ) {
+            if registration_error.read().is_some() {
+                registration_error.set(None);
+            }
+            return;
+        }
+
+        if matches!(conn_state, ConnectionState::Connected(_, _))
+            && !*registered.read()
+            && !*is_registering.read()
+            && registration_error.read().is_none()
+        {
+            is_registering.set(true);
+            let name = user_info_for_effect
+                .name
+                .clone()
+                .or_else(|| {
+                    match (
+                        &user_info_for_effect.given_name,
+                        &user_info_for_effect.family_name,
+                    ) {
+                        (Some(g), Some(f)) => Some(format!("{} {}", g, f)),
+                        (Some(g), None) => Some(g.clone()),
+                        (None, Some(f)) => Some(f.clone()),
+                        (None, None) => None,
+                    }
+                })
+                .unwrap_or_else(|| user_info_for_effect.username.clone());
+            let email = user_info_for_effect.email.clone().unwrap_or_default();
+            let subject = user_info_for_effect.subject_id.clone();
+            let register_fn = register_self_async.clone();
+
+            spawn(async move {
+                match register_fn(subject, name, email).await {
+                    Ok(()) => {
+                        ::dioxus::logger::tracing::info!("Successfully registered self in SpacetimeDB");
+                        registered.set(true);
+                        is_registering.set(false);
+                        registration_error.set(None);
+                    }
+                    Err(e) => {
+                        ::dioxus::logger::tracing::warn!("Failed to call register_self: {:?}", e);
+                        registration_error.set(Some(format!("{:?}", e)));
+                        is_registering.set(false);
+                    }
+                }
+            });
+        }
+    });
+
     let active_view = use_signal(|| ActiveView::MySubscriptions);
 
     rsx! {
@@ -265,6 +329,23 @@ fn AuthenticatedApp(
             active_view,
             on_logout,
             theme: theme.clone(),
+        }
+        if let Some(err) = registration_error.read().as_ref() {
+            Container { class: "mt-3",
+                Alert { color: Color::Danger, class: "d-flex align-items-center justify-content-between",
+                    div { class: "d-flex align-items-center",
+                        Icon { name: "exclamation-triangle", class: "me-2" }
+                        span { {tid!("app-registration-failed", error: err)} }
+                    }
+                    Button {
+                        color: Color::Danger,
+                        size: Size::Sm,
+                        class: "ms-3",
+                        onclick: move |_| registration_error.set(None),
+                        {tid!("app-retry")}
+                    }
+                }
+            }
         }
         {
             match state() {

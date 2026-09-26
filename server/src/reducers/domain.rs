@@ -7,7 +7,9 @@ use crate::services::stalwart::client::{send_stalwart_jmap_request, StalwartCont
 use crate::services::stalwart::domain::*;
 
 /// Synchronizes domains configured in Stalwart into the SpacetimeDB database using any StalwartContext.
-pub fn do_sync_stalwart_domains(ctx: &mut impl StalwartContext) -> Result<SyncDomainsResult, String> {
+pub fn do_sync_stalwart_domains(
+    ctx: &mut impl StalwartContext,
+) -> Result<SyncDomainsResult, String> {
     info!("Executing do_sync_stalwart_domains");
 
     // 1) Build single JMAP request with x:Domain/query and referenced x:Domain/get

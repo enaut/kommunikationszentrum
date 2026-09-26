@@ -38,10 +38,7 @@ pub fn traceparent_from_queue_id(queue_id: &str) -> String {
 pub fn trace_id_from_traceparent(traceparent: &str) -> &str {
     // "00-<32hex>-<16hex>-01"
     //      ^   ^  split by '-', second element
-    traceparent
-        .splitn(4, '-')
-        .nth(1)
-        .unwrap_or("")
+    traceparent.splitn(4, '-').nth(1).unwrap_or("")
 }
 
 /// Extract an OpenTelemetry [`Context`] from a W3C `traceparent` string so

@@ -280,7 +280,9 @@ mod tests {
 
         let data: TopicSyncData = serde_json::from_str(json_str).unwrap();
         assert_eq!(data.default_permission.as_deref(), Some("writ"));
-        assert!(SubscriptionPermission::parse(data.default_permission.as_deref().unwrap()).is_err());
+        assert!(
+            SubscriptionPermission::parse(data.default_permission.as_deref().unwrap()).is_err()
+        );
     }
 
     #[test]

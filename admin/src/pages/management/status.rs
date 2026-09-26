@@ -92,7 +92,7 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
                             Col { md: ColumnSize::Span(4),
                                 div { class: "border-end",
                                     h6 { class: "text-muted mb-1", {tid!("status-member-number")} }
-                                    p { class: "h5 mb-0", "{user_info.mitgliedsnr}" }
+                                    p { class: "h5 mb-0", "{user_info.subject_id}" }
                                 }
                             }
                             Col { md: ColumnSize::Span(4),

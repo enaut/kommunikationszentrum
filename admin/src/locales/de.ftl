@@ -22,6 +22,8 @@ app-authentication-error = Authentifizierungsfehler
 app-retry = Erneut versuchen
 app-connection-loading = Verbindung zu SpacetimeDB wird hergestellt…
 app-connection-lost = Verbindung zu SpacetimeDB getrennt oder fehlgeschlagen.
+app-connection-error-desc = Verbindung zu SpacetimeDB konnte nicht hergestellt werden.
+app-registration-failed = Registrierung fehlgeschlagen: { $error }
 
 # General UI
 general-filter = Filtern:
@@ -51,6 +53,8 @@ members-add-topic = Thema hinzufügen
 members-remove-email = E-Mail entfernen
 members-add-email-placeholder = Neue E-Mail
 members-add-email = + E-Mail hinzufügen
+members-make-primary-button = Als Hauptadresse festlegen
+members-cannot-remove-primary-tooltip = Eine bestätigte Hauptadresse kann nicht gelöscht werden, solange keine andere bestätigte Adresse sie ersetzt.
 
 # Messages
 messages-page-title = Nachrichten
@@ -93,6 +97,8 @@ subscriptions-email-unconfirmed-tooltip = Bitte klicke auf den Bestätigungslink
 subscriptions-add-email-placeholder = Neue E-Mail-Adresse
 subscriptions-send-verification = Verifizierungslink senden
 subscriptions-add-email-button = E-Mail-Adresse hinzufügen
+subscriptions-make-primary-button = Als Hauptadresse festlegen
+subscriptions-cannot-remove-primary-tooltip = Eine bestätigte Hauptadresse kann nicht gelöscht werden, solange keine andere bestätigte Adresse sie ersetzt.
 subscriptions-card-email-subscriptions = E-Mail-Abonnements:
 
 # Topic list page

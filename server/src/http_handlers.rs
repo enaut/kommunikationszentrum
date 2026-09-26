@@ -215,8 +215,7 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
                             .email_address()
                             .find(&to_address)
                             .map_or(false, |c| c.active);
-                        let action_str =
-                            if topic_found { "accept" } else { "reject" }.to_string();
+                        let action_str = if topic_found { "accept" } else { "reject" }.to_string();
                         tx.db.mta_connection_log().insert(MtaConnectionLog {
                             id: 0,
                             client_ip: "[REDACTED]".to_string(),
@@ -338,8 +337,11 @@ fn mailing_list_unsubscribe_handler(
                 .unwrap_or(raw_token);
             let base_url = option_env!("FRONTEND_BASE_URL")
                 .unwrap_or(crate::models::account::FRONTEND_BASE_URL);
-            let redirect_url =
-                format!("{}/?unsubscribe_token={}", base_url.trim_end_matches('/'), token);
+            let redirect_url = format!(
+                "{}/?unsubscribe_token={}",
+                base_url.trim_end_matches('/'),
+                token
+            );
             return HttpResponse::builder()
                 .status(303)
                 .header("location", redirect_url)
@@ -410,10 +412,14 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
 
     // Ensure any new or unprovisioned topics in the user's assignment are provisioned in Stalwart
     if payload.action == "upsert" {
-        if let Some(topics) = &payload.user.topics {
-            for topic in topics {
+        for topic in &payload.user.topics {
                 let needs_provisioning = ctx.with_tx(|tx| {
-                    match tx.db.message_topics().email_address().find(&topic.email_address) {
+                    match tx
+                        .db
+                        .message_topics()
+                        .email_address()
+                        .find(&topic.email_address)
+                    {
                         None => true,
                         Some(existing) => existing.app_password_id.is_none(),
                     }
@@ -471,7 +477,6 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
                 }
             }
         }
-    }
 
     let result: Result<(), String> =
         ctx.with_tx(|tx| do_sync_user(tx, payload.action.clone(), user_data_str.clone()));
@@ -479,7 +484,7 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
     match result {
         Ok(()) => json_response(
             200,
-            json!({"status":"success","action":payload.action,"mitgliedsnr":payload.user.mitgliedsnr}),
+            json!({"status":"success","action":payload.action,"external_id":payload.user.external_id}),
         ),
         Err(e) => {
             if e.contains("Unauthorized") {
@@ -555,7 +560,12 @@ fn topic_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRes
             };
 
             let needs_provisioning = ctx.with_tx(|tx| {
-                match tx.db.message_topics().email_address().find(&topic.email_address) {
+                match tx
+                    .db
+                    .message_topics()
+                    .email_address()
+                    .find(&topic.email_address)
+                {
                     None => true,
                     Some(existing) => existing.app_password_id.is_none(),
                 }
@@ -638,7 +648,10 @@ fn topic_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRes
                 }),
             )
         }
-        _ => json_response(400, json!({"error": format!("unsupported action '{}'", payload.action)})),
+        _ => json_response(
+            400,
+            json!({"error": format!("unsupported action '{}'", payload.action)}),
+        ),
     }
 }
 
@@ -648,7 +661,6 @@ fn router() -> Router {
         .post("/mta-hook", mta_hook_handler)
         .post("/user-sync", user_sync_handler)
         .post("/topic-sync", topic_sync_handler)
-        .post("/category-sync", topic_sync_handler)
         .post(
             "/mailing-list/unsubscribe",
             mailing_list_unsubscribe_handler,
@@ -709,34 +721,22 @@ mod tests {
 
     #[test]
     fn test_parse_unsubscribe_token_invalid_payload() {
-        let err = parse_unsubscribe_token(
-            "POST",
-            Some("token=test-token"),
-            b"Invalid-Body",
-        )
-        .expect_err("should reject invalid body for RFC 8058");
+        let err = parse_unsubscribe_token("POST", Some("token=test-token"), b"Invalid-Body")
+            .expect_err("should reject invalid body for RFC 8058");
         assert_eq!(err, (400, "invalid one-click payload"));
     }
 
     #[test]
     fn test_parse_unsubscribe_token_json_body_fallback() {
-        let token = parse_unsubscribe_token(
-            "POST",
-            None,
-            b"{\"token\": \"json-token-abc\"}",
-        )
-        .expect("should accept valid JSON body when query param is absent");
+        let token = parse_unsubscribe_token("POST", None, b"{\"token\": \"json-token-abc\"}")
+            .expect("should accept valid JSON body when query param is absent");
         assert_eq!(token, "json-token-abc");
     }
 
     #[test]
     fn test_parse_unsubscribe_token_missing_token() {
-        let err = parse_unsubscribe_token(
-            "POST",
-            None,
-            b"List-Unsubscribe=One-Click",
-        )
-        .expect_err("should reject when token is missing from both query and JSON");
+        let err = parse_unsubscribe_token("POST", None, b"List-Unsubscribe=One-Click")
+            .expect_err("should reject when token is missing from both query and JSON");
         assert_eq!(err, (400, "missing token query parameter"));
     }
 
@@ -765,4 +765,3 @@ mod tests {
         assert_eq!(query_param_token_from_query(None), None);
     }
 }
-

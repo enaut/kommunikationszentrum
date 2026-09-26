@@ -64,6 +64,7 @@ pub mod provision_all_unprovisioned_topics_procedure;
 pub mod provision_message_topic_procedure;
 pub mod received_message_type;
 pub mod register_admin_identity_reducer;
+pub mod register_self_reducer;
 pub mod release_system_mail_reducer;
 pub mod remove_account_email_reducer;
 pub mod remove_message_topic_reducer;
@@ -185,6 +186,7 @@ pub use provision_all_unprovisioned_topics_procedure::provision_all_unprovisione
 pub use provision_message_topic_procedure::provision_message_topic;
 pub use received_message_type::ReceivedMessage;
 pub use register_admin_identity_reducer::register_admin_identity;
+pub use register_self_reducer::register_self;
 pub use release_system_mail_reducer::release_system_mail;
 pub use remove_account_email_reducer::remove_account_email;
 pub use remove_message_topic_reducer::remove_message_topic;
@@ -364,6 +366,11 @@ pub enum Reducer {
     RegisterAdminIdentity {
         identity_hex: String,
     },
+    RegisterSelf {
+        external_id: String,
+        name: String,
+        email: String,
+    },
     ReleaseSystemMail {
         mail_id: u64,
     },
@@ -482,6 +489,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::MarkMailDeliveryBounced { .. } => "mark_mail_delivery_bounced",
             Reducer::MarkMailDeliverySent { .. } => "mark_mail_delivery_sent",
             Reducer::RegisterAdminIdentity { .. } => "register_admin_identity",
+            Reducer::RegisterSelf { .. } => "register_self",
             Reducer::ReleaseSystemMail { .. } => "release_system_mail",
             Reducer::RemoveAccountEmail { .. } => "remove_account_email",
             Reducer::RemoveMessageTopic { .. } => "remove_message_topic",
@@ -695,6 +703,15 @@ Reducer::EnqueueMailDelivery{
                 identity_hex,
 }             => __sats::bsatn::to_vec(&register_admin_identity_reducer::RegisterAdminIdentityArgs {
                 identity_hex: identity_hex.clone(),
+}),
+            Reducer::RegisterSelf{
+                external_id,
+                name,
+                email,
+}             => __sats::bsatn::to_vec(&register_self_reducer::RegisterSelfArgs {
+                external_id: external_id.clone(),
+                name: name.clone(),
+                email: email.clone(),
 }),
             Reducer::ReleaseSystemMail{
                 mail_id,

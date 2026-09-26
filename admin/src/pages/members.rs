@@ -8,11 +8,11 @@ use dioxus_i18n::tid;
 use crate::{
     module_bindings::dioxus::{
         use_reducer_admin_add_account_email, use_reducer_admin_add_subscription,
-        use_reducer_remove_account_email, use_reducer_remove_subscription, use_subscription,
-        use_table_visible_account_emails, use_table_visible_accounts,
-        use_table_visible_message_topics, use_table_visible_subscriptions,
-        use_table_visible_account_configs, use_reducer_update_account_config,
-        use_table_total_accounts,
+        use_reducer_remove_account_email, use_reducer_remove_subscription,
+        use_reducer_update_account_config, use_subscription, use_table_total_accounts,
+        use_table_visible_account_configs, use_table_visible_account_emails,
+        use_table_visible_accounts, use_table_visible_message_topics,
+        use_table_visible_subscriptions,
     },
     module_bindings::{EmailSource, SubscriptionStatus},
     oauth::UserInfo,
@@ -50,13 +50,16 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
 
     let admin_add_email = use_reducer_admin_add_account_email();
     let remove_email = use_reducer_remove_account_email();
-    
+
     // Which account's inline add-email form is currently open.
     let mut add_email_account: Signal<Option<u64>> = use_signal(|| None);
     let mut add_email_input: Signal<String> = use_signal(|| String::new());
 
     let config = configs().into_iter().next();
-    let search_query = config.as_ref().and_then(|c| c.member_search_query.clone()).unwrap_or_default();
+    let search_query = config
+        .as_ref()
+        .and_then(|c| c.member_search_query.clone())
+        .unwrap_or_default();
     let current_offset = config.as_ref().map(|c| c.member_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.member_limit).unwrap_or(50);
 
@@ -208,7 +211,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                                                                 "{email.email}"
                                                                             }
                                                                         }
-                                                                        if email.source != EmailSource::DjangoSync && email.id != primary_email_id {
+                                                                        if email.source != EmailSource::ExternalSync && email.id != primary_email_id {
                                                                             button {
                                                                                 class: "btn-close text-danger ms-auto",
                                                                                 style: "font-size: 0.5rem;",

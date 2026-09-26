@@ -49,6 +49,7 @@
   - [Trigger Flow](./email/flow-email-triggers.md)
 
 - [Authentication & Security](./auth/overview.md)
+  - [OIDC Provider Setup](./auth/oidc-provider-setup.md)
   - [OAuth in Django](./auth/configure-django.md)
   - [OAuth Integration](./auth/oauth-integration.md)
   - [JWT Token Handling](./auth/jwt-tokens.md)

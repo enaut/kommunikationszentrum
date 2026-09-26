@@ -14,12 +14,8 @@ use crate::module_bindings::dioxus::{
     use_reducer_update_subscription_permission, use_table_total_accounts,
     use_table_visible_account_configs,
 };
-use crate::module_bindings::{
-    Account, AccountEmail, SubscriptionPermission, SubscriptionStatus,
-};
-use crate::pages::topic::subscribers::{
-    parse_status, status_key, status_label, ALL_STATUSES,
-};
+use crate::module_bindings::{Account, AccountEmail, SubscriptionPermission, SubscriptionStatus};
+use crate::pages::topic::subscribers::{parse_status, status_key, status_label, ALL_STATUSES};
 
 /// Auto-select threshold: if the filtered list has fewer than this many entries,
 /// the first result is selected automatically.
@@ -44,8 +40,7 @@ pub fn AddSubscriberModal(
     topic_id: u64,
     available_accounts: Vec<Account>,
     available_emails: Vec<AccountEmail>,
-    #[props(default)]
-    subscribed_email_ids: HashSet<u64>,
+    #[props(default)] subscribed_email_ids: HashSet<u64>,
 ) -> Element {
     let admin_add_subscription = use_reducer_admin_add_subscription();
     let update_config = use_reducer_update_account_config();
@@ -73,10 +68,36 @@ pub fn AddSubscriberModal(
                 if let Some(query_opt) = query {
                     match query_opt {
                         Some(q) => {
-                            let _ = update_config(None, None, None, false, Some(offset_val), None, Some(q), false, None, false, None, None);
+                            let _ = update_config(
+                                None,
+                                None,
+                                None,
+                                false,
+                                Some(offset_val),
+                                None,
+                                Some(q),
+                                false,
+                                None,
+                                false,
+                                None,
+                                None,
+                            );
                         }
                         None => {
-                            let _ = update_config(None, None, None, false, Some(offset_val), None, None, true, None, false, None, None);
+                            let _ = update_config(
+                                None,
+                                None,
+                                None,
+                                false,
+                                Some(offset_val),
+                                None,
+                                None,
+                                true,
+                                None,
+                                false,
+                                None,
+                                None,
+                            );
                         }
                     }
                 }
@@ -106,7 +127,20 @@ pub fn AddSubscriberModal(
                     *saved_query.borrow_mut() = Some(config.member_search_query);
                 }
                 // Clear server-side search query while searching in modal
-                let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+                let _ = update_config(
+                    None,
+                    None,
+                    None,
+                    false,
+                    Some(0),
+                    None,
+                    None,
+                    true,
+                    None,
+                    false,
+                    None,
+                    None,
+                );
             } else if !is_open && had_open {
                 // Restore original member filters when closing
                 restore();
@@ -131,7 +165,11 @@ pub fn AddSubscriberModal(
             trimmed_filter.is_empty()
                 || a.name.to_lowercase().contains(trimmed_filter)
                 || a.id.to_string().contains(trimmed_filter)
-                || available_emails.iter().any(|e| e.account_id == a.id && e.is_verified && e.email.to_lowercase().contains(trimmed_filter))
+                || available_emails.iter().any(|e| {
+                    e.account_id == a.id
+                        && e.is_verified
+                        && e.email.to_lowercase().contains(trimmed_filter)
+                })
         })
         .cloned()
         .collect();
@@ -150,27 +188,36 @@ pub fn AddSubscriberModal(
 
     // Determine effective account id purely from state (no side-effect loops)
     let current_acc_id = selected_account_id();
-    let effective_account_id = if current_acc_id != 0 && filtered_accounts.iter().any(|a| a.id == current_acc_id) {
-        current_acc_id
-    } else if !trimmed_filter.is_empty() && filtered_accounts.len() < AUTO_SELECT_THRESHOLD && !filtered_accounts.is_empty() {
-        filtered_accounts[0].id
-    } else {
-        0
-    };
+    let effective_account_id =
+        if current_acc_id != 0 && filtered_accounts.iter().any(|a| a.id == current_acc_id) {
+            current_acc_id
+        } else if !trimmed_filter.is_empty()
+            && filtered_accounts.len() < AUTO_SELECT_THRESHOLD
+            && !filtered_accounts.is_empty()
+        {
+            filtered_accounts[0].id
+        } else {
+            0
+        };
 
     let selectable_emails: Vec<_> = available_emails
         .iter()
-        .filter(|e| e.account_id == effective_account_id && e.is_verified && !subscribed_email_ids.contains(&e.id))
+        .filter(|e| {
+            e.account_id == effective_account_id
+                && e.is_verified
+                && !subscribed_email_ids.contains(&e.id)
+        })
         .cloned()
         .collect();
 
     // Determine effective email id purely from state
     let current_email_id = selected_email_id();
-    let effective_email_id = if current_email_id != 0 && selectable_emails.iter().any(|e| e.id == current_email_id) {
-        current_email_id
-    } else {
-        selectable_emails.first().map(|e| e.id).unwrap_or(0)
-    };
+    let effective_email_id =
+        if current_email_id != 0 && selectable_emails.iter().any(|e| e.id == current_email_id) {
+            current_email_id
+        } else {
+            selectable_emails.first().map(|e| e.id).unwrap_or(0)
+        };
 
     rsx! {
         Modal {
@@ -430,10 +477,10 @@ pub fn EditSubscriptionModal(
                             "Admin updating subscription: account={}, topic={topic_id}, status={status:?}, permission={permission:?}",
                             t.account_id
                         );
-                        
+
                         let res1 = admin_add_subscription(t.account_id, t.account_email_id, topic_id, status);
                         let res2 = update_permission(t.subscription_id, permission);
-                        
+
                         if res1.is_err() || res2.is_err() {
                             error!("admin_add_subscription or update_permission failed");
                             edit_sub_error.set(Some(tid!("subscriber-error", error: format!("{:?}", res1.err().or(res2.err())))));

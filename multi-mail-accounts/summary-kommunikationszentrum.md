@@ -210,7 +210,7 @@ json
     "is_active": true,
     "is_admin": false,
     "updated_at": "2024-01-01T12:00:00Z",
-    "categories": [
+    "topics": [
       {
         "name": "VP Reyerhof",
         "email_address": "vp-reyerhof@example.org",
@@ -218,9 +218,9 @@ json
         "required": true
       }
     ],
-    "unsubscribe_category_emails": ["vp-old@example.org"]
+    "unsubscribe_topic_emails": ["vp-old@example.org"]
   }
 }
-Verteilpunkt Mapping: In Django, Verteilpunkt has a mailingliste field (models.EmailField). When a member holds a share at a Verteilpunkt, Django marks the category subscription as required: True. SpacetimeDB assigns SubscriptionStatus::RequiredSubscribed. If a member changes pickup locations, Django sends the old address in unsubscribe_category_emails, which deactivates it.
+Verteilpunkt Mapping: In Django, Verteilpunkt has a mailingliste field (models.EmailField). When a member holds a share at a Verteilpunkt, Django marks the topic subscription as required: True. SpacetimeDB assigns SubscriptionStatus::RequiredSubscribed. If a member changes pickup locations, Django sends the old address in unsubscribe_topic_emails, which deactivates it.
 Resilience: If SpacetimeDB is down during a Django update, failed requests are stored in a Django cache retry queue (SPACETIME_RETRY_QUEUE_KEY) and retried.
 Bulk Sync Command: Django includes a management command python src/manage.py sync_users_to_spacetimedb to seed or re-sync the entire user base.

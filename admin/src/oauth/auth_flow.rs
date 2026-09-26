@@ -1,14 +1,13 @@
 use crate::config::OAuthConfig;
 use crate::oauth::token_storage::{
-    remove_stored_code_verifier, remove_stored_nonce, remove_stored_state,
-    remove_stored_user_info, store_code_verifier, store_nonce, store_state, store_user_info,
+    remove_stored_code_verifier, remove_stored_nonce, remove_stored_state, remove_stored_user_info,
+    store_code_verifier, store_nonce, store_state, store_user_info,
 };
 use crate::oauth::{AuthState, UserInfo};
 use dioxus::prelude::*;
 use openidconnect::{
     core::{
-        CoreClient, CoreProviderMetadata, CoreResponseType, CoreTokenResponse,
-        CoreUserInfoClaims,
+        CoreClient, CoreProviderMetadata, CoreResponseType, CoreTokenResponse, CoreUserInfoClaims,
     },
     AuthenticationFlow, ClientId, CsrfToken, EndpointMaybeSet, EndpointNotSet, EndpointSet,
     IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, RedirectUrl, RefreshToken, Scope,
@@ -45,8 +44,8 @@ pub fn get_http_client() -> &'static HttpClient {
 
 /// Discover OIDC provider metadata and create configured `OpenIdClient`.
 pub async fn create_oidc_client(cfg: &OAuthConfig) -> Result<OpenIdClient, String> {
-    let issuer = IssuerUrl::new(cfg.issuer_url.clone())
-        .map_err(|e| format!("IssuerUrl error: {e}"))?;
+    let issuer =
+        IssuerUrl::new(cfg.issuer_url.clone()).map_err(|e| format!("IssuerUrl error: {e}"))?;
 
     let http = get_http_client();
     let provider_metadata = CoreProviderMetadata::discover_async(issuer, http)
@@ -124,7 +123,7 @@ pub fn build_user_info_from_openid(
     let mut given_name = None;
     let mut family_name = None;
     let mut name = None;
-    let groups: Option<Vec<String>> = None;
+
     if let Some(c) = &claims {
         if let Some(s) = c.preferred_username() {
             username = s.to_string();
@@ -153,13 +152,10 @@ pub fn build_user_info_from_openid(
         access_token,
         id_token,
         refresh_token,
-        mitgliedsnr: sub,
+        subject_id: sub,
         given_name,
         family_name,
         name,
-        is_staff: None,
-        is_superuser: None,
-        groups,
     }
 }
 
@@ -192,11 +188,7 @@ pub fn attempt_refresh(
         if let AuthState::Authenticated(current) = current_snapshot {
             let rt = RefreshToken::new(refresh_token.clone());
             let http = get_http_client();
-            match client
-                .exchange_refresh_token(&rt)
-                .request_async(http)
-                .await
-            {
+            match client.exchange_refresh_token(&rt).request_async(http).await {
                 Ok(token_response) => {
                     let new_refresh = token_response
                         .refresh_token()
@@ -226,12 +218,7 @@ pub fn attempt_refresh(
                     if let (Some(rt), Some(exp)) =
                         (updated.refresh_token.clone(), token_response.expires_in())
                     {
-                        schedule_refresh(
-                            client,
-                            rt,
-                            exp.as_secs(),
-                            auth_state,
-                        );
+                        schedule_refresh(client, rt, exp.as_secs(), auth_state);
                     }
                 }
                 Err(e) => {

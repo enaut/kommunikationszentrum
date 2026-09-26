@@ -14,7 +14,7 @@ All module HTTP routes are mounted under the SpacetimeDB host path:
 |---|---|---|---|---|
 | POST | `/v1/database/kommunikation/route/mta-hook` | `mta-hook` | `application/json` | Receives Stalwart MTA hook events. Request: `stalwart_mta_hook_types::Request`. Response: `stalwart_mta_hook_types::Response`. |
 | POST | `/v1/database/kommunikation/route/user-sync` | `sync-user` | `application/json` | Receives user account sync requests from Django. See [User Synchronisation](./user-sync.md) for the full payload shape. |
-| POST | `/v1/database/kommunikation/route/topic-sync` | `sync-user` | `application/json` | Synchronises topic definitions from external services (e.g. Django). `/category-sync` is accepted as an alias. |
+| POST | `/v1/database/kommunikation/route/topic-sync` | `sync-user` | `application/json` | Synchronises topic definitions from external services (e.g. Django). |
 | POST | `/v1/database/kommunikation/route/mailing-list/unsubscribe?token={token}` | _(token in query)_ | `text/plain` | RFC 8058 One-Click List-Unsubscribe handler. Payload must be `List-Unsubscribe=One-Click`. |
 
 ---
@@ -50,7 +50,7 @@ curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook" \
 curl -X POST "http://localhost:3000/v1/database/kommunikation/route/user-sync" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
-  -d '{"action":"upsert","user":{"mitgliedsnr":12345,"name":"Test","email":"test@example.org","is_active":true,"topics":[{"email_address":"ag-garten@solawi.example.org","permission":"write"}]}}'
+  -d '{"action":"upsert","user":{"external_id":"12345","name":"Test","email":"test@example.org","is_active":true,"topics":[{"email_address":"ag-garten@solawi.example.org","permission":"write"}]}}'
 ```
 
 **Topic sync:**

@@ -29,14 +29,11 @@ pub struct UserInfo {
     pub email: Option<String>,
     pub access_token: String,
     pub id_token: Option<String>,      // JWT for SpacetimeDB auth
-    pub refresh_token: Option<String>, // Für stille Erneuerung
-    pub mitgliedsnr: String,           // Subject from JWT (Mitgliedsnummer)
+    pub refresh_token: Option<String>, // For silent renewal
+    pub subject_id: String,            // OIDC subject claim (sub)
     pub given_name: Option<String>,
     pub family_name: Option<String>,
     pub name: Option<String>,
-    pub is_staff: Option<bool>,
-    pub is_superuser: Option<bool>,
-    pub groups: Option<Vec<String>>,
 }
 
 impl UserInfo {
@@ -150,9 +147,8 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
                                         remove_stored_nonce();
                                     }
                                     None => {
-                                        auth_state.set(AuthState::Error(
-                                            "Missing stored nonce".into(),
-                                        ));
+                                        auth_state
+                                            .set(AuthState::Error("Missing stored nonce".into()));
                                         return;
                                     }
                                 }
@@ -187,12 +183,7 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
                             if let (Some(rt), Some(exp)) =
                                 (refresh_token.clone(), token_response.expires_in())
                             {
-                                schedule_refresh(
-                                    client.clone(),
-                                    rt,
-                                    exp.as_secs(),
-                                    auth_state,
-                                );
+                                schedule_refresh(client.clone(), rt, exp.as_secs(), auth_state);
                             }
                         }
                         Err(e) => {
@@ -216,11 +207,7 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
 
                     if needs_refresh {
                         if let Some(rt) = ui.refresh_token.clone() {
-                            attempt_refresh(
-                                client.clone(),
-                                rt,
-                                auth_state,
-                            );
+                            attempt_refresh(client.clone(), rt, auth_state);
                         } else {
                             auth_state.set(AuthState::Unauthenticated);
                         }
@@ -230,12 +217,7 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
                             store_user_info(&ui);
                             auth_state.set(AuthState::Authenticated(ui.clone()));
                             if let Some(rt) = ui.refresh_token.clone() {
-                                schedule_refresh(
-                                    client.clone(),
-                                    rt,
-                                    expires_in_secs,
-                                    auth_state,
-                                );
+                                schedule_refresh(client.clone(), rt, expires_in_secs, auth_state);
                             }
                         } else {
                             store_user_info(&ui);

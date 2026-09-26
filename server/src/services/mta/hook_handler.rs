@@ -50,11 +50,7 @@ pub fn insert_mail_message(
         .id
 }
 
-pub fn handle_data_stage(
-    ctx: &ReducerContext,
-    request: &MtaHookRequest,
-    timestamp: Timestamp,
-) {
+pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: Timestamp) {
     let from_address = request
         .envelope
         .as_ref()
@@ -94,11 +90,7 @@ pub fn handle_data_stage(
                 .filter(|c| c.active)
             {
                 if !target_topics.iter().any(|(id, _, _)| *id == topic.id) {
-                    target_topics.push((
-                        topic.id,
-                        topic.email_address.clone(),
-                        topic.name.clone(),
-                    ));
+                    target_topics.push((topic.id, topic.email_address.clone(), topic.name.clone()));
                 }
             }
         }
@@ -141,7 +133,11 @@ pub fn handle_data_stage(
         .filter(&from_lower)
         .filter(|ae| ae.is_verified)
         .filter(|ae| {
-            ctx.db.account().id().find(&ae.account_id).map_or(false, |acc| acc.is_active)
+            ctx.db
+                .account()
+                .id()
+                .find(&ae.account_id)
+                .map_or(false, |acc| acc.is_active)
         })
         .collect();
 
@@ -191,10 +187,7 @@ pub fn handle_data_stage(
             for s in ctx.db.subscriptions().account_email_id().filter(&ae.id) {
                 if s.topic_id == topic_id && s.status.is_active() {
                     found_subscription = true;
-                    if matches!(
-                        s.permission,
-                        SubscriptionPermission::Write
-                    ) {
+                    if matches!(s.permission, SubscriptionPermission::Write) {
                         has_write = true;
                         break;
                     }
@@ -344,12 +337,8 @@ pub fn handle_data_stage(
                     received_at: timestamp,
                 });
 
-                let ingress_id = upsert_mail_ingress(
-                    ctx,
-                    mail_message_id,
-                    *topic_id,
-                    topic_email.clone(),
-                );
+                let ingress_id =
+                    upsert_mail_ingress(ctx, mail_message_id, *topic_id, topic_email.clone());
                 log::info!(
                     "Queued ingress {} for topic {} ({})",
                     ingress_id,

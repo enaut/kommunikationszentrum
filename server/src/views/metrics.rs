@@ -39,7 +39,12 @@ pub fn total_messages(ctx: &AnonymousViewContext) -> Vec<CountRow> {
 pub fn topic_message_counts(ctx: &ViewContext) -> Vec<TopicMessageCount> {
     let mut counts = Vec::new();
     for topic in crate::views::member::visible_message_topics(ctx) {
-        let count = ctx.db.received_message().topic_id().filter(&topic.id).count() as u64;
+        let count = ctx
+            .db
+            .received_message()
+            .topic_id()
+            .filter(&topic.id)
+            .count() as u64;
         counts.push(TopicMessageCount {
             topic_id: topic.id,
             count,
@@ -52,7 +57,11 @@ pub fn topic_message_counts(ctx: &ViewContext) -> Vec<TopicMessageCount> {
 pub fn topic_subscriber_counts(ctx: &ViewContext) -> Vec<TopicSubscriberCount> {
     let mut counts = Vec::new();
     for topic in crate::views::member::visible_message_topics(ctx) {
-        let count = ctx.db.subscriptions().topic_id().filter(&topic.id)
+        let count = ctx
+            .db
+            .subscriptions()
+            .topic_id()
+            .filter(&topic.id)
             .filter(|s| s.status.is_active())
             .count() as u64;
         counts.push(TopicSubscriberCount {
