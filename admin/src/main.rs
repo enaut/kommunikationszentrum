@@ -263,12 +263,25 @@ fn AuthenticatedApp(
     let register_self_async = module_bindings::dioxus::use_reducer_register_self_async();
     let mut registered = use_signal(|| false);
     let mut is_registering = use_signal(|| false);
+    let mut registration_error = use_signal(|| None::<String>);
 
     let user_info_for_effect = user_info.clone();
     use_effect(move || {
-        if matches!(state(), ConnectionState::Connected(_, _))
+        let conn_state = state();
+        if matches!(
+            conn_state,
+            ConnectionState::Connecting | ConnectionState::Reconnecting { .. }
+        ) {
+            if registration_error.read().is_some() {
+                registration_error.set(None);
+            }
+            return;
+        }
+
+        if matches!(conn_state, ConnectionState::Connected(_, _))
             && !*registered.read()
             && !*is_registering.read()
+            && registration_error.read().is_none()
         {
             is_registering.set(true);
             let name = user_info_for_effect
@@ -296,9 +309,11 @@ fn AuthenticatedApp(
                         ::dioxus::logger::tracing::info!("Successfully registered self in SpacetimeDB");
                         registered.set(true);
                         is_registering.set(false);
+                        registration_error.set(None);
                     }
                     Err(e) => {
                         ::dioxus::logger::tracing::warn!("Failed to call register_self: {:?}", e);
+                        registration_error.set(Some(format!("{:?}", e)));
                         is_registering.set(false);
                     }
                 }
@@ -314,6 +329,23 @@ fn AuthenticatedApp(
             active_view,
             on_logout,
             theme: theme.clone(),
+        }
+        if let Some(err) = registration_error.read().as_ref() {
+            Container { class: "mt-3",
+                Alert { color: Color::Danger, class: "d-flex align-items-center justify-content-between",
+                    div { class: "d-flex align-items-center",
+                        Icon { name: "exclamation-triangle", class: "me-2" }
+                        span { "Registration failed: {err}" }
+                    }
+                    Button {
+                        color: Color::Danger,
+                        size: Size::Sm,
+                        class: "ms-3",
+                        onclick: move |_| registration_error.set(None),
+                        "Retry"
+                    }
+                }
+            }
         }
         {
             match state() {

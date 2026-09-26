@@ -412,8 +412,7 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
 
     // Ensure any new or unprovisioned topics in the user's assignment are provisioned in Stalwart
     if payload.action == "upsert" {
-        if let Some(topics) = &payload.user.topics {
-            for topic in topics {
+        for topic in &payload.user.topics {
                 let needs_provisioning = ctx.with_tx(|tx| {
                     match tx
                         .db
@@ -478,7 +477,6 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
                 }
             }
         }
-    }
 
     let result: Result<(), String> =
         ctx.with_tx(|tx| do_sync_user(tx, payload.action.clone(), user_data_str.clone()));

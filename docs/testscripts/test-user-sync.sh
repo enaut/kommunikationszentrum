@@ -48,7 +48,13 @@ UPSERT_PAYLOAD='{
     "user": {
         "external_id": "123456",
         "name": "Test User",
-        "email": "test@example.com",
+        "emails": [
+            {
+                "email": "test@example.com",
+                "is_primary": true,
+                "is_verified": true
+            }
+        ],
         "is_active": true,
         "updated_at": "2024-01-01T12:00:00Z"
     }
@@ -81,7 +87,13 @@ UPDATE_PAYLOAD='{
     "user": {
         "external_id": "123456",
         "name": "Updated Test User",
-        "email": "updated@example.com",
+        "emails": [
+            {
+                "email": "updated@example.com",
+                "is_primary": true,
+                "is_verified": true
+            }
+        ],
         "is_active": false,
         "updated_at": "2024-01-02T12:00:00Z"
     }
@@ -114,7 +126,6 @@ DELETE_PAYLOAD='{
     "user": {
         "external_id": "123456",
         "name": null,
-        "email": null,
         "is_active": null,
         "updated_at": null
     }

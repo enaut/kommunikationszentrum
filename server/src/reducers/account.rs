@@ -7,19 +7,30 @@ use crate::models::topic::{subscription_unsubscribe_tokens, subscriptions};
 
 use crate::models::delivery::*;
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SyncedEmail {
+    pub email: String,
+    #[serde(default)]
+    pub is_primary: bool,
+    #[serde(default)]
+    pub is_verified: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UserSyncData {
     pub external_id: String,
     pub name: Option<String>,
-    pub email: Option<String>,
     pub is_active: Option<bool>,
     pub is_admin: Option<bool>,
     pub updated_at: Option<String>,
     pub identity_hex: Option<String>,
-    pub topics: Option<Vec<crate::models::topic::TopicSyncData>>,
-    pub unsubscribe_topic_emails: Option<Vec<String>>,
-    pub account_emails: Option<Vec<String>>,
+    #[serde(default)]
+    pub topics: Vec<crate::models::topic::TopicSyncData>,
+    #[serde(default)]
+    pub unsubscribe_topic_emails: Vec<String>,
+    #[serde(default)]
+    pub emails: Vec<SyncedEmail>,
 }
 
 /// Add an identity to admin_identities. Only existing admins may call this.
@@ -77,7 +88,7 @@ pub fn register_self(
     ctx: &ReducerContext,
     external_id: String,
     name: String,
-    _email: String,
+    email: String,
 ) -> Result<(), String> {
     let sender = ctx.sender();
     let timestamp = ctx.timestamp;
@@ -184,16 +195,23 @@ pub fn register_self(
         ));
     }
 
-    // New account: require non-empty email from verified token
-    let reg_email = token_email
-        .ok_or_else(|| "OIDC token does not contain a valid email claim".to_string())?;
+    // New account: require non-empty email (from token claim or client fallback)
+    let (reg_email, is_verified) = if let Some(e) = token_email {
+        (e, is_token_email_verified)
+    } else {
+        let fallback = email.trim();
+        if fallback.is_empty() {
+            return Err("Email address is required for registration".to_string());
+        }
+        (fallback.to_string(), false)
+    };
 
     let primary_email = ctx.db.account_emails().insert(AccountEmail {
         id: 0,
         account_id: 0,
         email: reg_email,
         source: EmailSource::Native,
-        is_verified: is_token_email_verified,
+        is_verified,
         added_at: timestamp,
     });
 
@@ -299,40 +317,65 @@ pub(crate) fn do_sync_user(
             "upsert" => {
                 log::info!("Syncing user: {} ({})", data.external_id, action);
 
+                let primary_sync = data
+                    .emails
+                    .iter()
+                    .find(|e| e.is_primary)
+                    .ok_or_else(|| {
+                        "User sync upsert requires at least one email marked with is_primary = true"
+                            .to_string()
+                    })?;
+
                 let issuer_url = OIDC_ISSUER_URL;
                 let identity_of_user = Identity::from_claims(issuer_url, &data.external_id);
                 let is_admin = data.is_admin.unwrap_or(false);
-                let subscriber_email = data.email.clone().unwrap_or_default();
 
                 // Look up existing account by external_id
                 let existing_account = ctx.db.account().external_id().find(&data.external_id);
                 let account_id = existing_account.as_ref().map(|a| a.id).unwrap_or(0);
 
-                let primary_email_id = if let Some(existing_email) = ctx
-                    .db
-                    .account_emails()
-                    .account_id()
-                    .filter(&account_id)
-                    .find(|e| e.email == subscriber_email)
-                {
-                    if existing_email.source != EmailSource::ExternalSync {
-                        let mut updated = existing_email.clone();
-                        updated.source = EmailSource::ExternalSync;
-                        ctx.db.account_emails().id().update(updated);
+                // Synchronize all emails from data.emails
+                let mut primary_email_id = 0;
+                let mut new_email_ids = Vec::new();
+
+                for synced in &data.emails {
+                    let email_id = if let Some(mut existing) = ctx
+                        .db
+                        .account_emails()
+                        .account_id()
+                        .filter(&account_id)
+                        .find(|e| e.email == synced.email)
+                    {
+                        let mut changed = false;
+                        if existing.source != EmailSource::ExternalSync {
+                            existing.source = EmailSource::ExternalSync;
+                            changed = true;
+                        }
+                        if existing.is_verified != synced.is_verified {
+                            existing.is_verified = synced.is_verified;
+                            changed = true;
+                        }
+                        if changed {
+                            ctx.db.account_emails().id().update(existing.clone());
+                        }
+                        existing.id
+                    } else {
+                        let new_email = ctx.db.account_emails().insert(AccountEmail {
+                            id: 0,
+                            account_id,
+                            email: synced.email.clone(),
+                            source: EmailSource::ExternalSync,
+                            is_verified: synced.is_verified,
+                            added_at: timestamp,
+                        });
+                        new_email_ids.push(new_email.id);
+                        new_email.id
+                    };
+
+                    if synced.email == primary_sync.email {
+                        primary_email_id = email_id;
                     }
-                    existing_email.id
-                } else {
-                    // For new accounts, we'll use account_id 0 temporarily; it'll be updated after insert
-                    let new_email = ctx.db.account_emails().insert(AccountEmail {
-                        id: 0,
-                        account_id,
-                        email: subscriber_email.clone(),
-                        source: EmailSource::ExternalSync,
-                        is_verified: true,
-                        added_at: timestamp,
-                    });
-                    new_email.id
-                };
+                }
 
                 let final_account_id = if let Some(existing) = existing_account {
                     let updated = Account {
@@ -361,12 +404,12 @@ pub(crate) fn do_sync_user(
                     let new_id = inserted.id;
                     log::info!("Inserted new account: {} (id={})", data.external_id, new_id);
 
-                    // Fix up the email's account_id to point to the newly assigned auto-inc id
-                    if let Some(mut email_row) =
-                        ctx.db.account_emails().id().find(&primary_email_id)
-                    {
-                        email_row.account_id = new_id;
-                        ctx.db.account_emails().id().update(email_row);
+                    // Fix up the newly created emails' account_id to point to the newly assigned auto-inc id
+                    for email_id in new_email_ids {
+                        if let Some(mut email_row) = ctx.db.account_emails().id().find(&email_id) {
+                            email_row.account_id = new_id;
+                            ctx.db.account_emails().id().update(email_row);
+                        }
                     }
 
                     new_id
@@ -423,11 +466,9 @@ pub(crate) fn do_sync_user(
                     log::info!("Revoked admin_identities for account: {}", data.external_id);
                 }
 
-                // Sync alternative emails from external source
-                let mut incoming_emails = data.account_emails.unwrap_or_default();
-                incoming_emails.push(subscriber_email.clone());
-
-                // 1. Remove ExternalSync emails not in the payload
+                // 1. Remove ExternalSync emails not in incoming payload
+                let incoming_emails: Vec<&str> =
+                    data.emails.iter().map(|e| e.email.as_str()).collect();
                 let existing_emails: Vec<_> = ctx
                     .db
                     .account_emails()
@@ -436,7 +477,7 @@ pub(crate) fn do_sync_user(
                     .collect();
                 for existing in existing_emails {
                     if existing.source == EmailSource::ExternalSync
-                        && !incoming_emails.contains(&existing.email)
+                        && !incoming_emails.contains(&existing.email.as_str())
                     {
                         // Migrate or delete subscriptions associated with this removed email
                         let orphan_subs: Vec<_> = ctx
@@ -494,34 +535,7 @@ pub(crate) fn do_sync_user(
                     }
                 }
 
-                // 2. Add or update incoming emails
-                for incoming in incoming_emails {
-                    if let Some(existing) = ctx
-                        .db
-                        .account_emails()
-                        .account_id()
-                        .filter(&final_account_id)
-                        .find(|e| e.email == incoming)
-                    {
-                        if existing.source != EmailSource::ExternalSync {
-                            let mut updated = existing;
-                            updated.source = EmailSource::ExternalSync;
-                            ctx.db.account_emails().id().update(updated);
-                        }
-                    } else {
-                        ctx.db.account_emails().insert(AccountEmail {
-                            id: 0,
-                            account_id: final_account_id,
-                            email: incoming.clone(),
-                            source: EmailSource::ExternalSync,
-                            is_verified: true,
-                            added_at: timestamp,
-                        });
-                        log::info!("Added new ExternalSync email: {}", incoming);
-                    }
-                }
-
-                for topic in data.topics.unwrap_or_default() {
+                for topic in data.topics {
                     let topic_email = topic.email_address.clone();
                     if let Err(e) = crate::reducers::topics::do_add_and_subscribe_topic(
                         ctx,
@@ -544,7 +558,7 @@ pub(crate) fn do_sync_user(
                     }
                 }
 
-                for topic_email in data.unsubscribe_topic_emails.unwrap_or_default() {
+                for topic_email in data.unsubscribe_topic_emails {
                     if let Err(e) = crate::reducers::topics::do_remove_subscription_for_topic_email(
                         ctx,
                         final_account_id,
@@ -1062,7 +1076,18 @@ mod tests {
         let payload = r#"{
             "external_id": "43",
             "name": "Max Mustermann",
-            "email": "max@example.org",
+            "emails": [
+                {
+                    "email": "max@example.org",
+                    "is_primary": true,
+                    "is_verified": true
+                },
+                {
+                    "email": "alt@example.org",
+                    "is_primary": false,
+                    "is_verified": false
+                }
+            ],
             "topics": [
                 {
                     "name": "VP Süd",
@@ -1076,13 +1101,19 @@ mod tests {
 
         let data: UserSyncData = serde_json::from_str(payload).unwrap();
         assert_eq!(data.external_id, "43");
-        let topics = data.topics.unwrap();
-        assert_eq!(topics.len(), 1);
-        assert_eq!(topics[0].name, "VP Süd");
-        assert_eq!(topics[0].categories, Some(vec!["Verteilpunkt".to_string()]));
+        assert_eq!(data.emails.len(), 2);
+        assert_eq!(data.emails[0].email, "max@example.org");
+        assert!(data.emails[0].is_primary);
+        assert!(data.emails[0].is_verified);
+        assert_eq!(data.emails[1].email, "alt@example.org");
+        assert!(!data.emails[1].is_primary);
+        assert!(!data.emails[1].is_verified);
+        assert_eq!(data.topics.len(), 1);
+        assert_eq!(data.topics[0].name, "VP Süd");
+        assert_eq!(data.topics[0].categories, Some(vec!["Verteilpunkt".to_string()]));
         assert_eq!(
             data.unsubscribe_topic_emails,
-            Some(vec!["vp-nord@solawi.org".to_string()])
+            vec!["vp-nord@solawi.org".to_string()]
         );
     }
 
@@ -1093,6 +1124,18 @@ mod tests {
             "name": "Max Mustermann"
         }"#;
         assert!(serde_json::from_str::<UserSyncData>(payload_mitgliedsnr).is_err());
+
+        let payload_legacy_email = r#"{
+            "external_id": "43",
+            "email": "legacy@example.org"
+        }"#;
+        assert!(serde_json::from_str::<UserSyncData>(payload_legacy_email).is_err());
+
+        let payload_legacy_account_emails = r#"{
+            "external_id": "43",
+            "account_emails": ["legacy@example.org"]
+        }"#;
+        assert!(serde_json::from_str::<UserSyncData>(payload_legacy_account_emails).is_err());
 
         let payload_categories = r#"{
             "external_id": "43",
