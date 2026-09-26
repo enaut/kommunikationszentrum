@@ -89,6 +89,7 @@ pub mod sender_message_topics_table;
 pub mod sender_subscriptions_table;
 pub mod sender_system_mail_pending_table;
 pub mod sender_topic_app_passwords_table;
+pub mod set_primary_account_email_reducer;
 pub mod set_stalwart_config_reducer;
 pub mod set_topic_categories_reducer;
 pub mod stalwart_config_type;
@@ -211,6 +212,7 @@ pub use sender_message_topics_table::*;
 pub use sender_subscriptions_table::*;
 pub use sender_system_mail_pending_table::*;
 pub use sender_topic_app_passwords_table::*;
+pub use set_primary_account_email_reducer::set_primary_account_email;
 pub use set_stalwart_config_reducer::set_stalwart_config;
 pub use set_topic_categories_reducer::set_topic_categories;
 pub use stalwart_config_type::StalwartConfig;
@@ -401,6 +403,9 @@ pub enum Reducer {
         error_msg: String,
         delay_micros: i64,
     },
+    SetPrimaryAccountEmail {
+        account_email_id: u64,
+    },
     SetStalwartConfig {
         jmap_url: String,
         admin_token: String,
@@ -498,6 +503,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::RetryMailIngress { .. } => "retry_mail_ingress",
             Reducer::RevokeWebhookToken { .. } => "revoke_webhook_token",
             Reducer::ScheduleMailDeliveryRetry { .. } => "schedule_mail_delivery_retry",
+            Reducer::SetPrimaryAccountEmail { .. } => "set_primary_account_email",
             Reducer::SetStalwartConfig { .. } => "set_stalwart_config",
             Reducer::SetTopicCategories { .. } => "set_topic_categories",
             Reducer::SyncUser { .. } => "sync_user",
@@ -764,6 +770,11 @@ Reducer::EnqueueMailDelivery{
                 instance_id: instance_id.clone(),
                 error_msg: error_msg.clone(),
                 delay_micros: delay_micros.clone(),
+}),
+            Reducer::SetPrimaryAccountEmail{
+                account_email_id,
+}             => __sats::bsatn::to_vec(&set_primary_account_email_reducer::SetPrimaryAccountEmailArgs {
+                account_email_id: account_email_id.clone(),
 }),
             Reducer::SetStalwartConfig{
                 jmap_url,

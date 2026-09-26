@@ -9,7 +9,8 @@ use crate::{
     module_bindings::dioxus::{
         use_reducer_admin_add_account_email, use_reducer_admin_add_subscription,
         use_reducer_remove_account_email, use_reducer_remove_subscription,
-        use_reducer_update_account_config, use_subscription, use_table_total_accounts,
+        use_reducer_set_primary_account_email, use_reducer_update_account_config,
+        use_subscription, use_table_total_accounts,
         use_table_visible_account_configs, use_table_visible_account_emails,
         use_table_visible_accounts, use_table_visible_message_topics,
         use_table_visible_subscriptions,
@@ -50,6 +51,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
 
     let admin_add_email = use_reducer_admin_add_account_email();
     let remove_email = use_reducer_remove_account_email();
+    let set_primary_email = use_reducer_set_primary_account_email();
 
     // Which account's inline add-email form is currently open.
     let mut add_email_account: Signal<Option<u64>> = use_signal(|| None);
@@ -182,6 +184,20 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                             .into_iter()
                                             .filter(|e| e.account_id == acct_id)
                                             .collect();
+                                        let primary_is_verified = emails
+                                            .iter()
+                                            .find(|e| e.id == primary_email_id)
+                                            .map(|e| e.is_verified)
+                                            .unwrap_or(false);
+                                        let other_confirmed_count = emails
+                                            .iter()
+                                            .filter(|e| e.id != primary_email_id && e.is_verified)
+                                            .count();
+                                        let can_remove_primary = if primary_is_verified {
+                                            other_confirmed_count > 0
+                                        } else {
+                                            emails.len() > 1
+                                        };
                                         let member_subs: Vec<_> = subscriptions()
                                             .into_iter()
                                             .filter(|s| {
@@ -202,25 +218,61 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                                             {
                                                                 let email_id = email.id;
                                                                 let remove_email_for_row = remove_email.clone();
+                                                                let set_primary_for_row = set_primary_email.clone();
+                                                                let is_primary = email.id == primary_email_id;
                                                                 rsx! {
                                                                     div { class: "d-flex align-items-center gap-1",
                                                                         small { class: "text-muted",
-                                                                            if email.id == primary_email_id {
+                                                                            if is_primary {
                                                                                 strong { "{email.email}" }
                                                                             } else {
                                                                                 "{email.email}"
                                                                             }
                                                                         }
-                                                                        if email.source != EmailSource::ExternalSync && email.id != primary_email_id {
+                                                                        if !is_primary && (!primary_is_verified || email.is_verified) {
                                                                             button {
-                                                                                class: "btn-close text-danger ms-auto",
-                                                                                style: "font-size: 0.5rem;",
-                                                                                "aria-label": tid!("members-remove-email"),
+                                                                                class: "btn btn-outline-secondary btn-sm py-0 px-1 ms-auto",
+                                                                                style: "font-size: 0.6rem; line-height: 1;",
+                                                                                title: tid!("members-make-primary-button"),
                                                                                 onclick: move |_| {
-                                                                                    if let Err(e) = remove_email_for_row(email_id) {
-                                                                                        error!("Failed to remove email: {e:?}");
+                                                                                    if let Err(e) = set_primary_for_row(email_id) {
+                                                                                        error!("Failed to set primary email: {e:?}");
                                                                                     }
                                                                                 },
+                                                                                Icon { name: "star" }
+                                                                            }
+                                                                        }
+                                                                        if email.source != EmailSource::ExternalSync {
+                                                                            if !is_primary || can_remove_primary {
+                                                                                button {
+                                                                                    class: if !is_primary && (!primary_is_verified || email.is_verified) {
+                                                                                        "btn-close text-danger"
+                                                                                    } else {
+                                                                                        "btn-close text-danger ms-auto"
+                                                                                    },
+                                                                                    style: "font-size: 0.5rem;",
+                                                                                    "aria-label": tid!("members-remove-email"),
+                                                                                    onclick: move |_| {
+                                                                                        if let Err(e) = remove_email_for_row(email_id) {
+                                                                                            error!("Failed to remove email: {e:?}");
+                                                                                        }
+                                                                                    },
+                                                                                }
+                                                                            } else {
+                                                                                span {
+                                                                                    class: if !is_primary && (!primary_is_verified || email.is_verified) {
+                                                                                        ""
+                                                                                    } else {
+                                                                                        "ms-auto"
+                                                                                    },
+                                                                                    title: tid!("members-cannot-remove-primary-tooltip"),
+                                                                                    button {
+                                                                                        class: "btn-close text-muted",
+                                                                                        style: "font-size: 0.5rem; opacity: 0.25; cursor: not-allowed;",
+                                                                                        disabled: true,
+                                                                                        "aria-label": tid!("members-remove-email"),
+                                                                                    }
+                                                                                }
                                                                             }
                                                                         }
                                                                     }

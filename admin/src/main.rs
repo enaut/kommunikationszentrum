@@ -335,14 +335,14 @@ fn AuthenticatedApp(
                 Alert { color: Color::Danger, class: "d-flex align-items-center justify-content-between",
                     div { class: "d-flex align-items-center",
                         Icon { name: "exclamation-triangle", class: "me-2" }
-                        span { "Registration failed: {err}" }
+                        span { {tid!("app-registration-failed", error: err)} }
                     }
                     Button {
                         color: Color::Danger,
                         size: Size::Sm,
                         class: "ms-3",
                         onclick: move |_| registration_error.set(None),
-                        "Retry"
+                        {tid!("app-retry")}
                     }
                 }
             }

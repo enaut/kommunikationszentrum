@@ -11,7 +11,8 @@ use crate::module_bindings::SubscriptionStatus;
 use crate::module_bindings::{
     dioxus::{
         use_reducer_add_subscription, use_reducer_remove_account_email,
-        use_reducer_remove_subscription, use_reducer_user_request_email_verification,
+        use_reducer_remove_subscription, use_reducer_set_primary_account_email,
+        use_reducer_user_request_email_verification,
         use_subscription, use_table_visible_categories, use_table_visible_message_topic_categories,
         use_table_visible_message_topics, use_table_visible_subscriptions,
     },
@@ -50,6 +51,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
 
     let add_email = use_reducer_user_request_email_verification();
     let remove_email = use_reducer_remove_account_email();
+    let set_primary_email = use_reducer_set_primary_account_email();
     let mut show_add_email = use_signal(|| false);
     let mut add_email_input = use_signal(|| String::new());
 
@@ -62,6 +64,21 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
         .into_iter()
         .filter(|e| e.account_id == account_id)
         .collect();
+
+    let primary_is_verified = my_emails
+        .iter()
+        .find(|e| e.id == my_primary_email_id)
+        .map(|e| e.is_verified)
+        .unwrap_or(false);
+    let other_confirmed_count = my_emails
+        .iter()
+        .filter(|e| e.id != my_primary_email_id && e.is_verified)
+        .count();
+    let can_remove_primary = if primary_is_verified {
+        other_confirmed_count > 0
+    } else {
+        my_emails.len() > 1
+    };
 
     let mut active_tab = use_signal(|| CategoryTab::Sonstige);
     let mut user_picked_tab = use_signal(|| false);
@@ -139,7 +156,9 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                             {
                                 let email_id = email.id;
                                 let is_unverified = !email.is_verified;
+                                let is_primary = email.id == my_primary_email_id;
                                 let remove_email_for_row = remove_email.clone();
+                                let set_primary_email_for_row = set_primary_email.clone();
                                 rsx! {
                                     li {
                                         class: if is_unverified {
@@ -149,7 +168,7 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                         },
                                         style: if is_unverified { "opacity: 0.65;" } else { "" },
                                         div {
-                                            if email.id == my_primary_email_id {
+                                            if is_primary {
                                                 strong { "{email.email} " }
                                                 span { class: "text-muted", {tid!("subscriptions-primary-badge")} }
                                             } else if is_unverified {
@@ -168,16 +187,44 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                                                 }
                                             }
                                         }
-                                        if email.source != EmailSource::ExternalSync && email.id != my_primary_email_id {
-                                            Button {
-                                                color: Color::Danger,
-                                                size: Size::Sm,
-                                                onclick: move |_| {
-                                                    if let Err(e) = remove_email_for_row(email_id) {
-                                                        error!("remove_account_email failed: {e:?}");
+                                        div { class: "d-flex gap-2 align-items-center",
+                                            if !is_primary && (!primary_is_verified || email.is_verified) {
+                                                Button {
+                                                    color: Color::Primary,
+                                                    outline: true,
+                                                    size: Size::Sm,
+                                                    onclick: move |_| {
+                                                        if let Err(e) = set_primary_email_for_row(email_id) {
+                                                            error!("set_primary_account_email failed: {e:?}");
+                                                        }
+                                                    },
+                                                    {tid!("subscriptions-make-primary-button")}
+                                                }
+                                            }
+                                            if email.source != EmailSource::ExternalSync {
+                                                if !is_primary || can_remove_primary {
+                                                    Button {
+                                                        color: Color::Danger,
+                                                        size: Size::Sm,
+                                                        onclick: move |_| {
+                                                            if let Err(e) = remove_email_for_row(email_id) {
+                                                                error!("remove_account_email failed: {e:?}");
+                                                            }
+                                                        },
+                                                        Icon { name: "trash" }
                                                     }
-                                                },
-                                                Icon { name: "trash" }
+                                                } else {
+                                                    span {
+                                                        title: tid!("subscriptions-cannot-remove-primary-tooltip"),
+                                                        Button {
+                                                            color: Color::Secondary,
+                                                            outline: true,
+                                                            size: Size::Sm,
+                                                            disabled: true,
+                                                            Icon { name: "trash" }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
