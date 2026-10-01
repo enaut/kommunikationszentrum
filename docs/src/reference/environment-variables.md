@@ -56,6 +56,7 @@ Complete reference of all environment variables supported by Kommunikationszentr
 - **Description**: OAuth 2.0 client identifier registered in Django OAuth Toolkit.
 - **Format**: String identifier
 - **Security**: Should be unique per deployment environment.
+- **Notes**: Not a SpacetimeDB setting. The standalone server does not check the token `aud` claim.
 - **Examples**: `admin-app`, `kommunikationszentrum-prod`
 
 ### `ADMIN_REDIRECT_URI`
