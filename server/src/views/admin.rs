@@ -105,6 +105,17 @@ pub fn visible_admin_identities(ctx: &ViewContext) -> impl Query<AdminIdentity> 
     ctx.from.admin_identities().r#filter(move |_| is_admin)
 }
 
+#[spacetimedb::view(accessor = admin_accounts, public)]
+pub fn admin_accounts(ctx: &ViewContext) -> impl Query<Account> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from
+        .account()
+        .left_semijoin(ctx.from.admin_identities(), |account, admin| {
+            account.identity.eq(admin.identity)
+        })
+        .filter(move |_| is_admin)
+}
+
 #[spacetimedb::view(accessor = visible_webhook_tokens, public)]
 pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
     let is_admin = is_admin_user(ctx);

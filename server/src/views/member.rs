@@ -169,13 +169,6 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
                 account_ids.insert(sub.subscriber_account_id);
             }
         }
-
-        // Include all admin accounts so admins can see identities associated with other admins
-        for acc in ctx.db.account().last_synced().filter(Timestamp::UNIX_EPOCH..) {
-            if ctx.db.admin_identities().identity().find(&acc.identity).is_some() {
-                account_ids.insert(acc.id);
-            }
-        }
     }
 
     let mut ids_vec: Vec<_> = account_ids.into_iter().collect();

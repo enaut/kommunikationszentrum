@@ -10,9 +10,8 @@ use crate::module_bindings::dioxus::{
     use_connection_state, use_procedure_sync_stalwart_domains, use_reducer_create_webhook_token,
     use_reducer_register_admin_identity, use_reducer_revoke_webhook_token,
     use_reducer_set_stalwart_config_then, use_reducer_unregister_admin_identity, use_subscription,
-    use_table_admin_stalwart_config, use_table_visible_account_emails, use_table_visible_accounts,
-    use_table_visible_admin_identities, use_table_visible_domains,
-    use_table_visible_webhook_tokens, ConnectionState,
+    use_table_admin_accounts, use_table_admin_stalwart_config, use_table_visible_admin_identities,
+    use_table_visible_domains, use_table_visible_webhook_tokens, ConnectionState,
 };
 
 #[derive(Clone, PartialEq)]
@@ -45,12 +44,10 @@ pub fn ManagementConfigurationPage() -> Element {
 fn AdminIdentityCard() -> Element {
     use_subscription(&[
         "SELECT * FROM visible_admin_identities",
-        "SELECT * FROM visible_accounts",
-        "SELECT * FROM visible_account_emails",
+        "SELECT * FROM admin_accounts",
     ]);
     let admin_identities = use_table_visible_admin_identities();
-    let accounts = use_table_visible_accounts();
-    let account_emails = use_table_visible_account_emails();
+    let accounts = use_table_admin_accounts();
     let connection_state = use_connection_state();
 
     let register_admin = use_reducer_register_admin_identity();
@@ -130,27 +127,11 @@ fn AdminIdentityCard() -> Element {
                                             .into_iter()
                                             .find(|a| a.identity == ident.identity);
 
-                                        let matching_email = matching_account.as_ref().and_then(|acc| {
-                                            let emails = account_emails();
-                                            emails.iter().find(|e| e.id == acc.primary_email_id)
-                                                .or_else(|| emails.iter().find(|e| e.account_id == acc.id))
-                                                .map(|e| e.email.clone())
-                                        });
-
                                         let user_name = matching_account.as_ref().map(|a| a.name.clone());
-                                        let email_display = matching_email.as_ref().map(|e| format!("<{}>", e));
-                                        let is_unlinked = user_name.is_none() && matching_email.is_none();
-                                        let display_name = if let Some(ref name) = user_name {
-                                            if let Some(ref email) = matching_email {
-                                                format!("{name} <{email}>")
-                                            } else {
-                                                name.clone()
-                                            }
-                                        } else if let Some(ref email) = matching_email {
-                                            email.clone()
-                                        } else {
-                                            unlinked_label.clone()
-                                        };
+                                        let is_unlinked = user_name.is_none();
+                                        let display_name = user_name
+                                            .clone()
+                                            .unwrap_or_else(|| unlinked_label.clone());
                                         let target_name = display_name.clone();
 
                                         rsx! {
@@ -163,9 +144,7 @@ fn AdminIdentityCard() -> Element {
                                                             if let Some(ref name) = user_name {
                                                                 span { class: "fw-semibold", "{name}" }
                                                             }
-                                                            if let Some(ref email_str) = email_display {
-                                                                span { class: "text-muted small", "{email_str}" }
-                                                            }
+
                                                         }
                                                         if is_me {
                                                             Badge { color: Color::Info, class: "ms-1", "{you_label}" }
