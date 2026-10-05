@@ -46,6 +46,41 @@ impl UserInfo {
         let token = self.id_token.as_ref()?;
         Some(jwt_utils::decode_jwt(token))
     }
+
+    /// Return the optimal JWT token to use for SpacetimeDB authentication.
+    ///
+    /// 1. If `id_token` contains an `email_verified` claim, use `id_token`.
+    /// 2. If `id_token` lacks `email_verified` (e.g. Nextcloud/OIDC provider defaults),
+    ///    but `access_token` is an RFC 9068 JWT that contains `email_verified` and matches the subject,
+    ///    use `access_token` so SpacetimeDB receives verified email claims.
+    /// 3. Otherwise fall back to `id_token`, or `access_token` if valid JWT.
+    pub fn spacetimedb_token(&self) -> Option<String> {
+        let id_claims = self.decode_id_token().and_then(|r| r.ok()).map(|d| d.claims);
+        let id_has_verified = id_claims.as_ref().is_some_and(|c| {
+            c.get("email_verified").is_some() || c.get("emailVerified").is_some()
+        });
+
+        if id_has_verified {
+            return self.id_token.clone();
+        }
+
+        if let Ok(access_jwt) = jwt_utils::decode_jwt(&self.access_token) {
+            let sub = access_jwt.claims.get("sub").and_then(|v| v.as_str());
+            let has_verified = access_jwt.claims.get("email_verified").is_some()
+                || access_jwt.claims.get("emailVerified").is_some();
+            if sub == Some(&self.subject_id) && has_verified {
+                return Some(self.access_token.clone());
+            }
+        }
+
+        self.id_token.clone().or_else(|| {
+            if jwt_utils::decode_jwt(&self.access_token).is_ok() {
+                Some(self.access_token.clone())
+            } else {
+                None
+            }
+        })
+    }
 }
 
 /// OAuth / OIDC hook for Dioxus components.

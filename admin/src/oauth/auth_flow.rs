@@ -321,6 +321,58 @@ pub fn build_user_info_from_openid(
         }
     }
 
+    if let Ok(decoded_access) = crate::oauth::jwt_utils::decode_jwt(&access_token) {
+        if sub.is_empty() {
+            if let Some(s) = decoded_access.claims.get("sub").and_then(|v| v.as_str()) {
+                sub = s.to_string();
+            }
+        }
+        if email.is_none() {
+            email = extract_email_from_claims(&decoded_access.claims);
+        }
+        if username.is_empty() {
+            if let Some(u) = decoded_access
+                .claims
+                .get("preferred_username")
+                .or_else(|| decoded_access.claims.get("username"))
+                .or_else(|| decoded_access.claims.get("nickname"))
+                .and_then(|v| v.as_str())
+            {
+                username = u.to_string();
+            }
+        }
+        if name.is_none() {
+            if let Some(n) = decoded_access
+                .claims
+                .get("name")
+                .or_else(|| decoded_access.claims.get("display_name"))
+                .and_then(|v| v.as_str())
+            {
+                name = Some(n.to_string());
+            }
+        }
+        if given_name.is_none() {
+            if let Some(g) = decoded_access
+                .claims
+                .get("given_name")
+                .or_else(|| decoded_access.claims.get("first_name"))
+                .and_then(|v| v.as_str())
+            {
+                given_name = Some(g.to_string());
+            }
+        }
+        if family_name.is_none() {
+            if let Some(f) = decoded_access
+                .claims
+                .get("family_name")
+                .or_else(|| decoded_access.claims.get("last_name"))
+                .and_then(|v| v.as_str())
+            {
+                family_name = Some(f.to_string());
+            }
+        }
+    }
+
     if username.is_empty() {
         username = sub.clone();
     }
@@ -399,6 +451,9 @@ pub fn attempt_refresh(
                     if updated.email.is_none() {
                         updated.email = current.email.clone();
                     }
+                    if updated.id_token.is_none() {
+                        updated.id_token = current.id_token.clone();
+                    }
                     store_user_info(&updated);
                     auth_state.set(AuthState::Authenticated(updated.clone()));
                     if let (Some(rt), Some(exp)) =
@@ -430,6 +485,21 @@ pub fn initiate_login(client: &OpenIdClient, cfg: &OAuthConfig) {
             auth_req = auth_req.add_scope(Scope::new(sc.into()));
         }
     }
+
+    // Request standard profile & email claims in the ID token per OIDC Core 1.0 section 5.5.
+    // Many providers (including Nextcloud's OIDC provider) only include these claims in the
+    // id_token if explicitly requested via the `claims` authorization parameter.
+    let claims_json = serde_json::json!({
+        "id_token": {
+            "email": null,
+            "email_verified": null,
+            "name": null,
+            "preferred_username": null,
+            "given_name": null,
+            "family_name": null
+        }
+    });
+    auth_req = auth_req.add_extra_param("claims", claims_json.to_string());
 
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
     store_code_verifier(pkce_verifier.secret());

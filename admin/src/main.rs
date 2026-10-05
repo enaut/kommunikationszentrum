@@ -130,7 +130,7 @@ fn App() -> Element {
         if let Some(token) = unsubscribe_token.cloned() {
             {
                 let (is_authenticated, id_token) = match &*auth_state.read() {
-                    AuthState::Authenticated(u) => (true, u.id_token.clone()),
+                    AuthState::Authenticated(u) => (true, u.spacetimedb_token()),
                     _ => (false, None),
                 };
                 rsx! {
@@ -149,7 +149,7 @@ fn App() -> Element {
         } else if let Some(token) = verification_token.cloned() {
             {
                 let (is_authenticated, id_token) = match &*auth_state.read() {
-                    AuthState::Authenticated(u) => (true, u.id_token.clone()),
+                    AuthState::Authenticated(u) => (true, u.spacetimedb_token()),
                     _ => (false, None),
                 };
                 rsx! {
@@ -257,7 +257,7 @@ fn AuthenticatedApp(
 
     info!("Authenticated as: {}", user_info.subject_id);
 
-    let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.id_token.clone());
+    let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.spacetimedb_token());
 
     let state = use_connection_state();
     let register_self_async = module_bindings::dioxus::use_reducer_register_self_async();
