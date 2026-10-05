@@ -23,7 +23,6 @@ pub struct UserSyncData {
     pub name: Option<String>,
     pub is_active: Option<bool>,
     pub is_admin: Option<bool>,
-    pub updated_at: Option<String>,
     pub identity_hex: Option<String>,
     #[serde(default)]
     pub topics: Vec<crate::models::topic::TopicSyncData>,
@@ -317,14 +316,10 @@ pub(crate) fn do_sync_user(
             "upsert" => {
                 log::info!("Syncing user: {} ({})", data.external_id, action);
 
-                let primary_sync = data
-                    .emails
-                    .iter()
-                    .find(|e| e.is_primary)
-                    .ok_or_else(|| {
-                        "User sync upsert requires at least one email marked with is_primary = true"
-                            .to_string()
-                    })?;
+                let primary_sync = data.emails.iter().find(|e| e.is_primary).ok_or_else(|| {
+                    "User sync upsert requires at least one email marked with is_primary = true"
+                        .to_string()
+                })?;
 
                 let issuer_url = OIDC_ISSUER_URL;
                 let identity_of_user = Identity::from_claims(issuer_url, &data.external_id);
@@ -1110,7 +1105,10 @@ mod tests {
         assert!(!data.emails[1].is_verified);
         assert_eq!(data.topics.len(), 1);
         assert_eq!(data.topics[0].name, "VP Süd");
-        assert_eq!(data.topics[0].categories, Some(vec!["Verteilpunkt".to_string()]));
+        assert_eq!(
+            data.topics[0].categories,
+            Some(vec!["Verteilpunkt".to_string()])
+        );
         assert_eq!(
             data.unsubscribe_topic_emails,
             vec!["vp-nord@solawi.org".to_string()]

@@ -11,7 +11,8 @@ use crate::services::mta::envelope_parser::{
     extract_header, extract_subject_from_request, parse_email_addresses,
 };
 use crate::services::mta::rejection::{
-    build_rejection_email, is_valid_bounce_recipient, RejectedTopic, TopicRejectionReason,
+    build_oversize_email, build_rejection_email, is_oversize_message, is_valid_bounce_recipient,
+    RejectedTopic, TopicRejectionReason, MAX_MESSAGE_SIZE_BYTES,
 };
 
 pub fn insert_mail_message(
@@ -123,6 +124,38 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
                 }
             }
         }
+    }
+
+    if is_oversize_message(message_size) && !target_topics.is_empty() {
+        log::warn!(
+            "Not forwarding oversized message from {} ({} bytes; maximum {} bytes)",
+            from_address,
+            message_size,
+            MAX_MESSAGE_SIZE_BYTES
+        );
+
+        if is_valid_bounce_recipient(from_address) {
+            let (notice_subject, notice_body) =
+                build_oversize_email(&subject, message_size, MAX_MESSAGE_SIZE_BYTES);
+            ctx.db.system_mail_pending().insert(SystemMailPending {
+                id: 0,
+                recipient: from_address.to_string(),
+                subject: notice_subject,
+                body_text: notice_body,
+                instance_id: None,
+                claimed_at: None,
+            });
+        }
+
+        ctx.db.mta_message_log().insert(MtaMessageLog {
+            id: 0,
+            stage: "data".to_string(),
+            action: "reject_oversize".to_string(),
+            timestamp,
+            queue_id: request.context.queue.as_ref().map(|q| q.id.clone()),
+            topic_count: 0,
+        });
+        return;
     }
 
     let from_lower = from_address.to_lowercase();
@@ -299,16 +332,7 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
                 .collect();
             let headers_raw = serde_json::to_string(&all_headers).unwrap_or_default();
 
-            const MAX_BODY_SIZE: usize = 2_000_000;
-            let body_raw = if message.size > MAX_BODY_SIZE {
-                log::warn!(
-                    "Message body exceeds 2 MB ({} bytes), storing headers only",
-                    message.size
-                );
-                String::new()
-            } else {
-                message.contents.clone()
-            };
+            let body_raw = message.contents.clone();
 
             let queue_id = request.context.queue.as_ref().map(|q| q.id.clone());
 

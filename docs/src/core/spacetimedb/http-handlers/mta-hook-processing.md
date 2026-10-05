@@ -31,13 +31,11 @@ The `data` handler runs inside `ctx.with_tx(...)` to ensure atomic writes:
 
 1. Extracts headers, subject, message size, and body.
 2. Resolves matching topics from envelope recipients; falls back to the message `To` header.
-3. Resolves all active sender accounts by matching `from_address` against `account_emails`.
-4. Checks sender authorization for each topic:
+3. If the message is larger than 2,000,000 bytes and addresses an active topic, the DATA handler creates no subscriber archive or fan-out jobs. It records `reject_oversize` and queues a bilingual system mail explaining the size limit for a valid sender address. The DATA hook still accepts the message at the MTA boundary so the queued notice can be delivered.
+4. Resolves active sender accounts and checks authorization for each remaining topic:
    - **Admin Access**: If *any* matching account has an admin identity in `admin_identities`, posting authorization is granted.
    - **Member Write Permission**: Otherwise, ensures matching accounts exist and are active (`is_active == true`), and verifies that at least one matching account holds an active subscription with `SubscriptionPermission::Write` to the topic.
-5. If authorized, creates a canonical `mail_message` row, enqueues an ingress fan-out job in `mail_ingress`, archives to `received_message` for subscribed members, and returns `accept` (optionally adding processing headers). If no authorized topics remain, quarantines the message.
-
-> **Note:** Messages over 2 MB may have their bodies omitted from storage to avoid memory pressure.
+5. If authorized, creates a canonical `mail_message` row, enqueues an ingress fan-out job in `mail_ingress`, and archives to `received_message` for subscribed members. If no authorized topics remain, the message is quarantined or rejected according to the authorization result.
 
 ---
 

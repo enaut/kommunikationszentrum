@@ -56,7 +56,6 @@ UPSERT_PAYLOAD='{
             }
         ],
         "is_active": true,
-        "updated_at": "2024-01-01T12:00:00Z"
     }
 }'
 
@@ -95,7 +94,6 @@ UPDATE_PAYLOAD='{
             }
         ],
         "is_active": false,
-        "updated_at": "2024-01-02T12:00:00Z"
     }
 }'
 
@@ -127,7 +125,6 @@ DELETE_PAYLOAD='{
         "external_id": "123456",
         "name": null,
         "is_active": null,
-        "updated_at": null
     }
 }'
 

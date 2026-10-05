@@ -209,7 +209,6 @@ json
     "email": "max@example.org",
     "is_active": true,
     "is_admin": false,
-    "updated_at": "2024-01-01T12:00:00Z",
     "topics": [
       {
         "name": "VP Reyerhof",

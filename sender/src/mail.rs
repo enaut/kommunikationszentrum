@@ -1,9 +1,13 @@
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _;
 use lettre::message::header::{Header, HeaderName, HeaderValue};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::transport::smtp::Error as SmtpError;
 use lettre::{AsyncSmtpTransport, Message, Tokio1Executor};
+use mail_parser::{MessageParser, PartType};
 use regex::Regex;
+use std::collections::HashSet;
 use std::error::Error;
 use tracing::{trace, warn};
 
@@ -148,7 +152,7 @@ pub fn compose_delivery(
     trace!("List email: {list_email}, list name: {list_name}");
 
     let recipient_email = subscriber_email;
-    let subject = rewrite_subject(&list_name, &message.subject);
+    let subject = clean_unsubscribe_content(&rewrite_subject(&list_name, &message.subject));
     let reply_to = &message.sender_email;
     let msg_id = format!(
         "<{}@{}>",
@@ -163,6 +167,8 @@ pub fn compose_delivery(
     let to_addr_res: Result<lettre::Address, _> = recipient_email.parse();
     let from_addr_res: Result<lettre::Address, _> = list_email.parse();
     let reply_to_res: Result<lettre::Address, _> = reply_to.parse();
+
+    let (mime_headers, mime_body) = prepare_mime_entity(message)?;
 
     let raw_message = match (from_addr_res, to_addr_res, reply_to_res) {
         (Ok(from_addr), Ok(to_addr), Ok(reply_to_addr)) => {
@@ -184,15 +190,20 @@ pub fn compose_delivery(
                 .header(SenderHeader(list_email.clone()))
                 .header(XMailingList(list_name))
                 .header(XBeenThere(list_email.clone()))
-                .body(message.body_raw.clone())?;
+                .body(String::new())?;
 
-            String::from_utf8(email.formatted().to_vec())?
+            let formatted = String::from_utf8(email.formatted().to_vec())?;
+            let header_block = formatted
+                .split_once("\r\n\r\n")
+                .map(|(headers, _)| headers)
+                .ok_or("Lettre produced a message without a header/body separator")?;
+            assemble_raw_message(header_block, &mime_headers, &mime_body)?
         }
         _ => {
             warn!(
                 "Recipient or sender email is not a valid RFC 5322 address (recipient: '{recipient_email}', list: '{list_email}', reply-to: '{reply_to}'). Falling back to raw headers."
             );
-            render_fallback_raw_message(
+            let fallback = render_fallback_raw_message(
                 list_email,
                 recipient_email,
                 reply_to,
@@ -200,8 +211,13 @@ pub fn compose_delivery(
                 &msg_id,
                 &list_name,
                 &unsubscribe_url,
-                &message.body_raw,
-            )
+                "",
+            );
+            let header_block = fallback
+                .split_once("\r\n\r\n")
+                .map(|(headers, _)| headers)
+                .ok_or("Fallback message is missing a header/body separator")?;
+            assemble_raw_message(header_block, &mime_headers, &mime_body)?
         }
     };
 
@@ -210,7 +226,304 @@ pub fn compose_delivery(
 }
 
 fn sanitize_header_value(value: &str) -> String {
-    value.replace(['\r', '\n'], "")
+    value.replace(['\r', '\n'], " ")
+}
+
+fn token_re() -> &'static Regex {
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?i)sub-[0-9]+-[0-9a-f]{32}").unwrap())
+}
+
+fn unsubscribe_url_re() -> &'static Regex {
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?i)(?:https?://|mailto:|/)[^\s<>\"']*sub-[0-9]+-[0-9a-f]{32}[^\s<>\"']*"#)
+            .unwrap()
+    })
+}
+
+fn unsubscribe_anchor_re() -> &'static Regex {
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?is)<a\b[^>]*\bhref\s*=\s*[\"'][^\"']*sub-[0-9]+-[0-9a-f]{32}[^\"']*[\"'][^>]*>.*?</a\s*>"#,
+        )
+        .unwrap()
+    })
+}
+
+fn clean_unsubscribe_content(value: &str) -> String {
+    let without_links = unsubscribe_anchor_re().replace_all(value, "");
+    let without_urls = unsubscribe_url_re().replace_all(&without_links, "");
+    token_re().replace_all(&without_urls, "").into_owned()
+}
+
+fn prepare_mime_entity(message: &MailMessage) -> Result<(String, Vec<u8>), Box<dyn Error>> {
+    let original_headers: Vec<(String, String)> = if message.headers_raw.trim().is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str(&message.headers_raw)?
+    };
+    let mut entity = String::new();
+    let mut has_content_type = false;
+    let mut has_mime_version = false;
+
+    for (name, value) in original_headers {
+        let lower_name = name.to_ascii_lowercase();
+        if lower_name == "mime-version" || lower_name.starts_with("content-") {
+            if lower_name == "content-type" {
+                has_content_type = true;
+            } else if lower_name == "mime-version" {
+                has_mime_version = true;
+            }
+            entity.push_str(&name);
+            entity.push_str(": ");
+            let value = if lower_name == "content-type" {
+                value
+            } else {
+                clean_unsubscribe_content(&value)
+            };
+            entity.push_str(&sanitize_header_value(&value));
+            entity.push_str("\r\n");
+        }
+    }
+    if !has_mime_version {
+        entity.push_str("MIME-Version: 1.0\r\n");
+    }
+    if !has_content_type {
+        entity.push_str("Content-Type: text/plain; charset=utf-8\r\n");
+    }
+    entity.push_str("\r\n");
+    entity.push_str(&message.body_raw);
+
+    let Some(parsed) = MessageParser::default().parse(entity.as_bytes()) else {
+        return Err("Could not parse original MIME entity".into());
+    };
+
+    let mut part_ids = HashSet::new();
+    let mut cleaned_text_parts = std::collections::HashMap::new();
+    for id in parsed.text_body.iter().chain(parsed.html_body.iter()) {
+        if !part_ids.insert(*id) {
+            continue;
+        }
+        let Some(part) = parsed.parts.get(*id as usize) else {
+            continue;
+        };
+        let (text, is_html) = match &part.body {
+            PartType::Text(text) => (text.as_ref(), false),
+            PartType::Html(html) => (html.as_ref(), true),
+            _ => continue,
+        };
+        let cleaned = clean_unsubscribe_content(text);
+        if cleaned != text {
+            if part.is_encoding_problem {
+                return Err("Cannot safely clean an incorrectly encoded MIME text part".into());
+            }
+            cleaned_text_parts.insert(*id, (cleaned, is_html));
+        }
+    }
+
+    let mut patches = Vec::new();
+    for (id, part) in parsed.parts.iter().enumerate() {
+        let start = part.offset_header as usize;
+        let body_start = part.offset_body as usize;
+        let end = part.offset_end as usize;
+        if start > body_start || body_start > end || end > entity.len() {
+            return Err("MIME parser returned invalid part offsets".into());
+        }
+
+        let cleaned_body = cleaned_text_parts.get(&(id as u32));
+        let raw_headers = &entity.as_bytes()[start..body_start];
+        let fields = parse_header_fields(std::str::from_utf8(raw_headers)?);
+        let header_needs_cleaning = fields.iter().any(|(name, value)| {
+            !(name.eq_ignore_ascii_case("content-type")
+                && value.to_ascii_lowercase().starts_with("multipart/"))
+                && clean_unsubscribe_content(value) != *value
+        });
+
+        if cleaned_body.is_none() && !header_needs_cleaning {
+            continue;
+        }
+
+        let is_html = cleaned_body.is_some_and(|(_, is_html)| *is_html);
+        let rewrite_body = cleaned_body.is_some();
+        let new_headers = rewrite_mime_part_headers(raw_headers, rewrite_body, is_html)?;
+        let mut header_replacement = new_headers.into_bytes();
+        header_replacement.extend_from_slice(b"\r\n");
+        patches.push((start, body_start, header_replacement));
+
+        if let Some((cleaned, _)) = cleaned_body {
+            patches.push((body_start, end, base64_mime_body(cleaned.as_bytes())));
+        }
+    }
+
+    let mut entity_bytes = entity.into_bytes();
+    patches.sort_by(|a, b| b.0.cmp(&a.0));
+    for (start, end, replacement) in patches {
+        entity_bytes.splice(start..end, replacement);
+    }
+
+    let entity = String::from_utf8(entity_bytes)?;
+    let (mime_headers, mime_body) = entity
+        .split_once("\r\n\r\n")
+        .ok_or("Prepared MIME entity is missing a header/body separator")?;
+    Ok((mime_headers.to_string(), mime_body.as_bytes().to_vec()))
+}
+
+fn rewrite_mime_part_headers(
+    raw_headers: &[u8],
+    rewrite_body: bool,
+    is_html: bool,
+) -> Result<String, Box<dyn Error>> {
+    let raw_headers = std::str::from_utf8(raw_headers)?;
+    let fields = parse_header_fields(raw_headers);
+    let mut result = String::new();
+    let mut saw_content_type = false;
+    let mut saw_transfer_encoding = false;
+
+    for (name, value) in fields {
+        if name.eq_ignore_ascii_case("content-transfer-encoding") {
+            if !saw_transfer_encoding {
+                let value = if rewrite_body {
+                    "base64".to_string()
+                } else {
+                    clean_unsubscribe_content(&value)
+                };
+                result.push_str("Content-Transfer-Encoding: ");
+                result.push_str(&sanitize_header_value(&value));
+                result.push_str("\r\n");
+                saw_transfer_encoding = true;
+            }
+        } else if name.eq_ignore_ascii_case("content-type") {
+            if !saw_content_type {
+                let value = if rewrite_body {
+                    content_type_with_utf8_charset(&clean_unsubscribe_content(&value), is_html)
+                } else if value.to_ascii_lowercase().starts_with("multipart/") {
+                    value
+                } else {
+                    clean_unsubscribe_content(&value)
+                };
+                result.push_str("Content-Type: ");
+                result.push_str(&sanitize_header_value(&value));
+                result.push_str("\r\n");
+                saw_content_type = true;
+            }
+        } else {
+            result.push_str(&name);
+            result.push_str(": ");
+            result.push_str(&sanitize_header_value(&clean_unsubscribe_content(&value)));
+            result.push_str("\r\n");
+        }
+    }
+
+    if rewrite_body && !saw_content_type {
+        result.push_str(if is_html {
+            "Content-Type: text/html; charset=utf-8\r\n"
+        } else {
+            "Content-Type: text/plain; charset=utf-8\r\n"
+        });
+    }
+    if rewrite_body && !saw_transfer_encoding {
+        result.push_str("Content-Transfer-Encoding: base64\r\n");
+    }
+    Ok(result)
+}
+
+fn parse_header_fields(raw_headers: &str) -> Vec<(String, String)> {
+    let mut fields: Vec<(String, String)> = Vec::new();
+    for line in raw_headers.trim_end_matches(['\r', '\n']).split("\r\n") {
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with(' ') || line.starts_with('\t') {
+            if let Some((_, value)) = fields.last_mut() {
+                value.push(' ');
+                value.push_str(line.trim());
+            }
+        } else if let Some((name, value)) = line.split_once(':') {
+            fields.push((name.trim().to_string(), value.trim().to_string()));
+        }
+    }
+    fields
+}
+
+fn content_type_with_utf8_charset(value: &str, is_html: bool) -> String {
+    let mut segments = value.split(';');
+    let media_type = segments.next().unwrap_or_default().trim();
+    let media_type = if media_type.contains('/') {
+        media_type.to_string()
+    } else if is_html {
+        "text/html".to_string()
+    } else {
+        "text/plain".to_string()
+    };
+    let parameters = segments
+        .map(str::trim)
+        .filter(|parameter| {
+            parameter
+                .split_once('=')
+                .is_none_or(|(name, _)| !name.trim().eq_ignore_ascii_case("charset"))
+        })
+        .collect::<Vec<_>>();
+    if parameters.is_empty() {
+        format!("{media_type}; charset=utf-8")
+    } else {
+        format!("{media_type}; {}; charset=utf-8", parameters.join("; "))
+    }
+}
+
+fn base64_mime_body(bytes: &[u8]) -> Vec<u8> {
+    let encoded = BASE64.encode(bytes);
+    let mut wrapped = Vec::with_capacity(encoded.len() + encoded.len() / 76 * 2);
+    for (index, line) in encoded.as_bytes().chunks(76).enumerate() {
+        if index > 0 {
+            wrapped.extend_from_slice(b"\r\n");
+        }
+        wrapped.extend_from_slice(line);
+    }
+    wrapped
+}
+
+fn assemble_raw_message(
+    generated_headers: &str,
+    mime_headers: &str,
+    mime_body: &[u8],
+) -> Result<String, Box<dyn Error>> {
+    let mut raw = strip_generated_mime_headers(generated_headers);
+    for line in mime_headers.split("\r\n").filter(|line| !line.is_empty()) {
+        raw.push_str(line);
+        raw.push_str("\r\n");
+    }
+    raw.push_str("\r\n");
+    raw.push_str(std::str::from_utf8(mime_body)?);
+    Ok(raw)
+}
+
+fn strip_generated_mime_headers(headers: &str) -> String {
+    let mut result = String::new();
+    let mut keep_current = true;
+    for line in headers.split("\r\n").filter(|line| !line.is_empty()) {
+        if line.starts_with(' ') || line.starts_with('\t') {
+            if keep_current {
+                result.push_str(line);
+                result.push_str("\r\n");
+            }
+            continue;
+        }
+        let name = line
+            .split_once(':')
+            .map(|(name, _)| name.trim())
+            .unwrap_or("");
+        keep_current = !matches!(
+            name.to_ascii_lowercase().as_str(),
+            "content-type" | "content-transfer-encoding" | "mime-version"
+        );
+        if keep_current {
+            result.push_str(line);
+            result.push_str("\r\n");
+        }
+    }
+    result
 }
 
 fn render_fallback_raw_message(
@@ -359,6 +672,133 @@ pub fn build_unsubscribe_url(base_url: &str, token: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_mail_message(headers: &str, body: &str) -> MailMessage {
+        MailMessage {
+            id: 1,
+            queue_id: None,
+            received_at: spacetimedb_sdk::Timestamp::UNIX_EPOCH,
+            sender_account_id: None,
+            sender_email: "sender@example.test".to_string(),
+            subject: "Test message".to_string(),
+            from_header: "Sender <sender@example.test>".to_string(),
+            reply_to: None,
+            date_header: None,
+            message_id: None,
+            cc_header: None,
+            headers_raw: headers.to_string(),
+            body_raw: body.to_string(),
+            message_size: body.len() as u64,
+        }
+    }
+
+    #[test]
+    fn prepare_mime_entity_preserves_multipart_attachments_and_redacts_tokens() {
+        let token = "sub-7-0123456789abcdef0123456789abcdef";
+        let html = format!(
+            "<html><body><p>HTML reply</p><a href=\"https://list.example/unsubscribe?token={token}\">unsubscribe</a></body></html>"
+        );
+        let html_base64 = BASE64.encode(html.as_bytes());
+        let headers = serde_json::json!([
+            ["MIME-Version", "1.0"],
+            [
+                "Content-Type",
+                "multipart/mixed; boundary=\"mixed-boundary\""
+            ]
+        ])
+        .to_string();
+        let body = format!(
+            "This is a multipart message.\r\n\
+             --mixed-boundary\r\n\
+             Content-Type: multipart/alternative; boundary=\"alternative-boundary\"\r\n\r\n\
+             --alternative-boundary\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             Content-Transfer-Encoding: quoted-printable\r\n\r\n\
+             Quoted reply with token {token} and https://list.example/unsubscribe?token={token}\r\n\
+             --alternative-boundary\r\n\
+             Content-Type: text/html; charset=utf-8\r\n\
+             Content-Transfer-Encoding: base64\r\n\r\n\
+             {html_base64}\r\n\
+             --alternative-boundary--\r\n\
+             --mixed-boundary\r\n\
+             Content-Type: application/octet-stream\r\n\
+             Content-Transfer-Encoding: base64\r\n\
+             Content-Disposition: attachment; filename=\"file-{token}.bin\"\r\n\r\n\
+             AQIDBA==\r\n\
+             --mixed-boundary--\r\n"
+        );
+        let message = test_mail_message(&headers, &body);
+
+        let (mime_headers, mime_body) = prepare_mime_entity(&message).unwrap();
+        let assembled = format!(
+            "{mime_headers}\r\n\r\n{}",
+            String::from_utf8(mime_body).unwrap()
+        );
+        assert!(!assembled.contains(token));
+        let parsed = MessageParser::default()
+            .parse(assembled.as_bytes())
+            .expect("transformed MIME should parse");
+
+        let plain = parsed
+            .body_text(0)
+            .expect("plain alternative should survive");
+        let html = parsed
+            .body_html(0)
+            .expect("HTML alternative should survive");
+        assert!(plain.contains("Quoted reply"));
+        assert!(!plain.contains(token));
+        assert!(!plain.contains("list.example/unsubscribe"));
+        assert!(html.contains("HTML reply"));
+        assert!(!html.contains(token));
+        assert!(!html.contains("unsubscribe?token"));
+
+        let attachment = parsed
+            .attachments()
+            .next()
+            .expect("attachment should survive");
+        assert_eq!(attachment.contents(), &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn unmodified_mime_body_keeps_original_encoded_content() {
+        let headers = serde_json::json!([
+            ["MIME-Version", "1.0"],
+            ["Content-Type", "multipart/mixed; boundary=\"b\""]
+        ])
+        .to_string();
+        let body = concat!(
+            "--b\r\n",
+            "Content-Type: text/plain; charset=utf-8\r\n",
+            "Content-Transfer-Encoding: quoted-printable\r\n\r\n",
+            "Plain =C3=BC\r\n",
+            "--b\r\n",
+            "Content-Type: application/octet-stream\r\n",
+            "Content-Transfer-Encoding: base64\r\n\r\n",
+            "AQIDBA==\r\n",
+            "--b--\r\n"
+        );
+        let message = test_mail_message(&headers, body);
+
+        let (_, transformed_body) = prepare_mime_entity(&message).unwrap();
+        assert_eq!(String::from_utf8(transformed_body).unwrap(), body);
+    }
+
+    #[test]
+    fn list_unsubscribe_token_is_added_after_body_redaction() {
+        let own_token = "sub-8-abcdef0123456789abcdef0123456789";
+        let generated_headers = format!(
+            "From: list@example.test\r\nList-Unsubscribe: <https://example.test/unsub?token={own_token}>"
+        );
+        let result = assemble_raw_message(
+            &generated_headers,
+            "Content-Type: text/plain; charset=utf-8",
+            b"Body without old token",
+        )
+        .unwrap();
+
+        assert!(result.contains(own_token));
+        assert!(result.contains("List-Unsubscribe:"));
+    }
 
     #[test]
     fn test_build_unsubscribe_url_spacetimedb_route() {
