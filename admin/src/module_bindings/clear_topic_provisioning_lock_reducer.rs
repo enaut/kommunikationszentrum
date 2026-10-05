@@ -49,9 +49,11 @@ pub trait clear_topic_provisioning_lock {
     fn clear_topic_provisioning_lock_then(
         &self,
         topic_id: u64,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()>;
 }
 
@@ -59,9 +61,11 @@ impl clear_topic_provisioning_lock for super::RemoteReducers {
     fn clear_topic_provisioning_lock_then(
         &self,
         topic_id: u64,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()> {
         self.imp
             .invoke_reducer_with_callback(ClearTopicProvisioningLockArgs { topic_id }, callback)

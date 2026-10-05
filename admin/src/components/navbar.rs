@@ -7,7 +7,7 @@ use dioxus_i18n::tid;
 
 use crate::components::language_switcher::LanguageSwitcher;
 use crate::oauth::UserInfo;
-use crate::router::{use_is_admin, ActiveView};
+use crate::router::{ActiveView, use_is_admin};
 
 #[component]
 pub fn Navbar(

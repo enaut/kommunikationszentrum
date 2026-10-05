@@ -1,16 +1,16 @@
 use crate::models::account::webhook_tokens;
-use crate::models::mta::{blocked_ips, mta_connection_log, MtaConnectionLog};
+use crate::models::mta::{MtaConnectionLog, blocked_ips, mta_connection_log};
 use crate::models::topic::{
-    message_topics, MessageTopic, SubscriptionPermission, TopicSyncData, TopicVisibility,
+    MessageTopic, SubscriptionPermission, TopicSyncData, TopicVisibility, message_topics,
 };
-use crate::reducers::{do_sync_user, unsubscribe_subscription_by_token, UserSyncData};
+use crate::reducers::{UserSyncData, do_sync_user, unsubscribe_subscription_by_token};
 use crate::services::stalwart::topic::provision_stalwart_topic_mailbox;
 use log::info;
 use serde::Deserialize;
 use serde_json::json;
 use spacetimedb::{
-    http::{Body, HandlerContext, Request as HttpRequest, Response as HttpResponse, Router},
     Table,
+    http::{Body, HandlerContext, Request as HttpRequest, Response as HttpResponse, Router},
 };
 use stalwart_mta_hook_types::{
     Modification, Request as MtaHookRequest, Response as MtaHookResponse, Stage,
@@ -413,70 +413,70 @@ fn user_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResp
     // Ensure any new or unprovisioned topics in the user's assignment are provisioned in Stalwart
     if payload.action == "upsert" {
         for topic in &payload.user.topics {
-                let needs_provisioning = ctx.with_tx(|tx| {
-                    match tx
-                        .db
-                        .message_topics()
-                        .email_address()
-                        .find(&topic.email_address)
-                    {
-                        None => true,
-                        Some(existing) => existing.app_password_id.is_none(),
-                    }
-                });
+            let needs_provisioning = ctx.with_tx(|tx| {
+                match tx
+                    .db
+                    .message_topics()
+                    .email_address()
+                    .find(&topic.email_address)
+                {
+                    None => true,
+                    Some(existing) => existing.app_password_id.is_none(),
+                }
+            });
 
-                if needs_provisioning {
-                    info!(
-                        "Provisioning Stalwart mailbox for topic '{}' ({})",
-                        topic.name, topic.email_address
-                    );
-                    let visibility = match TopicVisibility::parse(&topic.visibility) {
-                        Ok(v) => v,
+            if needs_provisioning {
+                info!(
+                    "Provisioning Stalwart mailbox for topic '{}' ({})",
+                    topic.name, topic.email_address
+                );
+                let visibility = match TopicVisibility::parse(&topic.visibility) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return json_response(
+                            400,
+                            json!({"error": format!("Invalid topic visibility: {}", e)}),
+                        );
+                    }
+                };
+                let default_perm = match &topic.default_permission {
+                    Some(p) => match SubscriptionPermission::parse(p) {
+                        Ok(perm) => perm,
                         Err(e) => {
                             return json_response(
                                 400,
-                                json!({"error": format!("Invalid topic visibility: {}", e)}),
+                                json!({"error": format!("Invalid topic default_permission: {}", e)}),
                             );
                         }
-                    };
-                    let default_perm = match &topic.default_permission {
-                        Some(p) => match SubscriptionPermission::parse(p) {
-                            Ok(perm) => perm,
-                            Err(e) => {
-                                return json_response(
-                                    400,
-                                    json!({"error": format!("Invalid topic default_permission: {}", e)}),
-                                );
-                            }
-                        },
-                        None => SubscriptionPermission::Read,
-                    };
-                    if let Err(err) = provision_stalwart_topic_mailbox(
-                        ctx,
-                        &topic.name,
-                        &topic.email_address,
-                        &topic.description,
-                        visibility,
-                        default_perm,
-                    ) {
-                        log::error!(
-                            "Failed to provision Stalwart mailbox for topic '{}': {}",
-                            topic.email_address,
-                            err
-                        );
-                        return json_response(
-                            500,
-                            json!({
-                                "error": format!(
-                                    "Failed to provision topic '{}': {}",
-                                    topic.email_address, err
-                                )
-                            }),
-                        );
-                    }
+                    },
+                    None => SubscriptionPermission::Read,
+                };
+                if let Err(err) = provision_stalwart_topic_mailbox(
+                    ctx,
+                    &topic.name,
+                    &topic.email_address,
+                    &topic.description,
+                    visibility,
+                    default_perm,
+                ) {
+                    log::error!(
+                        "Failed to provision Stalwart mailbox for topic '{}': {}",
+                        topic.email_address,
+                        err
+                    );
+                    return json_response(
+                        500,
+                        json!({
+                            "error": format!(
+                                "Failed to provision topic '{}': {}",
+                                topic.email_address, err
+                            )
+                        }),
+                    );
                 }
             }
         }
+    }
 
     let result: Result<(), String> =
         ctx.with_tx(|tx| do_sync_user(tx, payload.action.clone(), user_data_str.clone()));

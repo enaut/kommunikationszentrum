@@ -1,9 +1,9 @@
-use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use lettre::message::header::{Header, HeaderName, HeaderValue};
+use lettre::transport::smtp::Error as SmtpError;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
-use lettre::transport::smtp::Error as SmtpError;
 use lettre::{AsyncSmtpTransport, Message, Tokio1Executor};
 use mail_parser::{MessageParser, PartType};
 use regex::Regex;

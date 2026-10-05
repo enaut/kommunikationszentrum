@@ -44,18 +44,22 @@ pub trait dump_mta_logs_to_server_logs {
     ///  and its status can be observed with the `callback`.
     fn dump_mta_logs_to_server_logs_then(
         &self,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()>;
 }
 
 impl dump_mta_logs_to_server_logs for super::RemoteReducers {
     fn dump_mta_logs_to_server_logs_then(
         &self,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()> {
         self.imp
             .invoke_reducer_with_callback(DumpMtaLogsToServerLogsArgs {}, callback)

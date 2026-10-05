@@ -15,7 +15,7 @@ use crate::module_bindings::dioxus::{
     use_table_visible_account_configs,
 };
 use crate::module_bindings::{Account, AccountEmail, SubscriptionPermission, SubscriptionStatus};
-use crate::pages::topic::subscribers::{parse_status, status_key, status_label, ALL_STATUSES};
+use crate::pages::topic::subscribers::{ALL_STATUSES, parse_status, status_key, status_label};
 
 /// Auto-select threshold: if the filtered list has fewer than this many entries,
 /// the first result is selected automatically.

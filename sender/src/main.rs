@@ -6,36 +6,36 @@ mod tracing_util;
 use config::SenderConfig;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use mail::{
-    build_transport, compose_delivery, is_permanent_error, resolve_topic_smtp_credentials,
-    AutoSubmitted,
+    AutoSubmitted, build_transport, compose_delivery, is_permanent_error,
+    resolve_topic_smtp_credentials,
 };
 use module_bindings::{
-    claim_next_mail_delivery, claim_next_mail_ingress, claim_system_mail, complete_mail_ingress,
-    complete_system_mail, enqueue_mail_delivery, ensure_subscription_unsubscribe_token,
-    fail_mail_delivery, fail_mail_ingress, mark_mail_delivery_sent, release_system_mail,
-    retry_mail_ingress, schedule_mail_delivery_retry, DbConnection, MailDeliveryClaimed,
-    MailIngress, MailMessage, MessageTopic, Subscription, SubscriptionStatus,
+    DbConnection, MailDeliveryClaimed, MailIngress, MailMessage, MessageTopic, Subscription,
+    SubscriptionStatus, claim_next_mail_delivery, claim_next_mail_ingress, claim_system_mail,
+    complete_mail_ingress, complete_system_mail, enqueue_mail_delivery,
+    ensure_subscription_unsubscribe_token, fail_mail_delivery, fail_mail_ingress,
+    mark_mail_delivery_sent, release_system_mail, retry_mail_ingress, schedule_mail_delivery_retry,
 };
 use spacetimedb_sdk::{DbContext, Table, TableWithPrimaryKey as _};
 use std::{error::Error, sync::Arc};
 use uuid::Uuid;
 
 use crate::module_bindings::{
-    increment_mail_ingress_delivery_count, ActiveUnsubscribeTokensTableAccess as _,
-    SenderAccountEmailsTableAccess as _, SenderMailDeliveryClaimedTableAccess as _,
-    SenderMailDeliveryDoneTableAccess as _, SenderMailDeliveryMessagesTableAccess as _,
-    SenderMailDeliveryPendingTableAccess as _, SenderMailIngressTableAccess as _,
-    SenderMailMessagesTableAccess as _, SenderMessageTopicsTableAccess as _,
-    SenderSubscriptionsTableAccess as _, SenderSystemMailPendingTableAccess as _,
-    VisibleAdminIdentitiesTableAccess as _,
+    ActiveUnsubscribeTokensTableAccess as _, SenderAccountEmailsTableAccess as _,
+    SenderMailDeliveryClaimedTableAccess as _, SenderMailDeliveryDoneTableAccess as _,
+    SenderMailDeliveryMessagesTableAccess as _, SenderMailDeliveryPendingTableAccess as _,
+    SenderMailIngressTableAccess as _, SenderMailMessagesTableAccess as _,
+    SenderMessageTopicsTableAccess as _, SenderSubscriptionsTableAccess as _,
+    SenderSystemMailPendingTableAccess as _, VisibleAdminIdentitiesTableAccess as _,
+    increment_mail_ingress_delivery_count,
 };
-use opentelemetry::global;
 use opentelemetry::KeyValue;
+use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig as _;
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_sdk::Resource;
 use tracing::{error, info, instrument, trace, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;

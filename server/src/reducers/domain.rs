@@ -3,7 +3,7 @@ use spacetimedb::{ProcedureContext, Table};
 
 use crate::common::auth::is_admin_identity;
 use crate::models::domain::*;
-use crate::services::stalwart::client::{send_stalwart_jmap_request, StalwartContext};
+use crate::services::stalwart::client::{StalwartContext, send_stalwart_jmap_request};
 use crate::services::stalwart::domain::*;
 
 /// Synchronizes domains configured in Stalwart into the SpacetimeDB database using any StalwartContext.

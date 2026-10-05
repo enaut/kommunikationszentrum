@@ -5,8 +5,8 @@ use tracing::info;
 
 use crate::config::AdminConfig;
 use crate::module_bindings::dioxus::{
-    use_connection_state, use_reducer_user_verify_email_then, use_spacetimedb_context_provider,
-    ConnectionState,
+    ConnectionState, use_connection_state, use_reducer_user_verify_email_then,
+    use_spacetimedb_context_provider,
 };
 use crate::oauth::auth_flow::clear_url;
 

@@ -12,9 +12,9 @@ use config::AdminConfig;
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 use module_bindings::dioxus::{
-    use_connection_state, use_spacetimedb_context_provider, ConnectionState,
+    ConnectionState, use_connection_state, use_spacetimedb_context_provider,
 };
-use oauth::{use_oauth, AuthState, UserInfo};
+use oauth::{AuthState, UserInfo, use_oauth};
 use router::ActiveView;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -306,7 +306,9 @@ fn AuthenticatedApp(
             spawn(async move {
                 match register_fn(subject, name, email).await {
                     Ok(()) => {
-                        ::dioxus::logger::tracing::info!("Successfully registered self in SpacetimeDB");
+                        ::dioxus::logger::tracing::info!(
+                            "Successfully registered self in SpacetimeDB"
+                        );
                         registered.set(true);
                         is_registering.set(false);
                         registration_error.set(None);

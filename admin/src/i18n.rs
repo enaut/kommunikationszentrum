@@ -1,5 +1,5 @@
 use dioxus_i18n::prelude::*;
-use unic_langid::{langid, LanguageIdentifier};
+use unic_langid::{LanguageIdentifier, langid};
 
 const STORAGE_KEY: &str = "preferred_language";
 

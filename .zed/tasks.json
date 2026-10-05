@@ -1,6 +1,6 @@
 [
   {
-    "label": "Start Dioxus",
+    "label": "Start Kommunikationszentrum",
     "command": "dx serve --package admin --platform web",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,

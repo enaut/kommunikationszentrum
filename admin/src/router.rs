@@ -1,5 +1,5 @@
 use crate::module_bindings::dioxus::{
-    use_connection_state, use_subscription, use_table_visible_admin_identities, ConnectionState,
+    ConnectionState, use_connection_state, use_subscription, use_table_visible_admin_identities,
 };
 
 #[derive(Clone, PartialEq)]

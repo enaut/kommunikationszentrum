@@ -83,9 +83,11 @@ pub trait update_message_topic {
         visibility: Option<TopicVisibility>,
         default_permission: Option<SubscriptionPermission>,
         clear_provisioning_lock: Option<bool>,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()>;
 }
 
@@ -98,9 +100,11 @@ impl update_message_topic for super::RemoteReducers {
         visibility: Option<TopicVisibility>,
         default_permission: Option<SubscriptionPermission>,
         clear_provisioning_lock: Option<bool>,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()> {
         self.imp.invoke_reducer_with_callback(
             UpdateMessageTopicArgs {

@@ -1458,16 +1458,16 @@ pub fn use_table_admin_stalwart_config() -> SyncSignal<Vec<StalwartConfig>> {
 
 /// Get a reactive signal containing all rows of the `expire_stale_delivery_claims_schedule` table.
 #[must_use]
-pub fn use_table_expire_stale_delivery_claims_schedule(
-) -> SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>> {
+pub fn use_table_expire_stale_delivery_claims_schedule()
+-> SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.expire_stale_delivery_claims_schedule
 }
 
 /// Get a reactive signal containing all rows of the `requeue_temporary_failed_mails_schedule` table.
 #[must_use]
-pub fn use_table_requeue_temporary_failed_mails_schedule(
-) -> SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>> {
+pub fn use_table_requeue_temporary_failed_mails_schedule()
+-> SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.requeue_temporary_failed_mails_schedule
 }
@@ -1523,8 +1523,8 @@ pub fn use_table_sender_mail_delivery_pending() -> SyncSignal<Vec<MailDeliveryPe
 
 /// Get a reactive signal containing all rows of the `sender_mail_delivery_temporary_failed` table.
 #[must_use]
-pub fn use_table_sender_mail_delivery_temporary_failed(
-) -> SyncSignal<Vec<MailDeliveryTemporaryFailed>> {
+pub fn use_table_sender_mail_delivery_temporary_failed()
+-> SyncSignal<Vec<MailDeliveryTemporaryFailed>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.sender_mail_delivery_temporary_failed
 }
@@ -1694,10 +1694,10 @@ pub fn use_table_visible_webhook_tokens() -> SyncSignal<Vec<WebhookToken>> {
 
 /// Get a callback to invoke the `add_and_subscribe_topic` reducer.
 #[must_use]
-pub fn use_reducer_add_and_subscribe_topic(
-) -> impl Fn(u64, u64, String, String, String, TopicVisibility) -> spacetimedb_sdk::Result<()>
-       + Clone
-       + 'static {
+pub fn use_reducer_add_and_subscribe_topic()
+-> impl Fn(u64, u64, String, String, String, TopicVisibility) -> spacetimedb_sdk::Result<()>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |subscriber_account_id: u64,
@@ -1787,9 +1787,10 @@ pub fn use_reducer_add_and_subscribe_topic_async() -> impl Fn(
     String,
     String,
     TopicVisibility,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |subscriber_account_id: u64,
@@ -1830,8 +1831,8 @@ pub fn use_reducer_add_and_subscribe_topic_async() -> impl Fn(
 
 /// Get a callback to invoke the `add_message_topic` reducer.
 #[must_use]
-pub fn use_reducer_add_message_topic(
-) -> impl Fn(String, String, String, TopicVisibility) -> spacetimedb_sdk::Result<()> + Clone + 'static
+pub fn use_reducer_add_message_topic()
+-> impl Fn(String, String, String, TopicVisibility) -> spacetimedb_sdk::Result<()> + Clone + 'static
 {
     let conn_signal = use_connection();
 
@@ -1905,9 +1906,10 @@ pub fn use_reducer_add_message_topic_async() -> impl Fn(
     String,
     String,
     TopicVisibility,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |name: String,
@@ -1944,8 +1946,8 @@ pub fn use_reducer_add_message_topic_async() -> impl Fn(
 
 /// Get a callback to invoke the `add_subscription` reducer.
 #[must_use]
-pub fn use_reducer_add_subscription(
-) -> impl Fn(u64, u64, u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_add_subscription()
+-> impl Fn(u64, u64, u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |subscriber_account_id: u64, account_email_id: u64, topic_id: u64| {
@@ -2009,10 +2011,10 @@ pub fn use_reducer_add_subscription_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_add_subscription_async(
-) -> impl Fn(u64, u64, u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_add_subscription_async()
+-> impl Fn(u64, u64, u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |subscriber_account_id: u64,
@@ -2047,8 +2049,8 @@ pub fn use_reducer_add_subscription_async(
 
 /// Get a callback to invoke the `admin_add_account_email` reducer.
 #[must_use]
-pub fn use_reducer_admin_add_account_email(
-) -> impl Fn(u64, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_admin_add_account_email()
+-> impl Fn(u64, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |account_id: u64, email: String| {
@@ -2109,10 +2111,10 @@ pub fn use_reducer_admin_add_account_email_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_admin_add_account_email_async(
-) -> impl Fn(u64, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_admin_add_account_email_async()
+-> impl Fn(u64, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |account_id: u64,
@@ -2144,8 +2146,8 @@ pub fn use_reducer_admin_add_account_email_async(
 
 /// Get a callback to invoke the `admin_add_subscription` reducer.
 #[must_use]
-pub fn use_reducer_admin_add_subscription(
-) -> impl Fn(u64, u64, u64, SubscriptionStatus) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_admin_add_subscription()
+-> impl Fn(u64, u64, u64, SubscriptionStatus) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |subscriber_account_id: u64,
@@ -2225,9 +2227,10 @@ pub fn use_reducer_admin_add_subscription_async() -> impl Fn(
     u64,
     u64,
     SubscriptionStatus,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |subscriber_account_id: u64,
@@ -2264,8 +2267,8 @@ pub fn use_reducer_admin_add_subscription_async() -> impl Fn(
 
 /// Get a callback to invoke the `cancel_mail_delivery_retry` reducer.
 #[must_use]
-pub fn use_reducer_cancel_mail_delivery_retry(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_cancel_mail_delivery_retry()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |delivery_id: String| {
@@ -2326,10 +2329,10 @@ pub fn use_reducer_cancel_mail_delivery_retry_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_cancel_mail_delivery_retry_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_cancel_mail_delivery_retry_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |delivery_id: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -2356,8 +2359,8 @@ pub fn use_reducer_cancel_mail_delivery_retry_async(
 
 /// Get a callback to invoke the `claim_next_mail_delivery` reducer.
 #[must_use]
-pub fn use_reducer_claim_next_mail_delivery(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_claim_next_mail_delivery()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |instance_id: String| {
@@ -2418,10 +2421,10 @@ pub fn use_reducer_claim_next_mail_delivery_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_claim_next_mail_delivery_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_claim_next_mail_delivery_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |instance_id: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -2448,8 +2451,8 @@ pub fn use_reducer_claim_next_mail_delivery_async(
 
 /// Get a callback to invoke the `claim_next_mail_ingress` reducer.
 #[must_use]
-pub fn use_reducer_claim_next_mail_ingress(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_claim_next_mail_ingress()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |instance_id: String| {
@@ -2510,10 +2513,10 @@ pub fn use_reducer_claim_next_mail_ingress_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_claim_next_mail_ingress_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_claim_next_mail_ingress_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |instance_id: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -2540,8 +2543,8 @@ pub fn use_reducer_claim_next_mail_ingress_async(
 
 /// Get a callback to invoke the `claim_system_mail` reducer.
 #[must_use]
-pub fn use_reducer_claim_system_mail(
-) -> impl Fn(u64, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_claim_system_mail()
+-> impl Fn(u64, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |mail_id: u64, instance_id: String| {
@@ -2602,10 +2605,10 @@ pub fn use_reducer_claim_system_mail_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_claim_system_mail_async(
-) -> impl Fn(u64, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_claim_system_mail_async()
+-> impl Fn(u64, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |mail_id: u64,
@@ -2637,8 +2640,8 @@ pub fn use_reducer_claim_system_mail_async(
 
 /// Get a callback to invoke the `clear_topic_provisioning_lock` reducer.
 #[must_use]
-pub fn use_reducer_clear_topic_provisioning_lock(
-) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_clear_topic_provisioning_lock()
+-> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |topic_id: u64| {
@@ -2699,10 +2702,10 @@ pub fn use_reducer_clear_topic_provisioning_lock_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_clear_topic_provisioning_lock_async(
-) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_clear_topic_provisioning_lock_async()
+-> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |topic_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -2729,8 +2732,8 @@ pub fn use_reducer_clear_topic_provisioning_lock_async(
 
 /// Get a callback to invoke the `complete_mail_ingress` reducer.
 #[must_use]
-pub fn use_reducer_complete_mail_ingress(
-) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_complete_mail_ingress()
+-> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String, instance_id: String| {
@@ -2792,12 +2795,10 @@ pub fn use_reducer_complete_mail_ingress_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_complete_mail_ingress_async() -> impl Fn(
-    String,
-    String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_complete_mail_ingress_async()
+-> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String,
@@ -2830,8 +2831,8 @@ pub fn use_reducer_complete_mail_ingress_async() -> impl Fn(
 
 /// Get a callback to invoke the `complete_system_mail` reducer.
 #[must_use]
-pub fn use_reducer_complete_system_mail(
-) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_complete_system_mail()
+-> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |mail_id: u64| {
@@ -2892,10 +2893,10 @@ pub fn use_reducer_complete_system_mail_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_complete_system_mail_async(
-) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_complete_system_mail_async()
+-> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |mail_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -2925,8 +2926,8 @@ pub fn use_reducer_complete_system_mail_async(
 
 /// Get a callback to invoke the `create_webhook_token` reducer.
 #[must_use]
-pub fn use_reducer_create_webhook_token(
-) -> impl Fn(String, String, Vec<String>) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_create_webhook_token()
+-> impl Fn(String, String, Vec<String>) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |token_hash: String, label: String, permissions: Vec<String>| {
@@ -2994,9 +2995,10 @@ pub fn use_reducer_create_webhook_token_async() -> impl Fn(
     String,
     String,
     Vec<String>,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |token_hash: String,
@@ -3031,8 +3033,8 @@ pub fn use_reducer_create_webhook_token_async() -> impl Fn(
 
 /// Get a callback to invoke the `dump_mta_logs_to_server_logs` reducer.
 #[must_use]
-pub fn use_reducer_dump_mta_logs_to_server_logs(
-) -> impl Fn() -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_dump_mta_logs_to_server_logs()
+-> impl Fn() -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move || {
@@ -3093,10 +3095,10 @@ pub fn use_reducer_dump_mta_logs_to_server_logs_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_dump_mta_logs_to_server_logs_async(
-) -> impl Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_dump_mta_logs_to_server_logs_async()
+-> impl Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move || -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -3126,10 +3128,10 @@ pub fn use_reducer_dump_mta_logs_to_server_logs_async(
 
 /// Get a callback to invoke the `enqueue_mail_delivery` reducer.
 #[must_use]
-pub fn use_reducer_enqueue_mail_delivery(
-) -> impl Fn(String, u64, String, Option<u64>, String, String, String) -> spacetimedb_sdk::Result<()>
-       + Clone
-       + 'static {
+pub fn use_reducer_enqueue_mail_delivery()
+-> impl Fn(String, u64, String, Option<u64>, String, String, String) -> spacetimedb_sdk::Result<()>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String,
@@ -3224,9 +3226,10 @@ pub fn use_reducer_enqueue_mail_delivery_async() -> impl Fn(
     String,
     String,
     String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String,
@@ -3269,8 +3272,8 @@ pub fn use_reducer_enqueue_mail_delivery_async() -> impl Fn(
 
 /// Get a callback to invoke the `ensure_subscription_unsubscribe_token` reducer.
 #[must_use]
-pub fn use_reducer_ensure_subscription_unsubscribe_token(
-) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_ensure_subscription_unsubscribe_token()
+-> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |subscription_id: u64| {
@@ -3332,10 +3335,10 @@ pub fn use_reducer_ensure_subscription_unsubscribe_token_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_ensure_subscription_unsubscribe_token_async(
-) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_ensure_subscription_unsubscribe_token_async()
+-> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |subscription_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -3362,8 +3365,8 @@ pub fn use_reducer_ensure_subscription_unsubscribe_token_async(
 
 /// Get a callback to invoke the `fail_mail_delivery` reducer.
 #[must_use]
-pub fn use_reducer_fail_mail_delivery(
-) -> impl Fn(String, String, Option<u16>, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static
+pub fn use_reducer_fail_mail_delivery()
+-> impl Fn(String, String, Option<u16>, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static
 {
     let conn_signal = use_connection();
 
@@ -3449,9 +3452,10 @@ pub fn use_reducer_fail_mail_delivery_async() -> impl Fn(
     Option<u16>,
     String,
     String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |delivery_id: String,
@@ -3490,8 +3494,8 @@ pub fn use_reducer_fail_mail_delivery_async() -> impl Fn(
 
 /// Get a callback to invoke the `fail_mail_ingress` reducer.
 #[must_use]
-pub fn use_reducer_fail_mail_ingress(
-) -> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_fail_mail_ingress()
+-> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String, instance_id: String, error: String| {
@@ -3559,9 +3563,10 @@ pub fn use_reducer_fail_mail_ingress_async() -> impl Fn(
     String,
     String,
     String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String,
@@ -3596,8 +3601,8 @@ pub fn use_reducer_fail_mail_ingress_async() -> impl Fn(
 
 /// Get a callback to invoke the `increment_mail_ingress_delivery_count` reducer.
 #[must_use]
-pub fn use_reducer_increment_mail_ingress_delivery_count(
-) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_increment_mail_ingress_delivery_count()
+-> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String, instance_id: String| {
@@ -3660,12 +3665,10 @@ pub fn use_reducer_increment_mail_ingress_delivery_count_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_increment_mail_ingress_delivery_count_async() -> impl Fn(
-    String,
-    String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_increment_mail_ingress_delivery_count_async()
+-> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String,
@@ -3698,8 +3701,8 @@ pub fn use_reducer_increment_mail_ingress_delivery_count_async() -> impl Fn(
 
 /// Get a callback to invoke the `increment_mail_ingress_failed_delivery_count` reducer.
 #[must_use]
-pub fn use_reducer_increment_mail_ingress_failed_delivery_count(
-) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_increment_mail_ingress_failed_delivery_count()
+-> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String, instance_id: String| {
@@ -3765,12 +3768,10 @@ pub fn use_reducer_increment_mail_ingress_failed_delivery_count_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_increment_mail_ingress_failed_delivery_count_async() -> impl Fn(
-    String,
-    String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_increment_mail_ingress_failed_delivery_count_async()
+-> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String,
@@ -3806,8 +3807,8 @@ pub fn use_reducer_increment_mail_ingress_failed_delivery_count_async() -> impl 
 
 /// Get a callback to invoke the `mark_mail_delivery_bounced` reducer.
 #[must_use]
-pub fn use_reducer_mark_mail_delivery_bounced(
-) -> impl Fn(String, String, Option<u16>, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static
+pub fn use_reducer_mark_mail_delivery_bounced()
+-> impl Fn(String, String, Option<u16>, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static
 {
     let conn_signal = use_connection();
 
@@ -3893,9 +3894,10 @@ pub fn use_reducer_mark_mail_delivery_bounced_async() -> impl Fn(
     Option<u16>,
     String,
     String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |delivery_id: String,
@@ -3934,8 +3936,8 @@ pub fn use_reducer_mark_mail_delivery_bounced_async() -> impl Fn(
 
 /// Get a callback to invoke the `mark_mail_delivery_sent` reducer.
 #[must_use]
-pub fn use_reducer_mark_mail_delivery_sent(
-) -> impl Fn(String, String, Option<u16>, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_mark_mail_delivery_sent()
+-> impl Fn(String, String, Option<u16>, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |delivery_id: String,
@@ -4015,9 +4017,10 @@ pub fn use_reducer_mark_mail_delivery_sent_async() -> impl Fn(
     String,
     Option<u16>,
     String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |delivery_id: String,
@@ -4054,8 +4057,8 @@ pub fn use_reducer_mark_mail_delivery_sent_async() -> impl Fn(
 
 /// Get a callback to invoke the `register_admin_identity` reducer.
 #[must_use]
-pub fn use_reducer_register_admin_identity(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_register_admin_identity()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |identity_hex: String| {
@@ -4116,10 +4119,10 @@ pub fn use_reducer_register_admin_identity_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_register_admin_identity_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_register_admin_identity_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |identity_hex: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -4146,8 +4149,8 @@ pub fn use_reducer_register_admin_identity_async(
 
 /// Get a callback to invoke the `register_self` reducer.
 #[must_use]
-pub fn use_reducer_register_self(
-) -> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_register_self()
+-> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |external_id: String, name: String, email: String| {
@@ -4212,9 +4215,10 @@ pub fn use_reducer_register_self_async() -> impl Fn(
     String,
     String,
     String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |external_id: String,
@@ -4247,8 +4251,8 @@ pub fn use_reducer_register_self_async() -> impl Fn(
 
 /// Get a callback to invoke the `release_system_mail` reducer.
 #[must_use]
-pub fn use_reducer_release_system_mail(
-) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_release_system_mail()
+-> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |mail_id: u64| {
@@ -4309,10 +4313,10 @@ pub fn use_reducer_release_system_mail_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_release_system_mail_async(
-) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_release_system_mail_async()
+-> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |mail_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -4342,8 +4346,8 @@ pub fn use_reducer_release_system_mail_async(
 
 /// Get a callback to invoke the `remove_account_email` reducer.
 #[must_use]
-pub fn use_reducer_remove_account_email(
-) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_remove_account_email()
+-> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |account_email_id: u64| {
@@ -4404,10 +4408,10 @@ pub fn use_reducer_remove_account_email_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_remove_account_email_async(
-) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_remove_account_email_async()
+-> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |account_email_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -4434,8 +4438,8 @@ pub fn use_reducer_remove_account_email_async(
 
 /// Get a callback to invoke the `remove_message_topic` reducer.
 #[must_use]
-pub fn use_reducer_remove_message_topic(
-) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_remove_message_topic()
+-> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |topic_id: u64| {
@@ -4496,10 +4500,10 @@ pub fn use_reducer_remove_message_topic_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_remove_message_topic_async(
-) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_remove_message_topic_async()
+-> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |topic_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -4526,8 +4530,8 @@ pub fn use_reducer_remove_message_topic_async(
 
 /// Get a callback to invoke the `remove_subscription` reducer.
 #[must_use]
-pub fn use_reducer_remove_subscription(
-) -> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_remove_subscription()
+-> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |subscription_id: u64| {
@@ -4588,10 +4592,10 @@ pub fn use_reducer_remove_subscription_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_remove_subscription_async(
-) -> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_remove_subscription_async()
+-> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |subscription_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -4618,8 +4622,8 @@ pub fn use_reducer_remove_subscription_async(
 
 /// Get a callback to invoke the `rename_category` reducer.
 #[must_use]
-pub fn use_reducer_rename_category(
-) -> impl Fn(u64, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_rename_category()
+-> impl Fn(u64, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |category_id: u64, new_name: String| {
@@ -4680,10 +4684,10 @@ pub fn use_reducer_rename_category_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_rename_category_async(
-) -> impl Fn(u64, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_rename_category_async()
+-> impl Fn(u64, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |category_id: u64,
@@ -4715,8 +4719,8 @@ pub fn use_reducer_rename_category_async(
 
 /// Get a callback to invoke the `retry_mail_ingress` reducer.
 #[must_use]
-pub fn use_reducer_retry_mail_ingress(
-) -> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_retry_mail_ingress()
+-> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String, instance_id: String, error: String| {
@@ -4784,9 +4788,10 @@ pub fn use_reducer_retry_mail_ingress_async() -> impl Fn(
     String,
     String,
     String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |ingress_id: String,
@@ -4821,8 +4826,8 @@ pub fn use_reducer_retry_mail_ingress_async() -> impl Fn(
 
 /// Get a callback to invoke the `revoke_webhook_token` reducer.
 #[must_use]
-pub fn use_reducer_revoke_webhook_token(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_revoke_webhook_token()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |token_hash: String| {
@@ -4883,10 +4888,10 @@ pub fn use_reducer_revoke_webhook_token_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_revoke_webhook_token_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_revoke_webhook_token_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |token_hash: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -4913,8 +4918,8 @@ pub fn use_reducer_revoke_webhook_token_async(
 
 /// Get a callback to invoke the `schedule_mail_delivery_retry` reducer.
 #[must_use]
-pub fn use_reducer_schedule_mail_delivery_retry(
-) -> impl Fn(String, String, String, i64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_schedule_mail_delivery_retry()
+-> impl Fn(String, String, String, i64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |delivery_id: String, instance_id: String, error_msg: String, delay_micros: i64| {
@@ -4989,9 +4994,10 @@ pub fn use_reducer_schedule_mail_delivery_retry_async() -> impl Fn(
     String,
     String,
     i64,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |delivery_id: String,
@@ -5028,8 +5034,8 @@ pub fn use_reducer_schedule_mail_delivery_retry_async() -> impl Fn(
 
 /// Get a callback to invoke the `set_stalwart_config` reducer.
 #[must_use]
-pub fn use_reducer_set_stalwart_config(
-) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_set_stalwart_config()
+-> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |jmap_url: String, admin_token: String| {
@@ -5090,12 +5096,10 @@ pub fn use_reducer_set_stalwart_config_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_set_stalwart_config_async() -> impl Fn(
-    String,
-    String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_set_stalwart_config_async()
+-> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |jmap_url: String,
@@ -5127,8 +5131,8 @@ pub fn use_reducer_set_stalwart_config_async() -> impl Fn(
 
 /// Get a callback to invoke the `set_topic_categories` reducer.
 #[must_use]
-pub fn use_reducer_set_topic_categories(
-) -> impl Fn(u64, Vec<String>) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_set_topic_categories()
+-> impl Fn(u64, Vec<String>) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |topic_id: u64, category_names: Vec<String>| {
@@ -5190,12 +5194,10 @@ pub fn use_reducer_set_topic_categories_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_set_topic_categories_async() -> impl Fn(
-    u64,
-    Vec<String>,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_set_topic_categories_async()
+-> impl Fn(u64, Vec<String>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |topic_id: u64,
@@ -5228,8 +5230,8 @@ pub fn use_reducer_set_topic_categories_async() -> impl Fn(
 
 /// Get a callback to invoke the `sync_user` reducer.
 #[must_use]
-pub fn use_reducer_sync_user(
-) -> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_sync_user()
+-> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |action: String, user_data: String| {
@@ -5290,12 +5292,10 @@ pub fn use_reducer_sync_user_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_sync_user_async() -> impl Fn(
-    String,
-    String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_sync_user_async()
+-> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |action: String,
@@ -5327,8 +5327,8 @@ pub fn use_reducer_sync_user_async() -> impl Fn(
 
 /// Get a callback to invoke the `unregister_admin_identity` reducer.
 #[must_use]
-pub fn use_reducer_unregister_admin_identity(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_unregister_admin_identity()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |identity_hex: String| {
@@ -5389,10 +5389,10 @@ pub fn use_reducer_unregister_admin_identity_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_unregister_admin_identity_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_unregister_admin_identity_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |identity_hex: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -5433,8 +5433,8 @@ pub fn use_reducer_update_account_config() -> impl Fn(
     Option<String>,
     Option<String>,
 ) -> spacetimedb_sdk::Result<()>
-       + Clone
-       + 'static {
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |message_offset: Option<u32>,
@@ -5478,20 +5478,20 @@ pub fn use_reducer_update_account_config() -> impl Fn(
 #[must_use]
 pub fn use_reducer_update_account_config_then() -> (
     impl Fn(
-            Option<u32>,
-            Option<u32>,
-            Option<u64>,
-            bool,
-            Option<u32>,
-            Option<u32>,
-            Option<String>,
-            bool,
-            Option<u64>,
-            bool,
-            Option<String>,
-            Option<String>,
-        ) + Clone
-        + 'static,
+        Option<u32>,
+        Option<u32>,
+        Option<u64>,
+        bool,
+        Option<u32>,
+        Option<u32>,
+        Option<String>,
+        bool,
+        Option<u64>,
+        bool,
+        Option<String>,
+        Option<String>,
+    ) + Clone
+    + 'static,
     SyncSignal<Option<Result<(), String>>>,
 ) {
     let conn_signal = use_connection();
@@ -5568,9 +5568,10 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
     bool,
     Option<String>,
     Option<String>,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |message_offset: Option<u32>,
@@ -5631,8 +5632,8 @@ pub fn use_reducer_update_message_topic() -> impl Fn(
     Option<SubscriptionPermission>,
     Option<bool>,
 ) -> spacetimedb_sdk::Result<()>
-       + Clone
-       + 'static {
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |topic_id: u64,
@@ -5663,15 +5664,9 @@ pub fn use_reducer_update_message_topic() -> impl Fn(
 /// on failure once the server notifies completion.
 #[must_use]
 pub fn use_reducer_update_message_topic_then() -> (
-    impl Fn(
-            u64,
-            String,
-            String,
-            Option<TopicVisibility>,
-            Option<SubscriptionPermission>,
-            Option<bool>,
-        ) + Clone
-        + 'static,
+    impl Fn(u64, String, String, Option<TopicVisibility>, Option<SubscriptionPermission>, Option<bool>)
+    + Clone
+    + 'static,
     SyncSignal<Option<Result<(), String>>>,
 ) {
     let conn_signal = use_connection();
@@ -5730,9 +5725,10 @@ pub fn use_reducer_update_message_topic_async() -> impl Fn(
     Option<TopicVisibility>,
     Option<SubscriptionPermission>,
     Option<bool>,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |topic_id: u64,
@@ -5773,8 +5769,8 @@ pub fn use_reducer_update_message_topic_async() -> impl Fn(
 
 /// Get a callback to invoke the `update_subscription_permission` reducer.
 #[must_use]
-pub fn use_reducer_update_subscription_permission(
-) -> impl Fn(u64, SubscriptionPermission) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_update_subscription_permission()
+-> impl Fn(u64, SubscriptionPermission) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |subscription_id: u64, permission: SubscriptionPermission| {
@@ -5840,9 +5836,10 @@ pub fn use_reducer_update_subscription_permission_then() -> (
 pub fn use_reducer_update_subscription_permission_async() -> impl Fn(
     u64,
     SubscriptionPermission,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |subscription_id: u64,
@@ -5875,8 +5872,8 @@ pub fn use_reducer_update_subscription_permission_async() -> impl Fn(
 
 /// Get a callback to invoke the `user_request_email_verification` reducer.
 #[must_use]
-pub fn use_reducer_user_request_email_verification(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_user_request_email_verification()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |email: String| {
@@ -5937,10 +5934,10 @@ pub fn use_reducer_user_request_email_verification_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_user_request_email_verification_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_user_request_email_verification_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |email: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -5967,8 +5964,8 @@ pub fn use_reducer_user_request_email_verification_async(
 
 /// Get a callback to invoke the `user_unsubscribe_by_token` reducer.
 #[must_use]
-pub fn use_reducer_user_unsubscribe_by_token(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_user_unsubscribe_by_token()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |token: String| {
@@ -6029,10 +6026,10 @@ pub fn use_reducer_user_unsubscribe_by_token_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_user_unsubscribe_by_token_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_user_unsubscribe_by_token_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |token: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -6059,8 +6056,8 @@ pub fn use_reducer_user_unsubscribe_by_token_async(
 
 /// Get a callback to invoke the `user_verify_email` reducer.
 #[must_use]
-pub fn use_reducer_user_verify_email(
-) -> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_user_verify_email()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
     move |token: String| {
@@ -6121,10 +6118,10 @@ pub fn use_reducer_user_verify_email_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_user_verify_email_async(
-) -> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-       + Clone
-       + 'static {
+pub fn use_reducer_user_verify_email_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move |token: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
@@ -6191,10 +6188,10 @@ pub fn use_procedure_provision_all_unprovisioned_topics() -> (
 ///
 /// Returns a closure that can be called to invoke the procedure and `await` the response directly.
 #[must_use]
-pub fn use_procedure_provision_all_unprovisioned_topics_async() -> impl Fn() -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>,
-> + Clone
-       + 'static {
+pub fn use_procedure_provision_all_unprovisioned_topics_async()
+-> impl Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>>
++ Clone
++ 'static {
     let conn_signal = use_connection();
 
     move || -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>> {
@@ -6274,7 +6271,7 @@ pub fn use_procedure_provision_message_topic_async() -> impl Fn(
 ) -> std::pin::Pin<
     Box<dyn std::future::Future<Output = Result<Result<(), String>, String>>>,
 > + Clone
-       + 'static {
++ 'static {
     let conn_signal = use_connection();
 
     move |name: String,
@@ -6352,7 +6349,7 @@ pub fn use_procedure_sync_stalwart_domains() -> (
 pub fn use_procedure_sync_stalwart_domains_async() -> impl Fn() -> std::pin::Pin<
     Box<dyn std::future::Future<Output = Result<Result<SyncDomainsResult, String>, String>>>,
 > + Clone
-       + 'static {
++ 'static {
     let conn_signal = use_connection();
 
     move || -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<SyncDomainsResult, String>, String>>>> {

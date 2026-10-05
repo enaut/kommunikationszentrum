@@ -2,17 +2,17 @@ use spacetimedb::{ReducerContext, Table, Timestamp};
 use stalwart_mta_hook_types::Request as MtaHookRequest;
 
 use crate::models::account::{account, account_emails, admin_identities};
-use crate::models::delivery::{system_mail_pending, SystemMailPending};
-use crate::models::mail_message::{mail_message, MailMessage};
+use crate::models::delivery::{SystemMailPending, system_mail_pending};
+use crate::models::mail_message::{MailMessage, mail_message};
 use crate::models::mta::*;
-use crate::models::topic::{message_topics, subscriptions, SubscriptionPermission};
+use crate::models::topic::{SubscriptionPermission, message_topics, subscriptions};
 use crate::reducers::delivery::upsert_mail_ingress;
 use crate::services::mta::envelope_parser::{
     extract_header, extract_subject_from_request, parse_email_addresses,
 };
 use crate::services::mta::rejection::{
-    build_oversize_email, build_rejection_email, is_oversize_message, is_valid_bounce_recipient,
-    RejectedTopic, TopicRejectionReason, MAX_MESSAGE_SIZE_BYTES,
+    MAX_MESSAGE_SIZE_BYTES, RejectedTopic, TopicRejectionReason, build_oversize_email,
+    build_rejection_email, is_oversize_message, is_valid_bounce_recipient,
 };
 
 pub fn insert_mail_message(

@@ -4,14 +4,15 @@ use ::dioxus::{
 };
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::{JsFuture, spawn_local};
 
 use crate::module_bindings::dioxus::{
-    use_connection_state, use_procedure_sync_stalwart_domains, use_reducer_create_webhook_token,
-    use_reducer_register_admin_identity, use_reducer_revoke_webhook_token,
-    use_reducer_set_stalwart_config_then, use_reducer_unregister_admin_identity, use_subscription,
-    use_table_admin_accounts, use_table_admin_stalwart_config, use_table_visible_admin_identities,
-    use_table_visible_domains, use_table_visible_webhook_tokens, ConnectionState,
+    ConnectionState, use_connection_state, use_procedure_sync_stalwart_domains,
+    use_reducer_create_webhook_token, use_reducer_register_admin_identity,
+    use_reducer_revoke_webhook_token, use_reducer_set_stalwart_config_then,
+    use_reducer_unregister_admin_identity, use_subscription, use_table_admin_accounts,
+    use_table_admin_stalwart_config, use_table_visible_admin_identities, use_table_visible_domains,
+    use_table_visible_webhook_tokens,
 };
 
 #[derive(Clone, PartialEq)]

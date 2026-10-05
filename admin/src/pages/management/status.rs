@@ -2,14 +2,13 @@ use ::dioxus::{logger::tracing::error, prelude::*};
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
+use crate::module_bindings::DeliveryFinalState;
 use crate::module_bindings::dioxus::{
-    use_connection_error, use_connection_state, use_subscription,
+    ConnectionState, use_connection_error, use_connection_state, use_subscription,
     use_table_sender_mail_delivery_claimed, use_table_sender_mail_delivery_done,
     use_table_sender_mail_delivery_events, use_table_sender_mail_delivery_messages,
     use_table_sender_mail_delivery_pending, use_table_sender_mail_delivery_temporary_failed,
-    ConnectionState,
 };
-use crate::module_bindings::DeliveryFinalState;
 use crate::oauth::UserInfo;
 
 #[component]

@@ -24,9 +24,11 @@ pub trait provision_all_unprovisioned_topics {
     fn provision_all_unprovisioned_topics_then(
         &self,
 
-        __callback: impl FnOnce(&super::ProcedureEventContext, Result<Result<u32, String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        __callback: impl FnOnce(
+            &super::ProcedureEventContext,
+            Result<Result<u32, String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     );
 }
 
@@ -34,9 +36,11 @@ impl provision_all_unprovisioned_topics for super::RemoteProcedures {
     fn provision_all_unprovisioned_topics_then(
         &self,
 
-        __callback: impl FnOnce(&super::ProcedureEventContext, Result<Result<u32, String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        __callback: impl FnOnce(
+            &super::ProcedureEventContext,
+            Result<Result<u32, String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) {
         self.imp
             .invoke_procedure_with_callback::<_, Result<u32, String>>(

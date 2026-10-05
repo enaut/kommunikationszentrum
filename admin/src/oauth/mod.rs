@@ -4,8 +4,9 @@ pub mod token_storage;
 
 use crate::config::OAuthConfig;
 use auth_flow::{
-    attempt_refresh, build_user_info_from_openid, clear_url, create_oidc_client, get_http_client,
-    initiate_login, initiate_logout, parse_url_params, schedule_refresh, OpenIdClient,
+    OpenIdClient, attempt_refresh, build_user_info_from_openid, clear_url, create_oidc_client,
+    fetch_raw_userinfo, get_http_client, initiate_login, initiate_logout, parse_url_params,
+    schedule_refresh,
 };
 use dioxus::prelude::*;
 use js_sys::Date;
@@ -166,14 +167,27 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
                             {
                                 Ok(req) => match req.request_async(http).await {
                                     Ok(claims) => Some(claims),
-                                    Err(_) => None,
+                                    Err(e) => {
+                                        warn!("OIDC userinfo endpoint failed: {:?}", e);
+                                        None
+                                    }
                                 },
-                                Err(_) => None,
+                                Err(e) => {
+                                    warn!("OIDC userinfo request building failed: {:?}", e);
+                                    None
+                                }
+                            };
+
+                            let raw_userinfo = if maybe_userinfo.as_ref().and_then(|c| c.email()).is_none() {
+                                fetch_raw_userinfo(&client, token_response.access_token().secret()).await
+                            } else {
+                                None
                             };
 
                             let ui = build_user_info_from_openid(
                                 &token_response,
                                 maybe_userinfo,
+                                raw_userinfo,
                                 refresh_token.clone(),
                             );
                             store_user_info(&ui);
