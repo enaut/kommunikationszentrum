@@ -416,7 +416,6 @@ pub(crate) fn do_sync_user(
 
                 let issuer_url = OIDC_ISSUER_URL;
                 let identity_of_user = Identity::from_claims(issuer_url, &data.external_id);
-                let is_admin = data.is_admin.unwrap_or(false);
 
                 // Look up existing account by external_id
                 let existing_account = ctx.db.account().external_id().find(&data.external_id);
@@ -527,31 +526,39 @@ pub(crate) fn do_sync_user(
                         });
                 }
 
-                if is_admin {
-                    if ctx
-                        .db
-                        .admin_identities()
-                        .identity()
-                        .find(&identity_of_user)
-                        .is_none()
-                    {
-                        ctx.db.admin_identities().insert(AdminIdentity {
-                            identity: identity_of_user,
-                        });
-                        log::info!("Granted admin_identities for account: {}", data.external_id);
+                match data.is_admin {
+                    Some(true) => {
+                        if ctx
+                            .db
+                            .admin_identities()
+                            .identity()
+                            .find(&identity_of_user)
+                            .is_none()
+                        {
+                            ctx.db.admin_identities().insert(AdminIdentity {
+                                identity: identity_of_user,
+                            });
+                            log::info!("Granted admin_identities for account: {}", data.external_id);
+                        }
                     }
-                } else if ctx
-                    .db
-                    .admin_identities()
-                    .identity()
-                    .find(&identity_of_user)
-                    .is_some()
-                {
-                    ctx.db
-                        .admin_identities()
-                        .identity()
-                        .delete(&identity_of_user);
-                    log::info!("Revoked admin_identities for account: {}", data.external_id);
+                    Some(false) => {
+                        if ctx
+                            .db
+                            .admin_identities()
+                            .identity()
+                            .find(&identity_of_user)
+                            .is_some()
+                        {
+                            ctx.db
+                                .admin_identities()
+                                .identity()
+                                .delete(&identity_of_user);
+                            log::info!("Revoked admin_identities for account: {}", data.external_id);
+                        }
+                    }
+                    None => {
+                        // When is_admin is omitted, do not alter existing admin status
+                    }
                 }
 
                 // 1. Remove ExternalSync emails not in incoming payload
@@ -1206,6 +1213,22 @@ mod tests {
             data.unsubscribe_topic_emails,
             vec!["vp-nord@solawi.org".to_string()]
         );
+        assert_eq!(data.is_admin, None);
+    }
+
+    #[test]
+    fn test_user_sync_data_is_admin_variations() {
+        let payload_none = r#"{"external_id": "1", "emails": []}"#;
+        let data_none: UserSyncData = serde_json::from_str(payload_none).unwrap();
+        assert_eq!(data_none.is_admin, None);
+
+        let payload_true = r#"{"external_id": "1", "is_admin": true, "emails": []}"#;
+        let data_true: UserSyncData = serde_json::from_str(payload_true).unwrap();
+        assert_eq!(data_true.is_admin, Some(true));
+
+        let payload_false = r#"{"external_id": "1", "is_admin": false, "emails": []}"#;
+        let data_false: UserSyncData = serde_json::from_str(payload_false).unwrap();
+        assert_eq!(data_false.is_admin, Some(false));
     }
 
     #[test]

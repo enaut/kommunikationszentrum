@@ -15,6 +15,7 @@
     - [Webhooks (Module HTTP Handlers)](./setup/spacetime-http-handlers.md)
     - [Admin Interface](./setup/admin-interface.md)
     - [Django Integration](./setup/django-integration.md)
+    - [Nextcloud Integration](./core/nextcloud-sync.md)
 
 - [Core Components](./core/architecture.md)
 

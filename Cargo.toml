@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["admin", "server", "sender"]
+members = ["admin", "server", "sender", "nextcloud-sync"]
 
 [profile]
 
