@@ -4150,12 +4150,12 @@ pub fn use_reducer_register_admin_identity_async()
 /// Get a callback to invoke the `register_self` reducer.
 #[must_use]
 pub fn use_reducer_register_self()
--> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+-> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
-    move |external_id: String, name: String, email: String| {
+    move |external_id: String, name: String| {
         if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.register_self(external_id, name, email)
+            conn.reducers.register_self(external_id, name)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
@@ -4169,22 +4169,22 @@ pub fn use_reducer_register_self()
 /// on failure once the server notifies completion.
 #[must_use]
 pub fn use_reducer_register_self_then() -> (
-    impl Fn(String, String, String) + Clone + 'static,
+    impl Fn(String, String) + Clone + 'static,
     SyncSignal<Option<Result<(), String>>>,
 ) {
     let conn_signal = use_connection();
     let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
 
-    let invoke = move |external_id: String, name: String, email: String| {
+    let invoke = move |external_id: String, name: String| {
         let mut result = result;
         result.set(None);
         if let Some(conn) = conn_signal().as_ref() {
             let (tx, rx) = oneshot::channel();
-            if let Err(e) =
-                conn.reducers
-                    .register_self_then(external_id, name, email, move |_ctx, res| {
-                        let _ = tx.send(res);
-                    })
+            if let Err(e) = conn
+                .reducers
+                .register_self_then(external_id, name, move |_ctx, res| {
+                    let _ = tx.send(res);
+                })
             {
                 result.set(Some(Err(e.to_string())));
                 return;
@@ -4211,19 +4211,14 @@ pub fn use_reducer_register_self_then() -> (
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_register_self_async() -> impl Fn(
-    String,
-    String,
-    String,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<(), String>>>,
-> + Clone
+pub fn use_reducer_register_self_async()
+-> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
 + 'static {
     let conn_signal = use_connection();
 
     move |external_id: String,
-          name: String,
-          email: String|
+          name: String|
           -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
         let conn = conn_signal();
         Box::pin(async move {
@@ -4231,11 +4226,11 @@ pub fn use_reducer_register_self_async() -> impl Fn(
                 return Err("Disconnected from SpacetimeDB".to_string());
             };
             let (tx, rx) = oneshot::channel();
-            if let Err(e) =
-                conn.reducers
-                    .register_self_then(external_id, name, email, move |_ctx, res| {
-                        let _ = tx.send(res);
-                    })
+            if let Err(e) = conn
+                .reducers
+                .register_self_then(external_id, name, move |_ctx, res| {
+                    let _ = tx.send(res);
+                })
             {
                 return Err(e.to_string());
             }

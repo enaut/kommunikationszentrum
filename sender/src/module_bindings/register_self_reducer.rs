@@ -9,7 +9,6 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 pub(super) struct RegisterSelfArgs {
     pub external_id: String,
     pub name: String,
-    pub email: String,
 }
 
 impl From<RegisterSelfArgs> for super::Reducer {
@@ -17,7 +16,6 @@ impl From<RegisterSelfArgs> for super::Reducer {
         Self::RegisterSelf {
             external_id: args.external_id,
             name: args.name,
-            email: args.email,
         }
     }
 }
@@ -37,8 +35,8 @@ pub trait register_self {
     /// The reducer will run asynchronously in the future,
     ///  and this method provides no way to listen for its completion status.
     /// /// Use [`register_self:register_self_then`] to run a callback after the reducer completes.
-    fn register_self(&self, external_id: String, name: String, email: String) -> __sdk::Result<()> {
-        self.register_self_then(external_id, name, email, |_, _| {})
+    fn register_self(&self, external_id: String, name: String) -> __sdk::Result<()> {
+        self.register_self_then(external_id, name, |_, _| {})
     }
 
     /// Request that the remote module invoke the reducer `register_self` to run as soon as possible,
@@ -51,7 +49,6 @@ pub trait register_self {
         &self,
         external_id: String,
         name: String,
-        email: String,
 
         callback: impl FnOnce(
             &super::ReducerEventContext,
@@ -66,7 +63,6 @@ impl register_self for super::RemoteReducers {
         &self,
         external_id: String,
         name: String,
-        email: String,
 
         callback: impl FnOnce(
             &super::ReducerEventContext,
@@ -74,13 +70,7 @@ impl register_self for super::RemoteReducers {
         ) + Send
         + 'static,
     ) -> __sdk::Result<()> {
-        self.imp.invoke_reducer_with_callback(
-            RegisterSelfArgs {
-                external_id,
-                name,
-                email,
-            },
-            callback,
-        )
+        self.imp
+            .invoke_reducer_with_callback(RegisterSelfArgs { external_id, name }, callback)
     }
 }

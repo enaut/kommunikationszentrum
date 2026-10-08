@@ -432,13 +432,18 @@ pub fn attempt_refresh(
                             },
                             Err(_) => None,
                         };
-                    let raw_userinfo = if maybe_userinfo.as_ref().and_then(|c| c.email()).is_none() {
+                    let raw_userinfo = if maybe_userinfo.as_ref().and_then(|c| c.email()).is_none()
+                    {
                         fetch_raw_userinfo(&client, token_response.access_token().secret()).await
                     } else {
                         None
                     };
-                    let mut updated =
-                        build_user_info_from_openid(&token_response, maybe_userinfo, raw_userinfo, new_refresh);
+                    let mut updated = build_user_info_from_openid(
+                        &token_response,
+                        maybe_userinfo,
+                        raw_userinfo,
+                        new_refresh,
+                    );
                     if updated.name.is_none() {
                         updated.name = current.name.clone();
                     }

@@ -369,7 +369,6 @@ pub enum Reducer {
     RegisterSelf {
         external_id: String,
         name: String,
-        email: String,
     },
     ReleaseSystemMail {
         mail_id: u64,
@@ -707,11 +706,9 @@ Reducer::EnqueueMailDelivery{
             Reducer::RegisterSelf{
                 external_id,
                 name,
-                email,
 }             => __sats::bsatn::to_vec(&register_self_reducer::RegisterSelfArgs {
                 external_id: external_id.clone(),
                 name: name.clone(),
-                email: email.clone(),
 }),
             Reducer::ReleaseSystemMail{
                 mail_id,

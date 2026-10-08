@@ -55,10 +55,13 @@ impl UserInfo {
     ///    use `access_token` so SpacetimeDB receives verified email claims.
     /// 3. Otherwise fall back to `id_token`, or `access_token` if valid JWT.
     pub fn spacetimedb_token(&self) -> Option<String> {
-        let id_claims = self.decode_id_token().and_then(|r| r.ok()).map(|d| d.claims);
-        let id_has_verified = id_claims.as_ref().is_some_and(|c| {
-            c.get("email_verified").is_some() || c.get("emailVerified").is_some()
-        });
+        let id_claims = self
+            .decode_id_token()
+            .and_then(|r| r.ok())
+            .map(|d| d.claims);
+        let id_has_verified = id_claims
+            .as_ref()
+            .is_some_and(|c| c.get("email_verified").is_some() || c.get("emailVerified").is_some());
 
         if id_has_verified {
             return self.id_token.clone();
@@ -213,8 +216,13 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
                                 }
                             };
 
-                            let raw_userinfo = if maybe_userinfo.as_ref().and_then(|c| c.email()).is_none() {
-                                fetch_raw_userinfo(&client, token_response.access_token().secret()).await
+                            let raw_userinfo = if maybe_userinfo
+                                .as_ref()
+                                .and_then(|c| c.email())
+                                .is_none()
+                            {
+                                fetch_raw_userinfo(&client, token_response.access_token().secret())
+                                    .await
                             } else {
                                 None
                             };
