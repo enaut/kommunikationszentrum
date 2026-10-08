@@ -83,6 +83,13 @@ The account's `external_id` is the OIDC `sub`. For a token from the configured i
 
 `OIDC_ISSUER_URL` is compiled into the server module via `option_env!`. Set it to the same exact issuer used by the admin OIDC configuration when building and publishing the module. A token from another issuer may still connect to SpacetimeDB, but it cannot register or update an account through `register_self`.
 
+### Email Claims and Primary Email Handling
+
+`register_self(external_id, name)` trusts email data only from the authenticated JWT claims (`email`, `mail`, or `emails`). The OIDC provider must provide an email claim in the JWT for registration to succeed.
+
+- **New Accounts**: The email address extracted from the token is inserted as the account's initial primary email. Its verification flag reflects token claims (`email_verified`, `emailVerified`, or `verified`).
+- **Existing Accounts**: If the token contains an email different from the account's current primary email, it is recorded in `account_emails`. It is only promoted to `primary_email_id` if the token explicitly verifies the address (`email_verified: true`) or if the account has no existing verified primary email. An unverified token email will never demote or displace an already-verified primary email.
+
 ## Token Lifecycle
 
 ### Acquisition

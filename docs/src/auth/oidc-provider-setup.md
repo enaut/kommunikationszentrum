@@ -8,7 +8,7 @@ Kommunikationszentrum can use a standard-compliant OpenID Connect (OIDC) provide
 2. **Token Exchange**: Upon callback, the frontend exchanges the authorization code for an ID token (JWT) and an access token, and fetches claims from the userinfo endpoint.
 3. **Database Connection**: The frontend passes the OIDC JWT ID token to SpacetimeDB as its authentication bearer token.
 4. **Identity Derivation**: SpacetimeDB validates the token against the OIDC provider's JWKS and derives a deterministic 32-byte cryptographic `Identity` based on `(iss, sub)`.
-5. **Self-Registration**: Upon connecting, the web app calls `register_self`. The reducer requires the token's `iss` to exactly match the server module's compiled `OIDC_ISSUER_URL` before it creates or updates an account keyed by the OIDC `sub` claim.
+5. **Self-Registration**: Upon connecting, the web app calls `register_self(external_id, name)`. The reducer requires the token's `iss` to exactly match the server module's compiled `OIDC_ISSUER_URL` before it creates or updates an account keyed by the OIDC `sub` claim. The user's email address is extracted directly from verified claims in the JWT (such as `email` or `mail`).
 
 ---
 

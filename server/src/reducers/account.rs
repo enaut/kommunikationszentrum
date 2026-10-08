@@ -166,6 +166,13 @@ fn require_token_email(token_email: Option<String>) -> Result<String, String> {
     token_email.ok_or_else(|| "Email address is required in the authenticated JWT".into())
 }
 
+fn should_promote_to_primary(
+    is_candidate_verified: bool,
+    current_primary_is_verified: Option<bool>,
+) -> bool {
+    is_candidate_verified || current_primary_is_verified.map_or(true, |verified| !verified)
+}
+
 /// Register or update an account for the currently connected user.
 /// Called by the web client after OIDC authentication.
 #[spacetimedb::reducer]
@@ -244,13 +251,20 @@ pub fn register_self(
                     .filter(&existing_account.id)
                     .find(|e| e.email == new_email);
 
+                let current_verified = current_primary.as_ref().map(|p| p.is_verified);
+
                 if let Some(mut email_row) = existing_email_row {
                     if is_token_email_verified && !email_row.is_verified {
                         email_row.is_verified = true;
                         ctx.db.account_emails().id().update(email_row.clone());
+                        changed = true;
                     }
-                    existing_account.primary_email_id = email_row.id;
-                    changed = true;
+                    if should_promote_to_primary(email_row.is_verified, current_verified)
+                        && existing_account.primary_email_id != email_row.id
+                    {
+                        existing_account.primary_email_id = email_row.id;
+                        changed = true;
+                    }
                 } else {
                     let new_email_row = ctx.db.account_emails().insert(AccountEmail {
                         id: 0,
@@ -260,13 +274,16 @@ pub fn register_self(
                         is_verified: is_token_email_verified,
                         added_at: timestamp,
                     });
-                    existing_account.primary_email_id = new_email_row.id;
                     changed = true;
+                    if should_promote_to_primary(is_token_email_verified, current_verified) {
+                        existing_account.primary_email_id = new_email_row.id;
+                    }
                 }
             } else if let Some(mut primary) = current_primary {
                 if is_token_email_verified && !primary.is_verified {
                     primary.is_verified = true;
                     ctx.db.account_emails().id().update(primary);
+                    changed = true;
                 }
             }
         }
@@ -1327,5 +1344,22 @@ mod tests {
         assert!(!extract_bool_from_claims(Some(&serde_json::json!("0"))));
         assert!(!extract_bool_from_claims(Some(&serde_json::json!(0))));
         assert!(!extract_bool_from_claims(None));
+    }
+
+    #[test]
+    fn test_should_promote_to_primary() {
+        // An unverified candidate does NOT displace an already-verified primary email
+        assert!(!should_promote_to_primary(false, Some(true)));
+
+        // A verified candidate DOES promote over an already-verified primary email
+        assert!(should_promote_to_primary(true, Some(true)));
+
+        // An unverified candidate DOES promote if current primary is unverified or absent
+        assert!(should_promote_to_primary(false, Some(false)));
+        assert!(should_promote_to_primary(false, None));
+
+        // A verified candidate always promotes if current primary is unverified or absent
+        assert!(should_promote_to_primary(true, Some(false)));
+        assert!(should_promote_to_primary(true, None));
     }
 }
