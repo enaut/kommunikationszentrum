@@ -29,7 +29,7 @@ flowchart LR
 | `NC_URL` | ✓ | — | Base URL of Nextcloud (e.g. `https://cloud.example.org`). |
 | `NC_USER` | ✓ | — | Nextcloud administrative user for OCS Provisioning API. |
 | `NC_APP_PASSWORD` | ✓ | — | Nextcloud App Password generated for `NC_USER`. |
-| `NC_WEBHOOK_SECRET` | — | — | Shared secret token to validate incoming webhook requests. |
+| `NC_WEBHOOK_SECRET` | ✓ | — | Shared secret token to validate incoming webhook requests. |
 | `NC_SYNC_LISTEN_ADDR` | — | `0.0.0.0:8088` | Address and port for the incoming webhook HTTP listener. |
 | `NC_RECONCILE_INTERVAL_SECS` | — | `21600` | Full reconciliation interval in seconds (default: 6 hours). |
 | `SPACETIME_SYNC_URL` | ✓ | — | URL to Kommunikationszentrum `user-sync` route (e.g. `http://localhost:3000/v1/database/kommunikation/route/user-sync`). |

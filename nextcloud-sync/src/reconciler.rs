@@ -1,10 +1,11 @@
 use crate::config::Config;
 use crate::models::map_ocs_user_to_upsert;
 use crate::ocs_client::OcsClient;
-use crate::worker::SyncPoster;
+use crate::worker::SyncJob;
 use std::time::Duration;
+use tokio::sync::mpsc;
 
-pub async fn run_reconciler(config: Config, ocs_client: OcsClient, poster: SyncPoster) {
+pub async fn run_reconciler(config: Config, ocs_client: OcsClient, tx: mpsc::Sender<SyncJob>) {
     let interval_secs = config.reconcile_interval_secs.max(60);
     tracing::info!(
         interval_secs = interval_secs,
@@ -25,10 +26,10 @@ pub async fn run_reconciler(config: Config, ocs_client: OcsClient, poster: SyncP
                 for ocs_user in users {
                     let uid = ocs_user.id.clone();
                     if let Some(req) = map_ocs_user_to_upsert(ocs_user) {
-                        match poster.send_sync(&req).await {
+                        match tx.send(SyncJob::Upsert(req)).await {
                             Ok(_) => synced += 1,
                             Err(e) => {
-                                tracing::error!(uid = %uid, error = %e, "Failed to reconcile user");
+                                tracing::error!(uid = %uid, error = %e, "Failed to enqueue user for reconciliation");
                                 failed += 1;
                             }
                         }

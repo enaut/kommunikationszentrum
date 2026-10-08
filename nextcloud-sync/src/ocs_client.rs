@@ -24,6 +24,8 @@ impl OcsClient {
     pub fn new(config: &Config) -> Self {
         Self {
             client: reqwest::Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(15))
+                .timeout(std::time::Duration::from_secs(40))
                 .build()
                 .expect("Failed to initialize reqwest client"),
             nc_url: config.nc_url.clone(),

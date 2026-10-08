@@ -49,7 +49,7 @@
   },
   {
     "label": "Publish spacetime module",
-    "command": "sh -lc '. .env/.env.stalwart-jmap && spacetime publish -p server kommunikation'",
+    "command": "sh -lc '. .env/.env.oidc && spacetime publish -p server kommunikation'",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,

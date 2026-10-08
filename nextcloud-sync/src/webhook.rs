@@ -55,32 +55,31 @@ async fn handle_webhook(
     headers: HeaderMap,
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
-    // Authenticate webhook request if secret is configured
-    if let Some(expected_secret) = &state.config.webhook_secret {
-        let auth_header = headers
-            .get("X-Nextcloud-Token")
-            .or_else(|| headers.get("X-Webhook-Secret"))
-            .or_else(|| headers.get("Authorization"))
-            .and_then(|val| val.to_str().ok())
-            .map(|s| s.strip_prefix("Bearer ").unwrap_or(s).trim());
+    // Authenticate webhook request
+    let expected_secret = &state.config.webhook_secret;
+    let auth_header = headers
+        .get("X-Nextcloud-Token")
+        .or_else(|| headers.get("X-Webhook-Secret"))
+        .or_else(|| headers.get("Authorization"))
+        .and_then(|val| val.to_str().ok())
+        .map(|s| s.strip_prefix("Bearer ").unwrap_or(s).trim());
 
-        let is_valid = match auth_header {
-            Some(token) => {
-                let a = token.as_bytes();
-                let b = expected_secret.as_bytes();
-                if a.len() == b.len() {
-                    a.ct_eq(b).into()
-                } else {
-                    false
-                }
+    let is_valid = match auth_header {
+        Some(token) => {
+            let a = token.as_bytes();
+            let b = expected_secret.as_bytes();
+            if a.len() == b.len() {
+                a.ct_eq(b).into()
+            } else {
+                false
             }
-            None => false,
-        };
-
-        if !is_valid {
-            tracing::warn!("Rejected webhook with missing or invalid secret");
-            return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
         }
+        None => false,
+    };
+
+    if !is_valid {
+        tracing::warn!("Rejected webhook with missing or invalid secret");
+        return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
     }
 
     let uid = payload

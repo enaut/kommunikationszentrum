@@ -47,9 +47,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn async reconciler (initial backfill + periodic sweep)
     let reconciler_config = config.clone();
     let reconciler_ocs = ocs_client.clone();
-    let reconciler_poster = SyncPoster::new(&config);
+    let reconciler_tx = tx.clone();
     tokio::spawn(async move {
-        reconciler::run_reconciler(reconciler_config, reconciler_ocs, reconciler_poster).await;
+        reconciler::run_reconciler(reconciler_config, reconciler_ocs, reconciler_tx).await;
     });
 
     // Start HTTP Webhook server

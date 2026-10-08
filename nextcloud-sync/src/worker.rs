@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 pub enum SyncJob {
     SyncUser(String),   // uid to fetch and upsert
     DeleteUser(String), // uid to cascade delete
+    Upsert(UserSyncRequest), // pre-mapped upsert from reconciler
 }
 
 pub struct SyncPoster {
@@ -19,7 +20,11 @@ pub struct SyncPoster {
 impl SyncPoster {
     pub fn new(config: &Config) -> Self {
         Self {
-            client: reqwest::Client::builder().build().unwrap(),
+            client: reqwest::Client::builder()
+                .connect_timeout(Duration::from_secs(15))
+                .timeout(Duration::from_secs(40))
+                .build()
+                .unwrap(),
             sync_url: config.spacetime_sync_url.clone(),
             webhook_token: config.spacetime_webhook_token.clone(),
         }
@@ -126,6 +131,12 @@ pub async fn run_sync_worker(
                 let req = crate::models::map_uid_to_delete(&uid);
                 if let Err(e) = poster.send_sync(&req).await {
                     tracing::error!(uid = %uid, error = %e, "Failed to delete user");
+                }
+            }
+            SyncJob::Upsert(req) => {
+                tracing::info!(external_id = %req.user.external_id, "Processing upsert user job");
+                if let Err(e) = poster.send_sync(&req).await {
+                    tracing::error!(external_id = %req.user.external_id, error = %e, "Failed to upsert user");
                 }
             }
         }
