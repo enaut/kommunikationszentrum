@@ -299,12 +299,11 @@ fn AuthenticatedApp(
                     }
                 })
                 .unwrap_or_else(|| user_info_for_effect.username.clone());
-            let email = user_info_for_effect.email.clone().unwrap_or_default();
             let subject = user_info_for_effect.subject_id.clone();
             let register_fn = register_self_async.clone();
 
             spawn(async move {
-                match register_fn(subject, name, email).await {
+                match register_fn(subject, name).await {
                     Ok(()) => {
                         ::dioxus::logger::tracing::info!(
                             "Successfully registered self in SpacetimeDB"

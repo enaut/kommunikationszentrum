@@ -199,7 +199,6 @@ management-config-admin-you = You
 management-config-admin-remove-confirm-title = Remove Administrator
 management-config-admin-remove-confirm-body = Are you sure you want to revoke admin permissions for { $name }?
 management-config-admin-remove-confirm-btn = Remove
-management-config-admin-cancel = Cancel
 management-config-webhook-title = Webhook Tokens
 management-config-webhook-label = Label
 management-config-webhook-permissions = Permissions (comma-separated, e.g. mta-hook,sync-user)

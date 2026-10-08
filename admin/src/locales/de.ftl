@@ -201,7 +201,6 @@ management-config-admin-you = Du
 management-config-admin-remove-confirm-title = Administrator entfernen
 management-config-admin-remove-confirm-body = Möchtest du die Administratorberechtigungen für { $name } wirklich entziehen?
 management-config-admin-remove-confirm-btn = Entfernen
-management-config-admin-cancel = Abbrechen
 management-config-webhook-title = Webhook Tokens
 management-config-webhook-label = Label
 management-config-webhook-permissions = Berechtigungen (durch Kommas getrennt, z. B. mta-hook,sync-user)

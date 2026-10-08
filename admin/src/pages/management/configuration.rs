@@ -62,8 +62,6 @@ fn AdminIdentityCard() -> Element {
         ConnectionState::Connected(id, _) => Some(id),
         _ => None,
     };
-    let unlinked_label = tid!("management-config-admin-unlinked");
-    let you_label = tid!("management-config-admin-you");
 
     rsx! {
         Row { class: "mb-4",
@@ -132,7 +130,7 @@ fn AdminIdentityCard() -> Element {
                                         let is_unlinked = user_name.is_none();
                                         let display_name = user_name
                                             .clone()
-                                            .unwrap_or_else(|| unlinked_label.clone());
+                                            .unwrap_or_else(|| tid!("management-config-admin-unlinked"));
                                         let target_name = display_name.clone();
 
                                         rsx! {
@@ -140,7 +138,7 @@ fn AdminIdentityCard() -> Element {
                                                 div { class: "d-flex flex-column me-2 overflow-hidden",
                                                     div { class: "d-flex align-items-center gap-2 flex-wrap mb-1",
                                                         if is_unlinked {
-                                                            span { class: "text-muted fst-italic small", "{unlinked_label}" }
+                                                            span { class: "text-muted fst-italic small", {tid!("management-config-admin-unlinked")} }
                                                         } else {
                                                             if let Some(ref name) = user_name {
                                                                 span { class: "fw-semibold", "{name}" }
@@ -148,7 +146,7 @@ fn AdminIdentityCard() -> Element {
 
                                                         }
                                                         if is_me {
-                                                            Badge { color: Color::Info, class: "ms-1", "{you_label}" }
+                                                            Badge { color: Color::Info, class: "ms-1", {tid!("management-config-admin-you")} }
                                                         }
                                                     }
                                                     code { class: "small text-muted text-break", "{hex}" }
@@ -194,7 +192,7 @@ fn AdminIdentityCard() -> Element {
                     Button {
                         color: Color::Secondary,
                         onclick: move |_| show_delete_modal.set(false),
-                        {tid!("management-config-admin-cancel")}
+                        {tid!("general-cancel")}
                     }
                     Button {
                         color: Color::Danger,

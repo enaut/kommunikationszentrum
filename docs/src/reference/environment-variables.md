@@ -177,25 +177,7 @@ SpacetimeDB integrates with the Stalwart mailserver's JMAP API for automated top
 
 ---
 
-## Test & Integration Script Variables
-
-These variables are used by helper and integration test scripts in `docs/testscripts/`:
-
-### `WEBHOOK_TOKEN`
-- **Default**: _(none — required by scripts)_
-- **Used by**: `test-mta-hooks.sh`, `test-user-sync.sh`
-- **Description**: Bearer token used to authenticate against SpacetimeDB embedded HTTP routes (`/route/mta-hook` and `/route/user-sync`). The token is generated via the Admin UI or CLI and validated against the BLAKE3 hash stored in `webhook_token`.
-- **Format**: 32-byte hex token string
-
-### `SPACETIME_HOST`
-- **Default**: `http://localhost:3000`
-- **Used by**: `test-mta-hooks.sh`, `test-user-sync.sh`
-- **Description**: Host URL of the SpacetimeDB instance under test.
-
-### `DATABASE_NAME`
-- **Default**: `kommunikation`
-- **Used by**: `test-mta-hooks.sh`, `test-user-sync.sh`
-- **Description**: Name of the SpacetimeDB database module being tested.
+## External Integration Variables
 
 ### `SPACETIME_WEBHOOK_TOKEN`
 - **Default**: _(none)_

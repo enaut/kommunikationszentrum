@@ -49,17 +49,7 @@ This page describes how to configure external systems (Stalwart MTA, Django) to 
 
   The included Django management command and signal handlers will read `SPACETIME_WEBHOOK_TOKEN` and send it in the Authorization header.
 
-4) Testing
-
-- Use the repository test scripts (they read the plaintext token from `WEBHOOK_TOKEN` environment variable):
-
-  ```bash
-  export WEBHOOK_TOKEN="s3cure-token-value"
-  ./docs/testscripts/test-mta-hooks.sh
-  ./docs/testscripts/test-user-sync.sh
-  ```
-
-5) Operational notes
+4) Operational notes
 
 - Deploy SpacetimeDB with a TLS front-end or reverse proxy if you plan to accept hooks from the public internet.
 - Rotate tokens periodically and use labels to track their usage.

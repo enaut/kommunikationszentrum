@@ -173,12 +173,9 @@ pub fn register_self(
     ctx: &ReducerContext,
     external_id: String,
     name: String,
-    email: String,
 ) -> Result<(), String> {
     let sender = ctx.sender();
     let timestamp = ctx.timestamp;
-    // Keep the reducer argument for binding compatibility; registration trusts only JWT claims.
-    let _ = email;
 
     if external_id.trim().is_empty() {
         return Err("external_id cannot be empty".into());
