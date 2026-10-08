@@ -1,6 +1,6 @@
 # JWT Token Handling
 
-JWT (JSON Web Token) tokens are the authentication mechanism between the admin interface and SpacetimeDB. The admin obtains an OpenID Connect ID token from the issuer in `OIDC_ISSUER_URL` and sends that token when it connects. SpacetimeDB standalone does not have a configured list of external issuers.
+JWT (JSON Web Token) tokens are the authentication mechanism between the admin interface and SpacetimeDB. The admin obtains an OpenID Connect token from the issuer in `OIDC_ISSUER_URL` and sends it when it connects. SpacetimeDB standalone does not have a configured list of external issuers; the module separately restricts account registration to its configured `OIDC_ISSUER_URL`.
 
 ## Token Structure
 
@@ -44,7 +44,7 @@ On connect, SpacetimeDB 2.7 and 2.10 validate a bearer token as follows:
 4. The verified `iss` must equal the issuer used for discovery. `sub` and `iss` are required. If `exp` is present, it must not be more than 60 seconds in the past.
 5. `aud` is not checked. `OIDC_CLIENT_ID` is read only by the admin build.
 
-Any issuer that publishes discovery and a JWKS which verifies the token is accepted.
+Any issuer that publishes discovery and a JWKS which verifies the token may be accepted at connection time. This does not make that issuer trusted by the application module.
 
 ## SpacetimeDB Integration
 
@@ -73,14 +73,15 @@ pub fn authenticated_operation(ctx: &ReducerContext) -> Result<(), String> {
 }
 ```
 
-The module does not use the token issuer when it stores accounts. `sync_user` computes the account identity from the compile-time Django issuer and the membership number:
+The module's `register_self` reducer requires the authenticated JWT's `iss` claim to exactly equal the compile-time `OIDC_ISSUER_URL`. Missing or different issuers are rejected before the reducer looks up or updates an account. The same configured issuer is used by `sync_user` to compute synced account identities:
 
 ```rust
-let issuer_url = format!("{}{}", DJANGO_OAUTH_BASE_URL, "/o");
-let identity = Identity::from_claims(&issuer_url, &mitgliedsnr.to_string());
+let identity = Identity::from_claims(OIDC_ISSUER_URL, &data.external_id);
 ```
 
-Django's `sub` is `user.pk`. `mitgliedsnr` is that primary key, so a Django ID token matches `account.identity` and `admin_identities` when its `iss` is exactly `{DJANGO_BASE_URL}/o`. A token from another issuer can open a connection, but `ctx.sender` does not match the synced account.
+The account's `external_id` is the OIDC `sub`. For a token from the configured issuer, the sender identity and synced account identity therefore derive from the same `(iss, sub)` pair. When an account is found by `external_id`, `register_self` also requires its stored identity to match the sender; it does not rebind the account to a different identity. A mismatch indicates stale or inconsistent account identity data and must be resolved explicitly.
+
+`OIDC_ISSUER_URL` is compiled into the server module via `option_env!`. Set it to the same exact issuer used by the admin OIDC configuration when building and publishing the module. A token from another issuer may still connect to SpacetimeDB, but it cannot register or update an account through `register_self`.
 
 ## Token Lifecycle
 

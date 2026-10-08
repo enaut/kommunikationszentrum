@@ -1,6 +1,6 @@
 # OpenID Connect (OIDC) Provider Setup
 
-Kommunikationszentrum is designed to work with **any standard-compliant OpenID Connect (OIDC) provider**, such as Nextcloud, Keycloak, Authentik, or Django with `django-oauth-toolkit`.
+Kommunikationszentrum can use a standard-compliant OpenID Connect (OIDC) provider such as Nextcloud, Keycloak, Authentik, or Django with `django-oauth-toolkit`. Each deployment trusts one configured issuer for account registration.
 
 ## How Authentication Works
 
@@ -8,13 +8,13 @@ Kommunikationszentrum is designed to work with **any standard-compliant OpenID C
 2. **Token Exchange**: Upon callback, the frontend exchanges the authorization code for an ID token (JWT) and an access token, and fetches claims from the userinfo endpoint.
 3. **Database Connection**: The frontend passes the OIDC JWT ID token to SpacetimeDB as its authentication bearer token.
 4. **Identity Derivation**: SpacetimeDB validates the token against the OIDC provider's JWKS and derives a deterministic 32-byte cryptographic `Identity` based on `(iss, sub)`.
-5. **Self-Registration**: Upon connecting, the web app calls the `register_self` reducer to create or link the user's `Account` in SpacetimeDB with `external_id` (the OIDC `sub` claim), full name, and email.
+5. **Self-Registration**: Upon connecting, the web app calls `register_self`. The reducer requires the token's `iss` to exactly match the server module's compiled `OIDC_ISSUER_URL` before it creates or updates an account keyed by the OIDC `sub` claim.
 
 ---
 
 ## Configuring SpacetimeDB & Admin
 
-Set the following environment variables when building/deploying:
+Set the following environment variables when building/deploying. `OIDC_ISSUER_URL` must be set when building both the admin and the server module, and both builds must use the same issuer. The module uses this value for its issuer check and synced account identity derivation; SpacetimeDB standalone does not enforce it as a connection-time issuer allowlist. Changing providers can change account identities and requires an explicit migration plan.
 
 | Variable | Description | Example |
 |---|---|---|

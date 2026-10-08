@@ -43,8 +43,9 @@ Complete reference of all environment variables supported by Kommunikationszentr
 ### `OIDC_ISSUER_URL`
 - **Default**: `http://127.0.0.1:8000/o`
 - **Used by**: `admin`, `server` (compile-time fallback via `option_env!`)
-- **Description**: OpenID Connect discovery issuer URL. Points to the base path where `/.well-known/openid-configuration` can be discovered. Supports any standard OIDC provider (Nextcloud, Keycloak, Authentik, Django).
-- **Format**: `http://host:port/path` or `https://host:port/path`
+- **Description**: The single trusted OIDC issuer URL for this deployment. The admin uses it for provider discovery; the server module embeds it at compile time and requires JWT `iss` to match it exactly in `register_self`. User-sync account identities are derived from this issuer and the external user ID.
+- **Format**: `http://host:port/path` or `https://host:port/path`; it must exactly match the issuer claim emitted by the provider.
+- **Deployment**: Set this value when building both the admin and server module. The server uses the compile-time value from `option_env!`; SpacetimeDB standalone does not use this variable as a server-level issuer allowlist. Changing the issuer changes the account identity namespace and may require an explicit identity migration.
 - **Examples**:
   - Django: `http://127.0.0.1:8000/o`
   - Nextcloud: `https://cloud.example.org`

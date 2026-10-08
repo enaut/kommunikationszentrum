@@ -25,8 +25,8 @@ All components support environment-based configuration with sensible defaults fo
 
 | Variable | Default | Used by | Description |
 |----------|---------|---------|-------------|
-| `OIDC_ISSUER_URL` | `http://127.0.0.1:8000/o` | admin, server | OIDC issuer discovery base URL Not read by SpacetimeDB.|
-| `OIDC_CLIENT_ID` | `admin-app` | admin | OAuth client identifier Not read by SpacetimeDB.|
+| `OIDC_ISSUER_URL` | `http://127.0.0.1:8000/o` | admin, server module build | OIDC discovery issuer and the exact issuer accepted by `register_self`; compiled into the module and used to derive synced account identities. It is not a SpacetimeDB server-level issuer allowlist.|
+| `OIDC_CLIENT_ID` | `admin-app` | admin | OAuth client identifier; not a SpacetimeDB setting.|
 | `ADMIN_REDIRECT_URI` | `http://127.0.0.1:8080/callback` | admin | OAuth callback URL for admin UI |
 | `OAUTH_SCOPES` | `openid profile email` | admin | Requested OAuth scopes |
 

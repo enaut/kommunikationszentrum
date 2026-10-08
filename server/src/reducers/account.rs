@@ -146,6 +146,30 @@ pub fn extract_bool_from_claims(val: Option<&serde_json::Value>) -> bool {
     }
 }
 
+fn validate_token_issuer(claims: &serde_json::Value) -> Result<(), String> {
+    let issuer = claims
+        .get("iss")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "JWT is missing a string issuer claim".to_string())?;
+
+    if issuer != OIDC_ISSUER_URL {
+        return Err("JWT issuer does not match the configured OIDC issuer".into());
+    }
+
+    Ok(())
+}
+
+fn ensure_account_identity_matches(
+    existing_identity: &Identity,
+    sender: &Identity,
+) -> Result<(), String> {
+    if existing_identity != sender {
+        return Err("Account identity does not match the authenticated sender".into());
+    }
+
+    Ok(())
+}
+
 /// Register or update an account for the currently connected user.
 /// Called by the web client after OIDC authentication.
 #[spacetimedb::reducer]
@@ -177,6 +201,7 @@ pub fn register_self(
 
     let claims: serde_json::Value = serde_json::from_str(jwt.raw_payload())
         .map_err(|e| format!("Invalid JWT payload: {}", e))?;
+    validate_token_issuer(&claims)?;
 
     let token_email = extract_email_from_claims(&claims);
 
@@ -196,13 +221,9 @@ pub fn register_self(
         if existing_account.external_id != token_sub {
             return Err("Account external_id mismatch".into());
         }
+        ensure_account_identity_matches(&existing_account.identity, &sender)?;
 
         let mut changed = false;
-        if existing_account.identity != sender {
-            existing_account.identity = sender;
-            changed = true;
-        }
-
         if !name.trim().is_empty() && existing_account.name != name {
             existing_account.name = name.clone();
             changed = true;
@@ -1233,31 +1254,82 @@ mod tests {
     fn test_extract_email_from_claims_various_formats() {
         // Standard "email" string
         let val1 = serde_json::json!({ "email": "test@example.com" });
-        assert_eq!(extract_email_from_claims(&val1), Some("test@example.com".to_string()));
+        assert_eq!(
+            extract_email_from_claims(&val1),
+            Some("test@example.com".to_string())
+        );
 
         // Nextcloud / LDAP "mail" string
         let val2 = serde_json::json!({ "mail": "ldap@example.com" });
-        assert_eq!(extract_email_from_claims(&val2), Some("ldap@example.com".to_string()));
+        assert_eq!(
+            extract_email_from_claims(&val2),
+            Some("ldap@example.com".to_string())
+        );
 
         // Nextcloud / LDAP array of strings
         let val3 = serde_json::json!({ "mail": ["multi@example.com", "alt@example.com"] });
-        assert_eq!(extract_email_from_claims(&val3), Some("multi@example.com".to_string()));
+        assert_eq!(
+            extract_email_from_claims(&val3),
+            Some("multi@example.com".to_string())
+        );
 
         // Array in "email"
         let val4 = serde_json::json!({ "email": ["arr@example.com"] });
-        assert_eq!(extract_email_from_claims(&val4), Some("arr@example.com".to_string()));
+        assert_eq!(
+            extract_email_from_claims(&val4),
+            Some("arr@example.com".to_string())
+        );
 
         // Array in "emails"
         let val5 = serde_json::json!({ "emails": ["emails@example.com"] });
-        assert_eq!(extract_email_from_claims(&val5), Some("emails@example.com".to_string()));
+        assert_eq!(
+            extract_email_from_claims(&val5),
+            Some("emails@example.com".to_string())
+        );
 
         // UPN / preferred_username containing @
         let val6 = serde_json::json!({ "preferred_username": "upn@example.com" });
-        assert_eq!(extract_email_from_claims(&val6), Some("upn@example.com".to_string()));
+        assert_eq!(
+            extract_email_from_claims(&val6),
+            Some("upn@example.com".to_string())
+        );
 
         // Non-email preferred_username should be ignored
         let val7 = serde_json::json!({ "preferred_username": "regular_username" });
         assert_eq!(extract_email_from_claims(&val7), None);
+    }
+
+    #[test]
+    fn register_self_accepts_only_the_configured_issuer() {
+        let expected_issuer = serde_json::json!({
+            "iss": OIDC_ISSUER_URL,
+            "sub": "42"
+        });
+        assert!(validate_token_issuer(&expected_issuer).is_ok());
+
+        let other_issuer_same_subject = serde_json::json!({
+            "iss": "https://other-issuer.example",
+            "sub": "42"
+        });
+        assert!(validate_token_issuer(&other_issuer_same_subject).is_err());
+        assert!(validate_token_issuer(&serde_json::json!({ "sub": "42" })).is_err());
+        assert!(validate_token_issuer(&serde_json::json!({ "iss": 42 })).is_err());
+    }
+
+    #[test]
+    fn existing_account_identity_must_match_sender() {
+        let existing_identity = Identity::from_claims(OIDC_ISSUER_URL, "42");
+        let authenticated_identity = Identity::from_claims(OIDC_ISSUER_URL, "42");
+        let same_subject_from_other_issuer =
+            Identity::from_claims("https://other-issuer.example", "42");
+
+        assert!(
+            ensure_account_identity_matches(&existing_identity, &authenticated_identity).is_ok()
+        );
+        assert!(
+            ensure_account_identity_matches(&existing_identity, &same_subject_from_other_issuer)
+                .is_err()
+        );
     }
 
     #[test]
