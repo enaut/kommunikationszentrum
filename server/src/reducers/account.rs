@@ -122,14 +122,6 @@ pub fn extract_email_from_claims(claims: &serde_json::Value) -> Option<String> {
             }
         }
     }
-    for key in &["upn", "preferred_username"] {
-        if let Some(val) = claims.get(*key).and_then(|v| v.as_str()) {
-            let trimmed = val.trim();
-            if trimmed.contains('@') && !trimmed.contains(' ') {
-                return Some(trimmed.to_string());
-            }
-        }
-    }
     None
 }
 
@@ -170,6 +162,10 @@ fn ensure_account_identity_matches(
     Ok(())
 }
 
+fn require_token_email(token_email: Option<String>) -> Result<String, String> {
+    token_email.ok_or_else(|| "Email address is required in the authenticated JWT".into())
+}
+
 /// Register or update an account for the currently connected user.
 /// Called by the web client after OIDC authentication.
 #[spacetimedb::reducer]
@@ -181,6 +177,8 @@ pub fn register_self(
 ) -> Result<(), String> {
     let sender = ctx.sender();
     let timestamp = ctx.timestamp;
+    // Keep the reducer argument for binding compatibility; registration trusts only JWT claims.
+    let _ = email;
 
     if external_id.trim().is_empty() {
         return Err("external_id cannot be empty".into());
@@ -205,9 +203,10 @@ pub fn register_self(
 
     let token_email = extract_email_from_claims(&claims);
 
-    let is_token_email_verified = extract_bool_from_claims(claims.get("email_verified"))
-        || extract_bool_from_claims(claims.get("emailVerified"))
-        || extract_bool_from_claims(claims.get("verified"));
+    let is_token_email_verified = token_email.is_some()
+        && (extract_bool_from_claims(claims.get("email_verified"))
+            || extract_bool_from_claims(claims.get("emailVerified"))
+            || extract_bool_from_claims(claims.get("verified")));
 
     // Check if an account already exists for this sender identity or external_id (e.g. from user-sync)
     let existing_account = ctx
@@ -229,14 +228,7 @@ pub fn register_self(
             changed = true;
         }
 
-        let candidate_email = token_email.or_else(|| {
-            let trimmed = email.trim();
-            if !trimmed.is_empty() {
-                Some(trimmed.to_string())
-            } else {
-                None
-            }
-        });
+        let candidate_email = token_email;
 
         let current_primary = ctx
             .db
@@ -280,13 +272,6 @@ pub fn register_self(
                     ctx.db.account_emails().id().update(primary);
                 }
             }
-        } else if is_token_email_verified {
-            if let Some(mut primary) = current_primary {
-                if !primary.is_verified {
-                    primary.is_verified = true;
-                    ctx.db.account_emails().id().update(primary);
-                }
-            }
         }
 
         if changed {
@@ -296,23 +281,15 @@ pub fn register_self(
         return Ok(());
     }
 
-    // New account: require non-empty email (from token claim or client fallback)
-    let (reg_email, is_verified) = if let Some(e) = token_email {
-        (e, is_token_email_verified)
-    } else {
-        let fallback = email.trim();
-        if fallback.is_empty() {
-            return Err("Email address is required for registration".to_string());
-        }
-        (fallback.to_string(), is_token_email_verified)
-    };
+    // New accounts require an email address from the authenticated JWT.
+    let reg_email = require_token_email(token_email)?;
 
     let primary_email = ctx.db.account_emails().insert(AccountEmail {
         id: 0,
         account_id: 0,
         email: reg_email,
         source: EmailSource::Native,
-        is_verified,
+        is_verified: is_token_email_verified,
         added_at: timestamp,
     });
 
@@ -1287,15 +1264,14 @@ mod tests {
             Some("emails@example.com".to_string())
         );
 
-        // UPN / preferred_username containing @
-        let val6 = serde_json::json!({ "preferred_username": "upn@example.com" });
-        assert_eq!(
-            extract_email_from_claims(&val6),
-            Some("upn@example.com".to_string())
-        );
+        // An email-like username is not an email claim, even when email_verified is true.
+        let val6 = serde_json::json!({
+            "preferred_username": "upn@example.com",
+            "email_verified": true
+        });
+        assert_eq!(extract_email_from_claims(&val6), None);
 
-        // Non-email preferred_username should be ignored
-        let val7 = serde_json::json!({ "preferred_username": "regular_username" });
+        let val7 = serde_json::json!({ "upn": "upn@example.com" });
         assert_eq!(extract_email_from_claims(&val7), None);
     }
 
@@ -1314,6 +1290,15 @@ mod tests {
         assert!(validate_token_issuer(&other_issuer_same_subject).is_err());
         assert!(validate_token_issuer(&serde_json::json!({ "sub": "42" })).is_err());
         assert!(validate_token_issuer(&serde_json::json!({ "iss": 42 })).is_err());
+    }
+
+    #[test]
+    fn new_account_requires_email_from_authenticated_jwt() {
+        assert!(require_token_email(None).is_err());
+        assert_eq!(
+            require_token_email(Some("claimed@example.com".to_string())).unwrap(),
+            "claimed@example.com"
+        );
     }
 
     #[test]
