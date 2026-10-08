@@ -72,7 +72,7 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 | `user.external_id` | ✓ | Canonical subject/member ID from the external system (matches OIDC `sub` claim). |
 | `user.name` | ✓ | Full display name. |
 | `user.is_active` | ✓ | Account active flag. |
-| `user.is_admin` | — | Grants admin privileges when `true`. |
+| `user.is_admin` | — | Grants admin privileges when `true`, revokes when `false`. If omitted or `null`, existing admin privileges remain untouched. |
 | `user.emails` | ✓ (upsert) | Array of email objects (`email`, `is_primary`, `is_verified`). Upsert requires exactly one email with `is_primary: true`. Synchronized under `EmailSource::ExternalSync` with the declared `is_verified` status. |
 | `user.topics` | — | Mailing-list topics the account should be subscribed to. Each entry is created in `message_topics` if missing. Subscriptions are created or activated. May specify `categories` (e.g. `["Verteilpunkt"]`) and `default_permission` (`"read"` or `"write"`). |
 | `user.unsubscribe_topic_emails` | — | Email addresses of topics whose subscription should be deactivated for this account. Deactivates all active subscriptions of that account for the topic. |
