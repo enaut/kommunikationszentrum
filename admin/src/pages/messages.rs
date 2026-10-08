@@ -30,7 +30,7 @@ impl MessageWithContent {
     }
 
     fn topic_email(&self) -> String {
-        self.received_message.topic_email.clone()
+        crate::mime_parser::redact_unsubscribe_tokens(&self.received_message.topic_email)
     }
 
     fn topic_id(&self) -> u64 {
@@ -49,27 +49,38 @@ impl MessageWithContent {
     }
 
     fn date_header(&self) -> Option<String> {
-        self.mail_message.date_header.clone()
+        self.mail_message
+            .date_header
+            .as_deref()
+            .map(crate::mime_parser::redact_unsubscribe_tokens)
     }
 
     fn message_id(&self) -> Option<String> {
-        self.mail_message.message_id.clone()
+        self.mail_message
+            .message_id
+            .as_deref()
+            .map(crate::mime_parser::redact_unsubscribe_tokens)
     }
 
     fn reply_to(&self) -> Option<String> {
-        self.mail_message.reply_to.clone()
+        self.mail_message
+            .reply_to
+            .as_deref()
+            .map(crate::mime_parser::redact_unsubscribe_tokens)
     }
 
     fn body_raw(&self) -> String {
-        self.mail_message.body_raw.clone()
-    }
-
-    fn body_decoded(&self) -> String {
-        crate::mime_parser::decode_body(&self.mail_message.body_raw, &self.mail_message.headers_raw)
+        crate::mime_parser::redact_raw_body(
+            &self.mail_message.body_raw,
+            &self.mail_message.headers_raw,
+        )
     }
 
     fn body_html_rendered(&self) -> String {
-        crate::mime_parser::render_markdown_to_html(&self.body_decoded())
+        crate::mime_parser::render_message_body(
+            &self.mail_message.body_raw,
+            &self.mail_message.headers_raw,
+        )
     }
 }
 

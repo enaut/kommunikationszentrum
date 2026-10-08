@@ -2,7 +2,7 @@ use log::{error, info};
 use spacetimedb::{ReducerContext, Table, Timestamp};
 
 use crate::common::auth::{is_admin_identity, is_admin_user};
-use crate::models::account::{account, account_emails, Account};
+use crate::models::account::{Account, account, account_emails};
 use crate::models::domain::domains;
 use crate::models::topic::*;
 use crate::services::stalwart::topic::provision_stalwart_topic_mailbox;

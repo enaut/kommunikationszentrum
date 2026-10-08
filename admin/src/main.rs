@@ -12,9 +12,9 @@ use config::AdminConfig;
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 use module_bindings::dioxus::{
-    use_connection_state, use_spacetimedb_context_provider, ConnectionState,
+    ConnectionState, use_connection_state, use_spacetimedb_context_provider,
 };
-use oauth::{use_oauth, AuthState, UserInfo};
+use oauth::{AuthState, UserInfo, use_oauth};
 use router::ActiveView;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -130,7 +130,7 @@ fn App() -> Element {
         if let Some(token) = unsubscribe_token.cloned() {
             {
                 let (is_authenticated, id_token) = match &*auth_state.read() {
-                    AuthState::Authenticated(u) => (true, u.id_token.clone()),
+                    AuthState::Authenticated(u) => (true, u.spacetimedb_token()),
                     _ => (false, None),
                 };
                 rsx! {
@@ -149,7 +149,7 @@ fn App() -> Element {
         } else if let Some(token) = verification_token.cloned() {
             {
                 let (is_authenticated, id_token) = match &*auth_state.read() {
-                    AuthState::Authenticated(u) => (true, u.id_token.clone()),
+                    AuthState::Authenticated(u) => (true, u.spacetimedb_token()),
                     _ => (false, None),
                 };
                 rsx! {
@@ -257,7 +257,7 @@ fn AuthenticatedApp(
 
     info!("Authenticated as: {}", user_info.subject_id);
 
-    let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.id_token.clone());
+    let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.spacetimedb_token());
 
     let state = use_connection_state();
     let register_self_async = module_bindings::dioxus::use_reducer_register_self_async();
@@ -299,14 +299,15 @@ fn AuthenticatedApp(
                     }
                 })
                 .unwrap_or_else(|| user_info_for_effect.username.clone());
-            let email = user_info_for_effect.email.clone().unwrap_or_default();
             let subject = user_info_for_effect.subject_id.clone();
             let register_fn = register_self_async.clone();
 
             spawn(async move {
-                match register_fn(subject, name, email).await {
+                match register_fn(subject, name).await {
                     Ok(()) => {
-                        ::dioxus::logger::tracing::info!("Successfully registered self in SpacetimeDB");
+                        ::dioxus::logger::tracing::info!(
+                            "Successfully registered self in SpacetimeDB"
+                        );
                         registered.set(true);
                         is_registering.set(false);
                         registration_error.set(None);

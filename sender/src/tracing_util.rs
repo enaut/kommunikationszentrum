@@ -1,5 +1,5 @@
-use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry::Context;
+use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use std::collections::HashMap;
 

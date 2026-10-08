@@ -3,11 +3,11 @@ use spacetimedb::Table;
 
 use crate::models::domain::domains;
 use crate::models::topic::{
-    message_topics, topic_app_passwords, MessageTopic, SubscriptionPermission, TopicAppPassword,
-    TopicVisibility,
+    MessageTopic, SubscriptionPermission, TopicAppPassword, TopicVisibility, message_topics,
+    topic_app_passwords,
 };
 use crate::reducers::domain::do_sync_stalwart_domains;
-use crate::services::stalwart::client::{send_stalwart_jmap_request, StalwartContext};
+use crate::services::stalwart::client::{StalwartContext, send_stalwart_jmap_request};
 
 pub fn jmap_check_not_created(result: &serde_json::Value, label: &str) -> Result<(), String> {
     if let Some(not_created) = result.get("notCreated") {

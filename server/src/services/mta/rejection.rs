@@ -2,6 +2,12 @@ use stalwart_mta_hook_types::Message as MtaMessage;
 
 use crate::services::mta::envelope_parser::extract_header;
 
+pub const MAX_MESSAGE_SIZE_BYTES: u64 = 2_000_000;
+
+pub fn is_oversize_message(message_size: u64) -> bool {
+    message_size > MAX_MESSAGE_SIZE_BYTES
+}
+
 /// Reason why an email could not be delivered to a message topic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TopicRejectionReason {
@@ -48,6 +54,33 @@ pub fn is_valid_bounce_recipient(from: &str) -> bool {
 }
 
 /// Builds the subject and body for a rejection notification email to be sent by SMTP_SYSTEM_USER.
+pub fn build_oversize_email(
+    original_subject: &str,
+    message_size: u64,
+    maximum_size: u64,
+) -> (String, String) {
+    let subject_clean = original_subject.trim();
+    let subject = if subject_clean.is_empty() || subject_clean.eq_ignore_ascii_case("no subject") {
+        "Rejected: message exceeds the mailing-list size limit".to_string()
+    } else {
+        format!("Rejected: {subject_clean}")
+    };
+
+    let body = format!(
+        "-------------------Deutsch------------------------\n\
+         Ihre E-Mail wurde nicht an die Mailingliste weitergeleitet, weil sie das Größenlimit überschreitet.\n\
+         Nachrichtengröße: {message_size} Bytes\n\
+         Maximale Größe: {maximum_size} Bytes\n\
+         \n\
+         -------------------English------------------------\n\
+         Your email was not forwarded to the mailing list because it exceeds the message size limit.\n\
+         Message size: {message_size} bytes\n\
+         Maximum size: {maximum_size} bytes\n"
+    );
+
+    (subject, body)
+}
+
 pub fn build_rejection_email(
     original_subject: &str,
     message: Option<&MtaMessage>,
@@ -151,6 +184,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn size_limit_accepts_the_limit_and_rejects_larger_messages() {
+        assert!(!is_oversize_message(MAX_MESSAGE_SIZE_BYTES));
+        assert!(is_oversize_message(MAX_MESSAGE_SIZE_BYTES + 1));
+    }
+
+    #[test]
     fn test_is_valid_bounce_recipient() {
         assert!(is_valid_bounce_recipient("user@example.com"));
         assert!(is_valid_bounce_recipient("member+tag@solawi.org"));
@@ -166,6 +205,27 @@ mod tests {
         assert!(!is_valid_bounce_recipient("postmaster@example.com"));
         assert!(!is_valid_bounce_recipient("no-reply@example.com"));
         assert!(!is_valid_bounce_recipient("noreply@example.com"));
+    }
+
+    #[test]
+    fn test_build_oversize_email_includes_size_and_reason() {
+        let (subject, body) = build_oversize_email("Planning", 2_000_001, 2_000_000);
+
+        assert_eq!(subject, "Rejected: Planning");
+        assert!(body.contains("2000001"));
+        assert!(body.contains("2000000"));
+        assert!(body.contains("nicht an die Mailingliste weitergeleitet"));
+        assert!(body.contains("not forwarded to the mailing list"));
+    }
+
+    #[test]
+    fn test_build_oversize_email_fallback_subject() {
+        let (subject, _) = build_oversize_email("No subject", 2_100_000, 2_000_000);
+
+        assert_eq!(
+            subject,
+            "Rejected: message exceeds the mailing-list size limit"
+        );
     }
 
     #[test]

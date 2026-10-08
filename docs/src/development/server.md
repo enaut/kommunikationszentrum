@@ -222,9 +222,10 @@ Many log entries store `"[REDACTED]"` as the `client_ip` for privacy. This is in
 Do not log raw IPs in production unless required for a specific compliance reason.
 
 ### Body Size Limit
-Messages larger than 2 MB have their body stored as an empty string in `received_message` and
-`mail_ingress`. The `message_size` field still reflects the real size. The sender daemon must
-handle empty bodies gracefully.
+Messages larger than 2,000,000 bytes addressed to an active mailing-list topic are not fanned out
+or archived for subscribers. The DATA handler queues a bilingual system mail to a valid sender
+address explaining the limit and records the oversized-message outcome. Messages at or below the
+limit retain their complete MIME body for fan-out.
 
 ### `visible_*` Views vs Raw Tables
 Clients **must** subscribe to views (e.g. `visible_accounts`), not raw table names. Raw tables

@@ -1,6 +1,6 @@
 # JWT Token Handling
 
-JWT (JSON Web Token) tokens serve as the primary authentication mechanism between the admin interface and SpacetimeDB. The system uses OpenID Connect ID tokens that contain user identity and authorization claims from Django.
+JWT (JSON Web Token) tokens are the authentication mechanism between the admin interface and SpacetimeDB. The admin obtains an OpenID Connect token from the issuer in `OIDC_ISSUER_URL` and sends it when it connects. SpacetimeDB standalone does not have a configured list of external issuers; the module separately restricts account registration to its configured `OIDC_ISSUER_URL`.
 
 ## Token Structure
 
@@ -30,17 +30,21 @@ The JWT ID token issued by Django contains these standard and custom claims:
 
 ### Token Validation
 
-SpacetimeDB automatically validates JWT tokens when clients connect:
+The admin client and SpacetimeDB validate the ID token separately.
 
-**Cryptographic Verification**: Token signature is validated against Django's public key to ensure authenticity and integrity.
+The admin callback uses the `openidconnect` crate. That check covers the signature, issuer, audience, expiry, and the nonce stored for the authorization request.
 
-**Issuer Validation**: The `iss` claim must match the configured Django issuer URL.
+SpacetimeDB standalone does not read an issuer allowlist. There is no `[auth]` section and no `[[auth.providers]]` array. The standalone `config.toml` in the server data directory accepts `certificate-authority`, `logs`, `module-http`, `wasm`, `v8`, `v8-heap-policy`, `commitlog`, and `websocket`. Other keys are ignored. `[certificate-authority]` `jwt-priv-key-path` and `jwt-pub-key-path`, and the matching `spacetime start` flags, are the server's own identity keys. They are not an external OIDC JWKS.
 
-**Audience Validation**: The `aud` claim must match the application identifier (`admin-app`).
+On connect, SpacetimeDB 2.7 and 2.10 validate a bearer token as follows:
 
-**Expiration Check**: Current time must be before the `exp` timestamp.
+1. A token signed by the server's own key is accepted. That path does not check the issuer.
+2. Otherwise the unverified `iss` claim is used only to find keys. The server requests `{iss}/.well-known/openid-configuration`, follows redirects, and reads `jwks_uri`. A trailing slash on `iss` is removed. The URL scheme must be `http` or `https`.
+3. The signature is checked against that JWKS. `RS256`, `ES256`, and `HS256` keys are accepted.
+4. The verified `iss` must equal the issuer used for discovery. `sub` and `iss` are required. If `exp` is present, it must not be more than 60 seconds in the past.
+5. `aud` is not checked. `OIDC_CLIENT_ID` is read only by the admin build.
 
-**Nonce Validation**: The nonce stored during authorization must match the nonce claim in the ID token (validated via `openidconnect` library) to mitigate replay.
+Any issuer that publishes discovery and a JWKS which verifies the token may be accepted at connection time. This does not make that issuer trusted by the application module.
 
 ## SpacetimeDB Integration
 
@@ -56,30 +60,35 @@ let spacetime_db = use_spacetime_db(SpacetimeDbOptions {
 });
 ```
 
-SpacetimeDB configuration enables JWT authentication:
-
-```toml
-[auth]
-enabled = true
-
-[[auth.providers]]
-issuer = "http://127.0.0.1:8000/o"
-audience = "admin-app"
-```
-
 ### Identity Context
 
-Once authenticated, SpacetimeDB provides the verified identity to reducers through the `ReducerContext`:
+A validated external token becomes the connection identity `Identity::from_claims(iss, sub)`. Reducers see that value as `ctx.sender`.
 
 ```rust
 #[spacetimedb::reducer]
 pub fn authenticated_operation(ctx: &ReducerContext) -> Result<(), String> {
-    // ctx.sender contains the authenticated Identity
-    // derived from validated JWT claims
+    // ctx.sender is Identity::from_claims(iss, sub) from the validated token.
     log::info!("Operation requested by identity: {:?}", ctx.sender);
     Ok(())
 }
 ```
+
+The module's `register_self` reducer requires the authenticated JWT's `iss` claim to exactly equal the compile-time `OIDC_ISSUER_URL`. Missing or different issuers are rejected before the reducer looks up or updates an account. The same configured issuer is used by `sync_user` to compute synced account identities:
+
+```rust
+let identity = Identity::from_claims(OIDC_ISSUER_URL, &data.external_id);
+```
+
+The account's `external_id` is the OIDC `sub`. For a token from the configured issuer, the sender identity and synced account identity therefore derive from the same `(iss, sub)` pair. When an account is found by `external_id`, `register_self` also requires its stored identity to match the sender; it does not rebind the account to a different identity. A mismatch indicates stale or inconsistent account identity data and must be resolved explicitly.
+
+`OIDC_ISSUER_URL` is compiled into the server module via `option_env!`. Set it to the same exact issuer used by the admin OIDC configuration when building and publishing the module. A token from another issuer may still connect to SpacetimeDB, but it cannot register or update an account through `register_self`.
+
+### Email Claims and Primary Email Handling
+
+`register_self(external_id, name)` trusts email data only from the authenticated JWT claims (`email`, `mail`, or `emails`). The OIDC provider must provide an email claim in the JWT for registration to succeed.
+
+- **New Accounts**: The email address extracted from the token is inserted as the account's initial primary email. Its verification flag reflects token claims (`email_verified`, `emailVerified`, or `verified`).
+- **Existing Accounts**: If the token contains an email different from the account's current primary email, it is recorded in `account_emails`. It is only promoted to `primary_email_id` if the token explicitly verifies the address (`email_verified: true`) or if the account has no existing verified primary email. An unverified token email will never demote or displace an already-verified primary email.
 
 ## Token Lifecycle
 

@@ -5,12 +5,12 @@ use ::dioxus::{
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
+use crate::module_bindings::SubscriptionStatus;
 use crate::module_bindings::dioxus::{
     use_reducer_remove_subscription, use_reducer_update_account_config,
     use_table_topic_subscriber_counts, use_table_visible_account_emails,
     use_table_visible_accounts, use_table_visible_subscriptions,
 };
-use crate::module_bindings::SubscriptionStatus;
 use crate::pages::topic::modals::EditSubscriptionTarget;
 
 /// Localized display label for each subscription status.

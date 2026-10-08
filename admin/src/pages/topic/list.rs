@@ -5,11 +5,11 @@ use ::dioxus::{
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
+use crate::module_bindings::TopicVisibility;
 use crate::module_bindings::dioxus::{
     use_procedure_provision_message_topic, use_reducer_remove_message_topic, use_subscription,
     use_table_topic_subscriber_counts, use_table_visible_domains, use_table_visible_message_topics,
 };
-use crate::module_bindings::TopicVisibility;
 use crate::pages::topic::detail::TopicDetailPage;
 
 /// Card with form controls to create and provision a new message topic / mailing list.

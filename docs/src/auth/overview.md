@@ -7,7 +7,7 @@ The Kommunikationszentrum implements a comprehensive authentication and authoriz
 The authentication architecture integrates three core components:
 
 - **Django OAuth2 Provider** (solawispielplatz): Issues JWT ID tokens via OpenID Connect
-- **SpacetimeDB Server**: Validates JWT tokens and manages authenticated connections
+- **SpacetimeDB Server**: Validates the ID token from its `iss` claim and JWKS. It has no configured issuer list.
 - **Admin Web Interface**: Uses JWT tokens for authenticated database operations
 
 ## Key Features

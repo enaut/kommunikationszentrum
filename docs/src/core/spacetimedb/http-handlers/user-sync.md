@@ -35,7 +35,6 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
     "name": "Full Name",
     "is_active": true,
     "is_admin": false,
-    "updated_at": "2024-01-01T12:00:00Z",
     "emails": [
       {
         "email": "user@example.org",
@@ -74,7 +73,6 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 | `user.name` | ✓ | Full display name. |
 | `user.is_active` | ✓ | Account active flag. |
 | `user.is_admin` | — | Grants admin privileges when `true`. |
-| `user.updated_at` | — | ISO 8601 timestamp of last modification in the external system. |
 | `user.emails` | ✓ (upsert) | Array of email objects (`email`, `is_primary`, `is_verified`). Upsert requires exactly one email with `is_primary: true`. Synchronized under `EmailSource::ExternalSync` with the declared `is_verified` status. |
 | `user.topics` | — | Mailing-list topics the account should be subscribed to. Each entry is created in `message_topics` if missing. Subscriptions are created or activated. May specify `categories` (e.g. `["Verteilpunkt"]`) and `default_permission` (`"read"` or `"write"`). |
 | `user.unsubscribe_topic_emails` | — | Email addresses of topics whose subscription should be deactivated for this account. Deactivates all active subscriptions of that account for the topic. |

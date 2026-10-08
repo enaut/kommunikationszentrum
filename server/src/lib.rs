@@ -3,10 +3,10 @@ use std::time::Duration;
 use spacetimedb::{ReducerContext, ScheduleAt, Table};
 
 use crate::models::{
-    account::{admin_identities, AdminIdentity},
+    account::{AdminIdentity, admin_identities},
     delivery::{
-        expire_stale_delivery_claims_schedule, requeue_temporary_failed_mails_schedule,
         ExpireStaleDeliveryClaimsSchedule, RequeueTemporaryFailedMailsSchedule,
+        expire_stale_delivery_claims_schedule, requeue_temporary_failed_mails_schedule,
     },
 };
 

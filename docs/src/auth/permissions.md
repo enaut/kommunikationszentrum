@@ -58,7 +58,7 @@ struct UserInfoResponse {
 }
 ```
 
-These claims are embedded in the JWT ID token and validated by SpacetimeDB on connection establishment.
+These claims are embedded in the JWT ID token. SpacetimeDB checks the token signature, issuer, subject, and expiry. It does not authorize reducers from `is_staff`, `is_superuser`, or `groups`. Admin access in the module is the `admin_identities` row written by user sync.
 
 ### Reducer-Level Authorization
 

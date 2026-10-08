@@ -141,7 +141,7 @@ pub fn parse_jmap_domain_response(
         None => {
             return Err(
                 "Invalid JMAP response: missing 'x:Domain/query' methodResponse".to_string(),
-            )
+            );
         }
     };
 
@@ -166,7 +166,7 @@ pub fn parse_jmap_domain_response(
             "Invalid JMAP response: missing arguments in 'x:Domain/get'".to_string()
         })?,
         None => {
-            return Err("Invalid JMAP response: missing 'x:Domain/get' methodResponse".to_string())
+            return Err("Invalid JMAP response: missing 'x:Domain/get' methodResponse".to_string());
         }
     };
 

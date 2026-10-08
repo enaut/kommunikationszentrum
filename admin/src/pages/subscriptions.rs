@@ -9,13 +9,13 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::SubscriptionStatus;
 use crate::module_bindings::{
+    EmailSource, MessageTopic, TopicVisibility,
     dioxus::{
         use_reducer_add_subscription, use_reducer_remove_account_email,
         use_reducer_remove_subscription, use_reducer_user_request_email_verification,
         use_subscription, use_table_visible_categories, use_table_visible_message_topic_categories,
         use_table_visible_message_topics, use_table_visible_subscriptions,
     },
-    EmailSource, MessageTopic, TopicVisibility,
 };
 use crate::oauth::UserInfo;
 

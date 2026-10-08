@@ -43,8 +43,9 @@ Complete reference of all environment variables supported by Kommunikationszentr
 ### `OIDC_ISSUER_URL`
 - **Default**: `http://127.0.0.1:8000/o`
 - **Used by**: `admin`, `server` (compile-time fallback via `option_env!`)
-- **Description**: OpenID Connect discovery issuer URL. Points to the base path where `/.well-known/openid-configuration` can be discovered. Supports any standard OIDC provider (Nextcloud, Keycloak, Authentik, Django).
-- **Format**: `http://host:port/path` or `https://host:port/path`
+- **Description**: The single trusted OIDC issuer URL for this deployment. The admin uses it for provider discovery; the server module embeds it at compile time and requires JWT `iss` to match it exactly in `register_self`. User-sync account identities are derived from this issuer and the external user ID.
+- **Format**: `http://host:port/path` or `https://host:port/path`; it must exactly match the issuer claim emitted by the provider.
+- **Deployment**: Set this value when building both the admin and server module. The server uses the compile-time value from `option_env!`; SpacetimeDB standalone does not use this variable as a server-level issuer allowlist. Changing the issuer changes the account identity namespace and may require an explicit identity migration.
 - **Examples**:
   - Django: `http://127.0.0.1:8000/o`
   - Nextcloud: `https://cloud.example.org`
@@ -56,6 +57,7 @@ Complete reference of all environment variables supported by Kommunikationszentr
 - **Description**: OAuth 2.0 client identifier registered in Django OAuth Toolkit.
 - **Format**: String identifier
 - **Security**: Should be unique per deployment environment.
+- **Notes**: Not a SpacetimeDB setting. The standalone server does not check the token `aud` claim.
 - **Examples**: `admin-app`, `kommunikationszentrum-prod`
 
 ### `ADMIN_REDIRECT_URI`
@@ -175,25 +177,7 @@ SpacetimeDB integrates with the Stalwart mailserver's JMAP API for automated top
 
 ---
 
-## Test & Integration Script Variables
-
-These variables are used by helper and integration test scripts in `docs/testscripts/`:
-
-### `WEBHOOK_TOKEN`
-- **Default**: _(none — required by scripts)_
-- **Used by**: `test-mta-hooks.sh`, `test-user-sync.sh`
-- **Description**: Bearer token used to authenticate against SpacetimeDB embedded HTTP routes (`/route/mta-hook` and `/route/user-sync`). The token is generated via the Admin UI or CLI and validated against the BLAKE3 hash stored in `webhook_token`.
-- **Format**: 32-byte hex token string
-
-### `SPACETIME_HOST`
-- **Default**: `http://localhost:3000`
-- **Used by**: `test-mta-hooks.sh`, `test-user-sync.sh`
-- **Description**: Host URL of the SpacetimeDB instance under test.
-
-### `DATABASE_NAME`
-- **Default**: `kommunikation`
-- **Used by**: `test-mta-hooks.sh`, `test-user-sync.sh`
-- **Description**: Name of the SpacetimeDB database module being tested.
+## External Integration Variables
 
 ### `SPACETIME_WEBHOOK_TOKEN`
 - **Default**: _(none)_

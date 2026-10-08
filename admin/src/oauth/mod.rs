@@ -4,8 +4,9 @@ pub mod token_storage;
 
 use crate::config::OAuthConfig;
 use auth_flow::{
-    attempt_refresh, build_user_info_from_openid, clear_url, create_oidc_client, get_http_client,
-    initiate_login, initiate_logout, parse_url_params, schedule_refresh, OpenIdClient,
+    OpenIdClient, attempt_refresh, build_user_info_from_openid, clear_url, create_oidc_client,
+    fetch_raw_userinfo, get_http_client, initiate_login, initiate_logout, parse_url_params,
+    schedule_refresh,
 };
 use dioxus::prelude::*;
 use js_sys::Date;
@@ -44,6 +45,44 @@ impl UserInfo {
     pub fn decode_id_token(&self) -> Option<Result<DecodedJwt, String>> {
         let token = self.id_token.as_ref()?;
         Some(jwt_utils::decode_jwt(token))
+    }
+
+    /// Return the optimal JWT token to use for SpacetimeDB authentication.
+    ///
+    /// 1. If `id_token` contains an `email_verified` claim, use `id_token`.
+    /// 2. If `id_token` lacks `email_verified` (e.g. Nextcloud/OIDC provider defaults),
+    ///    but `access_token` is an RFC 9068 JWT that contains `email_verified` and matches the subject,
+    ///    use `access_token` so SpacetimeDB receives verified email claims.
+    /// 3. Otherwise fall back to `id_token`, or `access_token` if valid JWT.
+    pub fn spacetimedb_token(&self) -> Option<String> {
+        let id_claims = self
+            .decode_id_token()
+            .and_then(|r| r.ok())
+            .map(|d| d.claims);
+        let id_has_verified = id_claims
+            .as_ref()
+            .is_some_and(|c| c.get("email_verified").is_some() || c.get("emailVerified").is_some());
+
+        if id_has_verified {
+            return self.id_token.clone();
+        }
+
+        if let Ok(access_jwt) = jwt_utils::decode_jwt(&self.access_token) {
+            let sub = access_jwt.claims.get("sub").and_then(|v| v.as_str());
+            let has_verified = access_jwt.claims.get("email_verified").is_some()
+                || access_jwt.claims.get("emailVerified").is_some();
+            if sub == Some(&self.subject_id) && has_verified {
+                return Some(self.access_token.clone());
+            }
+        }
+
+        self.id_token.clone().or_else(|| {
+            if jwt_utils::decode_jwt(&self.access_token).is_ok() {
+                Some(self.access_token.clone())
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -166,14 +205,32 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
                             {
                                 Ok(req) => match req.request_async(http).await {
                                     Ok(claims) => Some(claims),
-                                    Err(_) => None,
+                                    Err(e) => {
+                                        warn!("OIDC userinfo endpoint failed: {:?}", e);
+                                        None
+                                    }
                                 },
-                                Err(_) => None,
+                                Err(e) => {
+                                    warn!("OIDC userinfo request building failed: {:?}", e);
+                                    None
+                                }
+                            };
+
+                            let raw_userinfo = if maybe_userinfo
+                                .as_ref()
+                                .and_then(|c| c.email())
+                                .is_none()
+                            {
+                                fetch_raw_userinfo(&client, token_response.access_token().secret())
+                                    .await
+                            } else {
+                                None
                             };
 
                             let ui = build_user_info_from_openid(
                                 &token_response,
                                 maybe_userinfo,
+                                raw_userinfo,
                                 refresh_token.clone(),
                             );
                             store_user_info(&ui);

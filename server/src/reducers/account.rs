@@ -23,7 +23,6 @@ pub struct UserSyncData {
     pub name: Option<String>,
     pub is_active: Option<bool>,
     pub is_admin: Option<bool>,
-    pub updated_at: Option<String>,
     pub identity_hex: Option<String>,
     #[serde(default)]
     pub topics: Vec<crate::models::topic::TopicSyncData>,
@@ -81,6 +80,99 @@ pub fn unregister_admin_identity(ctx: &ReducerContext, identity_hex: String) -> 
     Ok(())
 }
 
+/// Helper to extract string or first string element in array from json value
+fn extract_string_or_first_array(val: &serde_json::Value) -> Option<String> {
+    match val {
+        serde_json::Value::String(s) => {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() && trimmed.contains('@') {
+                Some(trimmed.to_string())
+            } else {
+                None
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for item in arr {
+                if let Some(s) = extract_string_or_first_array(item) {
+                    return Some(s);
+                }
+            }
+            None
+        }
+        serde_json::Value::Object(map) => {
+            for key in &["value", "email", "address"] {
+                if let Some(item) = map.get(*key) {
+                    if let Some(s) = extract_string_or_first_array(item) {
+                        return Some(s);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Extract email address from claims JSON, supporting standard and provider-specific keys/formats
+pub fn extract_email_from_claims(claims: &serde_json::Value) -> Option<String> {
+    for key in &["email", "mail", "emails", "email_address"] {
+        if let Some(val) = claims.get(*key) {
+            if let Some(email) = extract_string_or_first_array(val) {
+                return Some(email);
+            }
+        }
+    }
+    None
+}
+
+/// Extract boolean value flexibly (accepting bool, string like "true"/"1", or integer 1)
+pub fn extract_bool_from_claims(val: Option<&serde_json::Value>) -> bool {
+    match val {
+        Some(serde_json::Value::Bool(b)) => *b,
+        Some(serde_json::Value::String(s)) => {
+            let s = s.trim();
+            s.eq_ignore_ascii_case("true") || s == "1" || s.eq_ignore_ascii_case("yes")
+        }
+        Some(serde_json::Value::Number(n)) => n.as_i64() == Some(1),
+        _ => false,
+    }
+}
+
+fn validate_token_issuer(claims: &serde_json::Value) -> Result<(), String> {
+    let issuer = claims
+        .get("iss")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "JWT is missing a string issuer claim".to_string())?;
+
+    if issuer != OIDC_ISSUER_URL {
+        return Err("JWT issuer does not match the configured OIDC issuer".into());
+    }
+
+    Ok(())
+}
+
+fn ensure_account_identity_matches(
+    existing_identity: &Identity,
+    sender: &Identity,
+) -> Result<(), String> {
+    if existing_identity != sender {
+        return Err("Account identity does not match the authenticated sender".into());
+    }
+
+    Ok(())
+}
+
+fn require_token_email(token_email: Option<String>) -> Result<String, String> {
+    token_email.ok_or_else(|| "Email address is required in the authenticated JWT".into())
+}
+
+fn should_promote_to_primary(
+    is_candidate_verified: bool,
+    current_primary_is_verified: Option<bool>,
+) -> bool {
+    is_candidate_verified || current_primary_is_verified.map_or(true, |verified| !verified)
+}
+
 /// Register or update an account for the currently connected user.
 /// Called by the web client after OIDC authentication.
 #[spacetimedb::reducer]
@@ -88,7 +180,6 @@ pub fn register_self(
     ctx: &ReducerContext,
     external_id: String,
     name: String,
-    email: String,
 ) -> Result<(), String> {
     let sender = ctx.sender();
     let timestamp = ctx.timestamp;
@@ -112,37 +203,44 @@ pub fn register_self(
 
     let claims: serde_json::Value = serde_json::from_str(jwt.raw_payload())
         .map_err(|e| format!("Invalid JWT payload: {}", e))?;
+    validate_token_issuer(&claims)?;
 
-    let token_email = claims
-        .get("email")
-        .and_then(|v| v.as_str())
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(String::from);
+    let token_email = extract_email_from_claims(&claims);
 
-    let is_token_email_verified = claims
-        .get("email_verified")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let is_token_email_verified = token_email.is_some()
+        && (extract_bool_from_claims(claims.get("email_verified"))
+            || extract_bool_from_claims(claims.get("emailVerified"))
+            || extract_bool_from_claims(claims.get("verified")));
 
-    // Check if an account already exists for this sender identity
-    if let Some(mut existing_by_identity) = ctx.db.account().identity().find(&sender) {
-        if existing_by_identity.external_id != token_sub {
+    // Check if an account already exists for this sender identity or external_id (e.g. from user-sync)
+    let existing_account = ctx
+        .db
+        .account()
+        .identity()
+        .find(&sender)
+        .or_else(|| ctx.db.account().external_id().find(&external_id));
+
+    if let Some(mut existing_account) = existing_account {
+        if existing_account.external_id != token_sub {
             return Err("Account external_id mismatch".into());
         }
+        ensure_account_identity_matches(&existing_account.identity, &sender)?;
 
         let mut changed = false;
-        if !name.trim().is_empty() && existing_by_identity.name != name {
-            existing_by_identity.name = name.clone();
+        if !name.trim().is_empty() && existing_account.name != name {
+            existing_account.name = name.clone();
             changed = true;
         }
 
-        if let Some(new_email) = token_email {
-            let current_primary = ctx
-                .db
-                .account_emails()
-                .id()
-                .find(&existing_by_identity.primary_email_id);
+        let candidate_email = token_email;
+
+        let current_primary = ctx
+            .db
+            .account_emails()
+            .id()
+            .find(&existing_account.primary_email_id);
+
+        if let Some(new_email) = candidate_email {
             let email_changed = current_primary.as_ref().map(|e| &e.email) != Some(&new_email);
 
             if email_changed {
@@ -150,68 +248,62 @@ pub fn register_self(
                     .db
                     .account_emails()
                     .account_id()
-                    .filter(&existing_by_identity.id)
+                    .filter(&existing_account.id)
                     .find(|e| e.email == new_email);
+
+                let current_verified = current_primary.as_ref().map(|p| p.is_verified);
 
                 if let Some(mut email_row) = existing_email_row {
                     if is_token_email_verified && !email_row.is_verified {
                         email_row.is_verified = true;
                         ctx.db.account_emails().id().update(email_row.clone());
+                        changed = true;
                     }
-                    existing_by_identity.primary_email_id = email_row.id;
-                    changed = true;
+                    if should_promote_to_primary(email_row.is_verified, current_verified)
+                        && existing_account.primary_email_id != email_row.id
+                    {
+                        existing_account.primary_email_id = email_row.id;
+                        changed = true;
+                    }
                 } else {
                     let new_email_row = ctx.db.account_emails().insert(AccountEmail {
                         id: 0,
-                        account_id: existing_by_identity.id,
+                        account_id: existing_account.id,
                         email: new_email,
                         source: EmailSource::Native,
                         is_verified: is_token_email_verified,
                         added_at: timestamp,
                     });
-                    existing_by_identity.primary_email_id = new_email_row.id;
                     changed = true;
+                    if should_promote_to_primary(is_token_email_verified, current_verified) {
+                        existing_account.primary_email_id = new_email_row.id;
+                    }
                 }
             } else if let Some(mut primary) = current_primary {
                 if is_token_email_verified && !primary.is_verified {
                     primary.is_verified = true;
                     ctx.db.account_emails().id().update(primary);
+                    changed = true;
                 }
             }
         }
 
         if changed {
-            existing_by_identity.last_synced = timestamp;
-            ctx.db.account().id().update(existing_by_identity);
+            existing_account.last_synced = timestamp;
+            ctx.db.account().id().update(existing_account);
         }
         return Ok(());
     }
 
-    // Check if external_id is already bound to a different identity
-    if ctx.db.account().external_id().find(&external_id).is_some() {
-        return Err(format!(
-            "Account with external_id '{}' already exists for a different identity",
-            external_id
-        ));
-    }
-
-    // New account: require non-empty email (from token claim or client fallback)
-    let (reg_email, is_verified) = if let Some(e) = token_email {
-        (e, is_token_email_verified)
-    } else {
-        let fallback = email.trim();
-        if fallback.is_empty() {
-            return Err("Email address is required for registration".to_string());
-        }
-        (fallback.to_string(), false)
-    };
+    // New accounts require an email address from the authenticated JWT.
+    let reg_email = require_token_email(token_email)?;
 
     let primary_email = ctx.db.account_emails().insert(AccountEmail {
         id: 0,
         account_id: 0,
         email: reg_email,
         source: EmailSource::Native,
-        is_verified,
+        is_verified: is_token_email_verified,
         added_at: timestamp,
     });
 
@@ -317,14 +409,10 @@ pub(crate) fn do_sync_user(
             "upsert" => {
                 log::info!("Syncing user: {} ({})", data.external_id, action);
 
-                let primary_sync = data
-                    .emails
-                    .iter()
-                    .find(|e| e.is_primary)
-                    .ok_or_else(|| {
-                        "User sync upsert requires at least one email marked with is_primary = true"
-                            .to_string()
-                    })?;
+                let primary_sync = data.emails.iter().find(|e| e.is_primary).ok_or_else(|| {
+                    "User sync upsert requires at least one email marked with is_primary = true"
+                        .to_string()
+                })?;
 
                 let issuer_url = OIDC_ISSUER_URL;
                 let identity_of_user = Identity::from_claims(issuer_url, &data.external_id);
@@ -351,8 +439,8 @@ pub(crate) fn do_sync_user(
                             existing.source = EmailSource::ExternalSync;
                             changed = true;
                         }
-                        if existing.is_verified != synced.is_verified {
-                            existing.is_verified = synced.is_verified;
+                        if synced.is_verified && !existing.is_verified {
+                            existing.is_verified = true;
                             changed = true;
                         }
                         if changed {
@@ -1110,7 +1198,10 @@ mod tests {
         assert!(!data.emails[1].is_verified);
         assert_eq!(data.topics.len(), 1);
         assert_eq!(data.topics[0].name, "VP Süd");
-        assert_eq!(data.topics[0].categories, Some(vec!["Verteilpunkt".to_string()]));
+        assert_eq!(
+            data.topics[0].categories,
+            Some(vec!["Verteilpunkt".to_string()])
+        );
         assert_eq!(
             data.unsubscribe_topic_emails,
             vec!["vp-nord@solawi.org".to_string()]
@@ -1148,5 +1239,127 @@ mod tests {
             "unsubscribe_category_emails": ["vp@example.com"]
         }"#;
         assert!(serde_json::from_str::<UserSyncData>(payload_unsub).is_err());
+    }
+
+    #[test]
+    fn test_extract_email_from_claims_various_formats() {
+        // Standard "email" string
+        let val1 = serde_json::json!({ "email": "test@example.com" });
+        assert_eq!(
+            extract_email_from_claims(&val1),
+            Some("test@example.com".to_string())
+        );
+
+        // Nextcloud / LDAP "mail" string
+        let val2 = serde_json::json!({ "mail": "ldap@example.com" });
+        assert_eq!(
+            extract_email_from_claims(&val2),
+            Some("ldap@example.com".to_string())
+        );
+
+        // Nextcloud / LDAP array of strings
+        let val3 = serde_json::json!({ "mail": ["multi@example.com", "alt@example.com"] });
+        assert_eq!(
+            extract_email_from_claims(&val3),
+            Some("multi@example.com".to_string())
+        );
+
+        // Array in "email"
+        let val4 = serde_json::json!({ "email": ["arr@example.com"] });
+        assert_eq!(
+            extract_email_from_claims(&val4),
+            Some("arr@example.com".to_string())
+        );
+
+        // Array in "emails"
+        let val5 = serde_json::json!({ "emails": ["emails@example.com"] });
+        assert_eq!(
+            extract_email_from_claims(&val5),
+            Some("emails@example.com".to_string())
+        );
+
+        // An email-like username is not an email claim, even when email_verified is true.
+        let val6 = serde_json::json!({
+            "preferred_username": "upn@example.com",
+            "email_verified": true
+        });
+        assert_eq!(extract_email_from_claims(&val6), None);
+
+        let val7 = serde_json::json!({ "upn": "upn@example.com" });
+        assert_eq!(extract_email_from_claims(&val7), None);
+    }
+
+    #[test]
+    fn register_self_accepts_only_the_configured_issuer() {
+        let expected_issuer = serde_json::json!({
+            "iss": OIDC_ISSUER_URL,
+            "sub": "42"
+        });
+        assert!(validate_token_issuer(&expected_issuer).is_ok());
+
+        let other_issuer_same_subject = serde_json::json!({
+            "iss": "https://other-issuer.example",
+            "sub": "42"
+        });
+        assert!(validate_token_issuer(&other_issuer_same_subject).is_err());
+        assert!(validate_token_issuer(&serde_json::json!({ "sub": "42" })).is_err());
+        assert!(validate_token_issuer(&serde_json::json!({ "iss": 42 })).is_err());
+    }
+
+    #[test]
+    fn new_account_requires_email_from_authenticated_jwt() {
+        assert!(require_token_email(None).is_err());
+        assert_eq!(
+            require_token_email(Some("claimed@example.com".to_string())).unwrap(),
+            "claimed@example.com"
+        );
+    }
+
+    #[test]
+    fn existing_account_identity_must_match_sender() {
+        let existing_identity = Identity::from_claims(OIDC_ISSUER_URL, "42");
+        let authenticated_identity = Identity::from_claims(OIDC_ISSUER_URL, "42");
+        let same_subject_from_other_issuer =
+            Identity::from_claims("https://other-issuer.example", "42");
+
+        assert!(
+            ensure_account_identity_matches(&existing_identity, &authenticated_identity).is_ok()
+        );
+        assert!(
+            ensure_account_identity_matches(&existing_identity, &same_subject_from_other_issuer)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_extract_bool_from_claims() {
+        assert!(extract_bool_from_claims(Some(&serde_json::json!(true))));
+        assert!(!extract_bool_from_claims(Some(&serde_json::json!(false))));
+        assert!(extract_bool_from_claims(Some(&serde_json::json!("true"))));
+        assert!(extract_bool_from_claims(Some(&serde_json::json!("True"))));
+        assert!(extract_bool_from_claims(Some(&serde_json::json!("TRUE"))));
+        assert!(extract_bool_from_claims(Some(&serde_json::json!("1"))));
+        assert!(extract_bool_from_claims(Some(&serde_json::json!(1))));
+        assert!(!extract_bool_from_claims(Some(&serde_json::json!("false"))));
+        assert!(!extract_bool_from_claims(Some(&serde_json::json!("0"))));
+        assert!(!extract_bool_from_claims(Some(&serde_json::json!(0))));
+        assert!(!extract_bool_from_claims(None));
+    }
+
+    #[test]
+    fn test_should_promote_to_primary() {
+        // An unverified candidate does NOT displace an already-verified primary email
+        assert!(!should_promote_to_primary(false, Some(true)));
+
+        // A verified candidate DOES promote over an already-verified primary email
+        assert!(should_promote_to_primary(true, Some(true)));
+
+        // An unverified candidate DOES promote if current primary is unverified or absent
+        assert!(should_promote_to_primary(false, Some(false)));
+        assert!(should_promote_to_primary(false, None));
+
+        // A verified candidate always promotes if current primary is unverified or absent
+        assert!(should_promote_to_primary(true, Some(false)));
+        assert!(should_promote_to_primary(true, None));
     }
 }

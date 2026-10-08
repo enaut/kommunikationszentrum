@@ -6,11 +6,11 @@ use crate::oauth::token_storage::{
 use crate::oauth::{AuthState, UserInfo};
 use dioxus::prelude::*;
 use openidconnect::{
+    AuthenticationFlow, ClientId, CsrfToken, EndpointMaybeSet, EndpointNotSet, EndpointSet,
+    IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, RedirectUrl, RefreshToken, Scope,
     core::{
         CoreClient, CoreProviderMetadata, CoreResponseType, CoreTokenResponse, CoreUserInfoClaims,
     },
-    AuthenticationFlow, ClientId, CsrfToken, EndpointMaybeSet, EndpointNotSet, EndpointSet,
-    IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, RedirectUrl, RefreshToken, Scope,
 };
 use reqwest::Client as HttpClient;
 use std::collections::HashMap;
@@ -106,10 +106,85 @@ pub fn clear_url() {
     }
 }
 
+/// Helper to extract string or first string element in array from json value
+fn extract_string_or_first_array(val: &serde_json::Value) -> Option<String> {
+    match val {
+        serde_json::Value::String(s) => {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() && trimmed.contains('@') {
+                Some(trimmed.to_string())
+            } else {
+                None
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for item in arr {
+                if let Some(s) = extract_string_or_first_array(item) {
+                    return Some(s);
+                }
+            }
+            None
+        }
+        serde_json::Value::Object(map) => {
+            for key in &["value", "email", "address"] {
+                if let Some(item) = map.get(*key) {
+                    if let Some(s) = extract_string_or_first_array(item) {
+                        return Some(s);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Extract email address from claims JSON, supporting standard and provider-specific keys/formats
+pub fn extract_email_from_claims(claims: &serde_json::Value) -> Option<String> {
+    for key in &["email", "mail", "emails", "email_address"] {
+        if let Some(val) = claims.get(*key) {
+            if let Some(email) = extract_string_or_first_array(val) {
+                return Some(email);
+            }
+        }
+    }
+    for key in &["upn", "preferred_username"] {
+        if let Some(val) = claims.get(*key).and_then(|v| v.as_str()) {
+            let trimmed = val.trim();
+            if trimmed.contains('@') && !trimmed.contains(' ') {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Fetch userinfo endpoint response as raw JSON value if endpoint is configured.
+pub async fn fetch_raw_userinfo(
+    client: &OpenIdClient,
+    access_token: &str,
+) -> Option<serde_json::Value> {
+    let http = get_http_client();
+    let url = client.user_info_url()?;
+    let resp = http
+        .get(url.as_str())
+        .bearer_auth(access_token)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .ok()?;
+    if resp.status().is_success() {
+        resp.json::<serde_json::Value>().await.ok()
+    } else {
+        None
+    }
+}
+
 /// Construct `UserInfo` struct from OpenID token response and optional userinfo claims.
 pub fn build_user_info_from_openid(
     token_response: &CoreTokenResponse,
     claims: Option<CoreUserInfoClaims>,
+    raw_userinfo: Option<serde_json::Value>,
     refresh_token: Option<String>,
 ) -> UserInfo {
     let access_token = token_response.access_token().secret().to_string();
@@ -143,6 +218,161 @@ pub fn build_user_info_from_openid(
             name = Some(n.to_string());
         }
     }
+
+    if let Some(raw) = &raw_userinfo {
+        if sub.is_empty() {
+            if let Some(s) = raw.get("sub").and_then(|v| v.as_str()) {
+                sub = s.to_string();
+            }
+        }
+        if email.is_none() {
+            email = extract_email_from_claims(raw);
+        }
+        if username.is_empty() {
+            if let Some(u) = raw
+                .get("preferred_username")
+                .or_else(|| raw.get("username"))
+                .or_else(|| raw.get("nickname"))
+                .and_then(|v| v.as_str())
+            {
+                username = u.to_string();
+            }
+        }
+        if name.is_none() {
+            if let Some(n) = raw
+                .get("name")
+                .or_else(|| raw.get("display_name"))
+                .and_then(|v| v.as_str())
+            {
+                name = Some(n.to_string());
+            }
+        }
+        if given_name.is_none() {
+            if let Some(g) = raw
+                .get("given_name")
+                .or_else(|| raw.get("first_name"))
+                .and_then(|v| v.as_str())
+            {
+                given_name = Some(g.to_string());
+            }
+        }
+        if family_name.is_none() {
+            if let Some(f) = raw
+                .get("family_name")
+                .or_else(|| raw.get("last_name"))
+                .and_then(|v| v.as_str())
+            {
+                family_name = Some(f.to_string());
+            }
+        }
+    }
+
+    if let Some(ref id_str) = id_token {
+        if let Ok(decoded) = crate::oauth::jwt_utils::decode_jwt(id_str) {
+            if sub.is_empty() {
+                if let Some(s) = decoded.claims.get("sub").and_then(|v| v.as_str()) {
+                    sub = s.to_string();
+                }
+            }
+            if email.is_none() {
+                email = extract_email_from_claims(&decoded.claims);
+            }
+            if username.is_empty() {
+                if let Some(u) = decoded
+                    .claims
+                    .get("preferred_username")
+                    .or_else(|| decoded.claims.get("username"))
+                    .or_else(|| decoded.claims.get("nickname"))
+                    .and_then(|v| v.as_str())
+                {
+                    username = u.to_string();
+                }
+            }
+            if name.is_none() {
+                if let Some(n) = decoded
+                    .claims
+                    .get("name")
+                    .or_else(|| decoded.claims.get("display_name"))
+                    .and_then(|v| v.as_str())
+                {
+                    name = Some(n.to_string());
+                }
+            }
+            if given_name.is_none() {
+                if let Some(g) = decoded
+                    .claims
+                    .get("given_name")
+                    .or_else(|| decoded.claims.get("first_name"))
+                    .and_then(|v| v.as_str())
+                {
+                    given_name = Some(g.to_string());
+                }
+            }
+            if family_name.is_none() {
+                if let Some(f) = decoded
+                    .claims
+                    .get("family_name")
+                    .or_else(|| decoded.claims.get("last_name"))
+                    .and_then(|v| v.as_str())
+                {
+                    family_name = Some(f.to_string());
+                }
+            }
+        }
+    }
+
+    if let Ok(decoded_access) = crate::oauth::jwt_utils::decode_jwt(&access_token) {
+        if sub.is_empty() {
+            if let Some(s) = decoded_access.claims.get("sub").and_then(|v| v.as_str()) {
+                sub = s.to_string();
+            }
+        }
+        if email.is_none() {
+            email = extract_email_from_claims(&decoded_access.claims);
+        }
+        if username.is_empty() {
+            if let Some(u) = decoded_access
+                .claims
+                .get("preferred_username")
+                .or_else(|| decoded_access.claims.get("username"))
+                .or_else(|| decoded_access.claims.get("nickname"))
+                .and_then(|v| v.as_str())
+            {
+                username = u.to_string();
+            }
+        }
+        if name.is_none() {
+            if let Some(n) = decoded_access
+                .claims
+                .get("name")
+                .or_else(|| decoded_access.claims.get("display_name"))
+                .and_then(|v| v.as_str())
+            {
+                name = Some(n.to_string());
+            }
+        }
+        if given_name.is_none() {
+            if let Some(g) = decoded_access
+                .claims
+                .get("given_name")
+                .or_else(|| decoded_access.claims.get("first_name"))
+                .and_then(|v| v.as_str())
+            {
+                given_name = Some(g.to_string());
+            }
+        }
+        if family_name.is_none() {
+            if let Some(f) = decoded_access
+                .claims
+                .get("family_name")
+                .or_else(|| decoded_access.claims.get("last_name"))
+                .and_then(|v| v.as_str())
+            {
+                family_name = Some(f.to_string());
+            }
+        }
+    }
+
     if username.is_empty() {
         username = sub.clone();
     }
@@ -202,8 +432,18 @@ pub fn attempt_refresh(
                             },
                             Err(_) => None,
                         };
-                    let mut updated =
-                        build_user_info_from_openid(&token_response, maybe_userinfo, new_refresh);
+                    let raw_userinfo = if maybe_userinfo.as_ref().and_then(|c| c.email()).is_none()
+                    {
+                        fetch_raw_userinfo(&client, token_response.access_token().secret()).await
+                    } else {
+                        None
+                    };
+                    let mut updated = build_user_info_from_openid(
+                        &token_response,
+                        maybe_userinfo,
+                        raw_userinfo,
+                        new_refresh,
+                    );
                     if updated.name.is_none() {
                         updated.name = current.name.clone();
                     }
@@ -212,6 +452,12 @@ pub fn attempt_refresh(
                     }
                     if updated.family_name.is_none() {
                         updated.family_name = current.family_name.clone();
+                    }
+                    if updated.email.is_none() {
+                        updated.email = current.email.clone();
+                    }
+                    if updated.id_token.is_none() {
+                        updated.id_token = current.id_token.clone();
                     }
                     store_user_info(&updated);
                     auth_state.set(AuthState::Authenticated(updated.clone()));
@@ -244,6 +490,21 @@ pub fn initiate_login(client: &OpenIdClient, cfg: &OAuthConfig) {
             auth_req = auth_req.add_scope(Scope::new(sc.into()));
         }
     }
+
+    // Request standard profile & email claims in the ID token per OIDC Core 1.0 section 5.5.
+    // Many providers (including Nextcloud's OIDC provider) only include these claims in the
+    // id_token if explicitly requested via the `claims` authorization parameter.
+    let claims_json = serde_json::json!({
+        "id_token": {
+            "email": null,
+            "email_verified": null,
+            "name": null,
+            "preferred_username": null,
+            "given_name": null,
+            "family_name": null
+        }
+    });
+    auth_req = auth_req.add_extra_param("claims", claims_json.to_string());
 
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
     store_code_verifier(pkce_verifier.secret());

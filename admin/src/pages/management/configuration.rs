@@ -4,15 +4,22 @@ use ::dioxus::{
 };
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::{JsFuture, spawn_local};
 
 use crate::module_bindings::dioxus::{
-    use_procedure_sync_stalwart_domains, use_reducer_create_webhook_token,
-    use_reducer_register_admin_identity, use_reducer_revoke_webhook_token,
-    use_reducer_set_stalwart_config_then, use_reducer_unregister_admin_identity, use_subscription,
+    ConnectionState, use_connection_state, use_procedure_sync_stalwart_domains,
+    use_reducer_create_webhook_token, use_reducer_register_admin_identity,
+    use_reducer_revoke_webhook_token, use_reducer_set_stalwart_config_then,
+    use_reducer_unregister_admin_identity, use_subscription, use_table_admin_accounts,
     use_table_admin_stalwart_config, use_table_visible_admin_identities, use_table_visible_domains,
     use_table_visible_webhook_tokens,
 };
+
+#[derive(Clone, PartialEq)]
+struct AdminDeleteTarget {
+    identity_hex: String,
+    display_name: String,
+}
 
 #[component]
 pub fn ManagementConfigurationPage() -> Element {
@@ -36,11 +43,25 @@ pub fn ManagementConfigurationPage() -> Element {
 
 #[component]
 fn AdminIdentityCard() -> Element {
-    use_subscription(&["SELECT * FROM visible_admin_identities"]);
+    use_subscription(&[
+        "SELECT * FROM visible_admin_identities",
+        "SELECT * FROM admin_accounts",
+    ]);
     let admin_identities = use_table_visible_admin_identities();
+    let accounts = use_table_admin_accounts();
+    let connection_state = use_connection_state();
+
     let register_admin = use_reducer_register_admin_identity();
     let unregister_admin = use_reducer_unregister_admin_identity();
     let mut register_hex = use_signal(String::new);
+
+    let mut show_delete_modal = use_signal(|| false);
+    let mut delete_target = use_signal(|| None::<AdminDeleteTarget>);
+
+    let my_identity = match connection_state() {
+        ConnectionState::Connected(id, _) => Some(id),
+        _ => None,
+    };
 
     rsx! {
         Row { class: "mb-4",
@@ -99,20 +120,49 @@ fn AdminIdentityCard() -> Element {
                                     {
                                         let hex = ident.identity.to_string();
                                         let hex_for_remove = hex.clone();
-                                        let unregister = unregister_admin.clone();
+                                        let is_me = my_identity.as_ref() == Some(&ident.identity);
+
+                                        let matching_account = accounts()
+                                            .into_iter()
+                                            .find(|a| a.identity == ident.identity);
+
+                                        let user_name = matching_account.as_ref().map(|a| a.name.clone());
+                                        let is_unlinked = user_name.is_none();
+                                        let display_name = user_name
+                                            .clone()
+                                            .unwrap_or_else(|| tid!("management-config-admin-unlinked"));
+                                        let target_name = display_name.clone();
+
                                         rsx! {
-                                            ListGroupItem { tag: "div", class: "d-flex justify-content-between align-items-center",
-                                                code { class: "small text-break", "{hex}" }
+                                            ListGroupItem { tag: "div", class: "d-flex justify-content-between align-items-center py-2",
+                                                div { class: "d-flex flex-column me-2 overflow-hidden",
+                                                    div { class: "d-flex align-items-center gap-2 flex-wrap mb-1",
+                                                        if is_unlinked {
+                                                            span { class: "text-muted fst-italic small", {tid!("management-config-admin-unlinked")} }
+                                                        } else {
+                                                            if let Some(ref name) = user_name {
+                                                                span { class: "fw-semibold", "{name}" }
+                                                            }
+
+                                                        }
+                                                        if is_me {
+                                                            Badge { color: Color::Info, class: "ms-1", {tid!("management-config-admin-you")} }
+                                                        }
+                                                    }
+                                                    code { class: "small text-muted text-break", "{hex}" }
+                                                }
                                                 Button {
                                                     color: Color::Danger,
                                                     outline: true,
                                                     size: Size::Sm,
                                                     class: "ms-2 flex-shrink-0",
+                                                    disabled: is_me,
                                                     onclick: move |_| {
-                                                        info!("Unregistering admin identity: {hex_for_remove}");
-                                                        if let Err(e) = unregister(hex_for_remove.clone()) {
-                                                            error!("unregister_admin_identity failed: {e:?}");
-                                                        }
+                                                        delete_target.set(Some(AdminDeleteTarget {
+                                                            identity_hex: hex_for_remove.clone(),
+                                                            display_name: target_name.clone(),
+                                                        }));
+                                                        show_delete_modal.set(true);
                                                     },
                                                     Icon { name: "person-dash" }
                                                 }
@@ -122,6 +172,42 @@ fn AdminIdentityCard() -> Element {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+        if let Some(target) = delete_target() {
+            Modal {
+                show: show_delete_modal,
+                title: tid!("management-config-admin-remove-confirm-title"),
+                body: rsx! {
+                    p {
+                        {tid!("management-config-admin-remove-confirm-body", name: target.display_name.clone())}
+                    }
+                    p { class: "font-monospace small text-muted text-break mb-0",
+                        "{target.identity_hex}"
+                    }
+                },
+                footer: rsx! {
+                    Button {
+                        color: Color::Secondary,
+                        onclick: move |_| show_delete_modal.set(false),
+                        {tid!("general-cancel")}
+                    }
+                    Button {
+                        color: Color::Danger,
+                        onclick: {
+                            let unregister = unregister_admin.clone();
+                            let hex = target.identity_hex.clone();
+                            move |_| {
+                                info!("Unregistering admin identity: {hex}");
+                                if let Err(e) = unregister(hex.clone()) {
+                                    error!("unregister_admin_identity failed: {e:?}");
+                                }
+                                show_delete_modal.set(false);
+                            }
+                        },
+                        {tid!("management-config-admin-remove-confirm-btn")}
                     }
                 }
             }
