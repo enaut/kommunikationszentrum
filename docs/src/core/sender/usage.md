@@ -95,11 +95,11 @@ spacetime sql kommunikation \
 
 # 5. Inspect Finalized Deliveries
 spacetime sql kommunikation \
-  "SELECT delivery_id, ingress_id, final_state, attempts_made, finalized_at FROM mail_delivery_done ORDER BY finalized_at DESC LIMIT 20"
+  "SELECT delivery_id, ingress_id, final_state, attempt_count, finalized_at FROM mail_delivery_done LIMIT 20"
 
 # 6. Inspect Audit Log Events
 spacetime sql kommunikation \
-  "SELECT id, delivery_id, event_type, attempt_no, details, occurred_at FROM mail_delivery_events ORDER BY occurred_at DESC LIMIT 25"
+  "SELECT id, delivery_id, event_type, attempt_no, details, occurred_at FROM mail_delivery_events LIMIT 25"
 ```
 
 ---

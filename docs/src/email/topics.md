@@ -181,5 +181,5 @@ LEFT JOIN subscriptions s ON mt.id = s.topic_id
 WHERE s.id IS NULL"
 
 # Recent topic deliveries
-spacetime sql kommunikation "SELECT * FROM received_message ORDER BY received_at DESC LIMIT 10"
+spacetime sql kommunikation "SELECT * FROM received_message LIMIT 10"
 ```

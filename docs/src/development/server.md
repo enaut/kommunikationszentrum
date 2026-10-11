@@ -209,8 +209,8 @@ spacetime logs kommunikationszentrum | grep "MTA"
 ```bash
 # All tables
 spacetime sql kommunikationszentrum "SELECT * FROM mail_ingress"
-spacetime sql kommunikationszentrum "SELECT * FROM mail_deliveries WHERE state != 'sent'"
-spacetime sql kommunikationszentrum "SELECT * FROM mail_delivery_events ORDER BY occurred_at DESC LIMIT 10"
+spacetime sql kommunikationszentrum "SELECT * FROM mail_delivery_pending"
+spacetime sql kommunikationszentrum "SELECT * FROM mail_delivery_events LIMIT 10"
 ```
 
 ---
