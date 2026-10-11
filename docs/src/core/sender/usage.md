@@ -78,24 +78,28 @@ Inspect queue states using the SpacetimeDB SQL CLI:
 
 ```bash
 # 1. Inspect Ingress Queue
-spacetime sql kommunikationszentrum \
-  "SELECT id, mail_message_id, topic_email, claim.status, claim.attempt_count, claim.claim_expires_at FROM mail_ingress"
+spacetime sql kommunikation \
+  "SELECT id, mail_message_id, topic_email, claim, recipient_count, delivery_count, completed_at FROM mail_ingress"
 
 # 2. Inspect Pending Deliveries (Waiting for Worker)
-spacetime sql kommunikationszentrum \
-  "SELECT id, ingress_id, next_attempt_at, row.recipient_email, row.attempt_count FROM mail_delivery_pending"
+spacetime sql kommunikation \
+  "SELECT delivery_id, ingress_id, attempt_count, last_error, last_updated FROM mail_delivery_pending"
 
 # 3. Inspect Active Worker Leases
-spacetime sql kommunikationszentrum \
-  "SELECT id, instance_id, lease_expires_at, row.recipient_email FROM mail_delivery_claimed"
+spacetime sql kommunikation \
+  "SELECT delivery_id, ingress_id, instance_id, lease_expires_at, attempt_count, last_updated FROM mail_delivery_claimed"
 
-# 4. Inspect Finalized Deliveries
-spacetime sql kommunikationszentrum \
-  "SELECT id, ingress_id, final_state, row.smtp_status_code, row.finalized_at FROM mail_delivery_done ORDER BY row.finalized_at DESC LIMIT 20"
+# 4. Inspect Temporary Failed Deliveries (Scheduled for Retry)
+spacetime sql kommunikation \
+  "SELECT delivery_id, ingress_id, next_attempt_at, attempt_count, last_error, last_updated FROM mail_delivery_temporary_failed"
 
-# 5. Inspect Audit Log Events
-spacetime sql kommunikationszentrum \
-  "SELECT id, delivery_id, event_type, attempt_no, smtp_status_code, details, occurred_at FROM mail_delivery_events ORDER BY occurred_at DESC LIMIT 25"
+# 5. Inspect Finalized Deliveries
+spacetime sql kommunikation \
+  "SELECT delivery_id, ingress_id, final_state, attempts_made, finalized_at FROM mail_delivery_done ORDER BY finalized_at DESC LIMIT 20"
+
+# 6. Inspect Audit Log Events
+spacetime sql kommunikation \
+  "SELECT id, delivery_id, event_type, attempt_no, details, occurred_at FROM mail_delivery_events ORDER BY occurred_at DESC LIMIT 25"
 ```
 
 ---

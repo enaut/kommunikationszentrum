@@ -62,7 +62,7 @@ pub fn build_transport(
     password: &str,
 ) -> Result<AsyncSmtpTransport<Tokio1Executor>, Box<dyn Error>> {
     let mut builder = if config.smtp_use_tls {
-        let tls = if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
+        let tls_parameters = if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
             let mut tls_builder = TlsParameters::builder(config.smtp_host.clone());
 
             if config.smtp_accept_invalid_certs {
@@ -73,13 +73,18 @@ pub fn build_transport(
                 tls_builder = tls_builder.dangerous_accept_invalid_hostnames(true);
             }
 
-            Tls::Required(tls_builder.build()?)
+            tls_builder.build()?
         } else {
-            let tls_parameters = TlsParameters::builder(config.smtp_host.clone()).build()?;
+            TlsParameters::builder(config.smtp_host.clone()).build()?
+        };
+
+        let tls = if config.smtp_port == 465 {
+            Tls::Wrapper(tls_parameters)
+        } else {
             Tls::Required(tls_parameters)
         };
 
-        AsyncSmtpTransport::<Tokio1Executor>::relay(&config.smtp_host)?.tls(tls)
+        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.smtp_host).tls(tls)
     } else {
         AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.smtp_host)
     };
