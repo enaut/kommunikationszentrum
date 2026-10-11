@@ -1,17 +1,5 @@
 use spacetimedb::{SpacetimeType, Timestamp};
 
-#[spacetimedb::table(accessor = mta_connection_log)]
-pub struct MtaConnectionLog {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    pub client_ip: String,
-    pub stage: String,
-    pub action: String,
-    pub timestamp: Timestamp,
-    pub details: String,
-}
-
 #[spacetimedb::table(accessor = blocked_ips)]
 pub struct BlockedIp {
     #[primary_key]

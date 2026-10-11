@@ -180,6 +180,38 @@ pub fn build_rejection_email(
     (subject, body_de + "\n\n" + &body_en)
 }
 
+/// Format the modified Subject header to be returned to Stalwart when any target topic is rejected.
+///
+/// Returns `Some(new_subject)` if a suffix should be added, or `None` if no modification should be made
+/// (e.g. if no topics were rejected, or if the subject already contains `(rejected from `).
+///
+/// Rules:
+/// - Format: `<original_subject> (rejected from <topic_email1>, <topic_email2>)`
+/// - Fallback if subject is empty or whitespace: `No Subject (rejected from <topic_email1>, ...)`
+/// - Idempotent: If subject already contains `(rejected from `, do not append it again.
+pub fn format_subject_with_rejection(
+    original_subject: &str,
+    rejected_topic_emails: &[&str],
+) -> Option<String> {
+    if rejected_topic_emails.is_empty() {
+        return None;
+    }
+    if original_subject.contains("(rejected from ") {
+        return None;
+    }
+    let trimmed = original_subject.trim();
+    let base = if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("no subject") {
+        "No Subject"
+    } else {
+        trimmed
+    };
+    Some(format!(
+        "{} (rejected from {})",
+        base,
+        rejected_topic_emails.join(", ")
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -319,5 +351,80 @@ mod tests {
         assert!(body.contains("2000000"));
         assert!(body.contains("Größenlimit"));
         assert!(body.contains("size limit"));
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_single_topic() {
+        let res = format_subject_with_rejection("Erntebericht", &["ernte@solawi.org"]);
+        assert_eq!(
+            res,
+            Some("Erntebericht (rejected from ernte@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_multiple_topics() {
+        let res = format_subject_with_rejection(
+            "Erntebericht",
+            &["ernte@solawi.org", "aktuelles@solawi.org"],
+        );
+        assert_eq!(
+            res,
+            Some("Erntebericht (rejected from ernte@solawi.org, aktuelles@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_empty_subject() {
+        let res = format_subject_with_rejection("", &["ernte@solawi.org"]);
+        assert_eq!(
+            res,
+            Some("No Subject (rejected from ernte@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_whitespace_subject() {
+        let res = format_subject_with_rejection("   \t  ", &["ernte@solawi.org"]);
+        assert_eq!(
+            res,
+            Some("No Subject (rejected from ernte@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_no_subject_case_insensitive() {
+        let res1 = format_subject_with_rejection("No subject", &["ernte@solawi.org"]);
+        assert_eq!(
+            res1,
+            Some("No Subject (rejected from ernte@solawi.org)".to_string())
+        );
+
+        let res2 = format_subject_with_rejection("No Subject", &["ernte@solawi.org"]);
+        assert_eq!(
+            res2,
+            Some("No Subject (rejected from ernte@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_idempotent() {
+        let res = format_subject_with_rejection(
+            "Erntebericht (rejected from ernte@solawi.org)",
+            &["ernte@solawi.org"],
+        );
+        assert_eq!(res, None);
+
+        let res_other = format_subject_with_rejection(
+            "Announcement (rejected from alt@solawi.org)",
+            &["neu@solawi.org"],
+        );
+        assert_eq!(res_other, None);
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_empty_rejected_list() {
+        let res = format_subject_with_rejection("Erntebericht", &[]);
+        assert_eq!(res, None);
     }
 }

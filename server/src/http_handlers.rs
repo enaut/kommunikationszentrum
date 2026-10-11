@@ -1,5 +1,5 @@
 use crate::models::account::webhook_tokens;
-use crate::models::mta::{MtaConnectionLog, blocked_ips, mta_connection_log};
+use crate::models::mta::blocked_ips;
 use crate::models::topic::{
     MessageTopic, SubscriptionPermission, TopicSyncData, TopicVisibility, message_topics,
 };
@@ -8,12 +8,11 @@ use crate::services::stalwart::topic::provision_stalwart_topic_mailbox;
 use log::info;
 use serde::Deserialize;
 use serde_json::json;
-use spacetimedb::{
-    Table,
-    http::{Body, HandlerContext, Request as HttpRequest, Response as HttpResponse, Router},
+use spacetimedb::http::{
+    Body, HandlerContext, Request as HttpRequest, Response as HttpResponse, Router,
 };
 use stalwart_mta_hook_types::{
-    Modification, Request as MtaHookRequest, Response as MtaHookResponse, Stage,
+    Request as MtaHookRequest, Response as MtaHookResponse, Stage,
 };
 
 fn json_response(status: u16, value: serde_json::Value) -> HttpResponse {
@@ -38,6 +37,14 @@ fn token_has_permission(ctx: &mut HandlerContext, token: &str, permission: &str)
             false
         }
     })
+}
+
+pub fn evaluate_connect_stage(is_blocked: bool) -> MtaHookResponse {
+    if is_blocked {
+        MtaHookResponse::reject(550, "IP blocked".to_string())
+    } else {
+        MtaHookResponse::accept()
+    }
 }
 
 #[spacetimedb::http::handler]
@@ -68,199 +75,31 @@ fn mta_hook_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRespo
         }
     };
 
-    match mta_req.context.stage {
+    let resp = match mta_req.context.stage {
         Stage::Data => {
-            // persist message using the existing module routines in a transaction
-            let _ = ctx.with_tx(|tx| {
-                crate::services::mta::handle_data_stage(tx, &mta_req, tx.timestamp);
-            });
-
-            let resp =
-                MtaHookResponse::accept().with_modifications(vec![Modification::add_header(
-                    "X-Processed-By".to_string(),
-                    "SpacetimeDB Kommunikationszentrum".to_string(),
-                )]);
-
-            let body = serde_json::to_vec(&resp).unwrap_or_default();
-            HttpResponse::builder()
-                .status(200)
-                .header("content-type", "application/json")
-                .body(Body::from_bytes(body))
-                .unwrap()
+            ctx.with_tx(|tx| crate::services::mta::handle_data_stage(tx, &mta_req, tx.timestamp))
         }
         Stage::Connect => {
-            let accepted = ctx.with_tx(|tx| {
+            let blocked = ctx.with_tx(|tx| {
                 let client_ip = &mta_req.context.client.ip;
-                if let Some(blocked) = tx.db.blocked_ips().ip().find(client_ip) {
-                    if blocked.active {
-                        tx.db.mta_connection_log().insert(MtaConnectionLog {
-                            id: 0,
-                            client_ip: "[REDACTED]".to_string(),
-                            stage: "connect".to_string(),
-                            action: "reject".to_string(),
-                            timestamp: tx.timestamp,
-                            details: "IP blocked".to_string(),
-                        });
-                        return false;
-                    }
-                }
-                tx.db.mta_connection_log().insert(MtaConnectionLog {
-                    id: 0,
-                    client_ip: client_ip.to_string(),
-                    stage: "connect".to_string(),
-                    action: "accept".to_string(),
-                    timestamp: tx.timestamp,
-                    details: "Connection accepted".to_string(),
-                });
-                true
+                tx.db
+                    .blocked_ips()
+                    .ip()
+                    .find(client_ip)
+                    .map_or(false, |b| b.active)
             });
 
-            let resp = if accepted {
-                MtaHookResponse::accept()
-            } else {
-                MtaHookResponse::reject(550, "IP blocked".to_string())
-            };
-            let body = serde_json::to_vec(&resp).unwrap_or_default();
-            HttpResponse::builder()
-                .status(200)
-                .header("content-type", "application/json")
-                .body(Body::from_bytes(body))
-                .unwrap()
+            evaluate_connect_stage(blocked)
         }
-        Stage::Ehlo => {
-            let accepted = ctx.with_tx(|tx| {
-                if let Some(helo) = &mta_req.context.client.helo {
-                    if helo.trim().is_empty() {
-                        tx.db.mta_connection_log().insert(MtaConnectionLog {
-                            id: 0,
-                            client_ip: mta_req.context.client.ip.clone(),
-                            stage: "ehlo".to_string(),
-                            action: "reject".to_string(),
-                            timestamp: tx.timestamp,
-                            details: "Invalid EHLO/HELO: empty".to_string(),
-                        });
-                        return false;
-                    }
-                }
-                tx.db.mta_connection_log().insert(MtaConnectionLog {
-                    id: 0,
-                    client_ip: mta_req.context.client.ip.clone(),
-                    stage: "ehlo".to_string(),
-                    action: "accept".to_string(),
-                    timestamp: tx.timestamp,
-                    details: "Valid EHLO".to_string(),
-                });
-                true
-            });
+        Stage::Ehlo | Stage::Mail | Stage::Rcpt | Stage::Auth => MtaHookResponse::accept(),
+    };
 
-            let resp = if accepted {
-                MtaHookResponse::accept()
-            } else {
-                MtaHookResponse::reject(501, "Invalid EHLO/HELO argument".to_string())
-            };
-            let body = serde_json::to_vec(&resp).unwrap_or_default();
-            HttpResponse::builder()
-                .status(200)
-                .header("content-type", "application/json")
-                .body(Body::from_bytes(body))
-                .unwrap()
-        }
-        Stage::Mail => {
-            let accepted = ctx.with_tx(|tx| {
-                if let Some(envelope) = &mta_req.envelope {
-                    let from_address = &envelope.from.address;
-                    if !from_address.contains('@') || from_address.trim().is_empty() {
-                        tx.db.mta_connection_log().insert(MtaConnectionLog {
-                            id: 0,
-                            client_ip: "[REDACTED]".to_string(),
-                            stage: "mail".to_string(),
-                            action: "reject".to_string(),
-                            timestamp: tx.timestamp,
-                            details: "Invalid sender address".to_string(),
-                        });
-                        return false;
-                    }
-                }
-                tx.db.mta_connection_log().insert(MtaConnectionLog {
-                    id: 0,
-                    client_ip: mta_req.context.client.ip.clone(),
-                    stage: "mail".to_string(),
-                    action: "accept".to_string(),
-                    timestamp: tx.timestamp,
-                    details: "MAIL FROM accepted".to_string(),
-                });
-                true
-            });
-
-            let resp = if accepted {
-                MtaHookResponse::accept()
-            } else {
-                MtaHookResponse::reject(550, "Invalid sender address".to_string())
-            };
-            let body = serde_json::to_vec(&resp).unwrap_or_default();
-            HttpResponse::builder()
-                .status(200)
-                .header("content-type", "application/json")
-                .body(Body::from_bytes(body))
-                .unwrap()
-        }
-        Stage::Rcpt => {
-            ctx.with_tx(|tx| {
-                if let Some(envelope) = &mta_req.envelope {
-                    for recipient in &envelope.to {
-                        let to_address = recipient.address.clone();
-                        let topic_found = tx
-                            .db
-                            .message_topics()
-                            .email_address()
-                            .find(&to_address)
-                            .map_or(false, |c| c.active);
-                        let action_str = if topic_found { "accept" } else { "reject" }.to_string();
-                        tx.db.mta_connection_log().insert(MtaConnectionLog {
-                            id: 0,
-                            client_ip: "[REDACTED]".to_string(),
-                            stage: "rcpt".to_string(),
-                            action: action_str.clone(),
-                            timestamp: tx.timestamp,
-                            details: format!(
-                                "Topic validation: {}",
-                                if topic_found { "found" } else { "not found" }
-                            ),
-                        });
-                    }
-                }
-            });
-
-            let resp = MtaHookResponse::accept();
-
-            let body = serde_json::to_vec(&resp).unwrap_or_default();
-            HttpResponse::builder()
-                .status(200)
-                .header("content-type", "application/json")
-                .body(Body::from_bytes(body))
-                .unwrap()
-        }
-        Stage::Auth => {
-            ctx.with_tx(|tx| {
-                tx.db.mta_connection_log().insert(MtaConnectionLog {
-                    id: 0,
-                    client_ip: mta_req.context.client.ip.clone(),
-                    stage: "auth".to_string(),
-                    action: "accept".to_string(),
-                    timestamp: tx.timestamp,
-                    details: "Auth stage".to_string(),
-                });
-            });
-
-            let resp = MtaHookResponse::accept();
-            let body = serde_json::to_vec(&resp).unwrap_or_default();
-            HttpResponse::builder()
-                .status(200)
-                .header("content-type", "application/json")
-                .body(Body::from_bytes(body))
-                .unwrap()
-        }
-    }
+    let body = serde_json::to_vec(&resp).unwrap_or_default();
+    HttpResponse::builder()
+        .status(200)
+        .header("content-type", "application/json")
+        .body(Body::from_bytes(body))
+        .unwrap()
 }
 
 #[derive(Deserialize)]
@@ -763,5 +602,23 @@ mod tests {
         );
         assert_eq!(query_param_token_from_query(Some("token=")), None);
         assert_eq!(query_param_token_from_query(None), None);
+    }
+
+    #[test]
+    fn test_evaluate_connect_stage_blocked_ip() {
+        let resp = evaluate_connect_stage(true);
+        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Reject));
+        let smtp = resp.response.expect("SMTP response present");
+        assert_eq!(smtp.status, Some(550));
+        assert_eq!(smtp.message, Some("IP blocked".to_string()));
+        assert!(resp.modifications.is_empty());
+    }
+
+    #[test]
+    fn test_evaluate_connect_stage_allowed_ip() {
+        let resp = evaluate_connect_stage(false);
+        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert!(resp.response.is_none());
+        assert!(resp.modifications.is_empty());
     }
 }

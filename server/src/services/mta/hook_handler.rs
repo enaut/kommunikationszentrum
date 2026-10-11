@@ -1,5 +1,7 @@
 use spacetimedb::{ReducerContext, Table, Timestamp};
-use stalwart_mta_hook_types::Request as MtaHookRequest;
+use stalwart_mta_hook_types::{
+    Modification, Request as MtaHookRequest, Response as MtaHookResponse,
+};
 
 use crate::models::account::{account, account_emails, admin_identities};
 use crate::models::delivery::{SystemMailPending, system_mail_pending};
@@ -13,7 +15,8 @@ use crate::services::mta::envelope_parser::{
     extract_subject_from_request,
 };
 use crate::services::mta::rejection::{
-    RejectedTopic, build_rejection_email, is_oversize_message, is_valid_bounce_recipient,
+    RejectedTopic, build_rejection_email, format_subject_with_rejection, is_oversize_message,
+    is_valid_bounce_recipient,
 };
 
 pub fn insert_mail_message(
@@ -52,7 +55,11 @@ pub fn insert_mail_message(
         .id
 }
 
-pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: Timestamp) {
+pub fn handle_data_stage(
+    ctx: &ReducerContext,
+    request: &MtaHookRequest,
+    timestamp: Timestamp,
+) -> MtaHookResponse {
     let header_from_email = extract_from_header_address(request);
     let envelope_from_email = extract_envelope_from_address(request);
 
@@ -98,7 +105,7 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
     }
 
     if target_topics.is_empty() {
-        return;
+        return MtaHookResponse::accept();
     }
 
     let find_account_emails = |email: &str| -> Vec<crate::models::account::AccountEmail> {
@@ -300,7 +307,7 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
         queue_id,
         sender_account_ids.first().copied(),
         from_address.clone(),
-        subject,
+        subject.clone(),
         from_header,
         reply_to,
         date_header,
@@ -330,6 +337,193 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
                 topic_id,
                 topic_email
             );
+        }
+    }
+
+    let dispositions: Vec<(&str, MessageDisposition)> = topic_decisions
+        .iter()
+        .map(|(_, email, _, disp)| (email.as_str(), *disp))
+        .collect();
+
+    build_mta_data_response(true, &subject, &dispositions)
+}
+
+/// Build the Stalwart MTA hook response for the DATA stage based on whether topics were addressed
+/// and the disposition of each topic delivery.
+///
+/// - If non-topic mail: returns plain `accept()` with 0 modifications and no `X-Processed-By` header.
+/// - If topic mail:
+///   - Adds `X-Processed-By: SpacetimeDB Kommunikationszentrum` header.
+///   - If any topic was rejected, appends ` (rejected from <topic1>, <topic2>)` to the `Subject` header via `ChangeHeader(1)`.
+///   - Fallback if subject is empty or whitespace: `No Subject (rejected from ...)`.
+///   - Idempotent: Does not append duplicate suffix if `(rejected from ` is already present.
+///   - Keeps all envelope recipients intact (no `DeleteRecipient`).
+pub fn build_mta_data_response(
+    topic_addressed: bool,
+    subject: &str,
+    topic_dispositions: &[(&str, MessageDisposition)],
+) -> MtaHookResponse {
+    if !topic_addressed || topic_dispositions.is_empty() {
+        return MtaHookResponse::accept();
+    }
+
+    let mut modifications = vec![Modification::add_header(
+        "X-Processed-By".to_string(),
+        "SpacetimeDB Kommunikationszentrum".to_string(),
+    )];
+
+    let rejected_topic_emails: Vec<&str> = topic_dispositions
+        .iter()
+        .filter_map(|(email, disposition)| match disposition {
+            MessageDisposition::Rejected(_) => Some(*email),
+            MessageDisposition::Accepted => None,
+        })
+        .collect();
+
+    if let Some(modified_subject) =
+        format_subject_with_rejection(subject, &rejected_topic_emails)
+    {
+        modifications.push(Modification::change_header(
+            1,
+            "Subject".to_string(),
+            modified_subject,
+        ));
+    }
+
+    MtaHookResponse::accept().with_modifications(modifications)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::mta::TopicRejectionReason;
+
+    #[test]
+    fn test_non_topic_mail_passthrough() {
+        // Mail to bob@solawis.de (no topic recipient) receives a plain accept() with zero modifications
+        let resp = build_mta_data_response(false, "Hello Bob", &[]);
+        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert!(resp.modifications.is_empty());
+    }
+
+    #[test]
+    fn test_all_topics_accepted_no_subject_change() {
+        // All target topics accepted: adds X-Processed-By but does not alter subject
+        let resp = build_mta_data_response(
+            true,
+            "Erntebericht",
+            &[("ernte@solawi.org", MessageDisposition::Accepted)],
+        );
+        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert_eq!(resp.modifications.len(), 1);
+        match &resp.modifications[0] {
+            Modification::AddHeader { name, value } => {
+                assert_eq!(name, "X-Processed-By");
+                assert_eq!(value, "SpacetimeDB Kommunikationszentrum");
+            }
+            _ => panic!("Expected AddHeader modification"),
+        }
+    }
+
+    #[test]
+    fn test_rejected_topic_modifies_subject_with_suffix() {
+        // Mail to rejected topic has its Subject modified with (rejected from <topic>)
+        let resp = build_mta_data_response(
+            true,
+            "Erntebericht",
+            &[(
+                "ernte@solawi.org",
+                MessageDisposition::Rejected(TopicRejectionReason::NotSubscribed),
+            )],
+        );
+        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert_eq!(resp.modifications.len(), 2);
+        match &resp.modifications[0] {
+            Modification::AddHeader { name, value } => {
+                assert_eq!(name, "X-Processed-By");
+                assert_eq!(value, "SpacetimeDB Kommunikationszentrum");
+            }
+            _ => panic!("Expected AddHeader modification"),
+        }
+        match &resp.modifications[1] {
+            Modification::ChangeHeader { index, name, value } => {
+                assert_eq!(*index, 1);
+                assert_eq!(name, "Subject");
+                assert_eq!(value, "Erntebericht (rejected from ernte@solawi.org)");
+            }
+            _ => panic!("Expected ChangeHeader modification"),
+        }
+    }
+
+    #[test]
+    fn test_mixed_mail_keeps_all_recipients_on_envelope() {
+        // In mixed mail with accepted and rejected topics, no DeleteRecipient modification is created
+        let resp = build_mta_data_response(
+            true,
+            "Wichtiges Update",
+            &[
+                ("accepted@solawi.org", MessageDisposition::Accepted),
+                (
+                    "rejected@solawi.org",
+                    MessageDisposition::Rejected(TopicRejectionReason::NoWritePermission),
+                ),
+            ],
+        );
+        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        for m in &resp.modifications {
+            assert!(
+                !matches!(m, Modification::DeleteRecipient { .. }),
+                "No recipient should be removed from the envelope"
+            );
+        }
+        match &resp.modifications[1] {
+            Modification::ChangeHeader { index, name, value } => {
+                assert_eq!(*index, 1);
+                assert_eq!(name, "Subject");
+                assert_eq!(value, "Wichtiges Update (rejected from rejected@solawi.org)");
+            }
+            _ => panic!("Expected ChangeHeader modification"),
+        }
+    }
+
+    #[test]
+    fn test_idempotent_no_duplicate_suffix() {
+        // No duplicate suffix is added if (rejected from  is already present
+        let resp = build_mta_data_response(
+            true,
+            "Frage (rejected from alt@solawi.org)",
+            &[(
+                "neu@solawi.org",
+                MessageDisposition::Rejected(TopicRejectionReason::NotRegistered),
+            )],
+        );
+        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert_eq!(resp.modifications.len(), 1);
+        match &resp.modifications[0] {
+            Modification::AddHeader { name, value: _ } => {
+                assert_eq!(name, "X-Processed-By");
+            }
+            _ => panic!("Expected only X-Processed-By"),
+        }
+    }
+
+    #[test]
+    fn test_rejected_empty_subject_fallback() {
+        let resp = build_mta_data_response(
+            true,
+            "",
+            &[(
+                "ernte@solawi.org",
+                MessageDisposition::Rejected(TopicRejectionReason::Oversize),
+            )],
+        );
+        match &resp.modifications[1] {
+            Modification::ChangeHeader { index, name, value } => {
+                assert_eq!(*index, 1);
+                assert_eq!(name, "Subject");
+                assert_eq!(value, "No Subject (rejected from ernte@solawi.org)");
+            }
+            _ => panic!("Expected ChangeHeader modification"),
         }
     }
 }

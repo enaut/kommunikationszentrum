@@ -34,7 +34,6 @@ pub mod create_webhook_token_reducer;
 pub mod delivery_final_state_type;
 pub mod delivery_status_type;
 pub mod domain_type;
-pub mod dump_mta_logs_to_server_logs_reducer;
 pub mod email_source_type;
 pub mod email_verification_token_type;
 pub mod enqueue_mail_delivery_reducer;
@@ -58,7 +57,6 @@ pub mod mark_mail_delivery_sent_reducer;
 pub mod message_disposition_type;
 pub mod message_topic_category_type;
 pub mod message_topic_type;
-pub mod mta_connection_log_type;
 pub mod provision_all_unprovisioned_topics_procedure;
 pub mod provision_message_topic_procedure;
 pub mod received_message_type;
@@ -158,7 +156,6 @@ pub use create_webhook_token_reducer::create_webhook_token;
 pub use delivery_final_state_type::DeliveryFinalState;
 pub use delivery_status_type::DeliveryStatus;
 pub use domain_type::Domain;
-pub use dump_mta_logs_to_server_logs_reducer::dump_mta_logs_to_server_logs;
 pub use email_source_type::EmailSource;
 pub use email_verification_token_type::EmailVerificationToken;
 pub use enqueue_mail_delivery_reducer::enqueue_mail_delivery;
@@ -182,7 +179,6 @@ pub use mark_mail_delivery_sent_reducer::mark_mail_delivery_sent;
 pub use message_disposition_type::MessageDisposition;
 pub use message_topic_category_type::MessageTopicCategory;
 pub use message_topic_type::MessageTopic;
-pub use mta_connection_log_type::MtaConnectionLog;
 pub use provision_all_unprovisioned_topics_procedure::provision_all_unprovisioned_topics;
 pub use provision_message_topic_procedure::provision_message_topic;
 pub use received_message_type::ReceivedMessage;
@@ -319,7 +315,6 @@ pub enum Reducer {
         label: String,
         permissions: Vec<String>,
     },
-    DumpMtaLogsToServerLogs,
     EnqueueMailDelivery {
         ingress_id: String,
         subscription_id: u64,
@@ -474,7 +469,6 @@ impl __sdk::Reducer for Reducer {
             Reducer::CompleteMailIngress { .. } => "complete_mail_ingress",
             Reducer::CompleteSystemMail { .. } => "complete_system_mail",
             Reducer::CreateWebhookToken { .. } => "create_webhook_token",
-            Reducer::DumpMtaLogsToServerLogs => "dump_mta_logs_to_server_logs",
             Reducer::EnqueueMailDelivery { .. } => "enqueue_mail_delivery",
             Reducer::EnsureSubscriptionUnsubscribeToken { .. } => {
                 "ensure_subscription_unsubscribe_token"
@@ -616,9 +610,7 @@ impl __sdk::Reducer for Reducer {
                 label: label.clone(),
                 permissions: permissions.clone(),
 }),
-            Reducer::DumpMtaLogsToServerLogs => __sats::bsatn::to_vec(&dump_mta_logs_to_server_logs_reducer::DumpMtaLogsToServerLogsArgs {
-                }),
-Reducer::EnqueueMailDelivery{
+            Reducer::EnqueueMailDelivery{
                 ingress_id,
                 subscription_id,
                 recipient_email,
