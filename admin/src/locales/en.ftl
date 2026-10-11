@@ -251,6 +251,18 @@ management-config-stalwart-saved = Stalwart configuration saved successfully.
 management-config-stalwart-reset = Discard changes
 management-config-stalwart-last-updated = Last updated
 
+management-config-retention-title = Mail Retention & Cleanup
+management-config-retention-help = Configure automatic storage cleanup rules for rejected messages.
+management-config-retention-rejected-days = Rejected Mail Retention (Days)
+management-config-retention-rejected-days-placeholder = 30
+management-config-retention-rejected-days-help = Rejected messages older than this period are periodically purged from storage along with unreferenced message bodies. Default: 30 days.
+management-config-retention-save = Save
+management-config-retention-saving = Saving…
+management-config-retention-saved = Retention configuration saved successfully.
+management-config-retention-reset = Discard changes
+management-config-retention-last-updated = Last updated
+
+
 management-status-title = Management · Status
 status-connection-title = SpacetimeDB connection
 status-identity = Identity

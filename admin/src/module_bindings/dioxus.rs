@@ -23,8 +23,10 @@ pub struct TableSignals {
     pub active_subscriptions: SyncSignal<Vec<Subscription>>,
     pub active_unsubscribe_tokens: SyncSignal<Vec<SubscriptionUnsubscribeToken>>,
     pub admin_accounts: SyncSignal<Vec<Account>>,
+    pub admin_mail_retention_config: SyncSignal<Vec<MailRetentionConfig>>,
     pub admin_stalwart_config: SyncSignal<Vec<StalwartConfig>>,
     pub expire_stale_delivery_claims_schedule: SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>>,
+    pub purge_rejected_mails_schedule: SyncSignal<Vec<PurgeRejectedMailsSchedule>>,
     pub requeue_temporary_failed_mails_schedule:
         SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>>,
     pub sender_account_emails: SyncSignal<Vec<AccountEmail>>,
@@ -207,8 +209,10 @@ pub fn use_spacetimedb_context_provider(
         active_subscriptions: use_signal_sync(Vec::new),
         active_unsubscribe_tokens: use_signal_sync(Vec::new),
         admin_accounts: use_signal_sync(Vec::new),
+        admin_mail_retention_config: use_signal_sync(Vec::new),
         admin_stalwart_config: use_signal_sync(Vec::new),
         expire_stale_delivery_claims_schedule: use_signal_sync(Vec::new),
+        purge_rejected_mails_schedule: use_signal_sync(Vec::new),
         requeue_temporary_failed_mails_schedule: use_signal_sync(Vec::new),
         sender_account_emails: use_signal_sync(Vec::new),
         sender_accounts: use_signal_sync(Vec::new),
@@ -361,6 +365,41 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<Account> = ctx.db.admin_accounts().iter().collect();
                             table_signals_on_connect.admin_accounts.set(updated);
                         });
+                        // Populate initial rows for admin_mail_retention_config
+                        let current: Vec<MailRetentionConfig> =
+                            conn.db.admin_mail_retention_config().iter().collect();
+                        table_signals_on_connect
+                            .admin_mail_retention_config
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .admin_mail_retention_config()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<MailRetentionConfig> =
+                                    ctx.db.admin_mail_retention_config().iter().collect();
+                                table_signals_on_connect
+                                    .admin_mail_retention_config
+                                    .set(updated);
+                            });
+                        conn.db
+                            .admin_mail_retention_config()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<MailRetentionConfig> =
+                                    ctx.db.admin_mail_retention_config().iter().collect();
+                                table_signals_on_connect
+                                    .admin_mail_retention_config
+                                    .set(updated);
+                            });
+                        conn.db
+                            .admin_mail_retention_config()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<MailRetentionConfig> =
+                                    ctx.db.admin_mail_retention_config().iter().collect();
+                                table_signals_on_connect
+                                    .admin_mail_retention_config
+                                    .set(updated);
+                            });
                         // Populate initial rows for admin_stalwart_config
                         let current: Vec<StalwartConfig> =
                             conn.db.admin_stalwart_config().iter().collect();
@@ -431,6 +470,41 @@ pub fn use_spacetimedb_context_provider(
                                     .set(updated);
                             },
                         );
+                        // Populate initial rows for purge_rejected_mails_schedule
+                        let current: Vec<PurgeRejectedMailsSchedule> =
+                            conn.db.purge_rejected_mails_schedule().iter().collect();
+                        table_signals_on_connect
+                            .purge_rejected_mails_schedule
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .purge_rejected_mails_schedule()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<PurgeRejectedMailsSchedule> =
+                                    ctx.db.purge_rejected_mails_schedule().iter().collect();
+                                table_signals_on_connect
+                                    .purge_rejected_mails_schedule
+                                    .set(updated);
+                            });
+                        conn.db.purge_rejected_mails_schedule().on_update(
+                            move |ctx, _old, _new| {
+                                let updated: Vec<PurgeRejectedMailsSchedule> =
+                                    ctx.db.purge_rejected_mails_schedule().iter().collect();
+                                table_signals_on_connect
+                                    .purge_rejected_mails_schedule
+                                    .set(updated);
+                            },
+                        );
+                        conn.db
+                            .purge_rejected_mails_schedule()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<PurgeRejectedMailsSchedule> =
+                                    ctx.db.purge_rejected_mails_schedule().iter().collect();
+                                table_signals_on_connect
+                                    .purge_rejected_mails_schedule
+                                    .set(updated);
+                            });
                         // Populate initial rows for requeue_temporary_failed_mails_schedule
                         let current: Vec<RequeueTemporaryFailedMailsSchedule> = conn
                             .db
@@ -1449,6 +1523,13 @@ pub fn use_table_admin_accounts() -> SyncSignal<Vec<Account>> {
     ctx.tables.admin_accounts
 }
 
+/// Get a reactive signal containing all rows of the `admin_mail_retention_config` table.
+#[must_use]
+pub fn use_table_admin_mail_retention_config() -> SyncSignal<Vec<MailRetentionConfig>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.admin_mail_retention_config
+}
+
 /// Get a reactive signal containing all rows of the `admin_stalwart_config` table.
 #[must_use]
 pub fn use_table_admin_stalwart_config() -> SyncSignal<Vec<StalwartConfig>> {
@@ -1462,6 +1543,13 @@ pub fn use_table_expire_stale_delivery_claims_schedule(
 ) -> SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.expire_stale_delivery_claims_schedule
+}
+
+/// Get a reactive signal containing all rows of the `purge_rejected_mails_schedule` table.
+#[must_use]
+pub fn use_table_purge_rejected_mails_schedule() -> SyncSignal<Vec<PurgeRejectedMailsSchedule>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.purge_rejected_mails_schedule
 }
 
 /// Get a reactive signal containing all rows of the `requeue_temporary_failed_mails_schedule` table.
@@ -4917,6 +5005,99 @@ pub fn use_reducer_schedule_mail_delivery_retry_async() -> impl Fn(
                     let _ = tx.send(res);
                 },
             ) {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
+/// Get a callback to invoke the `set_mail_retention_config` reducer.
+#[must_use]
+pub fn use_reducer_set_mail_retention_config(
+) -> impl Fn(u32) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |rejected_retention_days: u32| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers
+                .set_mail_retention_config(rejected_retention_days)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `set_mail_retention_config` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_set_mail_retention_config_then() -> (
+    impl Fn(u32) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |rejected_retention_days: u32| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.set_mail_retention_config_then(
+                rejected_retention_days,
+                move |_ctx, res| {
+                    let _ = tx.send(res);
+                },
+            ) {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `set_mail_retention_config` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_set_mail_retention_config_async(
+) -> impl Fn(u32) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
+       + Clone
+       + 'static {
+    let conn_signal = use_connection();
+
+    move |rejected_retention_days: u32| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.set_mail_retention_config_then(rejected_retention_days, move |_ctx, res| {
+                let _ = tx.send(res);
+            }) {
                 return Err(e.to_string());
             }
             match rx.await {

@@ -36,3 +36,28 @@ pub fn set_stalwart_config(
 
     Ok(())
 }
+
+#[spacetimedb::reducer]
+pub fn set_mail_retention_config(
+    ctx: &ReducerContext,
+    rejected_retention_days: u32,
+) -> Result<(), String> {
+    if !is_admin_identity(ctx, ctx.sender()) {
+        return Err(format!("Unauthorized: {:?}", ctx.sender()));
+    }
+
+    if let Some(mut existing) = ctx.db.mail_retention_config().id().find(&0) {
+        existing.rejected_retention_days = rejected_retention_days;
+        existing.updated_at = ctx.timestamp;
+        ctx.db.mail_retention_config().id().update(existing);
+    } else {
+        ctx.db.mail_retention_config().insert(MailRetentionConfig {
+            id: 0,
+            rejected_retention_days,
+            updated_at: ctx.timestamp,
+        });
+    }
+
+    Ok(())
+}
+

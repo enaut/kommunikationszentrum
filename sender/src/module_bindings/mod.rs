@@ -18,6 +18,7 @@ pub mod admin_accounts_table;
 pub mod admin_add_account_email_reducer;
 pub mod admin_add_subscription_reducer;
 pub mod admin_identity_type;
+pub mod admin_mail_retention_config_table;
 pub mod admin_stalwart_config_table;
 pub mod blocked_ip_type;
 pub mod cancel_mail_delivery_retry_reducer;
@@ -52,6 +53,7 @@ pub mod mail_delivery_pending_type;
 pub mod mail_delivery_temporary_failed_type;
 pub mod mail_ingress_type;
 pub mod mail_message_type;
+pub mod mail_retention_config_type;
 pub mod mark_mail_delivery_bounced_reducer;
 pub mod mark_mail_delivery_sent_reducer;
 pub mod message_disposition_type;
@@ -59,6 +61,8 @@ pub mod message_topic_category_type;
 pub mod message_topic_type;
 pub mod provision_all_unprovisioned_topics_procedure;
 pub mod provision_message_topic_procedure;
+pub mod purge_rejected_mails_schedule_table;
+pub mod purge_rejected_mails_schedule_type;
 pub mod received_message_type;
 pub mod register_admin_identity_reducer;
 pub mod register_self_reducer;
@@ -86,6 +90,7 @@ pub mod sender_message_topics_table;
 pub mod sender_subscriptions_table;
 pub mod sender_system_mail_pending_table;
 pub mod sender_topic_app_passwords_table;
+pub mod set_mail_retention_config_reducer;
 pub mod set_stalwart_config_reducer;
 pub mod set_topic_categories_reducer;
 pub mod stalwart_config_type;
@@ -140,6 +145,7 @@ pub use admin_accounts_table::*;
 pub use admin_add_account_email_reducer::admin_add_account_email;
 pub use admin_add_subscription_reducer::admin_add_subscription;
 pub use admin_identity_type::AdminIdentity;
+pub use admin_mail_retention_config_table::*;
 pub use admin_stalwart_config_table::*;
 pub use blocked_ip_type::BlockedIp;
 pub use cancel_mail_delivery_retry_reducer::cancel_mail_delivery_retry;
@@ -174,6 +180,7 @@ pub use mail_delivery_pending_type::MailDeliveryPending;
 pub use mail_delivery_temporary_failed_type::MailDeliveryTemporaryFailed;
 pub use mail_ingress_type::MailIngress;
 pub use mail_message_type::MailMessage;
+pub use mail_retention_config_type::MailRetentionConfig;
 pub use mark_mail_delivery_bounced_reducer::mark_mail_delivery_bounced;
 pub use mark_mail_delivery_sent_reducer::mark_mail_delivery_sent;
 pub use message_disposition_type::MessageDisposition;
@@ -181,6 +188,8 @@ pub use message_topic_category_type::MessageTopicCategory;
 pub use message_topic_type::MessageTopic;
 pub use provision_all_unprovisioned_topics_procedure::provision_all_unprovisioned_topics;
 pub use provision_message_topic_procedure::provision_message_topic;
+pub use purge_rejected_mails_schedule_table::*;
+pub use purge_rejected_mails_schedule_type::PurgeRejectedMailsSchedule;
 pub use received_message_type::ReceivedMessage;
 pub use register_admin_identity_reducer::register_admin_identity;
 pub use register_self_reducer::register_self;
@@ -208,6 +217,7 @@ pub use sender_message_topics_table::*;
 pub use sender_subscriptions_table::*;
 pub use sender_system_mail_pending_table::*;
 pub use sender_topic_app_passwords_table::*;
+pub use set_mail_retention_config_reducer::set_mail_retention_config;
 pub use set_stalwart_config_reducer::set_stalwart_config;
 pub use set_topic_categories_reducer::set_topic_categories;
 pub use stalwart_config_type::StalwartConfig;
@@ -397,6 +407,9 @@ pub enum Reducer {
         error_msg: String,
         delay_micros: i64,
     },
+    SetMailRetentionConfig {
+        rejected_retention_days: u32,
+    },
     SetStalwartConfig {
         jmap_url: String,
         admin_token: String,
@@ -495,6 +508,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::RetryMailIngress { .. } => "retry_mail_ingress",
             Reducer::RevokeWebhookToken { .. } => "revoke_webhook_token",
             Reducer::ScheduleMailDeliveryRetry { .. } => "schedule_mail_delivery_retry",
+            Reducer::SetMailRetentionConfig { .. } => "set_mail_retention_config",
             Reducer::SetStalwartConfig { .. } => "set_stalwart_config",
             Reducer::SetTopicCategories { .. } => "set_topic_categories",
             Reducer::SyncUser { .. } => "sync_user",
@@ -758,6 +772,11 @@ impl __sdk::Reducer for Reducer {
                 error_msg: error_msg.clone(),
                 delay_micros: delay_micros.clone(),
 }),
+            Reducer::SetMailRetentionConfig{
+                rejected_retention_days,
+}             => __sats::bsatn::to_vec(&set_mail_retention_config_reducer::SetMailRetentionConfigArgs {
+                rejected_retention_days: rejected_retention_days.clone(),
+}),
             Reducer::SetStalwartConfig{
                 jmap_url,
                 admin_token,
@@ -864,8 +883,10 @@ pub struct DbUpdate {
     active_subscriptions: __sdk::TableUpdate<Subscription>,
     active_unsubscribe_tokens: __sdk::TableUpdate<SubscriptionUnsubscribeToken>,
     admin_accounts: __sdk::TableUpdate<Account>,
+    admin_mail_retention_config: __sdk::TableUpdate<MailRetentionConfig>,
     admin_stalwart_config: __sdk::TableUpdate<StalwartConfig>,
     expire_stale_delivery_claims_schedule: __sdk::TableUpdate<ExpireStaleDeliveryClaimsSchedule>,
+    purge_rejected_mails_schedule: __sdk::TableUpdate<PurgeRejectedMailsSchedule>,
     requeue_temporary_failed_mails_schedule:
         __sdk::TableUpdate<RequeueTemporaryFailedMailsSchedule>,
     sender_account_emails: __sdk::TableUpdate<AccountEmail>,
@@ -916,6 +937,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "admin_accounts" => db_update
                     .admin_accounts
                     .append(admin_accounts_table::parse_table_update(table_update)?),
+                "admin_mail_retention_config" => db_update.admin_mail_retention_config.append(
+                    admin_mail_retention_config_table::parse_table_update(table_update)?,
+                ),
                 "admin_stalwart_config" => db_update.admin_stalwart_config.append(
                     admin_stalwart_config_table::parse_table_update(table_update)?,
                 ),
@@ -926,6 +950,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                         )?,
                     )
                 }
+                "purge_rejected_mails_schedule" => db_update.purge_rejected_mails_schedule.append(
+                    purge_rejected_mails_schedule_table::parse_table_update(table_update)?,
+                ),
                 "requeue_temporary_failed_mails_schedule" => {
                     db_update.requeue_temporary_failed_mails_schedule.append(
                         requeue_temporary_failed_mails_schedule_table::parse_table_update(
@@ -1064,6 +1091,12 @@ impl __sdk::DbUpdate for DbUpdate {
                 &self.expire_stale_delivery_claims_schedule,
             )
             .with_updates_by_pk(|row| &row.scheduled_id);
+        diff.purge_rejected_mails_schedule = cache
+            .apply_diff_to_table::<PurgeRejectedMailsSchedule>(
+                "purge_rejected_mails_schedule",
+                &self.purge_rejected_mails_schedule,
+            )
+            .with_updates_by_pk(|row| &row.scheduled_id);
         diff.requeue_temporary_failed_mails_schedule = cache
             .apply_diff_to_table::<RequeueTemporaryFailedMailsSchedule>(
                 "requeue_temporary_failed_mails_schedule",
@@ -1082,6 +1115,12 @@ impl __sdk::DbUpdate for DbUpdate {
             .with_updates_by_pk(|row| &row.token);
         diff.admin_accounts = cache
             .apply_diff_to_table::<Account>("admin_accounts", &self.admin_accounts)
+            .with_updates_by_pk(|row| &row.id);
+        diff.admin_mail_retention_config = cache
+            .apply_diff_to_table::<MailRetentionConfig>(
+                "admin_mail_retention_config",
+                &self.admin_mail_retention_config,
+            )
             .with_updates_by_pk(|row| &row.id);
         diff.admin_stalwart_config = cache
             .apply_diff_to_table::<StalwartConfig>(
@@ -1243,11 +1282,17 @@ impl __sdk::DbUpdate for DbUpdate {
                 "admin_accounts" => db_update
                     .admin_accounts
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "admin_mail_retention_config" => db_update
+                    .admin_mail_retention_config
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "admin_stalwart_config" => db_update
                     .admin_stalwart_config
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "expire_stale_delivery_claims_schedule" => db_update
                     .expire_stale_delivery_claims_schedule
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "purge_rejected_mails_schedule" => db_update
+                    .purge_rejected_mails_schedule
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "requeue_temporary_failed_mails_schedule" => db_update
                     .requeue_temporary_failed_mails_schedule
@@ -1367,11 +1412,17 @@ impl __sdk::DbUpdate for DbUpdate {
                 "admin_accounts" => db_update
                     .admin_accounts
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "admin_mail_retention_config" => db_update
+                    .admin_mail_retention_config
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "admin_stalwart_config" => db_update
                     .admin_stalwart_config
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "expire_stale_delivery_claims_schedule" => db_update
                     .expire_stale_delivery_claims_schedule
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "purge_rejected_mails_schedule" => db_update
+                    .purge_rejected_mails_schedule
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "requeue_temporary_failed_mails_schedule" => db_update
                     .requeue_temporary_failed_mails_schedule
@@ -1487,9 +1538,11 @@ pub struct AppliedDiff<'r> {
     active_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     active_unsubscribe_tokens: __sdk::TableAppliedDiff<'r, SubscriptionUnsubscribeToken>,
     admin_accounts: __sdk::TableAppliedDiff<'r, Account>,
+    admin_mail_retention_config: __sdk::TableAppliedDiff<'r, MailRetentionConfig>,
     admin_stalwart_config: __sdk::TableAppliedDiff<'r, StalwartConfig>,
     expire_stale_delivery_claims_schedule:
         __sdk::TableAppliedDiff<'r, ExpireStaleDeliveryClaimsSchedule>,
+    purge_rejected_mails_schedule: __sdk::TableAppliedDiff<'r, PurgeRejectedMailsSchedule>,
     requeue_temporary_failed_mails_schedule:
         __sdk::TableAppliedDiff<'r, RequeueTemporaryFailedMailsSchedule>,
     sender_account_emails: __sdk::TableAppliedDiff<'r, AccountEmail>,
@@ -1551,6 +1604,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
             &self.admin_accounts,
             event,
         );
+        callbacks.invoke_table_row_callbacks::<MailRetentionConfig>(
+            "admin_mail_retention_config",
+            &self.admin_mail_retention_config,
+            event,
+        );
         callbacks.invoke_table_row_callbacks::<StalwartConfig>(
             "admin_stalwart_config",
             &self.admin_stalwart_config,
@@ -1559,6 +1617,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<ExpireStaleDeliveryClaimsSchedule>(
             "expire_stale_delivery_claims_schedule",
             &self.expire_stale_delivery_claims_schedule,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<PurgeRejectedMailsSchedule>(
+            "purge_rejected_mails_schedule",
+            &self.purge_rejected_mails_schedule,
             event,
         );
         callbacks.invoke_table_row_callbacks::<RequeueTemporaryFailedMailsSchedule>(
@@ -2384,8 +2447,10 @@ impl __sdk::SpacetimeModule for RemoteModule {
         active_subscriptions_table::register_table(client_cache);
         active_unsubscribe_tokens_table::register_table(client_cache);
         admin_accounts_table::register_table(client_cache);
+        admin_mail_retention_config_table::register_table(client_cache);
         admin_stalwart_config_table::register_table(client_cache);
         expire_stale_delivery_claims_schedule_table::register_table(client_cache);
+        purge_rejected_mails_schedule_table::register_table(client_cache);
         requeue_temporary_failed_mails_schedule_table::register_table(client_cache);
         sender_account_emails_table::register_table(client_cache);
         sender_accounts_table::register_table(client_cache);
@@ -2423,8 +2488,10 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "active_subscriptions",
         "active_unsubscribe_tokens",
         "admin_accounts",
+        "admin_mail_retention_config",
         "admin_stalwart_config",
         "expire_stale_delivery_claims_schedule",
+        "purge_rejected_mails_schedule",
         "requeue_temporary_failed_mails_schedule",
         "sender_account_emails",
         "sender_accounts",

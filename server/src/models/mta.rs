@@ -1,4 +1,6 @@
-use spacetimedb::{SpacetimeType, Timestamp};
+use spacetimedb::{ScheduleAt, SpacetimeType, Timestamp};
+
+use crate::reducers::purge_rejected_mails;
 
 #[spacetimedb::table(accessor = blocked_ips)]
 pub struct BlockedIp {
@@ -53,3 +55,18 @@ pub struct ReceivedMessage {
     #[default(MessageDisposition::Accepted)]
     pub disposition: MessageDisposition,
 }
+
+/// Schedule table for the `purge_rejected_mails` reducer.
+#[derive(Clone)]
+#[spacetimedb::table(
+    accessor = purge_rejected_mails_schedule,
+    public,
+    scheduled(purge_rejected_mails)
+)]
+pub struct PurgeRejectedMailsSchedule {
+    #[primary_key]
+    #[auto_inc]
+    pub scheduled_id: u64,
+    pub scheduled_at: ScheduleAt,
+}
+

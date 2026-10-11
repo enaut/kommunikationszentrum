@@ -253,6 +253,18 @@ management-config-stalwart-saved = Stalwart-Konfiguration wurde erfolgreich gesp
 management-config-stalwart-reset = Änderungen verwerfen
 management-config-stalwart-last-updated = Zuletzt aktualisiert
 
+management-config-retention-title = Mail-Aufbewahrung & Bereinigung
+management-config-retention-help = Automatische Speicherbereinigungsregeln für abgewiesene Nachrichten konfigurieren.
+management-config-retention-rejected-days = Aufbewahrungsfrist für abgewiesene Mails (Tage)
+management-config-retention-rejected-days-placeholder = 30
+management-config-retention-rejected-days-help = Abgewiesene Nachrichten, die älter als dieser Zeitraum sind, werden regelmäßig aus dem Speicher gelöscht, zusammen mit nicht mehr referenzierten Nachrichtenkörpern. Standard: 30 Tage.
+management-config-retention-save = Speichern
+management-config-retention-saving = Wird gespeichert…
+management-config-retention-saved = Aufbewahrungskonfiguration wurde erfolgreich gespeichert.
+management-config-retention-reset = Änderungen verwerfen
+management-config-retention-last-updated = Zuletzt aktualisiert
+
+
 management-status-title = Verwaltung · Status
 status-connection-title = SpacetimeDB Verbindung
 status-identity = Identity

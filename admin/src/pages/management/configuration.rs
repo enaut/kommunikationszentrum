@@ -9,10 +9,11 @@ use wasm_bindgen_futures::{JsFuture, spawn_local};
 use crate::module_bindings::dioxus::{
     ConnectionState, use_connection_state, use_procedure_sync_stalwart_domains,
     use_reducer_create_webhook_token, use_reducer_register_admin_identity,
-    use_reducer_revoke_webhook_token, use_reducer_set_stalwart_config_then,
-    use_reducer_unregister_admin_identity, use_subscription, use_table_admin_accounts,
-    use_table_admin_stalwart_config, use_table_visible_admin_identities, use_table_visible_domains,
-    use_table_visible_webhook_tokens,
+    use_reducer_revoke_webhook_token, use_reducer_set_mail_retention_config_then,
+    use_reducer_set_stalwart_config_then, use_reducer_unregister_admin_identity,
+    use_subscription, use_table_admin_accounts, use_table_admin_mail_retention_config,
+    use_table_admin_stalwart_config, use_table_visible_admin_identities,
+    use_table_visible_domains, use_table_visible_webhook_tokens,
 };
 
 #[derive(Clone, PartialEq)]
@@ -36,6 +37,7 @@ pub fn ManagementConfigurationPage() -> Element {
             AdminIdentityCard {}
             WebhookTokenCard {}
             StalwartConfigCard {}
+            MailRetentionConfigCard {}
             DomainsCard {}
         }
     }
@@ -582,6 +584,162 @@ fn StalwartConfigCard() -> Element {
                                 span { class: "text-muted small",
                                     Icon { name: "clock-history", class: "me-1" }
                                     {tid!("management-config-stalwart-last-updated")}
+                                    ": "
+                                    code { "{config.updated_at.to_string()}" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn MailRetentionConfigCard() -> Element {
+    use_subscription(&["SELECT * FROM admin_mail_retention_config"]);
+    let retention_configs = use_table_admin_mail_retention_config();
+    let (set_retention_config, save_result) = use_reducer_set_mail_retention_config_then();
+
+    let mut retention_days = use_signal(|| 30u32);
+    let mut is_saving = use_signal(|| false);
+
+    // Synchronize form value whenever received from SpacetimeDB
+    use_effect(move || {
+        let configs = retention_configs();
+        if let Some(config) = configs.first() {
+            retention_days.set(config.rejected_retention_days);
+        }
+    });
+
+    // Reset is_saving when reducer returns a result
+    use_effect(move || {
+        if save_result().is_some() {
+            is_saving.set(false);
+        }
+    });
+
+    let current_config = retention_configs().first().cloned();
+
+    let is_dirty = use_memo(move || {
+        let configs = retention_configs();
+        let server_val = configs.first().map(|c| c.rejected_retention_days).unwrap_or(30);
+        retention_days() != server_val
+    });
+
+    rsx! {
+        Row { class: "mb-4",
+            Col { xs: ColumnSize::Span(12),
+                Card {
+                    class: "shadow-sm",
+                    header_class: "bg-primary text-white",
+                    header: rsx! {
+                        h5 { class: "card-title mb-0 d-flex justify-content-between align-items-center",
+                            span {
+                                Icon { name: "clock-history", class: "me-2" }
+                                {tid!("management-config-retention-title")}
+                            }
+                        }
+                    },
+                    body: rsx! {
+                        p { class: "text-muted mb-3",
+                            Icon { name: "info-circle", class: "me-2" }
+                            {tid!("management-config-retention-help")}
+                        }
+
+                        if let Some(result) = save_result() {
+                            match result {
+                                Ok(()) => rsx! {
+                                    Alert {
+                                        color: Color::Success,
+                                        class: "mb-3 d-flex align-items-center",
+                                        Icon { name: "check-circle", class: "me-2 flex-shrink-0" }
+                                        span { {tid!("management-config-retention-saved")} }
+                                    }
+                                },
+                                Err(ref err) => rsx! {
+                                    Alert {
+                                        color: Color::Danger,
+                                        class: "mb-3 d-flex align-items-center",
+                                        Icon { name: "exclamation-circle", class: "me-2 flex-shrink-0" }
+                                        span { "{err}" }
+                                    }
+                                },
+                            }
+                        }
+
+                        Row { class: "g-3 mb-3",
+                            Col { md: ColumnSize::Span(6),
+                                FormGroup {
+                                    label: tid!("management-config-retention-rejected-days"),
+                                    InputGroup {
+                                        InputGroupText { Icon { name: "trash" } }
+                                        Input {
+                                            r#type: "number",
+                                            placeholder: tid!("management-config-retention-rejected-days-placeholder"),
+                                            value: "{retention_days}",
+                                            oninput: move |e: FormEvent| {
+                                                if let Ok(val) = e.value().parse::<u32>() {
+                                                    retention_days.set(val);
+                                                }
+                                            },
+                                        }
+                                    }
+                                    div { class: "form-text text-muted",
+                                        {tid!("management-config-retention-rejected-days-help")}
+                                    }
+                                }
+                            }
+                        }
+
+                        div { class: "d-flex justify-content-between align-items-center flex-wrap gap-2",
+                            div { class: "d-flex gap-2",
+                                Button {
+                                    color: Color::Primary,
+                                    size: Size::Sm,
+                                    disabled: is_saving() || retention_days() == 0,
+                                    onclick: {
+                                        let save = set_retention_config.clone();
+                                        move |_| {
+                                            let days = retention_days();
+                                            info!("Saving mail retention config: rejected_retention_days={days}");
+                                            is_saving.set(true);
+                                            save(days);
+                                        }
+                                    },
+                                    if is_saving() {
+                                        Spinner { size: Size::Sm, class: "me-1" }
+                                        {tid!("management-config-retention-saving")}
+                                    } else {
+                                        Icon { name: "check-lg", class: "me-1" }
+                                        {tid!("management-config-retention-save")}
+                                    }
+                                }
+                                if is_dirty() {
+                                    Button {
+                                        color: Color::Secondary,
+                                        outline: true,
+                                        size: Size::Sm,
+                                        onclick: {
+                                            let configs = retention_configs;
+                                            move |_| {
+                                                if let Some(config) = configs().first() {
+                                                    retention_days.set(config.rejected_retention_days);
+                                                } else {
+                                                    retention_days.set(30);
+                                                }
+                                            }
+                                        },
+                                        Icon { name: "arrow-counterclockwise", class: "me-1" }
+                                        {tid!("management-config-retention-reset")}
+                                    }
+                                }
+                            }
+                            if let Some(ref config) = current_config {
+                                span { class: "text-muted small",
+                                    Icon { name: "clock-history", class: "me-1" }
+                                    {tid!("management-config-retention-last-updated")}
                                     ": "
                                     code { "{config.updated_at.to_string()}" }
                                 }
