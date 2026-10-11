@@ -87,7 +87,7 @@ SpacetimeDB records per-topic admission outcomes and message deliveries:
 spacetime sql kommunikation "SELECT id, topic_email, disposition, received_at FROM received_message ORDER BY received_at DESC LIMIT 10"
 
 # Query pending fan-out ingress jobs
-spacetime sql kommunikation "SELECT * FROM mail_ingress ORDER BY received_at DESC LIMIT 10"
+spacetime sql kommunikation "SELECT * FROM mail_ingress LIMIT 10"
 
 # Query pending system notifications (rejection notices)
 spacetime sql kommunikation "SELECT * FROM system_mail_pending LIMIT 10"
