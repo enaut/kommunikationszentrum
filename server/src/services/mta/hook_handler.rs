@@ -147,15 +147,13 @@ pub fn handle_data_stage(
     // still relies on From with envelope as fallback.
     let (from_address, matching_emails) = if let Some(header_addr) = &header_from_email {
         let accounts = find_account_emails(header_addr);
-        if accounts.iter().any(is_verified_active)
-            || accounts
-                .iter()
-                .any(|ae| account_has_admin_identity(ae.account_id))
-        {
+        if accounts.iter().any(is_verified_active) {
             (header_addr.clone(), accounts)
         } else if let Some(env_addr) = &envelope_from_email {
             let env_accounts = find_account_emails(env_addr);
-            if !env_accounts.is_empty() {
+            if env_accounts.iter().any(is_verified_active) {
+                (env_addr.clone(), env_accounts)
+            } else if !env_accounts.is_empty() {
                 (env_addr.clone(), env_accounts)
             } else {
                 (header_addr.clone(), accounts)
@@ -170,15 +168,15 @@ pub fn handle_data_stage(
         ("unknown".to_string(), Vec::new())
     };
 
-    let sender_is_admin = matching_emails
-        .iter()
-        .any(|ae| account_has_admin_identity(ae.account_id));
-
     let verified_active_emails: Vec<_> = matching_emails
         .iter()
         .filter(|ae| is_verified_active(ae))
         .cloned()
         .collect();
+
+    let sender_is_admin = verified_active_emails
+        .iter()
+        .any(|ae| account_has_admin_identity(ae.account_id));
 
     let sender_account_ids: Vec<u64> = verified_active_emails
         .iter()
@@ -233,7 +231,16 @@ pub fn handle_data_stage(
         )
         .collect();
 
-    if !rejected_topics.is_empty() && is_valid_bounce_recipient(&from_address) {
+    let raw_envelope_from = request
+        .envelope
+        .as_ref()
+        .map(|env| env.from.address.trim())
+        .unwrap_or("");
+
+    if !rejected_topics.is_empty()
+        && is_valid_bounce_recipient(raw_envelope_from)
+        && is_valid_bounce_recipient(&from_address)
+    {
         let (rejection_subject, rejection_body) = build_rejection_email(
             &subject,
             request.message.as_ref(),
@@ -547,5 +554,20 @@ mod tests {
             }
             _ => panic!("Expected ChangeHeader modification"),
         }
+    }
+
+    #[test]
+    fn test_null_or_invalid_envelope_suppresses_bounce() {
+        use crate::services::mta::rejection::is_valid_bounce_recipient;
+
+        // Standard RFC 5321 bounce mail has envelope sender "" or "<>"
+        assert!(!is_valid_bounce_recipient(""));
+        assert!(!is_valid_bounce_recipient("<>"));
+        assert!(!is_valid_bounce_recipient("   "));
+        assert!(!is_valid_bounce_recipient("unknown"));
+        assert!(!is_valid_bounce_recipient("mailer-daemon@domain.com"));
+
+        // Ordinary user email is valid
+        assert!(is_valid_bounce_recipient("user@example.com"));
     }
 }

@@ -158,13 +158,33 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let current_offset = config.as_ref().map(|c| c.message_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.message_limit).unwrap_or(50);
 
+    // Only offer filter chips and counts for topics the current account is actively
+    // subscribed to
+    let subscribed_topic_ids: HashSet<u64> = subscriptions()
+        .into_iter()
+        .filter(|s| {
+            s.subscriber_account_id == account_id && crate::pages::is_active_subscription(&s.status)
+        })
+        .map(|s| s.topic_id)
+        .collect();
+
     let total_msgs = if let Some(top_id) = filter_topic {
+        if !is_admin && !subscribed_topic_ids.contains(&top_id) {
+            0
+        } else {
+            topic_message_counts_table()
+                .into_iter()
+                .find(|c| c.topic_id == top_id)
+                .map(|c| c.count as u32)
+                .unwrap_or(0)
+        }
+    } else if !is_admin {
         topic_message_counts_table()
             .into_iter()
-            .find(|c| c.topic_id == top_id)
+            .filter(|c| subscribed_topic_ids.contains(&c.topic_id))
             .map(|c| c.count as u32)
-            .unwrap_or(0)
-    } else if filter_disposition.is_some() || !is_admin {
+            .sum()
+    } else if filter_disposition.is_some() {
         topic_message_counts_table()
             .into_iter()
             .map(|c| c.count as u32)
@@ -193,16 +213,6 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
 
     let mut selected_id: Signal<Option<u64>> = use_signal(|| None);
     let mut show_raw_body: Signal<bool> = use_signal(|| false);
-
-    // Only offer filter chips for topics the current account is actively
-    // subscribed to
-    let subscribed_topic_ids: HashSet<u64> = subscriptions()
-        .into_iter()
-        .filter(|s| {
-            s.subscriber_account_id == account_id && crate::pages::is_active_subscription(&s.status)
-        })
-        .map(|s| s.topic_id)
-        .collect();
 
     // Since the server already sorts, filters, and slices, we can just use the returned messages.
     // However, the `visible_messages` view sorts by DESC.
