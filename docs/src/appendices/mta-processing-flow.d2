@@ -14,68 +14,63 @@ stages: "MTA Hook Stages" {
 
 tables: "Database Tables" {
   style.fill: "#e3f2fd"
-  blocked_ips_tbl: "blocked_ips\n• ip (PK)\n• reason\n• blocked_at\n• active"
-  mta_conn_log_tbl: "mta_connection_log\n• id (PK)\n• client_ip\n• stage\n• action\n• timestamp"
-  mta_msg_log_tbl: "mta_message_log\n• id (PK)\n• from_address\n• to_addresses\n• subject\n• message_size"
-  topics_tbl: "message_topics\n• id (PK)\n• name\n• email_address\n• active"
-  account_emails_tbl: "account_emails\n• id (PK)\n• account_id (FK)\n• email\n• is_verified"
-  subscriptions_tbl: "subscriptions\n• id (PK)\n• subscriber_account_id\n• account_email_id (FK)\n• topic_id (FK)\n• permission"
+  blocked_ips_tbl: "blocked_ips\n• ip (PK)\n• active"
+  topics_tbl: "message_topics\n• id (PK)\n• email_address\n• active"
+  accounts_tbl: "account\n• id (PK)\n• is_active\n• identity"
+  account_emails_tbl: "account_emails\n• account_id (FK)\n• email\n• is_verified"
+  subscriptions_tbl: "subscriptions\n• account_email_id (FK)\n• topic_id (FK)\n• permission\n• status"
+  mail_msg_tbl: "mail_message\n• id (PK)\n• subject (clean)\n• body_raw"
+  received_msg_tbl: "received_message\n• mail_message_id (FK)\n• topic_id (FK)\n• disposition"
+  ingress_tbl: "mail_ingress\n• mail_message_id (FK)\n• topic_id (FK)"
+  system_mail_tbl: "system_mail_pending\n• recipient\n• rejection notice"
 }
 
-logic: "Processing Logic" {
+logic: "Admission & Routing Logic" {
   style.fill: "#fffde7"
-  ip_check: "IP Blocking\nCheck"
-  email_validation: "Email Format\nValidation"
-  topic_check: "Topic\nValidation"
-  subscription_check: "Sender Authorization\nCheck (Admin OR\nActive Write Sub)"
-  final_decision: "Final\nDecision" {
+  ip_check: "IP Blocklist\nCheck"
+  passthrough: "Pass-Through\n(No DB writes)"
+  envelope_topics: "Envelope-Only\nTopic Match"
+  admission_eval: "Admission Check\n(Admin OR Active Write Sub,\nSize <= 2MB)"
+  final_decision: "Topic\nDisposition" {
     shape: diamond
   }
 }
 
-actions: "Possible Actions" {
+actions: "MTA Actions & Output" {
   style.fill: "#fce4ec"
-  accept: "ACCEPT" {
+  accept_passthrough: "ACCEPT\n(Non-topic / Allowed IP)" {
     style.stroke: green
   }
-  reject: "REJECT" {
+  reject_ip: "REJECT (550)\n(Blocked IP)" {
     style.stroke: red
   }
-  quarantine: "QUARANTINE" {
-    style.stroke: orange
+  stalwart_accept: "ACCEPT in Stalwart\n(With subject suffix if rejected)" {
+    style.stroke: green
   }
 }
 
 connect -> ip_check
-ip_check -> blocked_ips_tbl: "lookup" { style.stroke: red }
-ip_check -> mta_conn_log_tbl: "log result" { style.stroke: blue }
+ip_check -> blocked_ips_tbl: "check" { style.stroke: red }
+ip_check -> reject_ip: "active block" { style.stroke: red }
+ip_check -> accept_passthrough: "allowed" { style.stroke: green }
 
-ehlo -> email_validation
-email_validation -> mta_conn_log_tbl: "log result" { style.stroke: blue }
+ehlo -> passthrough: "accept" { style.stroke: green }
+mail -> passthrough: "accept (allow <>)" { style.stroke: green }
+rcpt -> passthrough: "accept (pass personal mail)" { style.stroke: green }
+auth -> passthrough: "accept" { style.stroke: green }
 
-mail -> email_validation
+data -> envelope_topics
+envelope_topics -> topics_tbl: "match envelope.to" { style.stroke: green }
+envelope_topics -> accept_passthrough: "no topics (pass-through)" { style.stroke: green }
 
-rcpt -> topic_check
-topic_check -> topics_tbl: "lookup" { style.stroke: green }
-topic_check -> mta_conn_log_tbl: "log result" { style.stroke: blue }
+envelope_topics -> admission_eval: "topics matched"
+admission_eval -> accounts_tbl: "verify active" { style.stroke: green }
+admission_eval -> account_emails_tbl: "verify email" { style.stroke: green }
+admission_eval -> subscriptions_tbl: "check Write" { style.stroke: green }
+admission_eval -> final_decision
 
-data -> subscription_check
-subscription_check -> account_emails_tbl: "resolve accounts" { style.stroke: green }
-subscription_check -> subscriptions_tbl: "check permissions" { style.stroke: green }
-subscription_check -> topics_tbl: "lookup" { style.stroke: green }
-subscription_check -> final_decision
-
-final_decision -> mta_msg_log_tbl: "log message" { style.stroke: blue }
-
-auth -> mta_conn_log_tbl: "log auth" { style.stroke: blue }
-
-subscriptions_tbl -> topics_tbl: "topic_id → id" {
-  style.stroke: purple
-}
-
-final_decision -> accept: "admin or active write sub" { style.stroke: green }
-final_decision -> quarantine: "unauthorized sender" { style.stroke: orange }
-ip_check -> reject: "blocked IP" { style.stroke: red }
-email_validation -> reject: "invalid format" { style.stroke: red }
-topic_check -> reject: "invalid topic" { style.stroke: red }
-
+final_decision -> ingress_tbl: "enqueue fan-out (Accepted)" { style.stroke: green }
+final_decision -> system_mail_tbl: "queue notice (Rejected)" { style.stroke: red }
+final_decision -> received_msg_tbl: "store disposition" { style.stroke: blue }
+final_decision -> mail_msg_tbl: "store clean msg" { style.stroke: blue }
+final_decision -> stalwart_accept: "return response" { style.stroke: green }

@@ -1,6 +1,6 @@
 # MTA Hook Processing
 
-The module handles Stalwart MTA webhook requests for each SMTP stage. Handlers receive a JSON body shaped as `stalwart_mta_hook_types::Request` and return a `stalwart_mta_hook_types::Response` describing the action (`accept`, `reject`, or `quarantine`) and optional message modifications.
+The module handles Stalwart MTA webhook requests for each SMTP stage. Handlers receive a JSON body shaped as `stalwart_mta_hook_types::Request` and return a `stalwart_mta_hook_types::Response` describing the action (`accept` or `reject`) and optional message modifications.
 
 ---
 
@@ -16,34 +16,51 @@ For instructions on generating a token, hashing it with BLAKE3, and registering 
 
 | Stage | Purpose | Implementation |
 |---|---|---|
-| `connect` | Accept or reject the TCP/SMTP connection based on client IP. | Checks `blocked_ips` table; returns `reject` if an active block is present, otherwise logs and returns `accept`. |
-| `ehlo` | Validate the HELO/EHLO argument. | Rejects if the argument is empty; otherwise logs and returns `accept`. |
-| `mail` | Validate the envelope sender address. | Rejects with 550 if the sender is missing `@` or is empty. Valid senders are logged and accepted. |
-| `rcpt` | Verify recipient addresses against known, active message topics. | Performs an indexed lookup on `message_topics.email_address`. Accepts on a match; returns `reject` (550) if no active topic matches any recipient. |
-| `data` | Process and persist the incoming message for delivery to subscribers. | See [Data Stage Detail](#data-stage-detail) below. |
-| `auth` | Preliminary SMTP authentication handling. | Accepts the authentication attempt and logs it (pass-through for this project). |
+| `connect` | Check client IP against blocklist. | Checks `blocked_ips` table; returns `reject(550, "IP blocked")` if an active block is present, otherwise returns `accept()`. Zero database writes or log entries. |
+| `ehlo` | Protocol compliance. | Pure pass-through: returns `accept()`. Zero database writes. |
+| `mail` | Envelope sender handling. | Pure pass-through: returns `accept()`. Allows bounce senders with `<>` reverse-path. Zero database writes. |
+| `rcpt` | Recipient envelope handling. | Pure pass-through: returns `accept()`. Recipient checks are intentionally deferred to the `data` stage so non-topic personal mail (e.g., `bob@solawis.de`) passes uninterrupted. Zero database writes. |
+| `data` | Envelope-only topic matching, admission policy evaluation, message persistence, subject modification, and delivery queueing. | See [Data Stage Detail](#data-stage-detail) below. |
+| `auth` | SMTP authentication. | Pure pass-through: returns `accept()`. Zero database writes. |
 
 ---
 
 ## Data Stage Detail
 
-The `data` handler runs inside `ctx.with_tx(...)` to ensure atomic writes:
+The `data` handler runs inside `ctx.with_tx(...)` to ensure atomic state updates:
 
-1. Extracts headers, subject, message size, and body.
-2. Resolves matching topics from envelope recipients; falls back to the message `To` header.
-3. If the message is larger than 2,000,000 bytes and addresses an active topic, the DATA handler creates no subscriber archive or fan-out jobs. It records `reject_oversize` and queues a bilingual system mail explaining the size limit for a valid sender address. The DATA hook still accepts the message at the MTA boundary so the queued notice can be delivered.
-4. Resolves active sender accounts and checks authorization for each remaining topic:
-   - **Admin Access**: If *any* matching account has an admin identity in `admin_identities`, posting authorization is granted.
-   - **Member Write Permission**: Otherwise, ensures matching accounts exist and are active (`is_active == true`), and verifies that at least one matching account holds an active subscription with `SubscriptionPermission::Write` to the topic.
-5. If authorized, creates a canonical `mail_message` row, enqueues an ingress fan-out job in `mail_ingress`, and archives to `received_message` for subscribed members. If no authorized topics remain, the message is quarantined or rejected according to the authorization result.
+1. **Strict Envelope Matching**:
+   Inspects only SMTP envelope recipients (`request.envelope.to`) to identify targeted active topics from `message_topics`. Message headers (`To:`, `Cc:`) are never used for topic routing.
+
+2. **Non-Topic Pass-Through**:
+   If no envelope recipient matches an active topic, the handler returns immediately with `MtaHookResponse::accept()`, containing zero modifications, no `X-Processed-By` header, and zero database writes. Stalwart delivers personal mail without modification.
+
+3. **Admission Decision Logic**:
+   - **Oversize Pre-check**: If `message_size > 2,000,000` bytes (2 MB), the message is assigned disposition `Rejected(TopicRejectionReason::Oversize)`.
+   - **Sender Account Resolution**: Sender address is identified by checking the `From` header address, falling back to envelope sender. Accounts in `account_emails` must be active (`is_active == true`) and verified (`is_verified == true`).
+   - **Admin Bypass**: If any matching account has an admin identity in `admin_identities`, posting is authorized (`Accepted`).
+   - **Subscriber Permission**: For non-admins, the sender's exact address must hold an active subscription to the topic with `SubscriptionPermission::Write`.
+   - **Rejection Reasons**:
+     - `NotRegistered`: Sender address is unknown, unverified, or belongs to an inactive account.
+     - `NotSubscribed`: Sender has an active account, but no active subscription to this topic on that address.
+     - `NoWritePermission`: Sender has an active subscription, but with `SubscriptionPermission::Read`.
+     - `Oversize`: Message size exceeds 2 MB limit.
+
+4. **Persistence & RAM Optimization**:
+   - Inserts a canonical `MailMessage` row. For oversized messages, `body_raw` is stored as an empty string (`""`) to conserve SpacetimeDB RAM, while Stalwart retains the complete payload on disk/S3.
+   - Records a `ReceivedMessage` entry for each target topic with its admission `disposition` (`Accepted` or `Rejected(reason)`).
+   - If accepted: Enqueues a `MailIngress` fan-out record for background processing by the sender daemon.
+   - If rejected: Queues an automated explanatory notice in `SystemMailPending` from `SMTP_SYSTEM_USER` to the sender (unless the sender is `<>`).
+
+5. **Stalwart Hook Response Modifications**:
+   - Adds header `X-Processed-By: SpacetimeDB Kommunikationszentrum`.
+   - If any topic was rejected: Appends ` (rejected from <topic1>, <topic2>)` to the `Subject` header via Stalwart `Modification::change_header(1, "Subject", ...)`.
+   - Preserves all envelope recipients (no recipients are removed).
+   - SpacetimeDB retains the clean original subject in `mail_message.subject` for fanning out to subscribers of accepted topics.
 
 ---
 
-## Logging & Auditing
+## Retention & Purge
 
-| Table | Content |
-|---|---|
-| `mta_connection_log` | Per-connection events (CONNECT, EHLO, MAIL, RCPT, AUTH stages). |
-| `mta_message_log` | Per-message events (DATA stage). Sensitive fields such as client IPs are redacted in public logs. |
-
-Use the `dump_mta_logs_to_server_logs` reducer to print MTA logs to the module's console output for debugging.
+- **Admin Visibility**: Non-admin members only see messages delivered to topics they subscribe to. Admin users can view all accepted and rejected messages in the Admin Messages tab.
+- **Configurable Purge**: The `purge_rejected_mails` scheduled reducer runs periodically to purge rejected `received_message` rows older than `mail_retention_config.rejected_retention_days` (default 30 days) along with any orphaned `mail_message` rows.

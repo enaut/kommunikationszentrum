@@ -35,13 +35,13 @@ The one-click unsubscribe endpoint authenticates the subscriber via the `token` 
 
 ## Request Examples
 
-**MTA Hook (RCPT stage):**
+**MTA Hook (DATA stage):**
 
 ```bash
 curl -X POST "http://localhost:3000/v1/database/kommunikation/route/mta-hook" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
-  -d '@test_data/rcpt_hook.json'
+  -d '{"context":{"stage":"data","client":{"ip":"192.168.1.100","port":54321},"server":{"ip":"127.0.0.1","port":25}},"envelope":{"from":{"address":"alice@example.org"},"to":[{"address":"team@solawi.example.org"}]},"message":{"headers":[["From","alice@example.org"],["Subject","Update"]],"contents":"Hello team!","size":11}}'
 ```
 
 **User sync:**

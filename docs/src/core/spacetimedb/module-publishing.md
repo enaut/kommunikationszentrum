@@ -55,7 +55,7 @@ spacetime logs kommunikation --follow
 ```bash
 spacetime sql kommunikation "SELECT COUNT(*) FROM account"
 spacetime sql kommunikation "SELECT * FROM message_topics LIMIT 10"
-spacetime sql kommunikation "SELECT * FROM mta_connection_log ORDER BY timestamp DESC LIMIT 5"
+spacetime sql kommunikation "SELECT * FROM received_message ORDER BY received_at DESC LIMIT 5"
 ```
 
 ## Development Workflow

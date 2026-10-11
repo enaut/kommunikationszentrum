@@ -20,12 +20,20 @@ system_mail_pending: {
   label: "SystemMailPending\nid: u64 (PK, auto_inc)\nrecipient: String\nsubject: String\nbody_text: String\ninstance_id: Option<String>\nclaimed_at: Option<i64>"
 }
 
-mta_connection_log: {
-  label: "MtaConnectionLog\nid: u64 (PK, auto_inc)\nclient_ip: String\nstage: String\naction: String\ntimestamp: i64\ndetails: String"
+mail_message: {
+  label: "MailMessage\nid: u64 (PK, auto_inc)\nqueue_id: Option<String>\nreceived_at: Timestamp\nsender_account_id: Option<u64>\nsender_email: String\nsubject: String\nfrom_header: String\nbody_raw: String\nmessage_size: u64"
 }
 
-mta_message_log: {
-  label: "MtaMessageLog\nid: u64 (PK, auto_inc)\nfrom_address: String\nto_addresses: String (JSON)\nsubject: String\nmessage_size: u64\nstage: String\naction: String\ntimestamp: i64\nqueue_id: Option<String>"
+received_message: {
+  label: "ReceivedMessage\nid: u64 (PK, auto_inc)\nmail_message_id: u64 (FK)\ntopic_id: u64 (FK)\ntopic_email: String\nreceived_at: Timestamp\ndisposition: MessageDisposition"
+}
+
+mail_ingress: {
+  label: "MailIngress\nid: u64 (PK, auto_inc)\nmail_message_id: u64 (FK)\ntopic_id: u64 (FK)\ntopic_email: String\nreceived_at: Timestamp"
+}
+
+mail_retention_config: {
+  label: "MailRetentionConfig\nid: u64 (PK)\nrejected_retention_days: u32\nupdated_at: Timestamp"
 }
 
 blocked_ips: {
@@ -74,24 +82,24 @@ subscriptions -> account_emails: "account_email_id → id" {
   style.stroke: blue
 }
 
-mta_connection_log -> blocked_ips: "checks IP blocking" {
-  style.stroke: red
-  style.stroke-dash: 2
+received_message -> mail_message: "mail_message_id → id" {
+  style.stroke: blue
 }
-mta_message_log -> message_topics: "validates recipients" {
-  style.stroke: green
-  style.stroke-dash: 2
+received_message -> message_topics: "topic_id → id" {
+  style.stroke: blue
 }
-mta_message_log -> subscriptions: "checks subscriptions" {
-  style.stroke: green
-  style.stroke-dash: 2
+mail_ingress -> mail_message: "mail_message_id → id" {
+  style.stroke: blue
+}
+mail_ingress -> message_topics: "topic_id → id" {
+  style.stroke: blue
 }
 
-mta_processing: "MTA Processing" {
+mta_processing: "MTA & Retention" {
   style.fill: "#e3f2fd"
-  mta_connection_log
-  mta_message_log
   blocked_ips
+  received_message
+  mail_retention_config
 }
 
 topic_mgmt: "Topic & Category Management" {
@@ -112,5 +120,7 @@ user_mgmt: "User Management" {
 
 delivery_mgmt: "Delivery & System Mail" {
   style.fill: "#f3e5f5"
+  mail_message
+  mail_ingress
   system_mail_pending
 }

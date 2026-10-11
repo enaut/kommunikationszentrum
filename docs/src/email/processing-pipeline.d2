@@ -20,28 +20,7 @@ tables: "Database Tables" {
     style.fill: darkblue
     ip: "ip (PK)"
     reason: "reason"
-    blocked_at: "blocked_at"
     active: "active"
-  }
-
-  mta_conn_log_tbl: "mta_connection_log" {
-    shape: sql_table
-    style.fill: cyan
-    id: "id (PK)"
-    client_ip: "client_ip"
-    stage: "stage"
-    action: "action"
-    timestamp: "timestamp"
-  }
-
-  mta_msg_log_tbl: "mta_message_log" {
-    shape: sql_table
-    style.fill: green
-    id: "id (PK)"
-    from_address: "from_address"
-    to_addresses: "to_addresses"
-    subject: "subject"
-    message_size: "message_size"
   }
 
   topics_tbl: "message_topics" {
@@ -62,61 +41,67 @@ tables: "Database Tables" {
     status: "status"
     permission: "permission"
   }
+
+  received_message_tbl: "received_message" {
+    shape: sql_table
+    style.fill: lightsalmon
+    id: "id (PK)"
+    mail_message_id: "mail_message_id (FK)"
+    topic_id: "topic_id (FK)"
+    disposition: "disposition"
+  }
+
+  mail_ingress_tbl: "mail_ingress" {
+    shape: sql_table
+    style.fill: lightgreen
+    id: "id (PK)"
+    mail_message_id: "mail_message_id (FK)"
+    topic_id: "topic_id (FK)"
+  }
 }
 
 logic: "Processing Logic" {
   style.fill: "#fffde7"
-  ip_check: "IP Blocking\nCheck"
-  email_validation: "Email Format\nValidation"
-  topic_check: "Topic\nValidation"
-  subscription_check: "Subscription\nCheck"
-  final_decision: "Final\nDecision" {
+  ip_check: "IP Blocklist\nCheck"
+  passthrough: "Pass-Through\n(Zero DB writes)"
+  envelope_check: "Envelope Recipient\nTopic Lookup"
+  admission_check: "Admission Check\n(Admin OR Active Write Sub,\nSize <= 2MB)"
+  final_decision: "Topic\nDisposition" {
     shape: diamond
   }
 }
 
 actions: "Possible Actions" {
   style.fill: "#fce4ec"
-  accept: "ACCEPT" {
+  accept_passthrough: "ACCEPT (Pass-Through)\n(Zero modifications/writes)" {
     style.stroke: green
   }
-  reject: "REJECT" {
+  reject_ip: "REJECT (550)\n(Blocked IP)" {
     style.stroke: red
   }
-  quarantine: "QUARANTINE" {
-    style.stroke: orange
+  stalwart_accept: "ACCEPT in Stalwart\n(Subject modified if rejected)" {
+    style.stroke: green
   }
 }
 
 stages.connect -> logic.ip_check
 logic.ip_check -> tables.blocked_ips_tbl: "lookup" { style.stroke: red }
-logic.ip_check -> tables.mta_conn_log_tbl: "log result" { style.stroke: blue }
+logic.ip_check -> actions.reject_ip: "active block" { style.stroke: red }
+logic.ip_check -> actions.accept_passthrough: "allowed" { style.stroke: green }
 
+stages.ehlo -> logic.passthrough: "accept" { style.stroke: green }
+stages.mail -> logic.passthrough: "accept (permits <>)" { style.stroke: green }
+stages.rcpt -> logic.passthrough: "accept (pass personal mail)" { style.stroke: green }
+stages.auth -> logic.passthrough: "accept" { style.stroke: green }
 
-logic.email_validation -> tables.mta_conn_log_tbl: "log result" { style.stroke: blue }
+stages.data -> logic.envelope_check
+logic.envelope_check -> tables.topics_tbl: "match envelope.to" { style.stroke: green }
+logic.envelope_check -> actions.accept_passthrough: "no topics" { style.stroke: green }
 
-stages.mail -> logic.email_validation
+logic.envelope_check -> logic.admission_check: "topic matched"
+logic.admission_check -> tables.subscriptions_tbl: "lookup Write sub" { style.stroke: green }
+logic.admission_check -> logic.final_decision
 
-stages.rcpt -> logic.topic_check
-logic.topic_check -> tables.topics_tbl: "lookup" { style.stroke: green }
-logic.topic_check -> tables.mta_conn_log_tbl: "log result" { style.stroke: blue }
-
-stages.data -> logic.subscription_check
-logic.subscription_check -> tables.subscriptions_tbl: "lookup" { style.stroke: green }
-logic.subscription_check -> tables.topics_tbl: "lookup" { style.stroke: green }
-logic.subscription_check -> logic.final_decision
-
-logic.final_decision -> tables.mta_msg_log_tbl: "log message" { style.stroke: blue }
-
-stages.auth -> tables.mta_conn_log_tbl: "log auth" { style.stroke: blue }
-
-tables.subscriptions_tbl -> tables.topics_tbl: "topic_id → id" {
-  style.stroke: purple
-}
-
-logic.final_decision -> actions.accept: "subscribed" { style.stroke: green }
-logic.final_decision -> actions.quarantine: "not subscribed" { style.stroke: orange }
-logic.ip_check -> actions.reject: "blocked IP" { style.stroke: red }
-logic.email_validation -> actions.reject: "invalid format" { style.stroke: red }
-logic.topic_check -> actions.reject: "invalid topic" { style.stroke: red }
-
+logic.final_decision -> tables.received_message_tbl: "record disposition" { style.stroke: blue }
+logic.final_decision -> tables.mail_ingress_tbl: "queue fan-out (Accepted)" { style.stroke: green }
+logic.final_decision -> actions.stalwart_accept: "return response" { style.stroke: green }

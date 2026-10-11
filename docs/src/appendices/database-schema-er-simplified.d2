@@ -9,13 +9,19 @@ account_emails: "AccountEmail\n(Multi-Email per Account)" {
 account_configs: "AccountConfig\n(User UI State)" {
   style.fill: lightblue
 }
-system_mail_pending: "SystemMailPending\n(Verification & System Mail)" {
+system_mail_pending: "SystemMailPending\n(System Mail)" {
   style.fill: lightyellow
 }
-mta_connection_log: "MtaConnectionLog\n(MTA Processing)" {
+mail_message: "MailMessage\n(Canonical Message)" {
+  style.fill: lightyellow
+}
+mail_ingress: "MailIngress\n(Fan-Out Queue)" {
+  style.fill: lightyellow
+}
+received_message: "ReceivedMessage\n(Per-Topic Admission)" {
   style.fill: lightcoral
 }
-mta_message_log: "MtaMessageLog\n(MTA Processing)" {
+mail_retention_config: "MailRetentionConfig\n(Retention Policy)" {
   style.fill: lightcoral
 }
 blocked_ips: "BlockedIp\n(MTA Security)" {
@@ -56,16 +62,15 @@ message_topic_categories -> categories: "categorizes" {
   style.stroke: blue
 }
 
-mta_connection_log -> blocked_ips: "checks" {
-  style.stroke: red
-  style.stroke-dash: 5
+received_message -> mail_message: "references" {
+  style.stroke: blue
 }
-mta_message_log -> message_topics: "validates" {
-  style.stroke: green
-  style.stroke-dash: 5
+received_message -> message_topics: "records disposition for" {
+  style.stroke: blue
 }
-mta_message_log -> subscriptions: "verifies" {
-  style.stroke: green
-  style.stroke-dash: 5
+mail_ingress -> mail_message: "fans out" {
+  style.stroke: blue
 }
-
+mail_ingress -> message_topics: "topic" {
+  style.stroke: blue
+}

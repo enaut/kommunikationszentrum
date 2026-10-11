@@ -160,28 +160,6 @@ direction: down
 "MTA Audit & Processing": {
   style.fill: "#fff3e0"
 
-  mta_connection_log: {
-    shape: sql_table
-    label: "mta_connection_log [Private]"
-    id: "u64" {constraint: [primary_key; INC]}
-    client_ip: "String"
-    stage: "String"
-    action: "String"
-    timestamp: "Timestamp"
-    details: "String"
-  }
-
-  mta_message_log: {
-    shape: sql_table
-    label: "mta_message_log [Private]"
-    id: "u64" {constraint: [primary_key; INC]}
-    stage: "String"
-    action: "String"
-    timestamp: "Timestamp"
-    queue_id: "Option<String>"
-    category_count: "u32"
-  }
-
   blocked_ips: {
     shape: sql_table
     label: "blocked_ips [Private]"
@@ -189,6 +167,21 @@ direction: down
     reason: "String"
     blocked_at: "Timestamp"
     active: "bool"
+  }
+
+  mail_retention_config: {
+    shape: sql_table
+    label: "mail_retention_config [Private]"
+    id: "u64" {constraint: primary_key}
+    rejected_retention_days: "u32"
+    updated_at: "Timestamp"
+  }
+
+  purge_rejected_mails_schedule: {
+    shape: sql_table
+    label: "purge_rejected_mails_schedule [Public]"
+    scheduled_id: "u64" {constraint: [primary_key; INC]}
+    scheduled_at: "ScheduleAt"
   }
 
   mail_message: {
@@ -216,7 +209,9 @@ direction: down
     id: "u64" {constraint: [primary_key; INC]}
     mail_message_id: "u64" {constraint: [foreign_key; BTree]}
     topic_id: "u64" {constraint: [foreign_key; BTree]}
+    topic_email: "String"
     received_at: "Timestamp" {constraint: BTree}
+    disposition: "MessageDisposition"
   }
 }
 

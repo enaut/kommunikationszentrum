@@ -1,6 +1,6 @@
 # Database Schema
 
-The SpacetimeDB module for Kommunikationszentrum is the canonical state for user identity, topic subscriptions, category tags, domain metadata, MTA audit records, Stalwart JMAP configuration, and the outbound delivery pipeline. The schema is intentionally private to the module; client access is restricted to scoped public views.
+The SpacetimeDB module for Kommunikationszentrum is the canonical state for user identity, topic subscriptions, category tags, domain metadata, MTA delivery records, Stalwart JMAP configuration, and the outbound delivery pipeline. The schema is intentionally private to the module; client access is restricted to scoped public views.
 
 ## Full Entity-Relationship Schema
 
@@ -15,7 +15,7 @@ The module stores identity, topics, categories, Stalwart configuration, and deli
 ## Delivery Pipeline Architecture
 
 The delivery pipeline separates inbound message ingestion from outbound SMTP work and isolates delivery payloads:
-1. An inbound email creates a canonical `mail_message` row and a corresponding `mail_ingress` fan-out job.
+1. An inbound email targeting topics creates a canonical `mail_message` row and per-topic `received_message` rows. For accepted topics, a corresponding `mail_ingress` fan-out job is enqueued. (Rejected topics record their rejection disposition and queue rejection notices without creating ingress jobs).
 2. The sender worker claims the ingress job and prepares outbound messages: each recipient receives an immutable `mail_delivery_message` row containing the rendered RFC 5322 payload, and a tracking row in `mail_delivery_pending`.
 3. Workers claim pending items (`mail_delivery_claimed`) under short leases.
 4. Sent, failed, bounced, or cancelled items terminate in `mail_delivery_done` with a `DeliveryFinalState`. Transient SMTP errors transition to `mail_delivery_temporary_failed`, where the scheduled `requeue_temporary_failed_mails` reducer moves them back to `mail_delivery_pending` once their `next_attempt_at` expires.
