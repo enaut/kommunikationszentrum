@@ -71,7 +71,10 @@ impl SenderEligibility {
 
 /// Per-topic admission decision. Oversize is evaluated before authorization
 /// for every sender, including admins.
-pub fn decide_topic_admission(oversize: bool, eligibility: SenderEligibility) -> MessageDisposition {
+pub fn decide_topic_admission(
+    oversize: bool,
+    eligibility: SenderEligibility,
+) -> MessageDisposition {
     if oversize {
         return MessageDisposition::Rejected(TopicRejectionReason::Oversize);
     }
@@ -245,21 +248,31 @@ mod tests {
             ),
         ];
 
-        assert!(decisions.iter().all(|d| {
-            *d == MessageDisposition::Rejected(TopicRejectionReason::Oversize)
-        }));
+        assert!(
+            decisions
+                .iter()
+                .all(|d| { *d == MessageDisposition::Rejected(TopicRejectionReason::Oversize) })
+        );
     }
 
     #[test]
     fn test_admission_policy_all_acceptance_criteria() {
         // 1. Admin (always accepted)
         assert_eq!(
-            decide_sender_admission(false, SenderAccountState::Admin, TopicSubscriptionStatus::None),
+            decide_sender_admission(
+                false,
+                SenderAccountState::Admin,
+                TopicSubscriptionStatus::None
+            ),
             MessageDisposition::Accepted,
             "admin without subscription is accepted"
         );
         assert_eq!(
-            decide_sender_admission(false, SenderAccountState::Admin, TopicSubscriptionStatus::ActiveWrite),
+            decide_sender_admission(
+                false,
+                SenderAccountState::Admin,
+                TopicSubscriptionStatus::ActiveWrite
+            ),
             MessageDisposition::Accepted,
             "admin with subscription is accepted"
         );

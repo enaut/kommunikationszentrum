@@ -27,10 +27,10 @@ pub trait sync_stalwart_domains {
         &self,
 
         __callback: impl FnOnce(
-                &super::ProcedureEventContext,
-                Result<Result<SyncDomainsResult, String>, __sdk::InternalError>,
-            ) + Send
-            + 'static,
+            &super::ProcedureEventContext,
+            Result<Result<SyncDomainsResult, String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     );
 }
 
@@ -39,10 +39,10 @@ impl sync_stalwart_domains for super::RemoteProcedures {
         &self,
 
         __callback: impl FnOnce(
-                &super::ProcedureEventContext,
-                Result<Result<SyncDomainsResult, String>, __sdk::InternalError>,
-            ) + Send
-            + 'static,
+            &super::ProcedureEventContext,
+            Result<Result<SyncDomainsResult, String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) {
         self.imp
             .invoke_procedure_with_callback::<_, Result<SyncDomainsResult, String>>(

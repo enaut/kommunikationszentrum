@@ -36,7 +36,11 @@ impl OcsClient {
 
     /// Fetch single user details: GET /ocs/v2.php/cloud/users/{uid}
     pub async fn get_user(&self, uid: &str) -> Result<Option<OcsUserDetails>, OcsError> {
-        let url = format!("{}/ocs/v2.php/cloud/users/{}", self.nc_url, urlencoding_encode(uid));
+        let url = format!(
+            "{}/ocs/v2.php/cloud/users/{}",
+            self.nc_url,
+            urlencoding_encode(uid)
+        );
         let res = self
             .client
             .get(&url)

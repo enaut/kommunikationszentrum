@@ -10,10 +10,10 @@ use crate::module_bindings::dioxus::{
     ConnectionState, use_connection_state, use_procedure_sync_stalwart_domains,
     use_reducer_create_webhook_token, use_reducer_register_admin_identity,
     use_reducer_revoke_webhook_token, use_reducer_set_mail_retention_config_then,
-    use_reducer_set_stalwart_config_then, use_reducer_unregister_admin_identity,
-    use_subscription, use_table_admin_accounts, use_table_admin_mail_retention_config,
-    use_table_admin_stalwart_config, use_table_visible_admin_identities,
-    use_table_visible_domains, use_table_visible_webhook_tokens,
+    use_reducer_set_stalwart_config_then, use_reducer_unregister_admin_identity, use_subscription,
+    use_table_admin_accounts, use_table_admin_mail_retention_config,
+    use_table_admin_stalwart_config, use_table_visible_admin_identities, use_table_visible_domains,
+    use_table_visible_webhook_tokens,
 };
 
 #[derive(Clone, PartialEq)]
@@ -624,7 +624,10 @@ fn MailRetentionConfigCard() -> Element {
 
     let is_dirty = use_memo(move || {
         let configs = retention_configs();
-        let server_val = configs.first().map(|c| c.rejected_retention_days).unwrap_or(30);
+        let server_val = configs
+            .first()
+            .map(|c| c.rejected_retention_days)
+            .unwrap_or(30);
         retention_days() != server_val
     });
 

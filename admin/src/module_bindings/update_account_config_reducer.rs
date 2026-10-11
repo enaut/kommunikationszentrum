@@ -120,9 +120,11 @@ pub trait update_account_config {
         theme: Option<String>,
         message_disposition_filter: Option<String>,
         clear_message_disposition_filter: bool,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()>;
 }
 
@@ -143,9 +145,11 @@ impl update_account_config for super::RemoteReducers {
         theme: Option<String>,
         message_disposition_filter: Option<String>,
         clear_message_disposition_filter: bool,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()> {
         self.imp.invoke_reducer_with_callback(
             UpdateAccountConfigArgs {

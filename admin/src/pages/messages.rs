@@ -32,7 +32,10 @@ impl MessageWithContent {
     }
 
     fn is_oversize(&self) -> bool {
-        matches!(self.rejection_reason(), Some(TopicRejectionReason::Oversize))
+        matches!(
+            self.rejection_reason(),
+            Some(TopicRejectionReason::Oversize)
+        )
     }
 
     fn subject(&self) -> String {

@@ -13,7 +13,6 @@ use crate::models::{
 };
 use crate::services::mta::purge::DEFAULT_REJECTED_RETENTION_DAYS;
 
-
 pub mod common;
 pub mod http_handlers;
 pub mod models;
@@ -80,33 +79,24 @@ pub fn init(ctx: &ReducerContext) {
         .find(&0)
         .is_none()
     {
-        ctx.db.purge_rejected_mails_schedule().insert(
-            PurgeRejectedMailsSchedule {
+        ctx.db
+            .purge_rejected_mails_schedule()
+            .insert(PurgeRejectedMailsSchedule {
                 scheduled_id: 0,
                 scheduled_at: ScheduleAt::Interval(Duration::from_secs(3600).into()),
-            },
-        );
+            });
         log::info!("Seeded purge_rejected_mails schedule");
     }
 
-    if ctx
-        .db
-        .mail_retention_config()
-        .id()
-        .find(&0)
-        .is_none()
-    {
-        ctx.db.mail_retention_config().insert(
-            MailRetentionConfig {
-                id: 0,
-                rejected_retention_days: DEFAULT_REJECTED_RETENTION_DAYS,
-                updated_at: ctx.timestamp,
-            },
-        );
+    if ctx.db.mail_retention_config().id().find(&0).is_none() {
+        ctx.db.mail_retention_config().insert(MailRetentionConfig {
+            id: 0,
+            rejected_retention_days: DEFAULT_REJECTED_RETENTION_DAYS,
+            updated_at: ctx.timestamp,
+        });
         log::info!("Seeded mail_retention_config with default retention");
     }
 }
-
 
 #[spacetimedb::reducer(client_connected)]
 pub fn identity_connected(ctx: &ReducerContext) {

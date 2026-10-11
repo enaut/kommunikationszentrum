@@ -131,8 +131,12 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
         messages.retain(|m| matches!(m.disposition, MessageDisposition::Accepted));
     } else if let Some(ref filter) = config.message_disposition_filter {
         match filter.as_str() {
-            "accepted" => messages.retain(|m| matches!(m.disposition, MessageDisposition::Accepted)),
-            "rejected" => messages.retain(|m| matches!(m.disposition, MessageDisposition::Rejected(_))),
+            "accepted" => {
+                messages.retain(|m| matches!(m.disposition, MessageDisposition::Accepted))
+            }
+            "rejected" => {
+                messages.retain(|m| matches!(m.disposition, MessageDisposition::Rejected(_)))
+            }
             _ => {}
         }
     }

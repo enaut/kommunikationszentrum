@@ -338,13 +338,8 @@ mod tests {
             reason: TopicRejectionReason::Oversize,
         }];
 
-        let (subject, body) = build_rejection_email(
-            "Planning",
-            None,
-            &rejected,
-            "member@example.com",
-            2_000_001,
-        );
+        let (subject, body) =
+            build_rejection_email("Planning", None, &rejected, "member@example.com", 2_000_001);
 
         assert_eq!(subject, "Rejected: Planning");
         assert!(body.contains("2000001"));

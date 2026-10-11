@@ -128,15 +128,19 @@ pub fn handle_data_stage(
     };
 
     let account_has_admin_identity = |account_id: u64| -> bool {
-        ctx.db.account().id().find(&account_id).map_or(false, |acc| {
-            acc.is_active
-                && ctx
-                    .db
-                    .admin_identities()
-                    .identity()
-                    .find(&acc.identity)
-                    .is_some()
-        })
+        ctx.db
+            .account()
+            .id()
+            .find(&account_id)
+            .map_or(false, |acc| {
+                acc.is_active
+                    && ctx
+                        .db
+                        .admin_identities()
+                        .identity()
+                        .find(&acc.identity)
+                        .is_some()
+            })
     };
 
     // Prefer From-header address, then envelope sender. See parent spec: known
@@ -217,14 +221,16 @@ pub fn handle_data_stage(
 
     let rejected_topics: Vec<RejectedTopic> = topic_decisions
         .iter()
-        .filter_map(|(_, topic_email, topic_name, disposition)| match disposition {
-            MessageDisposition::Rejected(reason) => Some(RejectedTopic {
-                topic_name: topic_name.clone(),
-                topic_email: topic_email.clone(),
-                reason: *reason,
-            }),
-            MessageDisposition::Accepted => None,
-        })
+        .filter_map(
+            |(_, topic_email, topic_name, disposition)| match disposition {
+                MessageDisposition::Rejected(reason) => Some(RejectedTopic {
+                    topic_name: topic_name.clone(),
+                    topic_email: topic_email.clone(),
+                    reason: *reason,
+                }),
+                MessageDisposition::Accepted => None,
+            },
+        )
         .collect();
 
     if !rejected_topics.is_empty() && is_valid_bounce_recipient(&from_address) {
@@ -380,9 +386,7 @@ pub fn build_mta_data_response(
         })
         .collect();
 
-    if let Some(modified_subject) =
-        format_subject_with_rejection(subject, &rejected_topic_emails)
-    {
+    if let Some(modified_subject) = format_subject_with_rejection(subject, &rejected_topic_emails) {
         modifications.push(Modification::change_header(
             1,
             "Subject".to_string(),
@@ -402,7 +406,10 @@ mod tests {
     fn test_non_topic_mail_passthrough() {
         // Mail to bob@solawis.de (no topic recipient) receives a plain accept() with zero modifications
         let resp = build_mta_data_response(false, "Hello Bob", &[]);
-        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert!(matches!(
+            resp.action,
+            stalwart_mta_hook_types::Action::Accept
+        ));
         assert!(resp.modifications.is_empty());
     }
 
@@ -414,7 +421,10 @@ mod tests {
             "Erntebericht",
             &[("ernte@solawi.org", MessageDisposition::Accepted)],
         );
-        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert!(matches!(
+            resp.action,
+            stalwart_mta_hook_types::Action::Accept
+        ));
         assert_eq!(resp.modifications.len(), 1);
         match &resp.modifications[0] {
             Modification::AddHeader { name, value } => {
@@ -436,7 +446,10 @@ mod tests {
                 MessageDisposition::Rejected(TopicRejectionReason::NotSubscribed),
             )],
         );
-        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert!(matches!(
+            resp.action,
+            stalwart_mta_hook_types::Action::Accept
+        ));
         assert_eq!(resp.modifications.len(), 2);
         match &resp.modifications[0] {
             Modification::AddHeader { name, value } => {
@@ -469,7 +482,10 @@ mod tests {
                 ),
             ],
         );
-        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert!(matches!(
+            resp.action,
+            stalwart_mta_hook_types::Action::Accept
+        ));
         for m in &resp.modifications {
             assert!(
                 !matches!(m, Modification::DeleteRecipient { .. }),
@@ -480,7 +496,10 @@ mod tests {
             Modification::ChangeHeader { index, name, value } => {
                 assert_eq!(*index, 1);
                 assert_eq!(name, "Subject");
-                assert_eq!(value, "Wichtiges Update (rejected from rejected@solawi.org)");
+                assert_eq!(
+                    value,
+                    "Wichtiges Update (rejected from rejected@solawi.org)"
+                );
             }
             _ => panic!("Expected ChangeHeader modification"),
         }
@@ -497,7 +516,10 @@ mod tests {
                 MessageDisposition::Rejected(TopicRejectionReason::NotRegistered),
             )],
         );
-        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert!(matches!(
+            resp.action,
+            stalwart_mta_hook_types::Action::Accept
+        ));
         assert_eq!(resp.modifications.len(), 1);
         match &resp.modifications[0] {
             Modification::AddHeader { name, value: _ } => {

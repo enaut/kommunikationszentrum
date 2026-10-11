@@ -49,9 +49,11 @@ pub trait cancel_mail_delivery_retry {
     fn cancel_mail_delivery_retry_then(
         &self,
         delivery_id: String,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()>;
 }
 
@@ -59,9 +61,11 @@ impl cancel_mail_delivery_retry for super::RemoteReducers {
     fn cancel_mail_delivery_retry_then(
         &self,
         delivery_id: String,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()> {
         self.imp
             .invoke_reducer_with_callback(CancelMailDeliveryRetryArgs { delivery_id }, callback)

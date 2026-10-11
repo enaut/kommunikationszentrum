@@ -11,9 +11,7 @@ use serde_json::json;
 use spacetimedb::http::{
     Body, HandlerContext, Request as HttpRequest, Response as HttpResponse, Router,
 };
-use stalwart_mta_hook_types::{
-    Request as MtaHookRequest, Response as MtaHookResponse, Stage,
-};
+use stalwart_mta_hook_types::{Request as MtaHookRequest, Response as MtaHookResponse, Stage};
 
 fn json_response(status: u16, value: serde_json::Value) -> HttpResponse {
     let body = serde_json::to_vec(&value).unwrap_or_default();
@@ -607,7 +605,10 @@ mod tests {
     #[test]
     fn test_evaluate_connect_stage_blocked_ip() {
         let resp = evaluate_connect_stage(true);
-        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Reject));
+        assert!(matches!(
+            resp.action,
+            stalwart_mta_hook_types::Action::Reject
+        ));
         let smtp = resp.response.expect("SMTP response present");
         assert_eq!(smtp.status, Some(550));
         assert_eq!(smtp.message, Some("IP blocked".to_string()));
@@ -617,7 +618,10 @@ mod tests {
     #[test]
     fn test_evaluate_connect_stage_allowed_ip() {
         let resp = evaluate_connect_stage(false);
-        assert!(matches!(resp.action, stalwart_mta_hook_types::Action::Accept));
+        assert!(matches!(
+            resp.action,
+            stalwart_mta_hook_types::Action::Accept
+        ));
         assert!(resp.response.is_none());
         assert!(resp.modifications.is_empty());
     }

@@ -210,8 +210,8 @@ impl<'a> PurgeStore for SpacetimePurgeStore<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::{HashMap, HashSet};
     use crate::models::mta::TopicRejectionReason;
+    use std::collections::{HashMap, HashSet};
 
     fn make_timestamp_days_ago(now: Timestamp, days: u32) -> Timestamp {
         let micros = (days as i64) * MICROS_PER_DAY;
@@ -237,9 +237,19 @@ mod tests {
             ingress_refs: 0,
             delivery_refs: 0,
         });
-        assert!(case1.can_purge_received(), "rejected+old must purge received_message");
-        assert!(case1.can_purge_mail_message(), "rejected+old without other refs must purge mail_message");
-        assert!(is_received_message_purgeable(&rejected_disp, old_time, cutoff));
+        assert!(
+            case1.can_purge_received(),
+            "rejected+old must purge received_message"
+        );
+        assert!(
+            case1.can_purge_mail_message(),
+            "rejected+old without other refs must purge mail_message"
+        );
+        assert!(is_received_message_purgeable(
+            &rejected_disp,
+            old_time,
+            cutoff
+        ));
         assert!(is_mail_message_purgeable(0, 0, 0));
 
         // 2. rejected + recent -> no
@@ -251,9 +261,19 @@ mod tests {
             ingress_refs: 0,
             delivery_refs: 0,
         });
-        assert!(!case2.can_purge_received(), "rejected+recent must NOT purge received_message");
-        assert!(!case2.can_purge_mail_message(), "rejected+recent must NOT purge mail_message");
-        assert!(!is_received_message_purgeable(&rejected_disp, recent_time, cutoff));
+        assert!(
+            !case2.can_purge_received(),
+            "rejected+recent must NOT purge received_message"
+        );
+        assert!(
+            !case2.can_purge_mail_message(),
+            "rejected+recent must NOT purge mail_message"
+        );
+        assert!(!is_received_message_purgeable(
+            &rejected_disp,
+            recent_time,
+            cutoff
+        ));
 
         // 3. accepted + old -> no
         let case3 = is_purgeable(PurgePredicateInput {
@@ -264,9 +284,19 @@ mod tests {
             ingress_refs: 0,
             delivery_refs: 0,
         });
-        assert!(!case3.can_purge_received(), "accepted+old must NOT purge received_message");
-        assert!(!case3.can_purge_mail_message(), "accepted+old must NOT purge mail_message");
-        assert!(!is_received_message_purgeable(&accepted_disp, old_time, cutoff));
+        assert!(
+            !case3.can_purge_received(),
+            "accepted+old must NOT purge received_message"
+        );
+        assert!(
+            !case3.can_purge_mail_message(),
+            "accepted+old must NOT purge mail_message"
+        );
+        assert!(!is_received_message_purgeable(
+            &accepted_disp,
+            old_time,
+            cutoff
+        ));
 
         // 4. shared mail_message still referenced -> not deleted
         // Case 4a: still referenced by another received_message
@@ -278,8 +308,14 @@ mod tests {
             ingress_refs: 0,
             delivery_refs: 0,
         });
-        assert!(case4a.can_purge_received(), "rejected received_message itself is purged");
-        assert!(!case4a.can_purge_mail_message(), "shared mail_message with other received refs must NOT be deleted");
+        assert!(
+            case4a.can_purge_received(),
+            "rejected received_message itself is purged"
+        );
+        assert!(
+            !case4a.can_purge_mail_message(),
+            "shared mail_message with other received refs must NOT be deleted"
+        );
         assert!(!is_mail_message_purgeable(1, 0, 0));
 
         // Case 4b: referenced by mail_ingress
@@ -292,7 +328,10 @@ mod tests {
             delivery_refs: 0,
         });
         assert!(case4b.can_purge_received());
-        assert!(!case4b.can_purge_mail_message(), "mail_message referenced by mail_ingress must NOT be deleted");
+        assert!(
+            !case4b.can_purge_mail_message(),
+            "mail_message referenced by mail_ingress must NOT be deleted"
+        );
         assert!(!is_mail_message_purgeable(0, 1, 0));
 
         // Case 4c: referenced by mail_delivery_message
@@ -305,7 +344,10 @@ mod tests {
             delivery_refs: 1,
         });
         assert!(case4c.can_purge_received());
-        assert!(!case4c.can_purge_mail_message(), "mail_message referenced by delivery must NOT be deleted");
+        assert!(
+            !case4c.can_purge_mail_message(),
+            "mail_message referenced by delivery must NOT be deleted"
+        );
         assert!(!is_mail_message_purgeable(0, 0, 1));
     }
 
@@ -318,9 +360,18 @@ mod tests {
         let cutoff_60 = calculate_purge_cutoff(now, 60);
         let cutoff_0 = calculate_purge_cutoff(now, 0);
 
-        assert_eq!(cutoff_30, now - TimeDuration::from_micros(30 * MICROS_PER_DAY));
-        assert_eq!(cutoff_10, now - TimeDuration::from_micros(10 * MICROS_PER_DAY));
-        assert_eq!(cutoff_60, now - TimeDuration::from_micros(60 * MICROS_PER_DAY));
+        assert_eq!(
+            cutoff_30,
+            now - TimeDuration::from_micros(30 * MICROS_PER_DAY)
+        );
+        assert_eq!(
+            cutoff_10,
+            now - TimeDuration::from_micros(10 * MICROS_PER_DAY)
+        );
+        assert_eq!(
+            cutoff_60,
+            now - TimeDuration::from_micros(60 * MICROS_PER_DAY)
+        );
         assert_eq!(cutoff_0, now);
 
         // A message received 20 days ago:
@@ -328,10 +379,14 @@ mod tests {
         let rejected = MessageDisposition::Rejected(TopicRejectionReason::NotSubscribed);
 
         // Under 30 days retention: 20 days is NOT purgeable (cutoff = 30 days ago, msg_time > cutoff)
-        assert!(!is_received_message_purgeable(&rejected, msg_time, cutoff_30));
+        assert!(!is_received_message_purgeable(
+            &rejected, msg_time, cutoff_30
+        ));
 
         // Under 10 days retention: 20 days IS purgeable (cutoff = 10 days ago, msg_time <= cutoff)
-        assert!(is_received_message_purgeable(&rejected, msg_time, cutoff_10));
+        assert!(is_received_message_purgeable(
+            &rejected, msg_time, cutoff_10
+        ));
     }
 
     /// In-memory implementation of PurgeStore for unit testing
@@ -375,11 +430,18 @@ mod tests {
     }
 
     impl PurgeStore for MockPurgeStore {
-        fn candidate_rejected_messages(&self, cutoff: Timestamp, limit: usize) -> Vec<ReceivedMessage> {
+        fn candidate_rejected_messages(
+            &self,
+            cutoff: Timestamp,
+            limit: usize,
+        ) -> Vec<ReceivedMessage> {
             let mut list: Vec<ReceivedMessage> = self
                 .received_messages
                 .values()
-                .filter(|rm| rm.received_at <= cutoff && matches!(rm.disposition, MessageDisposition::Rejected(_)))
+                .filter(|rm| {
+                    rm.received_at <= cutoff
+                        && matches!(rm.disposition, MessageDisposition::Rejected(_))
+                })
                 .cloned()
                 .collect();
             list.sort_by_key(|rm| rm.received_at);
@@ -410,7 +472,8 @@ mod tests {
     }
 
     #[test]
-    fn test_purge_run_deletes_rejected_and_orphaned_mail_messages_leaves_accepted_and_delivery_intact() {
+    fn test_purge_run_deletes_rejected_and_orphaned_mail_messages_leaves_accepted_and_delivery_intact()
+     {
         let now = Timestamp::UNIX_EPOCH + TimeDuration::from_micros(100 * MICROS_PER_DAY);
         let cutoff = calculate_purge_cutoff(now, 30);
         let old_time = make_timestamp_days_ago(now, 40);
@@ -435,12 +498,7 @@ mod tests {
         );
 
         // 3. Accepted + old: untouched, MailMessage untouched
-        store.add_received_message(
-            3,
-            103,
-            MessageDisposition::Accepted,
-            old_time,
-        );
+        store.add_received_message(3, 103, MessageDisposition::Accepted, old_time);
 
         // 4. Rejected + old sharing MailMessage 103 with Accepted message 3:
         // ReceivedMessage 4 purged, but MailMessage 103 MUST NOT be deleted!
@@ -492,11 +550,26 @@ mod tests {
         assert!(!store.received_messages.contains_key(&6));
 
         // Verify remaining mail_messages
-        assert!(!store.mail_messages.contains(&101), "Orphaned MailMessage 101 must be deleted");
-        assert!(store.mail_messages.contains(&102), "Recent MailMessage 102 must be kept");
-        assert!(store.mail_messages.contains(&103), "Shared MailMessage 103 must be kept");
-        assert!(store.mail_messages.contains(&105), "Ingress-referenced MailMessage 105 must be kept");
-        assert!(store.mail_messages.contains(&106), "Delivery-referenced MailMessage 106 must be kept");
+        assert!(
+            !store.mail_messages.contains(&101),
+            "Orphaned MailMessage 101 must be deleted"
+        );
+        assert!(
+            store.mail_messages.contains(&102),
+            "Recent MailMessage 102 must be kept"
+        );
+        assert!(
+            store.mail_messages.contains(&103),
+            "Shared MailMessage 103 must be kept"
+        );
+        assert!(
+            store.mail_messages.contains(&105),
+            "Ingress-referenced MailMessage 105 must be kept"
+        );
+        assert!(
+            store.mail_messages.contains(&106),
+            "Delivery-referenced MailMessage 106 must be kept"
+        );
     }
 
     #[test]

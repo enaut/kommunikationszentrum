@@ -124,13 +124,25 @@ mod tests {
 
     #[test]
     fn test_is_active_subscription_covers_all_variants() {
-        assert!(is_active_subscription(&SubscriptionStatus::AutomaticallySubscribed));
-        assert!(is_active_subscription(&SubscriptionStatus::ManuallySubscribed));
-        assert!(is_active_subscription(&SubscriptionStatus::RequiredSubscribed));
+        assert!(is_active_subscription(
+            &SubscriptionStatus::AutomaticallySubscribed
+        ));
+        assert!(is_active_subscription(
+            &SubscriptionStatus::ManuallySubscribed
+        ));
+        assert!(is_active_subscription(
+            &SubscriptionStatus::RequiredSubscribed
+        ));
 
-        assert!(!is_active_subscription(&SubscriptionStatus::AutomaticallyUnsubscribed));
-        assert!(!is_active_subscription(&SubscriptionStatus::ManuallyUnsubscribed));
-        assert!(!is_active_subscription(&SubscriptionStatus::LinkUnsubscribed));
+        assert!(!is_active_subscription(
+            &SubscriptionStatus::AutomaticallyUnsubscribed
+        ));
+        assert!(!is_active_subscription(
+            &SubscriptionStatus::ManuallyUnsubscribed
+        ));
+        assert!(!is_active_subscription(
+            &SubscriptionStatus::LinkUnsubscribed
+        ));
     }
 
     #[test]
@@ -203,7 +215,11 @@ mod tests {
         ] {
             let sub = dummy_subscription(1, 100, 10, 20, inactive_status);
             let result = filter_eligible_recipient(&sub, Some(&email), Some(&account));
-            assert_eq!(result, None, "Status {:?} should not be eligible", inactive_status);
+            assert_eq!(
+                result, None,
+                "Status {:?} should not be eligible",
+                inactive_status
+            );
         }
     }
 
@@ -213,13 +229,25 @@ mod tests {
         let other_topic_id = 99;
 
         // Sub 1: Active account, verified email -> should be included
-        let sub1 = dummy_subscription(1, topic_id, 10, 100, SubscriptionStatus::AutomaticallySubscribed);
+        let sub1 = dummy_subscription(
+            1,
+            topic_id,
+            10,
+            100,
+            SubscriptionStatus::AutomaticallySubscribed,
+        );
         // Sub 2: Deactivated account, verified email -> should be excluded
         let sub2 = dummy_subscription(2, topic_id, 20, 200, SubscriptionStatus::ManuallySubscribed);
         // Sub 3: Active account, unverified email -> should be excluded
         let sub3 = dummy_subscription(3, topic_id, 30, 300, SubscriptionStatus::RequiredSubscribed);
         // Sub 4: Active account, verified email, but wrong topic -> should be excluded
-        let sub4 = dummy_subscription(4, other_topic_id, 40, 400, SubscriptionStatus::ManuallySubscribed);
+        let sub4 = dummy_subscription(
+            4,
+            other_topic_id,
+            40,
+            400,
+            SubscriptionStatus::ManuallySubscribed,
+        );
 
         let emails = vec![
             dummy_email(100, 10, "active@example.com", true),

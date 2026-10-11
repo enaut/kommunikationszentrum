@@ -60,4 +60,3 @@ pub fn set_mail_retention_config(
 
     Ok(())
 }
-

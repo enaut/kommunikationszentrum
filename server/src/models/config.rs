@@ -19,4 +19,3 @@ pub struct MailRetentionConfig {
     pub rejected_retention_days: u32,
     pub updated_at: Timestamp,
 }
-

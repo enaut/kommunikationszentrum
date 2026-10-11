@@ -47,9 +47,11 @@ pub trait user_unsubscribe_by_token {
     fn user_unsubscribe_by_token_then(
         &self,
         token: String,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()>;
 }
 
@@ -57,9 +59,11 @@ impl user_unsubscribe_by_token for super::RemoteReducers {
     fn user_unsubscribe_by_token_then(
         &self,
         token: String,
-        callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
-            + Send
-            + 'static,
+        callback: impl FnOnce(
+            &super::ReducerEventContext,
+            Result<Result<(), String>, __sdk::InternalError>,
+        ) + Send
+        + 'static,
     ) -> __sdk::Result<()> {
         self.imp
             .invoke_reducer_with_callback(UserUnsubscribeByTokenArgs { token }, callback)

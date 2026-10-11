@@ -62,21 +62,22 @@ pub fn build_transport(
     password: &str,
 ) -> Result<AsyncSmtpTransport<Tokio1Executor>, Box<dyn Error>> {
     let mut builder = if config.smtp_use_tls {
-        let tls_parameters = if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
-            let mut tls_builder = TlsParameters::builder(config.smtp_host.clone());
+        let tls_parameters =
+            if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
+                let mut tls_builder = TlsParameters::builder(config.smtp_host.clone());
 
-            if config.smtp_accept_invalid_certs {
-                tls_builder = tls_builder.dangerous_accept_invalid_certs(true);
-            }
+                if config.smtp_accept_invalid_certs {
+                    tls_builder = tls_builder.dangerous_accept_invalid_certs(true);
+                }
 
-            if config.smtp_accept_invalid_hostnames {
-                tls_builder = tls_builder.dangerous_accept_invalid_hostnames(true);
-            }
+                if config.smtp_accept_invalid_hostnames {
+                    tls_builder = tls_builder.dangerous_accept_invalid_hostnames(true);
+                }
 
-            tls_builder.build()?
-        } else {
-            TlsParameters::builder(config.smtp_host.clone()).build()?
-        };
+                tls_builder.build()?
+            } else {
+                TlsParameters::builder(config.smtp_host.clone()).build()?
+            };
 
         let tls = if config.smtp_port == 465 {
             Tls::Wrapper(tls_parameters)

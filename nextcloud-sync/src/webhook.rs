@@ -1,11 +1,11 @@
 use crate::config::Config;
 use crate::worker::SyncJob;
 use axum::{
+    Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
-    Json, Router,
 };
 use serde::Deserialize;
 use subtle::ConstantTimeEq;
@@ -132,7 +132,10 @@ mod tests {
             "user": { "uid": "john_doe" }
         }"#;
         let p: WebhookPayload = serde_json::from_str(json).unwrap();
-        assert_eq!(p.event.as_deref(), Some("OCP\\User\\Events\\UserCreatedEvent"));
+        assert_eq!(
+            p.event.as_deref(),
+            Some("OCP\\User\\Events\\UserCreatedEvent")
+        );
         assert_eq!(p.user.unwrap().uid.as_deref(), Some("john_doe"));
 
         let json_target = r#"{

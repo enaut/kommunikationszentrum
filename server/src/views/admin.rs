@@ -19,7 +19,6 @@ pub fn admin_mail_retention_config(ctx: &ViewContext) -> impl Query<MailRetentio
     ctx.from.mail_retention_config().r#filter(move |_| is_admin)
 }
 
-
 #[spacetimedb::view(accessor = sender_mail_ingress, public)]
 pub fn sender_mail_ingress(ctx: &ViewContext) -> impl Query<MailIngress> {
     let is_admin = is_admin_user(ctx);

@@ -1254,16 +1254,34 @@ mod tests {
     #[test]
     fn test_compute_admin_status_action() {
         // When requested is Some(true): grant if not admin, no-op if already admin
-        assert_eq!(compute_admin_status_action(Some(true), false), AdminStatusAction::Grant);
-        assert_eq!(compute_admin_status_action(Some(true), true), AdminStatusAction::NoOp);
+        assert_eq!(
+            compute_admin_status_action(Some(true), false),
+            AdminStatusAction::Grant
+        );
+        assert_eq!(
+            compute_admin_status_action(Some(true), true),
+            AdminStatusAction::NoOp
+        );
 
         // When requested is Some(false): revoke if admin, no-op if already not admin
-        assert_eq!(compute_admin_status_action(Some(false), true), AdminStatusAction::Revoke);
-        assert_eq!(compute_admin_status_action(Some(false), false), AdminStatusAction::NoOp);
+        assert_eq!(
+            compute_admin_status_action(Some(false), true),
+            AdminStatusAction::Revoke
+        );
+        assert_eq!(
+            compute_admin_status_action(Some(false), false),
+            AdminStatusAction::NoOp
+        );
 
         // When requested is None: always preserve existing status (no-op)
-        assert_eq!(compute_admin_status_action(None, true), AdminStatusAction::NoOp);
-        assert_eq!(compute_admin_status_action(None, false), AdminStatusAction::NoOp);
+        assert_eq!(
+            compute_admin_status_action(None, true),
+            AdminStatusAction::NoOp
+        );
+        assert_eq!(
+            compute_admin_status_action(None, false),
+            AdminStatusAction::NoOp
+        );
     }
 
     #[test]

@@ -69,4 +69,3 @@ pub struct PurgeRejectedMailsSchedule {
     pub scheduled_id: u64,
     pub scheduled_at: ScheduleAt,
 }
-
