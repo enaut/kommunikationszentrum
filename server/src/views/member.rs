@@ -126,6 +126,10 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
         }
     };
 
+    if !is_admin {
+        messages.retain(|m| matches!(m.disposition, MessageDisposition::Accepted));
+    }
+
     messages.sort_unstable_by(|a, b| b.received_at.cmp(&a.received_at));
 
     messages

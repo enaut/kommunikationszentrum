@@ -1,4 +1,4 @@
-use crate::models::mta::{mta_connection_log, mta_message_log};
+use crate::models::mta::mta_connection_log;
 use spacetimedb::{ReducerContext, Table};
 
 #[spacetimedb::reducer]
@@ -11,17 +11,6 @@ pub fn dump_mta_logs_to_server_logs(ctx: &ReducerContext) {
             log.stage,
             log.action,
             log.details
-        );
-    }
-
-    log::info!("=== MTA Message Logs ===");
-    for log in ctx.db.mta_message_log().iter() {
-        log::info!(
-            "Message Log {}: {} - {} - Topics: {}",
-            log.id,
-            log.stage,
-            log.action,
-            log.topic_count
         );
     }
 }

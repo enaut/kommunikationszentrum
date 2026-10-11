@@ -7,13 +7,13 @@ use crate::models::mail_message::{MailMessage, mail_message};
 use crate::models::mta::*;
 use crate::models::topic::{SubscriptionPermission, message_topics, subscriptions};
 use crate::reducers::delivery::upsert_mail_ingress;
+use crate::services::mta::admission::{SenderEligibility, decide_topic_admission};
 use crate::services::mta::envelope_parser::{
     extract_envelope_from_address, extract_from_header_address, extract_header,
-    extract_subject_from_request, parse_email_addresses,
+    extract_subject_from_request,
 };
 use crate::services::mta::rejection::{
-    MAX_MESSAGE_SIZE_BYTES, RejectedTopic, TopicRejectionReason, build_oversize_email,
-    build_rejection_email, is_oversize_message, is_valid_bounce_recipient,
+    RejectedTopic, build_rejection_email, is_oversize_message, is_valid_bounce_recipient,
 };
 
 pub fn insert_mail_message(
@@ -62,6 +62,7 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
         .map(|msg| msg.size as u64)
         .unwrap_or(0);
     let subject = extract_subject_from_request(request);
+    let oversize = is_oversize_message(message_size);
 
     log::trace!(
         "DATA stage - Header From: {:?}, Envelope From: {:?}, Size: {}, Subject: {}",
@@ -78,7 +79,6 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
         serde_json::to_string(&request).unwrap_or_default()
     );
 
-    // Try the canonical SMTP recipients first.
     if let Some(envelope) = &request.envelope {
         for recipient in &envelope.to {
             let to_address = recipient.address.to_lowercase();
@@ -97,206 +97,136 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
         }
     }
 
-    // Fallback: some MTAs rewrite the envelope and only preserve the `To` header.
     if target_topics.is_empty() {
-        if let Some(message) = &request.message {
-            if let Some(to_header) = extract_header(&message.headers, "to") {
-                let header_addrs = parse_email_addresses(&to_header);
-                if !header_addrs.is_empty() {
-                    for to_address in header_addrs {
-                        let to_address_lower = to_address.to_lowercase();
-                        if let Some(topic) = ctx
-                            .db
-                            .message_topics()
-                            .email_address()
-                            .find(&to_address_lower)
-                            .filter(|c| c.active)
-                        {
-                            if !target_topics.iter().any(|(id, _, _)| *id == topic.id) {
-                                target_topics.push((
-                                    topic.id,
-                                    topic.email_address.clone(),
-                                    topic.name.clone(),
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        return;
     }
 
-    let find_active_account_emails = |email: &str| -> Vec<crate::models::account::AccountEmail> {
+    let find_account_emails = |email: &str| -> Vec<crate::models::account::AccountEmail> {
         let email_lower = email.to_lowercase();
         ctx.db
             .account_emails()
             .email()
             .filter(&email_lower)
-            .filter(|ae| ae.is_verified)
-            .filter(|ae| {
-                ctx.db
-                    .account()
-                    .id()
-                    .find(&ae.account_id)
-                    .map_or(false, |acc| acc.is_active)
-            })
             .collect()
     };
 
-    // Determine the effective sender email address and matching verified active accounts:
-    // 1. Prefer the address from the message's `From` header (RFC 5322 author).
-    //    If it matches a verified active account in the system, use it.
-    // 2. Otherwise, check if the SMTP envelope sender (`MAIL FROM`) matches an active account.
-    // 3. If neither matches an account, fall back to the `From` header address (or envelope address)
-    //    as the effective sender for rejection notices and logging.
-    let (from_address, sender_account_emails) = if let Some(header_addr) = &header_from_email {
-        let accounts = find_active_account_emails(header_addr);
-        if !accounts.is_empty() {
+    let is_verified_active = |ae: &crate::models::account::AccountEmail| -> bool {
+        ae.is_verified
+            && ctx
+                .db
+                .account()
+                .id()
+                .find(&ae.account_id)
+                .map_or(false, |acc| acc.is_active)
+    };
+
+    let account_has_admin_identity = |account_id: u64| -> bool {
+        ctx.db.account().id().find(&account_id).map_or(false, |acc| {
+            acc.is_active
+                && ctx
+                    .db
+                    .admin_identities()
+                    .identity()
+                    .find(&acc.identity)
+                    .is_some()
+        })
+    };
+
+    // Prefer From-header address, then envelope sender. See parent spec: known
+    // still relies on From with envelope as fallback.
+    let (from_address, matching_emails) = if let Some(header_addr) = &header_from_email {
+        let accounts = find_account_emails(header_addr);
+        if accounts.iter().any(is_verified_active)
+            || accounts
+                .iter()
+                .any(|ae| account_has_admin_identity(ae.account_id))
+        {
             (header_addr.clone(), accounts)
         } else if let Some(env_addr) = &envelope_from_email {
-            let env_accounts = find_active_account_emails(env_addr);
+            let env_accounts = find_account_emails(env_addr);
             if !env_accounts.is_empty() {
                 (env_addr.clone(), env_accounts)
             } else {
-                (header_addr.clone(), Vec::new())
+                (header_addr.clone(), accounts)
             }
         } else {
-            (header_addr.clone(), Vec::new())
+            (header_addr.clone(), accounts)
         }
     } else if let Some(env_addr) = &envelope_from_email {
-        let env_accounts = find_active_account_emails(env_addr);
+        let env_accounts = find_account_emails(env_addr);
         (env_addr.clone(), env_accounts)
     } else {
         ("unknown".to_string(), Vec::new())
     };
 
-    if is_oversize_message(message_size) && !target_topics.is_empty() {
-        log::warn!(
-            "Not forwarding oversized message from {} ({} bytes; maximum {} bytes)",
-            from_address,
-            message_size,
-            MAX_MESSAGE_SIZE_BYTES
-        );
+    let sender_is_admin = matching_emails
+        .iter()
+        .any(|ae| account_has_admin_identity(ae.account_id));
 
-        if is_valid_bounce_recipient(&from_address) {
-            let (notice_subject, notice_body) =
-                build_oversize_email(&subject, message_size, MAX_MESSAGE_SIZE_BYTES);
-            ctx.db.system_mail_pending().insert(SystemMailPending {
-                id: 0,
-                recipient: from_address.to_string(),
-                subject: notice_subject,
-                body_text: notice_body,
-                instance_id: None,
-                claimed_at: None,
-            });
-        }
+    let verified_active_emails: Vec<_> = matching_emails
+        .iter()
+        .filter(|ae| is_verified_active(ae))
+        .cloned()
+        .collect();
 
-        ctx.db.mta_message_log().insert(MtaMessageLog {
-            id: 0,
-            stage: "data".to_string(),
-            action: "reject_oversize".to_string(),
-            timestamp,
-            queue_id: request.context.queue.as_ref().map(|q| q.id.clone()),
-            topic_count: 0,
-        });
-        return;
-    }
-
-    let sender_account_ids: Vec<u64> = sender_account_emails
+    let sender_account_ids: Vec<u64> = verified_active_emails
         .iter()
         .map(|ae| ae.account_id)
         .collect();
 
-    let sender_is_admin = sender_account_ids.iter().any(|id| {
-        ctx.db.account().id().find(id).map_or(false, |acc| {
-            ctx.db
-                .admin_identities()
-                .identity()
-                .find(&acc.identity)
-                .is_some()
-        })
-    });
-
-    let mut authorized_topics: Vec<(u64, String)> = Vec::new();
-    let mut rejected_topics: Vec<RejectedTopic> = Vec::new();
+    let mut topic_decisions: Vec<(u64, String, String, MessageDisposition)> = Vec::new();
 
     for (topic_id, topic_email, topic_name) in target_topics {
-        if sender_is_admin {
-            authorized_topics.push((topic_id, topic_email));
-            continue;
-        }
-
-        if sender_account_emails.is_empty() {
-            log::warn!(
-                "External/unregistered sender {} attempted to post to topic {} ({})",
-                from_address,
-                topic_id,
-                topic_email
-            );
-            rejected_topics.push(RejectedTopic {
-                topic_name,
-                topic_email,
-                reason: TopicRejectionReason::NotRegistered,
-            });
-            continue;
-        }
-
-        let mut found_subscription = false;
-        let mut has_write = false;
-
-        for ae in &sender_account_emails {
-            for s in ctx.db.subscriptions().account_email_id().filter(&ae.id) {
-                if s.topic_id == topic_id && s.status.is_active() {
-                    found_subscription = true;
-                    if matches!(s.permission, SubscriptionPermission::Write) {
-                        has_write = true;
-                        break;
+        let eligibility = if sender_is_admin {
+            SenderEligibility::Admin
+        } else if verified_active_emails.is_empty() {
+            SenderEligibility::NotRegistered
+        } else {
+            let mut subscribed_active = false;
+            let mut write = false;
+            for ae in &verified_active_emails {
+                for s in ctx.db.subscriptions().account_email_id().filter(&ae.id) {
+                    if s.topic_id == topic_id && s.status.is_active() {
+                        subscribed_active = true;
+                        if matches!(s.permission, SubscriptionPermission::Write) {
+                            write = true;
+                            break;
+                        }
                     }
                 }
+                if write {
+                    break;
+                }
             }
-            if has_write {
-                break;
+            SenderEligibility::VerifiedActive {
+                write,
+                subscribed_active,
             }
-        }
+        };
 
-        if has_write {
-            authorized_topics.push((topic_id, topic_email));
-        } else if found_subscription {
-            log::warn!(
-                "Sender {} (accounts {:?}) is NOT authorized to write to topic {} ({})",
-                from_address,
-                sender_account_ids,
-                topic_id,
-                topic_email
-            );
-            rejected_topics.push(RejectedTopic {
-                topic_name,
-                topic_email,
-                reason: TopicRejectionReason::NoWritePermission,
-            });
-        } else {
-            log::warn!(
-                "Sender {} (accounts {:?}) is not subscribed to topic {} ({})",
-                from_address,
-                sender_account_ids,
-                topic_id,
-                topic_email
-            );
-            rejected_topics.push(RejectedTopic {
-                topic_name,
-                topic_email,
-                reason: TopicRejectionReason::NotSubscribed,
-            });
-        }
+        let disposition = decide_topic_admission(oversize, eligibility);
+        topic_decisions.push((topic_id, topic_email, topic_name, disposition));
     }
 
-    // If any topics were rejected, queue a rejection response from SMTP_SYSTEM_USER
+    let rejected_topics: Vec<RejectedTopic> = topic_decisions
+        .iter()
+        .filter_map(|(_, topic_email, topic_name, disposition)| match disposition {
+            MessageDisposition::Rejected(reason) => Some(RejectedTopic {
+                topic_name: topic_name.clone(),
+                topic_email: topic_email.clone(),
+                reason: *reason,
+            }),
+            MessageDisposition::Accepted => None,
+        })
+        .collect();
+
     if !rejected_topics.is_empty() && is_valid_bounce_recipient(&from_address) {
         let (rejection_subject, rejection_body) = build_rejection_email(
             &subject,
             request.message.as_ref(),
             &rejected_topics,
             &from_address,
+            message_size,
         );
 
         ctx.db.system_mail_pending().insert(SystemMailPending {
@@ -315,43 +245,22 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
         );
     }
 
-    let (action, topic_count) = if !authorized_topics.is_empty() {
-        log::info!(
-            "Accepting message for {} valid topic deliveries",
-            authorized_topics.len()
-        );
-        ("accept", authorized_topics.len() as u32)
-    } else if !rejected_topics.is_empty() {
+    if oversize {
         log::warn!(
-            "Rejecting message: sender {} unauthorized for {} topic(s)",
+            "Storing oversized message from {} without body ({} bytes)",
             from_address,
-            rejected_topics.len()
+            message_size
         );
-        ("reject", 0)
-    } else {
-        log::warn!("No valid topic deliveries found, quarantining message");
-        ("quarantine", 0)
-    };
+    }
 
-    ctx.db.mta_message_log().insert(MtaMessageLog {
-        id: 0,
-        stage: "data".to_string(),
-        action: action.to_string(),
-        timestamp,
-        queue_id: request.context.queue.as_ref().map(|q| q.id.clone()),
-        topic_count,
-    });
-
-    // Persist the full message for each accepted topic delivery
-    if !authorized_topics.is_empty() {
+    let (from_header, date_header, message_id, reply_to, cc_header, headers_raw, body_raw) =
         if let Some(message) = &request.message {
-            let from_header = extract_header(&message.headers, "from")
-                .unwrap_or_else(|| from_address.to_string());
+            let from_header =
+                extract_header(&message.headers, "from").unwrap_or_else(|| from_address.clone());
             let date_header = extract_header(&message.headers, "date");
             let message_id = extract_header(&message.headers, "message-id");
             let reply_to = extract_header(&message.headers, "reply-to");
             let cc_header = extract_header(&message.headers, "cc");
-
             let all_headers: Vec<(&str, &str)> = message
                 .headers
                 .iter()
@@ -359,45 +268,68 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
                 .map(|(n, v)| (n.as_str(), v.as_str()))
                 .collect();
             let headers_raw = serde_json::to_string(&all_headers).unwrap_or_default();
+            let body_raw = if oversize {
+                String::new()
+            } else {
+                message.contents.clone()
+            };
+            (
+                from_header,
+                date_header,
+                message_id,
+                reply_to,
+                cc_header,
+                headers_raw,
+                body_raw,
+            )
+        } else {
+            (
+                from_address.clone(),
+                None,
+                None,
+                None,
+                None,
+                String::new(),
+                String::new(),
+            )
+        };
 
-            let body_raw = message.contents.clone();
+    let queue_id = request.context.queue.as_ref().map(|q| q.id.clone());
+    let mail_message_id = insert_mail_message(
+        ctx,
+        queue_id,
+        sender_account_ids.first().copied(),
+        from_address.clone(),
+        subject,
+        from_header,
+        reply_to,
+        date_header,
+        message_id,
+        cc_header,
+        headers_raw,
+        body_raw,
+        message_size,
+    );
 
-            let queue_id = request.context.queue.as_ref().map(|q| q.id.clone());
+    for (topic_id, topic_email, _, disposition) in &topic_decisions {
+        ctx.db.received_message().insert(ReceivedMessage {
+            id: 0,
+            mail_message_id,
+            topic_id: *topic_id,
+            topic_email: topic_email.clone(),
+            received_at: timestamp,
+            disposition: *disposition,
+        });
 
-            let mail_message_id = insert_mail_message(
-                ctx,
-                queue_id.clone(),
-                sender_account_ids.first().copied(),
-                from_address.to_string(),
-                subject.clone(),
-                from_header.clone(),
-                reply_to.clone(),
-                date_header.clone(),
-                message_id.clone(),
-                cc_header.clone(),
-                headers_raw.clone(),
-                body_raw.clone(),
-                message_size,
+        if matches!(disposition, MessageDisposition::Accepted) {
+            let ingress_id =
+                upsert_mail_ingress(ctx, mail_message_id, *topic_id, topic_email.clone());
+            log::info!(
+                "Queued ingress {} for topic {} ({})",
+                ingress_id,
+                topic_id,
+                topic_email
             );
-
-            for (topic_id, topic_email) in &authorized_topics {
-                ctx.db.received_message().insert(ReceivedMessage {
-                    id: 0,
-                    mail_message_id,
-                    topic_id: *topic_id,
-                    topic_email: topic_email.clone(),
-                    received_at: timestamp,
-                });
-
-                let ingress_id =
-                    upsert_mail_ingress(ctx, mail_message_id, *topic_id, topic_email.clone());
-                log::info!(
-                    "Queued ingress {} for topic {} ({})",
-                    ingress_id,
-                    topic_id,
-                    topic_email
-                );
-            }
         }
     }
 }

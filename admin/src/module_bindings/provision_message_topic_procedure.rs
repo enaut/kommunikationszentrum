@@ -51,11 +51,9 @@ pub trait provision_message_topic {
         description: String,
         visibility: TopicVisibility,
 
-        __callback: impl FnOnce(
-            &super::ProcedureEventContext,
-            Result<Result<(), String>, __sdk::InternalError>,
-        ) + Send
-        + 'static,
+        __callback: impl FnOnce(&super::ProcedureEventContext, Result<Result<(), String>, __sdk::InternalError>)
+            + Send
+            + 'static,
     );
 }
 
@@ -68,11 +66,9 @@ impl provision_message_topic for super::RemoteProcedures {
         description: String,
         visibility: TopicVisibility,
 
-        __callback: impl FnOnce(
-            &super::ProcedureEventContext,
-            Result<Result<(), String>, __sdk::InternalError>,
-        ) + Send
-        + 'static,
+        __callback: impl FnOnce(&super::ProcedureEventContext, Result<Result<(), String>, __sdk::InternalError>)
+            + Send
+            + 'static,
     ) {
         self.imp
             .invoke_procedure_with_callback::<_, Result<(), String>>(

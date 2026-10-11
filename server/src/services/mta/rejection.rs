@@ -2,21 +2,12 @@ use stalwart_mta_hook_types::Message as MtaMessage;
 
 use crate::services::mta::envelope_parser::extract_header;
 
+pub use crate::models::mta::TopicRejectionReason;
+
 pub const MAX_MESSAGE_SIZE_BYTES: u64 = 2_000_000;
 
 pub fn is_oversize_message(message_size: u64) -> bool {
     message_size > MAX_MESSAGE_SIZE_BYTES
-}
-
-/// Reason why an email could not be delivered to a message topic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TopicRejectionReason {
-    /// The user is subscribed to the topic, but only has Read permission (no Write permission).
-    NoWritePermission,
-    /// The user has an active account, but has no active subscription to this topic.
-    NotSubscribed,
-    /// The sender's email address is not associated with any active verified account in the system.
-    NotRegistered,
 }
 
 /// Information about a message topic that rejected the incoming message.
@@ -87,6 +78,7 @@ pub fn build_rejection_email(
     message: Option<&MtaMessage>,
     rejected_topics: &[RejectedTopic],
     from_address: &str,
+    message_size: u64,
 ) -> (String, String) {
     let subject_clean = original_subject.trim();
     let subject = if subject_clean.is_empty() || subject_clean.eq_ignore_ascii_case("no subject") {
@@ -149,6 +141,14 @@ pub fn build_rejection_email(
                 body_en.push_str(&format!(
                     "  Reason: Your sender email address '{}' is not associated with an active member account in Kommunikationszentrum. Please send emails from your registered email address or add this address to your account profile.\n\n",
                     from_address
+                ));
+            }
+            TopicRejectionReason::Oversize => {
+                body_de.push_str(&format!(
+                    "  Grund: Die Nachricht überschreitet das Größenlimit. Nachrichtengröße: {message_size} Bytes. Maximale Größe: {MAX_MESSAGE_SIZE_BYTES} Bytes.\n"
+                ));
+                body_en.push_str(&format!(
+                    "  Reason: The message exceeds the mailing-list size limit. Message size: {message_size} bytes. Maximum size: {MAX_MESSAGE_SIZE_BYTES} bytes.\n\n"
                 ));
             }
         }
@@ -240,7 +240,7 @@ mod tests {
         }];
 
         let (subject, body) =
-            build_rejection_email("Frage zur Ernte", None, &rejected, "member@example.com");
+            build_rejection_email("Frage zur Ernte", None, &rejected, "member@example.com", 0);
 
         assert_eq!(subject, "Rejected: Frage zur Ernte");
         assert!(body.contains("Gartenbau <gartenbau@solawi.org>"));
@@ -259,7 +259,7 @@ mod tests {
         }];
 
         let (subject, body) =
-            build_rejection_email("Abholung morgen", None, &rejected, "member@example.com");
+            build_rejection_email("Abholung morgen", None, &rejected, "member@example.com", 0);
 
         assert_eq!(subject, "Rejected: Abholung morgen");
         assert!(body.contains("Verteilpunkt Nord <vp-nord@solawi.org>"));
@@ -276,7 +276,7 @@ mod tests {
         }];
 
         let (subject, body) =
-            build_rejection_email("Hallo", None, &rejected, "external@stranger.org");
+            build_rejection_email("Hallo", None, &rejected, "external@stranger.org", 0);
 
         assert_eq!(subject, "Rejected: Hallo");
         assert!(body.contains("external@stranger.org"));
@@ -293,8 +293,31 @@ mod tests {
         }];
 
         let (subject, _) =
-            build_rejection_email("No subject", None, &rejected, "external@stranger.org");
+            build_rejection_email("No subject", None, &rejected, "external@stranger.org", 0);
 
         assert_eq!(subject, "Rejected: Mail to aktuelles@solawi.org");
+    }
+
+    #[test]
+    fn test_build_rejection_email_oversize() {
+        let rejected = vec![RejectedTopic {
+            topic_name: "Aktuelles".to_string(),
+            topic_email: "aktuelles@solawi.org".to_string(),
+            reason: TopicRejectionReason::Oversize,
+        }];
+
+        let (subject, body) = build_rejection_email(
+            "Planning",
+            None,
+            &rejected,
+            "member@example.com",
+            2_000_001,
+        );
+
+        assert_eq!(subject, "Rejected: Planning");
+        assert!(body.contains("2000001"));
+        assert!(body.contains("2000000"));
+        assert!(body.contains("Größenlimit"));
+        assert!(body.contains("size limit"));
     }
 }

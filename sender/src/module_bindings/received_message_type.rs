@@ -4,6 +4,8 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::message_disposition_type::MessageDisposition;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub struct ReceivedMessage {
@@ -12,6 +14,7 @@ pub struct ReceivedMessage {
     pub topic_id: u64,
     pub topic_email: String,
     pub received_at: __sdk::Timestamp,
+    pub disposition: MessageDisposition,
 }
 
 impl __sdk::InModule for ReceivedMessage {
@@ -27,6 +30,7 @@ pub struct ReceivedMessageCols {
     pub topic_id: __sdk::__query_builder::Col<ReceivedMessage, u64>,
     pub topic_email: __sdk::__query_builder::Col<ReceivedMessage, String>,
     pub received_at: __sdk::__query_builder::Col<ReceivedMessage, __sdk::Timestamp>,
+    pub disposition: __sdk::__query_builder::Col<ReceivedMessage, MessageDisposition>,
 }
 
 impl __sdk::__query_builder::HasCols for ReceivedMessage {
@@ -38,6 +42,7 @@ impl __sdk::__query_builder::HasCols for ReceivedMessage {
             topic_id: __sdk::__query_builder::Col::new(table_name, "topic_id"),
             topic_email: __sdk::__query_builder::Col::new(table_name, "topic_email"),
             received_at: __sdk::__query_builder::Col::new(table_name, "received_at"),
+            disposition: __sdk::__query_builder::Col::new(table_name, "disposition"),
         }
     }
 }
