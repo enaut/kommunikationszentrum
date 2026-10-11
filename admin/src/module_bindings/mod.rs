@@ -427,6 +427,8 @@ pub enum Reducer {
         clear_viewing_topic_id: bool,
         language: Option<String>,
         theme: Option<String>,
+        message_disposition_filter: Option<String>,
+        clear_message_disposition_filter: bool,
     },
     UpdateMessageTopic {
         topic_id: u64,
@@ -797,6 +799,8 @@ impl __sdk::Reducer for Reducer {
                 clear_viewing_topic_id,
                 language,
                 theme,
+                message_disposition_filter,
+                clear_message_disposition_filter,
 }             => __sats::bsatn::to_vec(&update_account_config_reducer::UpdateAccountConfigArgs {
                 message_offset: message_offset.clone(),
                 message_limit: message_limit.clone(),
@@ -810,6 +814,8 @@ impl __sdk::Reducer for Reducer {
                 clear_viewing_topic_id: clear_viewing_topic_id.clone(),
                 language: language.clone(),
                 theme: theme.clone(),
+                message_disposition_filter: message_disposition_filter.clone(),
+                clear_message_disposition_filter: clear_message_disposition_filter.clone(),
 }),
             Reducer::UpdateMessageTopic{
                 topic_id,

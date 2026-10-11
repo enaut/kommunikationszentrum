@@ -74,6 +74,7 @@ pub struct AccountConfig {
     pub theme: Option<String>,
 
     pub search_matching_accounts: u32,
+    pub message_disposition_filter: Option<String>,
 }
 
 #[derive(Debug, Clone)]

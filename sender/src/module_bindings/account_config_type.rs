@@ -18,6 +18,7 @@ pub struct AccountConfig {
     pub language: Option<String>,
     pub theme: Option<String>,
     pub search_matching_accounts: u32,
+    pub message_disposition_filter: Option<String>,
 }
 
 impl __sdk::InModule for AccountConfig {
@@ -39,6 +40,7 @@ pub struct AccountConfigCols {
     pub language: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
     pub theme: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
     pub search_matching_accounts: __sdk::__query_builder::Col<AccountConfig, u32>,
+    pub message_disposition_filter: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
 }
 
 impl __sdk::__query_builder::HasCols for AccountConfig {
@@ -64,6 +66,10 @@ impl __sdk::__query_builder::HasCols for AccountConfig {
             search_matching_accounts: __sdk::__query_builder::Col::new(
                 table_name,
                 "search_matching_accounts",
+            ),
+            message_disposition_filter: __sdk::__query_builder::Col::new(
+                table_name,
+                "message_disposition_filter",
             ),
         }
     }

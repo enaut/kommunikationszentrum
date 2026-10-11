@@ -5335,6 +5335,8 @@ pub fn use_reducer_update_account_config() -> impl Fn(
     bool,
     Option<String>,
     Option<String>,
+    Option<String>,
+    bool,
 ) -> spacetimedb_sdk::Result<()>
        + Clone
        + 'static {
@@ -5351,7 +5353,9 @@ pub fn use_reducer_update_account_config() -> impl Fn(
           viewing_topic_id: Option<u64>,
           clear_viewing_topic_id: bool,
           language: Option<String>,
-          theme: Option<String>| {
+          theme: Option<String>,
+          message_disposition_filter: Option<String>,
+          clear_message_disposition_filter: bool| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.update_account_config(
                 message_offset,
@@ -5366,6 +5370,8 @@ pub fn use_reducer_update_account_config() -> impl Fn(
                 clear_viewing_topic_id,
                 language,
                 theme,
+                message_disposition_filter,
+                clear_message_disposition_filter,
             )
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
@@ -5393,6 +5399,8 @@ pub fn use_reducer_update_account_config_then() -> (
             bool,
             Option<String>,
             Option<String>,
+            Option<String>,
+            bool,
         ) + Clone
         + 'static,
     SyncSignal<Option<Result<(), String>>>,
@@ -5411,7 +5419,9 @@ pub fn use_reducer_update_account_config_then() -> (
                        viewing_topic_id: Option<u64>,
                        clear_viewing_topic_id: bool,
                        language: Option<String>,
-                       theme: Option<String>| {
+                       theme: Option<String>,
+                       message_disposition_filter: Option<String>,
+                       clear_message_disposition_filter: bool| {
         let mut result = result;
         result.set(None);
         if let Some(conn) = conn_signal().as_ref() {
@@ -5429,6 +5439,8 @@ pub fn use_reducer_update_account_config_then() -> (
                 clear_viewing_topic_id,
                 language,
                 theme,
+                message_disposition_filter,
+                clear_message_disposition_filter,
                 move |_ctx, res| {
                     let _ = tx.send(res);
                 },
@@ -5471,6 +5483,8 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
     bool,
     Option<String>,
     Option<String>,
+    Option<String>,
+    bool,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
        + Clone
        + 'static {
@@ -5487,7 +5501,9 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
           viewing_topic_id: Option<u64>,
           clear_viewing_topic_id: bool,
           language: Option<String>,
-          theme: Option<String>|
+          theme: Option<String>,
+          message_disposition_filter: Option<String>,
+          clear_message_disposition_filter: bool|
           -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
         let conn = conn_signal();
         Box::pin(async move {
@@ -5508,6 +5524,8 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
                 clear_viewing_topic_id,
                 language,
                 theme,
+                message_disposition_filter,
+                clear_message_disposition_filter,
                 move |_ctx, res| {
                     let _ = tx.send(res);
                 },

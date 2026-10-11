@@ -342,6 +342,7 @@ pub fn register_self(
             language: None,
             theme: None,
             search_matching_accounts: 0,
+            message_disposition_filter: None,
         });
     }
 
@@ -541,6 +542,7 @@ pub(crate) fn do_sync_user(
                             language: None,
                             theme: None,
                             search_matching_accounts: 0,
+                            message_disposition_filter: None,
                         });
                 }
 
@@ -1071,6 +1073,8 @@ pub fn update_account_config(
     clear_viewing_topic_id: bool,
     language: Option<String>,
     theme: Option<String>,
+    message_disposition_filter: Option<String>,
+    clear_message_disposition_filter: bool,
 ) -> Result<(), String> {
     let sender = ctx.sender();
     let account = ctx
@@ -1097,6 +1101,7 @@ pub fn update_account_config(
             language: None,
             theme: None,
             search_matching_accounts: 0,
+            message_disposition_filter: None,
         });
 
     if let Some(mo) = message_offset {
@@ -1134,6 +1139,12 @@ pub fn update_account_config(
     }
     if let Some(val) = theme {
         config.theme = Some(val);
+    }
+
+    if clear_message_disposition_filter {
+        config.message_disposition_filter = None;
+    } else if let Some(mdf) = message_disposition_filter {
+        config.message_disposition_filter = Some(mdf);
     }
 
     // Update search matching accounts metric for the user

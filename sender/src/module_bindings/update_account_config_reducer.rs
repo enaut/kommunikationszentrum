@@ -19,6 +19,8 @@ pub(super) struct UpdateAccountConfigArgs {
     pub clear_viewing_topic_id: bool,
     pub language: Option<String>,
     pub theme: Option<String>,
+    pub message_disposition_filter: Option<String>,
+    pub clear_message_disposition_filter: bool,
 }
 
 impl From<UpdateAccountConfigArgs> for super::Reducer {
@@ -36,6 +38,8 @@ impl From<UpdateAccountConfigArgs> for super::Reducer {
             clear_viewing_topic_id: args.clear_viewing_topic_id,
             language: args.language,
             theme: args.theme,
+            message_disposition_filter: args.message_disposition_filter,
+            clear_message_disposition_filter: args.clear_message_disposition_filter,
         }
     }
 }
@@ -69,6 +73,8 @@ pub trait update_account_config {
         clear_viewing_topic_id: bool,
         language: Option<String>,
         theme: Option<String>,
+        message_disposition_filter: Option<String>,
+        clear_message_disposition_filter: bool,
     ) -> __sdk::Result<()> {
         self.update_account_config_then(
             message_offset,
@@ -83,6 +89,8 @@ pub trait update_account_config {
             clear_viewing_topic_id,
             language,
             theme,
+            message_disposition_filter,
+            clear_message_disposition_filter,
             |_, _| {},
         )
     }
@@ -107,6 +115,8 @@ pub trait update_account_config {
         clear_viewing_topic_id: bool,
         language: Option<String>,
         theme: Option<String>,
+        message_disposition_filter: Option<String>,
+        clear_message_disposition_filter: bool,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -129,6 +139,8 @@ impl update_account_config for super::RemoteReducers {
         clear_viewing_topic_id: bool,
         language: Option<String>,
         theme: Option<String>,
+        message_disposition_filter: Option<String>,
+        clear_message_disposition_filter: bool,
 
         callback: impl FnOnce(&super::ReducerEventContext, Result<Result<(), String>, __sdk::InternalError>)
             + Send
@@ -148,6 +160,8 @@ impl update_account_config for super::RemoteReducers {
                 clear_viewing_topic_id,
                 language,
                 theme,
+                message_disposition_filter,
+                clear_message_disposition_filter,
             },
             callback,
         )

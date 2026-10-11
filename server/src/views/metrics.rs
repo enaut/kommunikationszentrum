@@ -39,14 +39,25 @@ pub fn total_messages(ctx: &AnonymousViewContext) -> Vec<CountRow> {
 #[spacetimedb::view(accessor = topic_message_counts, public)]
 pub fn topic_message_counts(ctx: &ViewContext) -> Vec<TopicMessageCount> {
     let is_admin = is_admin_user(ctx);
+    let config = crate::views::member::get_account_config(ctx);
     let mut counts = Vec::new();
     for topic in crate::views::member::visible_message_topics(ctx) {
         let rows = ctx.db.received_message().topic_id().filter(&topic.id);
-        let count = if is_admin {
-            rows.count() as u64
-        } else {
+        let count = if !is_admin {
             rows.filter(|m| matches!(m.disposition, MessageDisposition::Accepted))
                 .count() as u64
+        } else if let Some(ref filter) = config.message_disposition_filter {
+            match filter.as_str() {
+                "accepted" => rows
+                    .filter(|m| matches!(m.disposition, MessageDisposition::Accepted))
+                    .count() as u64,
+                "rejected" => rows
+                    .filter(|m| matches!(m.disposition, MessageDisposition::Rejected(_)))
+                    .count() as u64,
+                _ => rows.count() as u64,
+            }
+        } else {
+            rows.count() as u64
         };
         counts.push(TopicMessageCount {
             topic_id: topic.id,

@@ -9,8 +9,11 @@ use crate::module_bindings::dioxus::{
     use_table_total_messages, use_table_visible_account_configs, use_table_visible_mail_messages,
     use_table_visible_message_topics, use_table_visible_messages, use_table_visible_subscriptions,
 };
-use crate::module_bindings::{MailMessage, ReceivedMessage};
+use crate::module_bindings::{
+    MailMessage, MessageDisposition, ReceivedMessage, TopicRejectionReason,
+};
 use crate::oauth::UserInfo;
+use crate::router::use_is_admin;
 use spacetimedb_sdk::Timestamp;
 
 /// Combined message data that joins ReceivedMessage with its MailMessage content
@@ -21,6 +24,17 @@ struct MessageWithContent {
 }
 
 impl MessageWithContent {
+    fn rejection_reason(&self) -> Option<TopicRejectionReason> {
+        match self.received_message.disposition {
+            MessageDisposition::Rejected(reason) => Some(reason),
+            MessageDisposition::Accepted => None,
+        }
+    }
+
+    fn is_oversize(&self) -> bool {
+        matches!(self.rejection_reason(), Some(TopicRejectionReason::Oversize))
+    }
+
     fn subject(&self) -> String {
         crate::mime_parser::decode_header_value("Subject", &self.mail_message.subject)
     }
@@ -132,8 +146,12 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         .find(|a| a.external_id == user_info.subject_id)
         .map(|a| a.id)
         .unwrap_or(0);
+    let is_admin = use_is_admin();
     let config = configs().into_iter().next();
     let filter_topic = config.as_ref().and_then(|c| c.selected_message_topic);
+    let filter_disposition = config
+        .as_ref()
+        .and_then(|c| c.message_disposition_filter.as_deref());
     let current_offset = config.as_ref().map(|c| c.message_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.message_limit).unwrap_or(50);
 
@@ -143,6 +161,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             .find(|c| c.topic_id == top_id)
             .map(|c| c.count as u32)
             .unwrap_or(0)
+    } else if filter_disposition.is_some() || !is_admin {
+        topic_message_counts_table()
+            .into_iter()
+            .map(|c| c.count as u32)
+            .sum()
     } else {
         total_messages_table()
             .into_iter()
@@ -205,7 +228,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                         {tid!("messages-page-title")}
                     }
                     p { class: "text-muted mt-1",
-                        Badge { color: Color::Primary, class: "me-2", "{messages_with_content.len()}" }
+                        Badge { color: Color::Primary, class: "me-2", "{total_msgs}" }
                         {tid!("messages-summary")}
                     }
                 }
@@ -215,6 +238,50 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             Row { class: "mb-3",
                 Col {
                     div { class: "d-flex flex-wrap gap-2 align-items-center",
+                        if is_admin {
+                            span { class: "text-muted small me-1", {tid!("messages-filter-status")} }
+                            div { class: "btn-group btn-group-sm me-2",
+                                Button {
+                                    color: if filter_disposition.is_none() { Color::Primary } else { Color::Secondary },
+                                    outline: filter_disposition.is_some(),
+                                    size: Size::Sm,
+                                    onclick: {
+                                        let update_config = update_config.clone();
+                                        move |_| {
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, None, true);
+                                            selected_id.set(None);
+                                        }
+                                    },
+                                    {tid!("messages-filter-status-all")}
+                                }
+                                Button {
+                                    color: if filter_disposition == Some("accepted") { Color::Success } else { Color::Secondary },
+                                    outline: filter_disposition != Some("accepted"),
+                                    size: Size::Sm,
+                                    onclick: {
+                                        let update_config = update_config.clone();
+                                        move |_| {
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, Some("accepted".to_string()), false);
+                                            selected_id.set(None);
+                                        }
+                                    },
+                                    {tid!("messages-filter-status-accepted")}
+                                }
+                                Button {
+                                    color: if filter_disposition == Some("rejected") { Color::Danger } else { Color::Secondary },
+                                    outline: filter_disposition != Some("rejected"),
+                                    size: Size::Sm,
+                                    onclick: {
+                                        let update_config = update_config.clone();
+                                        move |_| {
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, Some("rejected".to_string()), false);
+                                            selected_id.set(None);
+                                        }
+                                    },
+                                    {tid!("messages-filter-status-rejected")}
+                                }
+                            }
+                        }
                         span { class: "text-muted small me-1", {tid!("messages-filter")} }
                         Button {
                             color: if filter_topic.is_none() { Color::Primary } else { Color::Secondary },
@@ -223,7 +290,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                             onclick: {
                                 let update_config = update_config.clone();
                                 move |_| {
-                                    let _ = update_config(None, None, None, true, None, None, None, false, None, false, None, None);
+                                    let _ = update_config(Some(0), None, None, true, None, None, None, false, None, false, None, None, None, false);
                                     selected_id.set(None);
                                 }
                             },
@@ -231,7 +298,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                         }
                         for top in topics()
                             .into_iter()
-                            .filter(|t| t.active && subscribed_topic_ids.contains(&t.id))
+                            .filter(|t| t.active && (is_admin || subscribed_topic_ids.contains(&t.id)))
                         {
                             {
                                 let top_id = top.id;
@@ -244,7 +311,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                         onclick: {
                                             let update_config = update_config.clone();
                                             move |_| {
-                                                let _ = update_config(Some(0), None, Some(top_id), false, None, None, None, false, None, false, None, None);
+                                                let _ = update_config(Some(0), None, Some(top_id), false, None, None, None, false, None, false, None, None, None, false);
                                                 selected_id.set(None);
                                             }
                                         },
@@ -263,9 +330,9 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     let update_config = update_config.clone();
                                     move |_| {
                                         if current_offset >= current_limit {
-                                            let _ = update_config(Some(current_offset - current_limit), None, None, false, None, None, None, false, None, false, None, None);
+                                            let _ = update_config(Some(current_offset - current_limit), None, None, false, None, None, None, false, None, false, None, None, None, false);
                                         } else {
-                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None);
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, None, false);
                                         }
                                     }
                                 },
@@ -278,11 +345,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 color: Color::Secondary,
                                 outline: true,
                                 size: Size::Sm,
-                                disabled: current_offset + current_limit >= total_msgs,
+                                disabled: current_offset + current_limit >= total_msgs || filtered.len() < current_limit as usize,
                                 onclick: {
                                     let update_config = update_config.clone();
                                     move |_| {
-                                        let _ = update_config(Some(current_offset + current_limit), None, None, false, None, None, None, false, None, false, None, None);
+                                        let _ = update_config(Some(current_offset + current_limit), None, None, false, None, None, None, false, None, false, None, None, None, false);
                                     }
                                 },
                                 Icon { name: "chevron-right" }
@@ -296,7 +363,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             if filtered.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "inbox", class: "me-2" }
-                    if filter_topic.is_none() {
+                    if let Some("rejected") = filter_disposition {
+                        {tid!("messages-empty-rejected")}
+                    } else if let Some("accepted") = filter_disposition {
+                        {tid!("messages-empty-accepted")}
+                    } else if filter_topic.is_none() {
                         {tid!("messages-empty")}
                     } else {
                         {tid!("messages-empty-topic")}
@@ -333,11 +404,30 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                     class: "px-3 py-2",
                                                     onclick: move |_| selected_id.set(Some(msg_id)),
                                                     div { class: "d-flex justify-content-between align-items-start mb-1",
-                                                        Badge {
-                                                            color: badge_color,
-                                                            class: "text-truncate",
-                                                            style: "max-width: 10rem;",
-                                                            "{top_email}"
+                                                        div { class: "d-flex align-items-center gap-1 flex-wrap",
+                                                            Badge {
+                                                                color: badge_color,
+                                                                class: "text-truncate",
+                                                                style: "max-width: 10rem;",
+                                                                "{top_email}"
+                                                            }
+                                                            if let Some(reason) = msg.rejection_reason() {
+                                                                Badge {
+                                                                    color: Color::Danger,
+                                                                    class: "text-nowrap",
+                                                                    {tid!("messages-status-rejected")}
+                                                                }
+                                                                Badge {
+                                                                    color: if msg.is_oversize() { Color::Warning } else { Color::Secondary },
+                                                                    class: "text-nowrap",
+                                                                    match reason {
+                                                                        TopicRejectionReason::NotRegistered => tid!("messages-reason-not-registered"),
+                                                                        TopicRejectionReason::NotSubscribed => tid!("messages-reason-not-subscribed"),
+                                                                        TopicRejectionReason::NoWritePermission => tid!("messages-reason-no-write-permission"),
+                                                                        TopicRejectionReason::Oversize => tid!("messages-reason-oversize"),
+                                                                    }
+                                                                }
+                                                            }
                                                         }
                                                         small { class: if is_sel { "text-white-50 text-nowrap ms-2" } else { "text-muted text-nowrap ms-2" },
                                                             "{date_str}"
@@ -364,6 +454,18 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 header: rsx! {
                                     div { class: "d-flex align-items-center gap-2 flex-wrap",
                                         Badge { color: topic_badge_color(msg.topic_id()), "{msg.topic_email()}" }
+                                        if let Some(reason) = msg.rejection_reason() {
+                                            Badge { color: Color::Danger, {tid!("messages-status-rejected")} }
+                                            Badge {
+                                                color: if msg.is_oversize() { Color::Warning } else { Color::Secondary },
+                                                match reason {
+                                                    TopicRejectionReason::NotRegistered => tid!("messages-reason-not-registered"),
+                                                    TopicRejectionReason::NotSubscribed => tid!("messages-reason-not-subscribed"),
+                                                    TopicRejectionReason::NoWritePermission => tid!("messages-reason-no-write-permission"),
+                                                    TopicRejectionReason::Oversize => tid!("messages-reason-oversize"),
+                                                }
+                                            }
+                                        }
                                         span { class: "fw-semibold",
                                             if msg.subject().is_empty() {
                                                 {tid!("messages-no-subject")}
@@ -375,6 +477,38 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     }
                                 },
                                 body: rsx! {
+                                    if let Some(reason) = msg.rejection_reason() {
+                                        Alert {
+                                            color: if msg.is_oversize() { Color::Warning } else { Color::Danger },
+                                            class: "d-flex align-items-center mb-3",
+                                            Icon {
+                                                name: if msg.is_oversize() { "exclamation-triangle-fill" } else { "x-circle-fill" },
+                                                class: "me-2 fs-5 flex-shrink-0"
+                                            }
+                                            div {
+                                                div { class: "fw-bold",
+                                                    {tid!("messages-status-rejected")}
+                                                    ": "
+                                                    span { class: "fw-normal",
+                                                        match reason {
+                                                            TopicRejectionReason::NotRegistered => tid!("messages-reason-not-registered"),
+                                                            TopicRejectionReason::NotSubscribed => tid!("messages-reason-not-subscribed"),
+                                                            TopicRejectionReason::NoWritePermission => tid!("messages-reason-no-write-permission"),
+                                                            TopicRejectionReason::Oversize => tid!("messages-reason-oversize"),
+                                                        }
+                                                    }
+                                                }
+                                                div { class: "small text-muted",
+                                                    match reason {
+                                                        TopicRejectionReason::NotRegistered => tid!("messages-reason-desc-not-registered"),
+                                                        TopicRejectionReason::NotSubscribed => tid!("messages-reason-desc-not-subscribed"),
+                                                        TopicRejectionReason::NoWritePermission => tid!("messages-reason-desc-no-write-permission"),
+                                                        TopicRejectionReason::Oversize => tid!("messages-reason-desc-oversize"),
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     // ── Parsed header fields ───────────────
                                     Table {
                                     size: Size::Sm,
@@ -424,7 +558,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     if msg.body_raw().is_empty() {
                                         Alert { color: Color::Warning, class: "small mb-0",
                                             Icon { name: "exclamation-triangle", class: "me-1" }
-                                            {tid!("messages-body-empty")}
+                                            if msg.is_oversize() {
+                                                {tid!("messages-oversize-notice")}
+                                            } else {
+                                                {tid!("messages-body-empty")}
+                                            }
                                         }
                                     } else {
                                         div { class: "d-flex justify-content-end mb-2",
