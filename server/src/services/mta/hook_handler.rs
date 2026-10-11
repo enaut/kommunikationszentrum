@@ -8,7 +8,8 @@ use crate::models::mta::*;
 use crate::models::topic::{SubscriptionPermission, message_topics, subscriptions};
 use crate::reducers::delivery::upsert_mail_ingress;
 use crate::services::mta::envelope_parser::{
-    extract_header, extract_subject_from_request, parse_email_addresses,
+    extract_envelope_from_address, extract_from_header_address, extract_header,
+    extract_subject_from_request, parse_email_addresses,
 };
 use crate::services::mta::rejection::{
     MAX_MESSAGE_SIZE_BYTES, RejectedTopic, TopicRejectionReason, build_oversize_email,
@@ -52,11 +53,9 @@ pub fn insert_mail_message(
 }
 
 pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timestamp: Timestamp) {
-    let from_address = request
-        .envelope
-        .as_ref()
-        .map(|env| env.from.address.as_str())
-        .unwrap_or("unknown");
+    let header_from_email = extract_from_header_address(request);
+    let envelope_from_email = extract_envelope_from_address(request);
+
     let message_size = request
         .message
         .as_ref()
@@ -65,8 +64,9 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
     let subject = extract_subject_from_request(request);
 
     log::trace!(
-        "DATA stage - From: {}, Size: {}, Subject: {}",
-        from_address,
+        "DATA stage - Header From: {:?}, Envelope From: {:?}, Size: {}, Subject: {}",
+        header_from_email,
+        envelope_from_email,
         message_size,
         subject
     );
@@ -126,6 +126,50 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
         }
     }
 
+    let find_active_account_emails = |email: &str| -> Vec<crate::models::account::AccountEmail> {
+        let email_lower = email.to_lowercase();
+        ctx.db
+            .account_emails()
+            .email()
+            .filter(&email_lower)
+            .filter(|ae| ae.is_verified)
+            .filter(|ae| {
+                ctx.db
+                    .account()
+                    .id()
+                    .find(&ae.account_id)
+                    .map_or(false, |acc| acc.is_active)
+            })
+            .collect()
+    };
+
+    // Determine the effective sender email address and matching verified active accounts:
+    // 1. Prefer the address from the message's `From` header (RFC 5322 author).
+    //    If it matches a verified active account in the system, use it.
+    // 2. Otherwise, check if the SMTP envelope sender (`MAIL FROM`) matches an active account.
+    // 3. If neither matches an account, fall back to the `From` header address (or envelope address)
+    //    as the effective sender for rejection notices and logging.
+    let (from_address, sender_account_emails) = if let Some(header_addr) = &header_from_email {
+        let accounts = find_active_account_emails(header_addr);
+        if !accounts.is_empty() {
+            (header_addr.clone(), accounts)
+        } else if let Some(env_addr) = &envelope_from_email {
+            let env_accounts = find_active_account_emails(env_addr);
+            if !env_accounts.is_empty() {
+                (env_addr.clone(), env_accounts)
+            } else {
+                (header_addr.clone(), Vec::new())
+            }
+        } else {
+            (header_addr.clone(), Vec::new())
+        }
+    } else if let Some(env_addr) = &envelope_from_email {
+        let env_accounts = find_active_account_emails(env_addr);
+        (env_addr.clone(), env_accounts)
+    } else {
+        ("unknown".to_string(), Vec::new())
+    };
+
     if is_oversize_message(message_size) && !target_topics.is_empty() {
         log::warn!(
             "Not forwarding oversized message from {} ({} bytes; maximum {} bytes)",
@@ -134,7 +178,7 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
             MAX_MESSAGE_SIZE_BYTES
         );
 
-        if is_valid_bounce_recipient(from_address) {
+        if is_valid_bounce_recipient(&from_address) {
             let (notice_subject, notice_body) =
                 build_oversize_email(&subject, message_size, MAX_MESSAGE_SIZE_BYTES);
             ctx.db.system_mail_pending().insert(SystemMailPending {
@@ -157,22 +201,6 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
         });
         return;
     }
-
-    let from_lower = from_address.to_lowercase();
-    let sender_account_emails: Vec<crate::models::account::AccountEmail> = ctx
-        .db
-        .account_emails()
-        .email()
-        .filter(&from_lower)
-        .filter(|ae| ae.is_verified)
-        .filter(|ae| {
-            ctx.db
-                .account()
-                .id()
-                .find(&ae.account_id)
-                .map_or(false, |acc| acc.is_active)
-        })
-        .collect();
 
     let sender_account_ids: Vec<u64> = sender_account_emails
         .iter()
@@ -263,12 +291,12 @@ pub fn handle_data_stage(ctx: &ReducerContext, request: &MtaHookRequest, timesta
     }
 
     // If any topics were rejected, queue a rejection response from SMTP_SYSTEM_USER
-    if !rejected_topics.is_empty() && is_valid_bounce_recipient(from_address) {
+    if !rejected_topics.is_empty() && is_valid_bounce_recipient(&from_address) {
         let (rejection_subject, rejection_body) = build_rejection_email(
             &subject,
             request.message.as_ref(),
             &rejected_topics,
-            from_address,
+            &from_address,
         );
 
         ctx.db.system_mail_pending().insert(SystemMailPending {

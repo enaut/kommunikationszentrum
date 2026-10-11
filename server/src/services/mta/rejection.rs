@@ -46,6 +46,7 @@ pub fn is_valid_bounce_recipient(from: &str) -> bool {
         || local_part == "postmaster"
         || local_part == "no-reply"
         || local_part == "noreply"
+        || local_part.starts_with("bounce")
     {
         return false;
     }
@@ -205,6 +206,8 @@ mod tests {
         assert!(!is_valid_bounce_recipient("postmaster@example.com"));
         assert!(!is_valid_bounce_recipient("no-reply@example.com"));
         assert!(!is_valid_bounce_recipient("noreply@example.com"));
+        assert!(!is_valid_bounce_recipient("bounce.123@example.com"));
+        assert!(!is_valid_bounce_recipient("bounces+tag@example.com"));
     }
 
     #[test]
