@@ -169,6 +169,11 @@ pub fn complete_mail_ingress(
     if !is_admin_identity(ctx, ctx.sender()) {
         return Err(format!("Unauthorized: {:?}", ctx.sender()));
     }
+    if let Some(row) = ctx.db.mail_ingress().id().find(&ingress_id) {
+        if row.claim.status == DeliveryStatus::Completed {
+            return Ok(());
+        }
+    }
     let mut row = require_ingress_claimed_by_me(ctx, &ingress_id, &instance_id)?;
 
     row.claim.status = DeliveryStatus::Completed;
@@ -471,6 +476,15 @@ pub fn schedule_mail_delivery_retry(
 ) -> Result<(), String> {
     if !is_admin_identity(ctx, ctx.sender()) {
         return Err(format!("Unauthorized: {:?}", ctx.sender()));
+    }
+    if ctx
+        .db
+        .mail_delivery_temporary_failed()
+        .delivery_id()
+        .find(&delivery_id)
+        .is_some()
+    {
+        return Ok(());
     }
     let claimed = require_claimed_by_me(ctx, &delivery_id, &instance_id)?;
 

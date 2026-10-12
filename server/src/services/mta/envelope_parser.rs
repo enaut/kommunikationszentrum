@@ -94,3 +94,146 @@ pub fn parse_email_addresses(header: &str) -> Vec<String> {
         })
         .collect()
 }
+
+pub fn extract_from_header_address(request: &MtaHookRequest) -> Option<String> {
+    let message = request.message.as_ref()?;
+    let from_raw = extract_header(&message.headers, "from")?;
+    let decoded = decode_rfc2047_header("From", &from_raw);
+    parse_email_addresses(&decoded).into_iter().next()
+}
+
+/// Extract the envelope sender address, if present, non-empty, and valid.
+pub fn extract_envelope_from_address(request: &MtaHookRequest) -> Option<String> {
+    request
+        .envelope
+        .as_ref()
+        .map(|env| env.from.address.trim().to_string())
+        .filter(|s| !s.is_empty() && s != "<>" && !s.eq_ignore_ascii_case("unknown"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_test_request(
+        envelope_from: Option<&str>,
+        from_header: Option<&str>,
+        subject: Option<&str>,
+    ) -> MtaHookRequest {
+        let envelope_json = envelope_from.map(|ef| {
+            serde_json::json!({
+                "from": { "address": ef },
+                "to": [{ "address": "topic@example.com" }]
+            })
+        });
+
+        let mut headers = Vec::new();
+        if let Some(fh) = from_header {
+            headers.push(vec!["From", fh]);
+        }
+        if let Some(sub) = subject {
+            headers.push(vec!["Subject", sub]);
+        }
+
+        let message_json = if from_header.is_some() || subject.is_some() {
+            Some(serde_json::json!({
+                "headers": headers,
+                "server_headers": [],
+                "contents": "Test content",
+                "size": 100
+            }))
+        } else {
+            None
+        };
+
+        let json = serde_json::json!({
+            "context": {
+                "stage": "data",
+                "client": { "ip": "127.0.0.1", "port": 2525, "activeConnections": 1 },
+                "server": { "name": "Stalwart", "port": 25, "ip": "127.0.0.1" },
+                "protocol": { "version": 1 }
+            },
+            "envelope": envelope_json,
+            "message": message_json
+        });
+
+        serde_json::from_value(json).expect("valid MtaHookRequest")
+    }
+
+    #[test]
+    fn test_extract_from_header_address() {
+        let req1 = make_test_request(
+            Some("bounce@relay.example.com"),
+            Some("Franz Dietrich <dietrich@teilgedanken.de>\r\n"),
+            None,
+        );
+        assert_eq!(
+            extract_from_header_address(&req1),
+            Some("dietrich@teilgedanken.de".to_string())
+        );
+
+        let req2 = make_test_request(
+            Some("bounce@relay.example.com"),
+            Some("<dietrich@teilgedanken.de>"),
+            None,
+        );
+        assert_eq!(
+            extract_from_header_address(&req2),
+            Some("dietrich@teilgedanken.de".to_string())
+        );
+
+        let req3 = make_test_request(
+            Some("bounce@relay.example.com"),
+            Some("dietrich@teilgedanken.de"),
+            None,
+        );
+        assert_eq!(
+            extract_from_header_address(&req3),
+            Some("dietrich@teilgedanken.de".to_string())
+        );
+
+        let req4 = make_test_request(Some("bounce@relay.example.com"), None, None);
+        assert_eq!(extract_from_header_address(&req4), None);
+    }
+
+    #[test]
+    fn test_extract_envelope_from_address() {
+        let req1 = make_test_request(
+            Some("bounce.qs7b6n034mp4dy4=93cyiwtacik1=ae9wn8zzu7hmzd@em243835.teilgedanken.de"),
+            None,
+            None,
+        );
+        assert_eq!(
+            extract_envelope_from_address(&req1),
+            Some(
+                "bounce.qs7b6n034mp4dy4=93cyiwtacik1=ae9wn8zzu7hmzd@em243835.teilgedanken.de"
+                    .to_string()
+            )
+        );
+
+        let req2 = make_test_request(Some("<>"), None, None);
+        assert_eq!(extract_envelope_from_address(&req2), None);
+
+        let req3 = make_test_request(Some("unknown"), None, None);
+        assert_eq!(extract_envelope_from_address(&req3), None);
+
+        let req4 = make_test_request(None, None, None);
+        assert_eq!(extract_envelope_from_address(&req4), None);
+    }
+
+    #[test]
+    fn test_parse_email_addresses() {
+        assert_eq!(
+            parse_email_addresses("Franz Dietrich <dietrich@teilgedanken.de>"),
+            vec!["dietrich@teilgedanken.de"]
+        );
+        assert_eq!(
+            parse_email_addresses("alice@example.com, bob@example.com"),
+            vec!["alice@example.com", "bob@example.com"]
+        );
+        assert_eq!(
+            parse_email_addresses("invalid; <valid@example.org>"),
+            vec!["valid@example.org"]
+        );
+    }
+}

@@ -14,17 +14,21 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self, String> {
-        let listen_addr = env::var("NC_SYNC_LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8088".to_string());
+        let listen_addr =
+            env::var("NC_SYNC_LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8088".to_string());
         let webhook_secret = env::var("NC_WEBHOOK_SECRET")
             .map_err(|_| "NC_WEBHOOK_SECRET environment variable is required".to_string())?;
         let webhook_secret = webhook_secret.trim().to_string();
         if webhook_secret.is_empty() {
             return Err("NC_WEBHOOK_SECRET environment variable must not be empty".to_string());
         }
-        let nc_url = env::var("NC_URL").map_err(|_| "NC_URL environment variable is required".to_string())?;
-        let nc_user = env::var("NC_USER").map_err(|_| "NC_USER environment variable is required".to_string())?;
-        let nc_app_password = env::var("NC_APP_PASSWORD").map_err(|_| "NC_APP_PASSWORD environment variable is required".to_string())?;
-        
+        let nc_url = env::var("NC_URL")
+            .map_err(|_| "NC_URL environment variable is required".to_string())?;
+        let nc_user = env::var("NC_USER")
+            .map_err(|_| "NC_USER environment variable is required".to_string())?;
+        let nc_app_password = env::var("NC_APP_PASSWORD")
+            .map_err(|_| "NC_APP_PASSWORD environment variable is required".to_string())?;
+
         let reconcile_interval_secs = env::var("NC_RECONCILE_INTERVAL_SECS")
             .ok()
             .and_then(|s| s.parse::<u64>().ok())

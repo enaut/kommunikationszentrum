@@ -81,6 +81,8 @@ pub fn AddSubscriberModal(
                                 false,
                                 None,
                                 None,
+                                None,
+                                false,
                             );
                         }
                         None => {
@@ -97,6 +99,8 @@ pub fn AddSubscriberModal(
                                 false,
                                 None,
                                 None,
+                                None,
+                                false,
                             );
                         }
                     }
@@ -140,6 +144,8 @@ pub fn AddSubscriberModal(
                     false,
                     None,
                     None,
+                    None,
+                    false,
                 );
             } else if !is_open && had_open {
                 // Restore original member filters when closing
@@ -241,9 +247,9 @@ pub fn AddSubscriberModal(
                                     let trimmed = new_val.trim().to_string();
                                     account_filter.set(new_val);
                                     if trimmed.is_empty() {
-                                        let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+                                        let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None, None, false);
                                     } else {
-                                        let _ = update_config(None, None, None, false, Some(0), None, Some(trimmed), false, None, false, None, None);
+                                        let _ = update_config(None, None, None, false, Some(0), None, Some(trimmed), false, None, false, None, None, None, false);
                                     }
                                 }
                             },
@@ -328,7 +334,7 @@ pub fn AddSubscriberModal(
                     onclick: {
                         let update_config = update_config.clone();
                         move |_| {
-                            let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+                            let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None, None, false);
                             show.set(false);
                         }
                     },
@@ -351,7 +357,7 @@ pub fn AddSubscriberModal(
                             );
                             match admin_add_subscription(acc_id, email_id, topic_id, status) {
                                 Ok(()) => {
-                                    let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+                                    let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None, None, false);
                                     show.set(false);
                                 }
                                 Err(e) => {

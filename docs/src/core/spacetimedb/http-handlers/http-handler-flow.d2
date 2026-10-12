@@ -84,13 +84,13 @@ direction: right
     shape: cylinder
     label: "webhook_tokens\n(token_hash, permissions)"
   }
-  mta_logs: {
+  blocked_ips: {
     shape: cylinder
-    label: "mta_connection_log\nmta_message_log"
+    label: "blocked_ips\n(IP blocklist)"
   }
   mail_ingress: {
     shape: cylinder
-    label: "mail_ingress\nreceived_message"
+    label: "mail_message\nreceived_message\nmail_ingress"
   }
   accounts: {
     shape: cylinder
@@ -123,9 +123,9 @@ direction: right
 "SpacetimeDB Module"."HTTP Handlers".TopicSyncHandler -> "SpacetimeDB Module"."Transactional Context".TopicSyncLogic: "ctx.with_tx(...)"
 "SpacetimeDB Module"."HTTP Handlers".UnsubscribeHandler -> "SpacetimeDB Module"."Transactional Context".UnsubscribeLogic: "ctx.with_tx(...)"
 
-# Logic → DB writes
-"SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mta_logs: "Audit log"
-"SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mail_ingress: "Persist message"
+# Logic → DB operations
+"SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".blocked_ips: "IP check (Connect)"
+"SpacetimeDB Module"."Transactional Context".MtaLogic -> "Database Tables".mail_ingress: "Persist topic delivery"
 "SpacetimeDB Module"."Transactional Context".SyncLogic -> "Database Tables".accounts: "Upsert / delete"
 "SpacetimeDB Module"."Transactional Context".TopicSyncLogic -> "Database Tables".accounts: "Upsert topics / categories"
 "SpacetimeDB Module"."Transactional Context".UnsubscribeLogic -> "Database Tables".tokens: "Check & revoke token"

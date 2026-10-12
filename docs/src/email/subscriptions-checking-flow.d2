@@ -1,34 +1,30 @@
 direction: down
 
-incoming_message: "Incoming Message\nFrom: sender@example.com\nTo: news@solawis.de"
-extract_metadata: "Extract\nSender & Recipients"
-lookup_topics: "Lookup Target\nTopics" { shape: cylinder }
-check_subscriptions: "Check Sender\nSubscriptions" { shape: diamond }
-all_subscribed: "All Topics\nSubscribed?" { shape: diamond }
-
-accept_message: "ACCEPT\nAdd Headers & Deliver" {
+incoming_message: "Incoming Message (DATA Stage)\nEnvelope To: topic@solawis.de"
+extract_metadata: "Extract Envelope Recipients\n& Sender Address"
+topic_match: "Match Envelope.To\nagainst message_topics" { shape: diamond }
+non_topic: "Non-Topic Mail\nPass-Through ACCEPT (Zero DB writes)" {
   style.stroke: green
 }
-quarantine_message: "QUARANTINE\nNot Subscribed" {
-  style.stroke: orange
+admin_check: "Sender has Admin Identity?" { shape: diamond }
+sub_check: "Active Account, Verified Email,\nActive Write Subscription?" { shape: diamond }
+
+accepted: "ACCEPTED\n• Add X-Processed-By\n• Queue mail_ingress fan-out\n• Record ReceivedMessage(Accepted)" {
+  style.stroke: green
 }
-reject_message: "REJECT\nInvalid Topic" {
+
+rejected: "REJECTED (Per-Topic)\n• Append Subject (rejected from ...)\n• Record ReceivedMessage(Rejected(reason))\n• Queue system rejection notice\n• No mail_ingress fan-out" {
   style.stroke: red
 }
 
-log_decision: "Log Decision\nto mta_message_log" { shape: cylinder }
-
 incoming_message -> extract_metadata
-extract_metadata -> lookup_topics
+extract_metadata -> topic_match
 
-lookup_topics -> check_subscriptions: "Topics Found"
-lookup_topics -> reject_message: "Topic Not Found"
+topic_match -> non_topic: "No topic matched"
+topic_match -> admin_check: "Topic matched"
 
-check_subscriptions -> all_subscribed
+admin_check -> accepted: "Yes (Admin bypass)"
+admin_check -> sub_check: "No"
 
-all_subscribed -> accept_message: "Yes"
-all_subscribed -> quarantine_message: "No"
-
-accept_message -> log_decision
-quarantine_message -> log_decision
-reject_message -> log_decision
+sub_check -> accepted: "Yes"
+sub_check -> rejected: "No (NotRegistered, NotSubscribed,\nNoWritePermission, or Oversize)"

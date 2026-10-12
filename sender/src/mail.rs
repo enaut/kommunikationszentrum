@@ -62,24 +62,30 @@ pub fn build_transport(
     password: &str,
 ) -> Result<AsyncSmtpTransport<Tokio1Executor>, Box<dyn Error>> {
     let mut builder = if config.smtp_use_tls {
-        let tls = if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
-            let mut tls_builder = TlsParameters::builder(config.smtp_host.clone());
+        let tls_parameters =
+            if config.smtp_accept_invalid_certs || config.smtp_accept_invalid_hostnames {
+                let mut tls_builder = TlsParameters::builder(config.smtp_host.clone());
 
-            if config.smtp_accept_invalid_certs {
-                tls_builder = tls_builder.dangerous_accept_invalid_certs(true);
-            }
+                if config.smtp_accept_invalid_certs {
+                    tls_builder = tls_builder.dangerous_accept_invalid_certs(true);
+                }
 
-            if config.smtp_accept_invalid_hostnames {
-                tls_builder = tls_builder.dangerous_accept_invalid_hostnames(true);
-            }
+                if config.smtp_accept_invalid_hostnames {
+                    tls_builder = tls_builder.dangerous_accept_invalid_hostnames(true);
+                }
 
-            Tls::Required(tls_builder.build()?)
+                tls_builder.build()?
+            } else {
+                TlsParameters::builder(config.smtp_host.clone()).build()?
+            };
+
+        let tls = if config.smtp_port == 465 {
+            Tls::Wrapper(tls_parameters)
         } else {
-            let tls_parameters = TlsParameters::builder(config.smtp_host.clone()).build()?;
             Tls::Required(tls_parameters)
         };
 
-        AsyncSmtpTransport::<Tokio1Executor>::relay(&config.smtp_host)?.tls(tls)
+        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.smtp_host).tls(tls)
     } else {
         AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&config.smtp_host)
     };
@@ -153,7 +159,7 @@ pub fn compose_delivery(
 
     let recipient_email = subscriber_email;
     let subject = clean_unsubscribe_content(&rewrite_subject(&list_name, &message.subject));
-    let reply_to = &message.sender_email;
+    let reply_to = &topic.email_address;
     let msg_id = format!(
         "<{}@{}>",
         message_id_seed(ingress_id, recipient_email),

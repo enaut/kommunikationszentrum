@@ -175,8 +175,6 @@ Decision: ACCEPT / REJECT / QUARANTINE
 - **`person`**: User accounts
 - **`message_categories`**: Email categories (mailing lists)
 - **`subscriptions`**: User subscriptions to categories
-- **`mta_connection_log`**: Connection-level MTA logs
-- **`mta_message_log`**: Message-level MTA logs  
 - **`blocked_ips`**: IP blacklist for spam protection
 
 ## Development Workflow

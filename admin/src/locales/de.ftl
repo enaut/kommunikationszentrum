@@ -64,6 +64,8 @@ messages-filter-all = Alle
 messages-empty = Keine Nachrichten vorhanden.
 messages-empty-topic = Keine Nachrichten für dieses Thema.
 messages-empty-category = Keine Nachrichten für diese Kategorie.
+messages-empty-accepted = Keine angenommenen Nachrichten vorhanden.
+messages-empty-rejected = Keine abgelehnten Nachrichten vorhanden.
 messages-no-subject = (kein Betreff)
 messages-select-placeholder = Nachricht aus der Liste auswählen
 messages-header-from = Von
@@ -73,8 +75,24 @@ messages-header-date = Datum
 messages-header-message-id = Message-ID
 messages-header-reply-to = Reply-To
 messages-body-empty = Nachrichteninhalt nicht gespeichert (Nachricht zu groß).
+messages-oversize-notice = Zu große Nachricht – Inhalt ist nur im Postfach des Themas gespeichert.
 messages-view-rendered = Formatiert
 messages-view-raw = Quelltext
+messages-filter-status = Status:
+messages-filter-status-all = Alle
+messages-filter-status-accepted = Angenommen
+messages-filter-status-rejected = Abgelehnt
+messages-status-accepted = Angenommen
+messages-status-rejected = Abgelehnt
+messages-status-rejected-reason = Abgelehnt: { $reason }
+messages-reason-not-registered = Nicht registriert
+messages-reason-not-subscribed = Nicht abonniert
+messages-reason-no-write-permission = Keine Schreibrechte
+messages-reason-oversize = Zu groß
+messages-reason-desc-not-registered = Die Absenderadresse ist nicht registriert, unbestätigt oder inaktiv.
+messages-reason-desc-not-subscribed = Der Absender hat dieses Thema mit dieser E-Mail-Adresse nicht abonniert.
+messages-reason-desc-no-write-permission = Der Absender besitzt für dieses Thema nur Leserechte.
+messages-reason-desc-oversize = Nachricht überschreitet die Größenbeschränkung von 2 MB.
 
 # Subscriptions
 subscriptions-page-title = Meine Themen
@@ -234,7 +252,19 @@ management-config-stalwart-save = Speichern
 management-config-stalwart-saving = Wird gespeichert…
 management-config-stalwart-saved = Stalwart-Konfiguration wurde erfolgreich gespeichert.
 management-config-stalwart-reset = Änderungen verwerfen
-management-config-stalwart-last-updated = Zuletzt aktualisiert
+management-config-stalwart-last-updated = Zuletzt aktualisiert: { $time }
+
+management-config-retention-title = Mail-Aufbewahrung & Bereinigung
+management-config-retention-help = Automatische Speicherbereinigungsregeln für abgewiesene Nachrichten konfigurieren.
+management-config-retention-rejected-days = Aufbewahrungsfrist für abgewiesene Mails (Tage)
+management-config-retention-rejected-days-placeholder = 30
+management-config-retention-rejected-days-help = Abgewiesene Nachrichten, die älter als dieser Zeitraum sind, werden regelmäßig aus dem Speicher gelöscht, zusammen mit nicht mehr referenzierten Nachrichtenkörpern. Standard: 30 Tage.
+management-config-retention-save = Speichern
+management-config-retention-saving = Wird gespeichert…
+management-config-retention-saved = Aufbewahrungskonfiguration wurde erfolgreich gespeichert.
+management-config-retention-reset = Änderungen verwerfen
+management-config-retention-last-updated = Zuletzt aktualisiert: { $time }
+
 
 management-status-title = Verwaltung · Status
 status-connection-title = SpacetimeDB Verbindung

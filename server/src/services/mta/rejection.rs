@@ -2,21 +2,12 @@ use stalwart_mta_hook_types::Message as MtaMessage;
 
 use crate::services::mta::envelope_parser::extract_header;
 
+pub use crate::models::mta::TopicRejectionReason;
+
 pub const MAX_MESSAGE_SIZE_BYTES: u64 = 2_000_000;
 
 pub fn is_oversize_message(message_size: u64) -> bool {
     message_size > MAX_MESSAGE_SIZE_BYTES
-}
-
-/// Reason why an email could not be delivered to a message topic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TopicRejectionReason {
-    /// The user is subscribed to the topic, but only has Read permission (no Write permission).
-    NoWritePermission,
-    /// The user has an active account, but has no active subscription to this topic.
-    NotSubscribed,
-    /// The sender's email address is not associated with any active verified account in the system.
-    NotRegistered,
 }
 
 /// Information about a message topic that rejected the incoming message.
@@ -46,6 +37,7 @@ pub fn is_valid_bounce_recipient(from: &str) -> bool {
         || local_part == "postmaster"
         || local_part == "no-reply"
         || local_part == "noreply"
+        || local_part.starts_with("bounce")
     {
         return false;
     }
@@ -53,39 +45,12 @@ pub fn is_valid_bounce_recipient(from: &str) -> bool {
     true
 }
 
-/// Builds the subject and body for a rejection notification email to be sent by SMTP_SYSTEM_USER.
-pub fn build_oversize_email(
-    original_subject: &str,
-    message_size: u64,
-    maximum_size: u64,
-) -> (String, String) {
-    let subject_clean = original_subject.trim();
-    let subject = if subject_clean.is_empty() || subject_clean.eq_ignore_ascii_case("no subject") {
-        "Rejected: message exceeds the mailing-list size limit".to_string()
-    } else {
-        format!("Rejected: {subject_clean}")
-    };
-
-    let body = format!(
-        "-------------------Deutsch------------------------\n\
-         Ihre E-Mail wurde nicht an die Mailingliste weitergeleitet, weil sie das Größenlimit überschreitet.\n\
-         Nachrichtengröße: {message_size} Bytes\n\
-         Maximale Größe: {maximum_size} Bytes\n\
-         \n\
-         -------------------English------------------------\n\
-         Your email was not forwarded to the mailing list because it exceeds the message size limit.\n\
-         Message size: {message_size} bytes\n\
-         Maximum size: {maximum_size} bytes\n"
-    );
-
-    (subject, body)
-}
-
 pub fn build_rejection_email(
     original_subject: &str,
     message: Option<&MtaMessage>,
     rejected_topics: &[RejectedTopic],
     from_address: &str,
+    message_size: u64,
 ) -> (String, String) {
     let subject_clean = original_subject.trim();
     let subject = if subject_clean.is_empty() || subject_clean.eq_ignore_ascii_case("no subject") {
@@ -150,6 +115,14 @@ pub fn build_rejection_email(
                     from_address
                 ));
             }
+            TopicRejectionReason::Oversize => {
+                body_de.push_str(&format!(
+                    "  Grund: Die Nachricht überschreitet das Größenlimit. Nachrichtengröße: {message_size} Bytes. Maximale Größe: {MAX_MESSAGE_SIZE_BYTES} Bytes.\n"
+                ));
+                body_en.push_str(&format!(
+                    "  Reason: The message exceeds the mailing-list size limit. Message size: {message_size} bytes. Maximum size: {MAX_MESSAGE_SIZE_BYTES} bytes.\n\n"
+                ));
+            }
         }
     }
 
@@ -179,6 +152,38 @@ pub fn build_rejection_email(
     (subject, body_de + "\n\n" + &body_en)
 }
 
+/// Format the modified Subject header to be returned to Stalwart when any target topic is rejected.
+///
+/// Returns `Some(new_subject)` if a suffix should be added, or `None` if no modification should be made
+/// (e.g. if no topics were rejected, or if the subject already contains `(rejected from `).
+///
+/// Rules:
+/// - Format: `<original_subject> (rejected from <topic_email1>, <topic_email2>)`
+/// - Fallback if subject is empty or whitespace: `No Subject (rejected from <topic_email1>, ...)`
+/// - Idempotent: If subject already contains `(rejected from `, do not append it again.
+pub fn format_subject_with_rejection(
+    original_subject: &str,
+    rejected_topic_emails: &[&str],
+) -> Option<String> {
+    if rejected_topic_emails.is_empty() {
+        return None;
+    }
+    if original_subject.contains("(rejected from ") {
+        return None;
+    }
+    let trimmed = original_subject.trim();
+    let base = if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("no subject") {
+        "No Subject"
+    } else {
+        trimmed
+    };
+    Some(format!(
+        "{} (rejected from {})",
+        base,
+        rejected_topic_emails.join(", ")
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -205,27 +210,8 @@ mod tests {
         assert!(!is_valid_bounce_recipient("postmaster@example.com"));
         assert!(!is_valid_bounce_recipient("no-reply@example.com"));
         assert!(!is_valid_bounce_recipient("noreply@example.com"));
-    }
-
-    #[test]
-    fn test_build_oversize_email_includes_size_and_reason() {
-        let (subject, body) = build_oversize_email("Planning", 2_000_001, 2_000_000);
-
-        assert_eq!(subject, "Rejected: Planning");
-        assert!(body.contains("2000001"));
-        assert!(body.contains("2000000"));
-        assert!(body.contains("nicht an die Mailingliste weitergeleitet"));
-        assert!(body.contains("not forwarded to the mailing list"));
-    }
-
-    #[test]
-    fn test_build_oversize_email_fallback_subject() {
-        let (subject, _) = build_oversize_email("No subject", 2_100_000, 2_000_000);
-
-        assert_eq!(
-            subject,
-            "Rejected: message exceeds the mailing-list size limit"
-        );
+        assert!(!is_valid_bounce_recipient("bounce.123@example.com"));
+        assert!(!is_valid_bounce_recipient("bounces+tag@example.com"));
     }
 
     #[test]
@@ -237,7 +223,7 @@ mod tests {
         }];
 
         let (subject, body) =
-            build_rejection_email("Frage zur Ernte", None, &rejected, "member@example.com");
+            build_rejection_email("Frage zur Ernte", None, &rejected, "member@example.com", 0);
 
         assert_eq!(subject, "Rejected: Frage zur Ernte");
         assert!(body.contains("Gartenbau <gartenbau@solawi.org>"));
@@ -256,7 +242,7 @@ mod tests {
         }];
 
         let (subject, body) =
-            build_rejection_email("Abholung morgen", None, &rejected, "member@example.com");
+            build_rejection_email("Abholung morgen", None, &rejected, "member@example.com", 0);
 
         assert_eq!(subject, "Rejected: Abholung morgen");
         assert!(body.contains("Verteilpunkt Nord <vp-nord@solawi.org>"));
@@ -273,7 +259,7 @@ mod tests {
         }];
 
         let (subject, body) =
-            build_rejection_email("Hallo", None, &rejected, "external@stranger.org");
+            build_rejection_email("Hallo", None, &rejected, "external@stranger.org", 0);
 
         assert_eq!(subject, "Rejected: Hallo");
         assert!(body.contains("external@stranger.org"));
@@ -290,8 +276,101 @@ mod tests {
         }];
 
         let (subject, _) =
-            build_rejection_email("No subject", None, &rejected, "external@stranger.org");
+            build_rejection_email("No subject", None, &rejected, "external@stranger.org", 0);
 
         assert_eq!(subject, "Rejected: Mail to aktuelles@solawi.org");
+    }
+
+    #[test]
+    fn test_build_rejection_email_oversize() {
+        let rejected = vec![RejectedTopic {
+            topic_name: "Aktuelles".to_string(),
+            topic_email: "aktuelles@solawi.org".to_string(),
+            reason: TopicRejectionReason::Oversize,
+        }];
+
+        let (subject, body) =
+            build_rejection_email("Planning", None, &rejected, "member@example.com", 2_000_001);
+
+        assert_eq!(subject, "Rejected: Planning");
+        assert!(body.contains("2000001"));
+        assert!(body.contains("2000000"));
+        assert!(body.contains("Größenlimit"));
+        assert!(body.contains("size limit"));
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_single_topic() {
+        let res = format_subject_with_rejection("Erntebericht", &["ernte@solawi.org"]);
+        assert_eq!(
+            res,
+            Some("Erntebericht (rejected from ernte@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_multiple_topics() {
+        let res = format_subject_with_rejection(
+            "Erntebericht",
+            &["ernte@solawi.org", "aktuelles@solawi.org"],
+        );
+        assert_eq!(
+            res,
+            Some("Erntebericht (rejected from ernte@solawi.org, aktuelles@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_empty_subject() {
+        let res = format_subject_with_rejection("", &["ernte@solawi.org"]);
+        assert_eq!(
+            res,
+            Some("No Subject (rejected from ernte@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_whitespace_subject() {
+        let res = format_subject_with_rejection("   \t  ", &["ernte@solawi.org"]);
+        assert_eq!(
+            res,
+            Some("No Subject (rejected from ernte@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_no_subject_case_insensitive() {
+        let res1 = format_subject_with_rejection("No subject", &["ernte@solawi.org"]);
+        assert_eq!(
+            res1,
+            Some("No Subject (rejected from ernte@solawi.org)".to_string())
+        );
+
+        let res2 = format_subject_with_rejection("No Subject", &["ernte@solawi.org"]);
+        assert_eq!(
+            res2,
+            Some("No Subject (rejected from ernte@solawi.org)".to_string())
+        );
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_idempotent() {
+        let res = format_subject_with_rejection(
+            "Erntebericht (rejected from ernte@solawi.org)",
+            &["ernte@solawi.org"],
+        );
+        assert_eq!(res, None);
+
+        let res_other = format_subject_with_rejection(
+            "Announcement (rejected from alt@solawi.org)",
+            &["neu@solawi.org"],
+        );
+        assert_eq!(res_other, None);
+    }
+
+    #[test]
+    fn test_format_subject_with_rejection_empty_rejected_list() {
+        let res = format_subject_with_rejection("Erntebericht", &[]);
+        assert_eq!(res, None);
     }
 }

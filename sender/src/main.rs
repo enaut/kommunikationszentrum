@@ -1,6 +1,7 @@
 mod config;
 mod mail;
 mod module_bindings;
+mod recipients;
 mod tracing_util;
 
 use config::SenderConfig;
@@ -11,23 +12,24 @@ use mail::{
 };
 use module_bindings::{
     DbConnection, MailDeliveryClaimed, MailIngress, MailMessage, MessageTopic, Subscription,
-    SubscriptionStatus, claim_next_mail_delivery, claim_next_mail_ingress, claim_system_mail,
-    complete_mail_ingress, complete_system_mail, enqueue_mail_delivery,
-    ensure_subscription_unsubscribe_token, fail_mail_delivery, fail_mail_ingress,
-    mark_mail_delivery_sent, release_system_mail, retry_mail_ingress, schedule_mail_delivery_retry,
+    claim_next_mail_delivery, claim_next_mail_ingress, claim_system_mail, complete_mail_ingress,
+    complete_system_mail, enqueue_mail_delivery, ensure_subscription_unsubscribe_token,
+    fail_mail_delivery, fail_mail_ingress, mark_mail_delivery_sent, release_system_mail,
+    retry_mail_ingress, schedule_mail_delivery_retry,
 };
+use recipients::resolve_topic_subscribers;
 use spacetimedb_sdk::{DbContext, Table, TableWithPrimaryKey as _};
 use std::{error::Error, sync::Arc};
 use uuid::Uuid;
 
 use crate::module_bindings::{
     ActiveUnsubscribeTokensTableAccess as _, SenderAccountEmailsTableAccess as _,
-    SenderMailDeliveryClaimedTableAccess as _, SenderMailDeliveryDoneTableAccess as _,
-    SenderMailDeliveryMessagesTableAccess as _, SenderMailDeliveryPendingTableAccess as _,
-    SenderMailIngressTableAccess as _, SenderMailMessagesTableAccess as _,
-    SenderMessageTopicsTableAccess as _, SenderSubscriptionsTableAccess as _,
-    SenderSystemMailPendingTableAccess as _, VisibleAdminIdentitiesTableAccess as _,
-    increment_mail_ingress_delivery_count,
+    SenderAccountsTableAccess as _, SenderMailDeliveryClaimedTableAccess as _,
+    SenderMailDeliveryDoneTableAccess as _, SenderMailDeliveryMessagesTableAccess as _,
+    SenderMailDeliveryPendingTableAccess as _, SenderMailIngressTableAccess as _,
+    SenderMailMessagesTableAccess as _, SenderMessageTopicsTableAccess as _,
+    SenderSubscriptionsTableAccess as _, SenderSystemMailPendingTableAccess as _,
+    VisibleAdminIdentitiesTableAccess as _, increment_mail_ingress_delivery_count,
 };
 use opentelemetry::KeyValue;
 use opentelemetry::global;
@@ -42,17 +44,6 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_util::{
     context_from_traceparent, trace_id_from_traceparent, traceparent_from_queue_id,
 };
-
-/// Whether a subscription with this status should currently receive mail.
-/// Mirrors `SubscriptionStatus::is_active` on the server.
-fn is_active_subscription(status: &SubscriptionStatus) -> bool {
-    matches!(
-        status,
-        SubscriptionStatus::AutomaticallySubscribed
-            | SubscriptionStatus::ManuallySubscribed
-            | SubscriptionStatus::RequiredSubscribed
-    )
-}
 
 /// Events sent through the main channel.
 enum Event {
@@ -351,6 +342,7 @@ fn subscribe_to_spacetime_tables(
             "SELECT * FROM sender_system_mail_pending",
             "SELECT * FROM sender_subscriptions",
             "SELECT * FROM sender_account_emails",
+            "SELECT * FROM sender_accounts",
             "SELECT * FROM sender_message_topics",
             "SELECT * FROM sender_topic_app_passwords",
             "SELECT * FROM active_unsubscribe_tokens",
@@ -730,25 +722,13 @@ fn process_ingress_job(
     };
 
     // Find all subscriptions for the topic and resolve each to the
-    // currently active email address tied to the account_email_id.
-    let mut subscribers: Vec<(String, Subscription)> = connection
-        .db
-        .sender_subscriptions()
-        .iter()
-        .filter(|row| row.topic_id == ingress.topic_id && is_active_subscription(&row.status))
-        .filter_map(|subscription| {
-            let email_row = connection
-                .db
-                .sender_account_emails()
-                .id()
-                .find(&subscription.account_email_id)?;
-            if email_row.account_id == subscription.subscriber_account_id && email_row.is_verified {
-                Some((email_row.email, subscription))
-            } else {
-                None
-            }
-        })
-        .collect();
+    // currently active verified email address tied to an active subscriber account.
+    let mut subscribers: Vec<(String, Subscription)> = resolve_topic_subscribers(
+        ingress.topic_id,
+        connection.db.sender_subscriptions().iter(),
+        |email_id| connection.db.sender_account_emails().id().find(&email_id),
+        |account_id| connection.db.sender_accounts().id().find(&account_id),
+    );
 
     trace!("Subscribers found {}", subscribers.len());
     subscribers.sort_by(|(left_email, _), (right_email, _)| left_email.cmp(right_email));

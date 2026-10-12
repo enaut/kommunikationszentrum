@@ -6,11 +6,37 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_update_account_config, use_subscription, use_table_topic_message_counts,
-    use_table_total_messages, use_table_visible_account_configs, use_table_visible_mail_messages,
+    use_table_visible_account_configs, use_table_visible_mail_messages,
     use_table_visible_message_topics, use_table_visible_messages, use_table_visible_subscriptions,
 };
-use crate::module_bindings::{MailMessage, ReceivedMessage};
+use crate::module_bindings::{
+    MailMessage, MessageDisposition, MessageDispositionFilter, ReceivedMessage,
+    TopicRejectionReason,
+};
+
+impl TopicRejectionReason {
+    pub fn label(&self) -> String {
+        match self {
+            TopicRejectionReason::NotRegistered => tid!("messages-reason-not-registered"),
+            TopicRejectionReason::NotSubscribed => tid!("messages-reason-not-subscribed"),
+            TopicRejectionReason::NoWritePermission => tid!("messages-reason-no-write-permission"),
+            TopicRejectionReason::Oversize => tid!("messages-reason-oversize"),
+        }
+    }
+
+    pub fn description(&self) -> String {
+        match self {
+            TopicRejectionReason::NotRegistered => tid!("messages-reason-desc-not-registered"),
+            TopicRejectionReason::NotSubscribed => tid!("messages-reason-desc-not-subscribed"),
+            TopicRejectionReason::NoWritePermission => {
+                tid!("messages-reason-desc-no-write-permission")
+            }
+            TopicRejectionReason::Oversize => tid!("messages-reason-desc-oversize"),
+        }
+    }
+}
 use crate::oauth::UserInfo;
+use crate::router::use_is_admin;
 use spacetimedb_sdk::Timestamp;
 
 /// Combined message data that joins ReceivedMessage with its MailMessage content
@@ -21,6 +47,20 @@ struct MessageWithContent {
 }
 
 impl MessageWithContent {
+    fn rejection_reason(&self) -> Option<TopicRejectionReason> {
+        match self.received_message.disposition {
+            MessageDisposition::Rejected(reason) => Some(reason),
+            MessageDisposition::Accepted => None,
+        }
+    }
+
+    fn is_oversize(&self) -> bool {
+        matches!(
+            self.rejection_reason(),
+            Some(TopicRejectionReason::Oversize)
+        )
+    }
+
     fn subject(&self) -> String {
         crate::mime_parser::decode_header_value("Subject", &self.mail_message.subject)
     }
@@ -112,7 +152,6 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         "SELECT * FROM visible_message_topics",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_account_configs",
-        "SELECT * FROM total_messages",
         "SELECT * FROM topic_message_counts",
     ]);
 
@@ -122,7 +161,6 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let topics = use_table_visible_message_topics();
     let subscriptions = use_table_visible_subscriptions();
     let configs = use_table_visible_account_configs();
-    let total_messages_table = use_table_total_messages();
     let topic_message_counts_table = use_table_topic_message_counts();
     let update_config = use_reducer_update_account_config();
 
@@ -132,23 +170,44 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         .find(|a| a.external_id == user_info.subject_id)
         .map(|a| a.id)
         .unwrap_or(0);
+    let is_admin = use_is_admin();
     let config = configs().into_iter().next();
     let filter_topic = config.as_ref().and_then(|c| c.selected_message_topic);
+    let filter_disposition = config.as_ref().and_then(|c| c.message_disposition_filter);
     let current_offset = config.as_ref().map(|c| c.message_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.message_limit).unwrap_or(50);
 
+    // Only offer filter chips and counts for topics the current account is actively
+    // subscribed to
+    let subscribed_topic_ids: HashSet<u64> = subscriptions()
+        .into_iter()
+        .filter(|s| {
+            s.subscriber_account_id == account_id && crate::pages::is_active_subscription(&s.status)
+        })
+        .map(|s| s.topic_id)
+        .collect();
+
     let total_msgs = if let Some(top_id) = filter_topic {
+        if !is_admin && !subscribed_topic_ids.contains(&top_id) {
+            0
+        } else {
+            topic_message_counts_table()
+                .into_iter()
+                .find(|c| c.topic_id == top_id)
+                .map(|c| c.count as u32)
+                .unwrap_or(0)
+        }
+    } else if !is_admin {
         topic_message_counts_table()
             .into_iter()
-            .find(|c| c.topic_id == top_id)
+            .filter(|c| subscribed_topic_ids.contains(&c.topic_id))
             .map(|c| c.count as u32)
-            .unwrap_or(0)
+            .sum()
     } else {
-        total_messages_table()
+        topic_message_counts_table()
             .into_iter()
-            .next()
-            .map(|r| r.count as u32)
-            .unwrap_or_else(|| received_messages().len() as u32)
+            .map(|c| c.count as u32)
+            .sum()
     };
 
     // Join ReceivedMessage with MailMessage using mail_message_id
@@ -167,16 +226,6 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
 
     let mut selected_id: Signal<Option<u64>> = use_signal(|| None);
     let mut show_raw_body: Signal<bool> = use_signal(|| false);
-
-    // Only offer filter chips for topics the current account is actively
-    // subscribed to
-    let subscribed_topic_ids: HashSet<u64> = subscriptions()
-        .into_iter()
-        .filter(|s| {
-            s.subscriber_account_id == account_id && crate::pages::is_active_subscription(&s.status)
-        })
-        .map(|s| s.topic_id)
-        .collect();
 
     // Since the server already sorts, filters, and slices, we can just use the returned messages.
     // However, the `visible_messages` view sorts by DESC.
@@ -205,7 +254,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                         {tid!("messages-page-title")}
                     }
                     p { class: "text-muted mt-1",
-                        Badge { color: Color::Primary, class: "me-2", "{messages_with_content.len()}" }
+                        Badge { color: Color::Primary, class: "me-2", "{total_msgs}" }
                         {tid!("messages-summary")}
                     }
                 }
@@ -215,6 +264,50 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             Row { class: "mb-3",
                 Col {
                     div { class: "d-flex flex-wrap gap-2 align-items-center",
+                        if is_admin {
+                            span { class: "text-muted small me-1", {tid!("messages-filter-status")} }
+                            div { class: "btn-group btn-group-sm me-2",
+                                Button {
+                                    color: if filter_disposition.is_none() { Color::Primary } else { Color::Secondary },
+                                    outline: filter_disposition.is_some(),
+                                    size: Size::Sm,
+                                    onclick: {
+                                        let update_config = update_config.clone();
+                                        move |_| {
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, None, true);
+                                            selected_id.set(None);
+                                        }
+                                    },
+                                    {tid!("messages-filter-status-all")}
+                                }
+                                Button {
+                                    color: if filter_disposition == Some(MessageDispositionFilter::Accepted) { Color::Success } else { Color::Secondary },
+                                    outline: filter_disposition != Some(MessageDispositionFilter::Accepted),
+                                    size: Size::Sm,
+                                    onclick: {
+                                        let update_config = update_config.clone();
+                                        move |_| {
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, Some(MessageDispositionFilter::Accepted), false);
+                                            selected_id.set(None);
+                                        }
+                                    },
+                                    {tid!("messages-filter-status-accepted")}
+                                }
+                                Button {
+                                    color: if filter_disposition == Some(MessageDispositionFilter::Rejected) { Color::Danger } else { Color::Secondary },
+                                    outline: filter_disposition != Some(MessageDispositionFilter::Rejected),
+                                    size: Size::Sm,
+                                    onclick: {
+                                        let update_config = update_config.clone();
+                                        move |_| {
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, Some(MessageDispositionFilter::Rejected), false);
+                                            selected_id.set(None);
+                                        }
+                                    },
+                                    {tid!("messages-filter-status-rejected")}
+                                }
+                            }
+                        }
                         span { class: "text-muted small me-1", {tid!("messages-filter")} }
                         Button {
                             color: if filter_topic.is_none() { Color::Primary } else { Color::Secondary },
@@ -223,7 +316,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                             onclick: {
                                 let update_config = update_config.clone();
                                 move |_| {
-                                    let _ = update_config(None, None, None, true, None, None, None, false, None, false, None, None);
+                                    let _ = update_config(Some(0), None, None, true, None, None, None, false, None, false, None, None, None, false);
                                     selected_id.set(None);
                                 }
                             },
@@ -231,7 +324,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                         }
                         for top in topics()
                             .into_iter()
-                            .filter(|t| t.active && subscribed_topic_ids.contains(&t.id))
+                            .filter(|t| t.active && (is_admin || subscribed_topic_ids.contains(&t.id)))
                         {
                             {
                                 let top_id = top.id;
@@ -244,7 +337,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                         onclick: {
                                             let update_config = update_config.clone();
                                             move |_| {
-                                                let _ = update_config(Some(0), None, Some(top_id), false, None, None, None, false, None, false, None, None);
+                                                let _ = update_config(Some(0), None, Some(top_id), false, None, None, None, false, None, false, None, None, None, false);
                                                 selected_id.set(None);
                                             }
                                         },
@@ -263,9 +356,9 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     let update_config = update_config.clone();
                                     move |_| {
                                         if current_offset >= current_limit {
-                                            let _ = update_config(Some(current_offset - current_limit), None, None, false, None, None, None, false, None, false, None, None);
+                                            let _ = update_config(Some(current_offset - current_limit), None, None, false, None, None, None, false, None, false, None, None, None, false);
                                         } else {
-                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None);
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, None, false);
                                         }
                                     }
                                 },
@@ -278,11 +371,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 color: Color::Secondary,
                                 outline: true,
                                 size: Size::Sm,
-                                disabled: current_offset + current_limit >= total_msgs,
+                                disabled: current_offset + current_limit >= total_msgs || filtered.len() < current_limit as usize,
                                 onclick: {
                                     let update_config = update_config.clone();
                                     move |_| {
-                                        let _ = update_config(Some(current_offset + current_limit), None, None, false, None, None, None, false, None, false, None, None);
+                                        let _ = update_config(Some(current_offset + current_limit), None, None, false, None, None, None, false, None, false, None, None, None, false);
                                     }
                                 },
                                 Icon { name: "chevron-right" }
@@ -296,10 +389,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             if filtered.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "inbox", class: "me-2" }
-                    if filter_topic.is_none() {
-                        {tid!("messages-empty")}
-                    } else {
-                        {tid!("messages-empty-topic")}
+                    match filter_disposition {
+                        Some(MessageDispositionFilter::Rejected) => {tid!("messages-empty-rejected")},
+                        Some(MessageDispositionFilter::Accepted) => {tid!("messages-empty-accepted")},
+                        None if filter_topic.is_none() => {tid!("messages-empty")},
+                        None => {tid!("messages-empty-topic")},
                     }
                 }
             } else {
@@ -333,11 +427,25 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                     class: "px-3 py-2",
                                                     onclick: move |_| selected_id.set(Some(msg_id)),
                                                     div { class: "d-flex justify-content-between align-items-start mb-1",
-                                                        Badge {
-                                                            color: badge_color,
-                                                            class: "text-truncate",
-                                                            style: "max-width: 10rem;",
-                                                            "{top_email}"
+                                                        div { class: "d-flex align-items-center gap-1 flex-wrap",
+                                                            Badge {
+                                                                color: badge_color,
+                                                                class: "text-truncate",
+                                                                style: "max-width: 10rem;",
+                                                                "{top_email}"
+                                                            }
+                                                            if let Some(reason) = msg.rejection_reason() {
+                                                                Badge {
+                                                                    color: Color::Danger,
+                                                                    class: "text-nowrap",
+                                                                    {tid!("messages-status-rejected")}
+                                                                }
+                                                                Badge {
+                                                                    color: if msg.is_oversize() { Color::Warning } else { Color::Secondary },
+                                                                    class: "text-nowrap",
+                                                                    "{reason.label()}"
+                                                                }
+                                                            }
                                                         }
                                                         small { class: if is_sel { "text-white-50 text-nowrap ms-2" } else { "text-muted text-nowrap ms-2" },
                                                             "{date_str}"
@@ -364,6 +472,13 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                 header: rsx! {
                                     div { class: "d-flex align-items-center gap-2 flex-wrap",
                                         Badge { color: topic_badge_color(msg.topic_id()), "{msg.topic_email()}" }
+                                        if let Some(reason) = msg.rejection_reason() {
+                                            Badge { color: Color::Danger, {tid!("messages-status-rejected")} }
+                                            Badge {
+                                                color: if msg.is_oversize() { Color::Warning } else { Color::Secondary },
+                                                "{reason.label()}"
+                                            }
+                                        }
                                         span { class: "fw-semibold",
                                             if msg.subject().is_empty() {
                                                 {tid!("messages-no-subject")}
@@ -375,6 +490,24 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     }
                                 },
                                 body: rsx! {
+                                    if let Some(reason) = msg.rejection_reason() {
+                                        Alert {
+                                            color: if msg.is_oversize() { Color::Warning } else { Color::Danger },
+                                            class: "d-flex align-items-center mb-3",
+                                            Icon {
+                                                name: if msg.is_oversize() { "exclamation-triangle-fill" } else { "x-circle-fill" },
+                                                class: "me-2 fs-5 flex-shrink-0"
+                                            }
+                                            div {
+                                                div { class: "fw-bold",
+                                                    {tid!("messages-status-rejected-reason", reason: reason.label())}
+                                                }
+                                                div { class: "small text-muted",
+                                                    "{reason.description()}"
+                                                }
+                                            }
+                                        }
+                                    }
                                     // ── Parsed header fields ───────────────
                                     Table {
                                     size: Size::Sm,
@@ -424,7 +557,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     if msg.body_raw().is_empty() {
                                         Alert { color: Color::Warning, class: "small mb-0",
                                             Icon { name: "exclamation-triangle", class: "me-1" }
-                                            {tid!("messages-body-empty")}
+                                            if msg.is_oversize() {
+                                                {tid!("messages-oversize-notice")}
+                                            } else {
+                                                {tid!("messages-body-empty")}
+                                            }
                                         }
                                     } else {
                                         div { class: "d-flex justify-content-end mb-2",

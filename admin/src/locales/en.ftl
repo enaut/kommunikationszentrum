@@ -63,6 +63,8 @@ messages-filter-all = All
 messages-empty = No messages available.
 messages-empty-topic = No messages in this topic.
 messages-empty-category = No messages in this category.
+messages-empty-accepted = No accepted messages available.
+messages-empty-rejected = No rejected messages available.
 messages-no-subject = (no subject)
 messages-select-placeholder = Select a message from the list
 messages-header-from = From
@@ -72,8 +74,24 @@ messages-header-date = Date
 messages-header-message-id = Message-ID
 messages-header-reply-to = Reply-To
 messages-body-empty = Message content was not saved (message too large).
+messages-oversize-notice = Oversized message — body stored in topic mailbox only.
 messages-view-rendered = Formatted
 messages-view-raw = Raw
+messages-filter-status = Status:
+messages-filter-status-all = All
+messages-filter-status-accepted = Accepted
+messages-filter-status-rejected = Rejected
+messages-status-accepted = Accepted
+messages-status-rejected = Rejected
+messages-status-rejected-reason = Rejected: { $reason }
+messages-reason-not-registered = Not registered
+messages-reason-not-subscribed = Not subscribed
+messages-reason-no-write-permission = No write permission
+messages-reason-oversize = Oversized
+messages-reason-desc-not-registered = Sender email address is not registered, unverified, or account is inactive.
+messages-reason-desc-not-subscribed = Sender is not subscribed to this topic with this email address.
+messages-reason-desc-no-write-permission = Sender only has read permissions for this topic.
+messages-reason-desc-oversize = Message exceeds the 2 MB size limit.
 
 # Subscriptions
 subscriptions-page-title = My Topics
@@ -232,7 +250,19 @@ management-config-stalwart-save = Save
 management-config-stalwart-saving = Saving…
 management-config-stalwart-saved = Stalwart configuration saved successfully.
 management-config-stalwart-reset = Discard changes
-management-config-stalwart-last-updated = Last updated
+management-config-stalwart-last-updated = Last updated: { $time }
+
+management-config-retention-title = Mail Retention & Cleanup
+management-config-retention-help = Configure automatic storage cleanup rules for rejected messages.
+management-config-retention-rejected-days = Rejected Mail Retention (Days)
+management-config-retention-rejected-days-placeholder = 30
+management-config-retention-rejected-days-help = Rejected messages older than this period are periodically purged from storage along with unreferenced message bodies. Default: 30 days.
+management-config-retention-save = Save
+management-config-retention-saving = Saving…
+management-config-retention-saved = Retention configuration saved successfully.
+management-config-retention-reset = Discard changes
+management-config-retention-last-updated = Last updated: { $time }
+
 
 management-status-title = Management · Status
 status-connection-title = SpacetimeDB connection

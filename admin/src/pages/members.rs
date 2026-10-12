@@ -105,9 +105,9 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                     move |e: FormEvent| {
                                         let val = e.value();
                                         if val.is_empty() {
-                                            let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None);
+                                            let _ = update_config(None, None, None, false, Some(0), None, None, true, None, false, None, None, None, false);
                                         } else {
-                                            let _ = update_config(None, None, None, false, Some(0), None, Some(val), false, None, false, None, None);
+                                            let _ = update_config(None, None, None, false, Some(0), None, Some(val), false, None, false, None, None, None, false);
                                         }
                                     }
                                 },
@@ -123,9 +123,9 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                     let update_config = update_config.clone();
                                     move |_| {
                                         if current_offset >= current_limit {
-                                            let _ = update_config(None, None, None, false, Some(current_offset - current_limit), None, None, false, None, false, None, None);
+                                            let _ = update_config(None, None, None, false, Some(current_offset - current_limit), None, None, false, None, false, None, None, None, false);
                                         } else {
-                                            let _ = update_config(None, None, None, false, Some(0), None, None, false, None, false, None, None);
+                                            let _ = update_config(None, None, None, false, Some(0), None, None, false, None, false, None, None, None, false);
                                         }
                                     }
                                 },
@@ -142,7 +142,7 @@ pub fn MembersPage(user_info: UserInfo) -> Element {
                                 onclick: {
                                     let update_config = update_config.clone();
                                     move |_| {
-                                        let _ = update_config(None, None, None, false, Some(current_offset + current_limit), None, None, false, None, false, None, None);
+                                        let _ = update_config(None, None, None, false, Some(current_offset + current_limit), None, None, false, None, false, None, None, None, false);
                                     }
                                 },
                                 Icon { name: "chevron-right" }

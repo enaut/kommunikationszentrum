@@ -1,7 +1,8 @@
 use spacetimedb::{AnonymousViewContext, SpacetimeType, ViewContext};
 
+use crate::common::auth::is_admin_user;
 use crate::models::account::account__view;
-use crate::models::mta::received_message__view;
+use crate::models::mta::{MessageDisposition, received_message__view};
 use crate::models::topic::subscriptions__view;
 
 #[derive(SpacetimeType, Clone, Debug)]
@@ -28,23 +29,21 @@ pub fn total_accounts(ctx: &AnonymousViewContext) -> Vec<CountRow> {
     }]
 }
 
-#[spacetimedb::view(accessor = total_messages, public)]
-pub fn total_messages(ctx: &AnonymousViewContext) -> Vec<CountRow> {
-    vec![CountRow {
-        count: ctx.db.received_message().count(),
-    }]
-}
-
 #[spacetimedb::view(accessor = topic_message_counts, public)]
 pub fn topic_message_counts(ctx: &ViewContext) -> Vec<TopicMessageCount> {
+    let is_admin = is_admin_user(ctx);
+    let config = crate::views::member::get_account_config(ctx);
     let mut counts = Vec::new();
     for topic in crate::views::member::visible_message_topics(ctx) {
-        let count = ctx
-            .db
-            .received_message()
-            .topic_id()
-            .filter(&topic.id)
-            .count() as u64;
+        let rows = ctx.db.received_message().topic_id().filter(&topic.id);
+        let count = if !is_admin {
+            rows.filter(|m| matches!(m.disposition, MessageDisposition::Accepted))
+                .count() as u64
+        } else if let Some(filter) = config.message_disposition_filter {
+            rows.filter(|m| filter.matches(&m.disposition)).count() as u64
+        } else {
+            rows.count() as u64
+        };
         counts.push(TopicMessageCount {
             topic_id: topic.id,
             count,

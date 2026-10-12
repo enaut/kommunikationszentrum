@@ -53,4 +53,4 @@ This page describes how to configure external systems (Stalwart MTA, Django) to 
 
 - Deploy SpacetimeDB with a TLS front-end or reverse proxy if you plan to accept hooks from the public internet.
 - Rotate tokens periodically and use labels to track their usage.
-- Monitor the `mta_connection_log` and `mta_message_log` tables for operational insight.
+- Monitor the `received_message` and `mail_ingress` tables for delivery and admission insight.

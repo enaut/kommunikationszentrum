@@ -68,13 +68,14 @@ The async delivery pipeline transitions ingress records and individual recipient
 
 > **Note on List-Unsubscribe:** One-click unsubscription (`LinkUnsubscribed`) can be executed via the Dioxus Admin frontend using the `user_unsubscribe_by_token` reducer, or via the HTTP endpoint `/mailing-list/unsubscribe` (which accepts RFC 8058 `POST` requests and redirects browser `GET` requests to the frontend).
 
-### MTA Diagnostics & Log Reducers
+### MTA & Mail Retention Reducers
 
-MTA hook processing is handled via HTTP handlers (`POST /mta-hook`), documented in [MTA Hook Processing](./http-handlers/mta-hook-processing.md).
+MTA hook processing is handled via HTTP handlers (`POST /mta-hook`), documented in [MTA Hook Processing](./http-handlers/mta-hook-processing.md). Retention of rejected messages is managed by configurable settings and a scheduled purge reducer.
 
 | Function | Visibility | Parameters | Description |
 |---|---|---|---|
-| `dump_mta_logs_to_server_logs` | Admin | _(none)_ | Dumps `mta_connection_log` and `mta_message_log` table contents to server log output for debugging. |
+| `set_mail_retention_config` | Admin | `rejected_retention_days: u32` | Updates the retention period (in days, default 30) before rejected messages are permanently purged. |
+| `purge_rejected_mails` | Scheduled / Internal | `_timer: PurgeRejectedMailsSchedule` | Scheduled reducer running every 24 hours to purge rejected `received_message` rows older than the retention cutoff and any orphaned `mail_message` records. |
 
 ### System Mail Reducers
 

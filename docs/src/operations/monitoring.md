@@ -70,26 +70,25 @@ Stalwart supports exporting trace spans and structured logs over gRPC to an Open
 
 ---
 
-## SpacetimeDB MTA Audit Logs
+## SpacetimeDB Delivery & Admission Monitoring
 
-SpacetimeDB persists audit records for every MTA connection attempt and message processed:
+SpacetimeDB records per-topic admission outcomes and message deliveries:
 
 | Table | Stage | Content |
 |---|---|---|
-| `mta_connection_log` | `CONNECT`, `EHLO`, `MAIL`, `RCPT`, `AUTH` | Client IP, reverse PTR, HELO argument, sender address, recipient topic match, acceptance/rejection action, timestamp. |
-| `mta_message_log` | `DATA` | Message ID, sender, matched topics, subscriber status, delivery disposition (accepted / quarantined / rejected), timestamp. |
+| `received_message` | `DATA` | Per-topic delivery attempt: `mail_message_id`, `topic_id`, `topic_email`, `received_at`, and admission `disposition` (`Accepted` or `Rejected(reason)`). |
+| `mail_ingress` | `DATA` | Inbound delivery queue for accepted messages waiting for fan-out processing by the sender daemon. |
+| `system_mail_pending` | `DATA` | Outbound system notifications (such as rejection notices explaining why an email was rejected). |
 
-### Inspecting Logs via CLI
-
-Dump recent MTA logs to the SpacetimeDB console:
+### Inspecting Messages & Ingress via CLI
 
 ```bash
-# Invoke the debug dump reducer
-spacetime call kommunikation dump_mta_logs_to_server_logs
+# Query recent received messages with admission disposition
+spacetime sql kommunikation "SELECT id, topic_email, disposition, received_at FROM received_message LIMIT 10"
 
-# Query the connection log table directly
-spacetime sql kommunikation "SELECT * FROM mta_connection_log ORDER BY timestamp DESC LIMIT 10"
+# Query pending fan-out ingress jobs
+spacetime sql kommunikation "SELECT * FROM mail_ingress LIMIT 10"
 
-# Query the message log table
-spacetime sql kommunikation "SELECT * FROM mta_message_log ORDER BY timestamp DESC LIMIT 10"
+# Query pending system notifications (rejection notices)
+spacetime sql kommunikation "SELECT * FROM system_mail_pending LIMIT 10"
 ```

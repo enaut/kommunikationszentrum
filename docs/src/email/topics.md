@@ -180,6 +180,6 @@ FROM message_topics mt
 LEFT JOIN subscriptions s ON mt.id = s.topic_id
 WHERE s.id IS NULL"
 
-# Recent MTA hook processing for RCPT stage
-spacetime sql kommunikation "SELECT * FROM mta_connection_log WHERE stage = 'rcpt' ORDER BY timestamp DESC LIMIT 10"
+# Recent topic deliveries
+spacetime sql kommunikation "SELECT * FROM received_message LIMIT 10"
 ```

@@ -147,7 +147,7 @@ Before configuring Stalwart, generate a webhook token with the `mta-hook` permis
 | | **HTTP Headers** | _(none)_ | Optional custom headers. |
 | **Response** | **Max Size** | `50 MB` | Upper limit for response payloads accepted from SpacetimeDB. |
 | | **Timeout** | `30 Seconds` | Maximum time to wait for a stage response before taking error action. |
-| | **TempFail on Error** | Enabled | Returns a temporary 4xx failure to the sending MTA on internal error so mail is retried. |
+| | **TempFail on Error** | Enabled | Controls failure mode when SpacetimeDB times out or is unreachable: Enabled for **Fail-Closed** (returns 451 tempfail, default); Disabled for **Fail-Open** (bypasses hook, personal mail never delayed). See [Operational Guidance: Fail-Open vs. Fail-Closed](./mta-hook-config.md#operational-guidance-fail-open-vs-fail-closed). |
 | **Authentication** | **Authentication** | `Bearer Token` | Select Bearer Token authentication. |
 | | **Bearer Token** | `Secret value` | Select secret value mode. |
 | | **Secret** | `<plaintext-webhook-token>` | Plaintext token created with `mta-hook` permission (see [Managing Webhook Tokens](../core/spacetimedb/module-publishing.md#managing-webhook-tokens)). |

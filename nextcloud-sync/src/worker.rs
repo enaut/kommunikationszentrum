@@ -6,8 +6,8 @@ use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
 pub enum SyncJob {
-    SyncUser(String),   // uid to fetch and upsert
-    DeleteUser(String), // uid to cascade delete
+    SyncUser(String),        // uid to fetch and upsert
+    DeleteUser(String),      // uid to cascade delete
     Upsert(UserSyncRequest), // pre-mapped upsert from reconciler
 }
 
@@ -86,7 +86,10 @@ impl SyncPoster {
             }
 
             if attempts >= 5 {
-                return Err(format!("Exceeded max retry attempts for user {}", request.user.external_id));
+                return Err(format!(
+                    "Exceeded max retry attempts for user {}",
+                    request.user.external_id
+                ));
             }
 
             tokio::time::sleep(backoff).await;

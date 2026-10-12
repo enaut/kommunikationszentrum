@@ -1,5 +1,7 @@
 use spacetimedb::{Identity, Timestamp};
 
+pub use crate::models::mta::MessageDispositionFilter;
+
 // Configuration constants that can be set at compile time via environment variables
 pub const OIDC_ISSUER_URL: &str = match option_env!("OIDC_ISSUER_URL") {
     Some(url) => url,
@@ -74,6 +76,7 @@ pub struct AccountConfig {
     pub theme: Option<String>,
 
     pub search_matching_accounts: u32,
+    pub message_disposition_filter: Option<MessageDispositionFilter>,
 }
 
 #[derive(Debug, Clone)]

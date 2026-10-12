@@ -31,6 +31,7 @@ pub fn get_account_config(ctx: &ViewContext) -> AccountConfig {
             language: None,
             theme: None,
             search_matching_accounts: 0,
+            message_disposition_filter: None,
         })
 }
 
@@ -125,6 +126,12 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
             None => vec![],
         }
     };
+
+    if !is_admin {
+        messages.retain(|m| matches!(m.disposition, MessageDisposition::Accepted));
+    } else if let Some(filter) = config.message_disposition_filter {
+        messages.retain(|m| filter.matches(&m.disposition));
+    }
 
     messages.sort_unstable_by(|a, b| b.received_at.cmp(&a.received_at));
 

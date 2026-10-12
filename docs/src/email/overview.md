@@ -17,9 +17,9 @@ The email subsystem connects the external Stalwart Mail Transfer Agent (MTA) wit
    - Manages domain inventory and topic mailboxes via JMAP REST API.
 
 2. **SpacetimeDB Module**:
-   - Validates client IPs, sender addresses, recipient topics, and active subscriptions in real time during the SMTP session.
-   - Seeds incoming mail into the `mail_ingress` delivery pipeline upon accepted DATA stage.
-   - Stores audit logs in `mta_connection_log` and `mta_message_log`.
+   - Evaluates client IPs against `blocked_ips` in the CONNECT stage and enforces mailing-list admission rules during the DATA stage.
+   - Passes non-topic mail through untouched without modifications or database writes.
+   - Seeds accepted topic deliveries into the `mail_ingress` delivery pipeline, records per-topic admission outcomes in `received_message`, and queues rejection notifications for rejected topics.
 
 3. **Sender Daemon**:
    - Claims pending ingress jobs from SpacetimeDB.

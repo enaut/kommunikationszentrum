@@ -10,7 +10,7 @@ use ocs_client::OcsClient;
 use std::net::SocketAddr;
 use tokio::sync::mpsc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use worker::{run_sync_worker, SyncPoster};
+use worker::{SyncPoster, run_sync_worker};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

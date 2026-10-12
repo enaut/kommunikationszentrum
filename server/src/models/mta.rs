@@ -1,28 +1,6 @@
-use spacetimedb::Timestamp;
+use spacetimedb::{ScheduleAt, SpacetimeType, Timestamp};
 
-#[spacetimedb::table(accessor = mta_connection_log)]
-pub struct MtaConnectionLog {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    pub client_ip: String,
-    pub stage: String,
-    pub action: String,
-    pub timestamp: Timestamp,
-    pub details: String,
-}
-
-#[spacetimedb::table(accessor = mta_message_log)]
-pub struct MtaMessageLog {
-    #[primary_key]
-    #[auto_inc]
-    pub id: u64,
-    pub stage: String,
-    pub action: String,
-    pub timestamp: Timestamp,
-    pub queue_id: Option<String>,
-    pub topic_count: u32,
-}
+use crate::reducers::purge_rejected_mails;
 
 #[spacetimedb::table(accessor = blocked_ips)]
 pub struct BlockedIp {
@@ -33,7 +11,45 @@ pub struct BlockedIp {
     pub active: bool,
 }
 
-/// One row per accepted email delivery, linked to its canonical `MailMessage`
+/// Reason why an email could not be delivered to a message topic.
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TopicRejectionReason {
+    /// The user is subscribed to the topic, but only has Read permission (no Write permission).
+    NoWritePermission,
+    /// The user has an active account, but has no active subscription to this topic.
+    NotSubscribed,
+    /// The sender's email address is not associated with any active verified account in the system.
+    NotRegistered,
+    /// The message exceeds the mailing-list size limit.
+    Oversize,
+}
+
+/// Per-topic admission outcome stored on [`ReceivedMessage`].
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MessageDisposition {
+    #[default]
+    Accepted,
+    Rejected(TopicRejectionReason),
+}
+
+/// Filter criteria for querying messages by disposition in account configurations.
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageDispositionFilter {
+    Accepted,
+    Rejected,
+}
+
+impl MessageDispositionFilter {
+    pub fn matches(&self, disposition: &MessageDisposition) -> bool {
+        match (self, disposition) {
+            (MessageDispositionFilter::Accepted, MessageDisposition::Accepted) => true,
+            (MessageDispositionFilter::Rejected, MessageDisposition::Rejected(_)) => true,
+            _ => false,
+        }
+    }
+}
+
+/// One row per topic delivery attempt, linked to its canonical `MailMessage`
 /// and the target mailing-list topic.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = received_message)]
@@ -53,4 +69,20 @@ pub struct ReceivedMessage {
     /// without requiring a join.
     #[index(btree)]
     pub received_at: Timestamp,
+    #[default(MessageDisposition::Accepted)]
+    pub disposition: MessageDisposition,
+}
+
+/// Schedule table for the `purge_rejected_mails` reducer.
+#[derive(Clone)]
+#[spacetimedb::table(
+    accessor = purge_rejected_mails_schedule,
+    public,
+    scheduled(purge_rejected_mails)
+)]
+pub struct PurgeRejectedMailsSchedule {
+    #[primary_key]
+    #[auto_inc]
+    pub scheduled_id: u64,
+    pub scheduled_at: ScheduleAt,
 }
