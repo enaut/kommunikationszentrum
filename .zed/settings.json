@@ -12,6 +12,9 @@
             "STALWART_ADMIN_TOKEN": "another_value",
           },
         },
+        "check": {
+          "extraArgs": ["--exclude", "admin"],
+        },
       },
     },
   },

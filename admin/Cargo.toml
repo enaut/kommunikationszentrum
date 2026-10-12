@@ -47,8 +47,11 @@ wasm-bindgen = "0.2"
 dotenvy = "0.15"
 futures-channel = "0.3.34"
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+spacetimedb-sdk = { version = "2.11", features = ["browser"] }
+
 [features]
 default = ["web"]
-web = ["dioxus/web", "spacetimedb-sdk/browser"]
+web = ["dioxus/web"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
