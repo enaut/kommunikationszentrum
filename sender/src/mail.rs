@@ -159,7 +159,7 @@ pub fn compose_delivery(
 
     let recipient_email = subscriber_email;
     let subject = clean_unsubscribe_content(&rewrite_subject(&list_name, &message.subject));
-    let reply_to = &message.sender_email;
+    let reply_to = &topic.email_address;
     let msg_id = format!(
         "<{}@{}>",
         message_id_seed(ingress_id, recipient_email),
