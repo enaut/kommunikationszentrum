@@ -113,7 +113,6 @@ pub mod topic_subscriber_count_type;
 pub mod topic_subscriber_counts_table;
 pub mod topic_visibility_type;
 pub mod total_accounts_table;
-pub mod total_messages_table;
 pub mod unregister_admin_identity_reducer;
 pub mod update_account_config_reducer;
 pub mod update_message_topic_reducer;
@@ -241,7 +240,6 @@ pub use topic_subscriber_count_type::TopicSubscriberCount;
 pub use topic_subscriber_counts_table::*;
 pub use topic_visibility_type::TopicVisibility;
 pub use total_accounts_table::*;
-pub use total_messages_table::*;
 pub use unregister_admin_identity_reducer::unregister_admin_identity;
 pub use update_account_config_reducer::update_account_config;
 pub use update_message_topic_reducer::update_message_topic;
@@ -910,7 +908,6 @@ pub struct DbUpdate {
     topic_message_counts: __sdk::TableUpdate<TopicMessageCount>,
     topic_subscriber_counts: __sdk::TableUpdate<TopicSubscriberCount>,
     total_accounts: __sdk::TableUpdate<CountRow>,
-    total_messages: __sdk::TableUpdate<CountRow>,
     visible_account_configs: __sdk::TableUpdate<AccountConfig>,
     visible_account_emails: __sdk::TableUpdate<AccountEmail>,
     visible_accounts: __sdk::TableUpdate<Account>,
@@ -1019,9 +1016,6 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "total_accounts" => db_update
                     .total_accounts
                     .append(total_accounts_table::parse_table_update(table_update)?),
-                "total_messages" => db_update
-                    .total_messages
-                    .append(total_messages_table::parse_table_update(table_update)?),
                 "visible_account_configs" => db_update.visible_account_configs.append(
                     visible_account_configs_table::parse_table_update(table_update)?,
                 ),
@@ -1214,8 +1208,6 @@ impl __sdk::DbUpdate for DbUpdate {
         );
         diff.total_accounts =
             cache.apply_diff_to_table::<CountRow>("total_accounts", &self.total_accounts);
-        diff.total_messages =
-            cache.apply_diff_to_table::<CountRow>("total_messages", &self.total_messages);
         diff.visible_account_configs = cache.apply_diff_to_table::<AccountConfig>(
             "visible_account_configs",
             &self.visible_account_configs,
@@ -1352,9 +1344,6 @@ impl __sdk::DbUpdate for DbUpdate {
                 "total_accounts" => db_update
                     .total_accounts
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
-                "total_messages" => db_update
-                    .total_messages
-                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "visible_account_configs" => db_update
                     .visible_account_configs
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
@@ -1482,9 +1471,6 @@ impl __sdk::DbUpdate for DbUpdate {
                 "total_accounts" => db_update
                     .total_accounts
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
-                "total_messages" => db_update
-                    .total_messages
-                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "visible_account_configs" => db_update
                     .visible_account_configs
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -1566,7 +1552,6 @@ pub struct AppliedDiff<'r> {
     topic_message_counts: __sdk::TableAppliedDiff<'r, TopicMessageCount>,
     topic_subscriber_counts: __sdk::TableAppliedDiff<'r, TopicSubscriberCount>,
     total_accounts: __sdk::TableAppliedDiff<'r, CountRow>,
-    total_messages: __sdk::TableAppliedDiff<'r, CountRow>,
     visible_account_configs: __sdk::TableAppliedDiff<'r, AccountConfig>,
     visible_account_emails: __sdk::TableAppliedDiff<'r, AccountEmail>,
     visible_accounts: __sdk::TableAppliedDiff<'r, Account>,
@@ -1716,11 +1701,6 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<CountRow>(
             "total_accounts",
             &self.total_accounts,
-            event,
-        );
-        callbacks.invoke_table_row_callbacks::<CountRow>(
-            "total_messages",
-            &self.total_messages,
             event,
         );
         callbacks.invoke_table_row_callbacks::<AccountConfig>(
@@ -2473,7 +2453,6 @@ impl __sdk::SpacetimeModule for RemoteModule {
         topic_message_counts_table::register_table(client_cache);
         topic_subscriber_counts_table::register_table(client_cache);
         total_accounts_table::register_table(client_cache);
-        total_messages_table::register_table(client_cache);
         visible_account_configs_table::register_table(client_cache);
         visible_account_emails_table::register_table(client_cache);
         visible_accounts_table::register_table(client_cache);
@@ -2514,7 +2493,6 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "topic_message_counts",
         "topic_subscriber_counts",
         "total_accounts",
-        "total_messages",
         "visible_account_configs",
         "visible_account_emails",
         "visible_accounts",

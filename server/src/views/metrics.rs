@@ -29,13 +29,6 @@ pub fn total_accounts(ctx: &AnonymousViewContext) -> Vec<CountRow> {
     }]
 }
 
-#[spacetimedb::view(accessor = total_messages, public)]
-pub fn total_messages(ctx: &AnonymousViewContext) -> Vec<CountRow> {
-    vec![CountRow {
-        count: ctx.db.received_message().count(),
-    }]
-}
-
 #[spacetimedb::view(accessor = topic_message_counts, public)]
 pub fn topic_message_counts(ctx: &ViewContext) -> Vec<TopicMessageCount> {
     let is_admin = is_admin_user(ctx);

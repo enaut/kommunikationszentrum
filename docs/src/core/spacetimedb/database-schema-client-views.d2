@@ -174,15 +174,6 @@ direction: right
     style.fill: "#fff3e0"
   }
 
-  total_messages: |md
-    ### total_messages
-    * Public anonymous view.
-    * Constant-time total received messages count.
-  | {
-    shape: rectangle
-    style.fill: "#fff3e0"
-  }
-
   topic_message_counts: |md
     ### topic_message_counts
     * Public view.
@@ -311,7 +302,6 @@ direction: right
 "Private Tables".received_message -> "Member / Admin Views".visible_messages
 "Private Tables".mail_message -> "Member / Admin Views".visible_mail_messages
 "Private Tables".account -> "Member / Admin Views".total_accounts
-"Private Tables".received_message -> "Member / Admin Views".total_messages
 "Private Tables".received_message -> "Member / Admin Views".topic_message_counts
 "Private Tables".subscriptions -> "Member / Admin Views".topic_subscriber_counts
 "Private Tables".mail_message -> "Sender Worker Views".sender_mail_messages

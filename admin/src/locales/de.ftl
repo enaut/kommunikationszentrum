@@ -84,6 +84,7 @@ messages-filter-status-accepted = Angenommen
 messages-filter-status-rejected = Abgelehnt
 messages-status-accepted = Angenommen
 messages-status-rejected = Abgelehnt
+messages-status-rejected-reason = Abgelehnt: { $reason }
 messages-reason-not-registered = Nicht registriert
 messages-reason-not-subscribed = Nicht abonniert
 messages-reason-no-write-permission = Keine Schreibrechte
@@ -251,7 +252,7 @@ management-config-stalwart-save = Speichern
 management-config-stalwart-saving = Wird gespeichert…
 management-config-stalwart-saved = Stalwart-Konfiguration wurde erfolgreich gespeichert.
 management-config-stalwart-reset = Änderungen verwerfen
-management-config-stalwart-last-updated = Zuletzt aktualisiert
+management-config-stalwart-last-updated = Zuletzt aktualisiert: { $time }
 
 management-config-retention-title = Mail-Aufbewahrung & Bereinigung
 management-config-retention-help = Automatische Speicherbereinigungsregeln für abgewiesene Nachrichten konfigurieren.
@@ -262,7 +263,7 @@ management-config-retention-save = Speichern
 management-config-retention-saving = Wird gespeichert…
 management-config-retention-saved = Aufbewahrungskonfiguration wurde erfolgreich gespeichert.
 management-config-retention-reset = Änderungen verwerfen
-management-config-retention-last-updated = Zuletzt aktualisiert
+management-config-retention-last-updated = Zuletzt aktualisiert: { $time }
 
 
 management-status-title = Verwaltung · Status

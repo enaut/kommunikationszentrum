@@ -26,6 +26,8 @@ All sender daemon configuration is loaded at startup from **environment variable
 | `RUST_LOG` | `sender=info` | Tracing log filter directive |
 
 > [!NOTE]
+> **SMTP TLS Modes**: When `SMTP_USE_TLS` is `true`, connecting to port `465` automatically uses implicit TLS (`Tls::Wrapper`), while other ports (such as `587`) use explicit STARTTLS (`Tls::Required`). If `SMTP_ACCEPT_INVALID_CERTS` or `SMTP_ACCEPT_INVALID_HOSTNAMES` is enabled, the sender configures permissive TLS parameters via `builder_dangerous`.
+>
 > **SMTP Credentials**: Global `SMTP_USERNAME` and `SMTP_PASSWORD` environment variables are **not** used. SMTP authentication credentials (username and app password) are configured per message topic and stored securely in SpacetimeDB (`TopicAppPassword` table), managed through the Admin Web UI.
 
 ## Environment Profiles

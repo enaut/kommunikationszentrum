@@ -45,34 +45,6 @@ pub fn is_valid_bounce_recipient(from: &str) -> bool {
     true
 }
 
-/// Builds the subject and body for a rejection notification email to be sent by SMTP_SYSTEM_USER.
-pub fn build_oversize_email(
-    original_subject: &str,
-    message_size: u64,
-    maximum_size: u64,
-) -> (String, String) {
-    let subject_clean = original_subject.trim();
-    let subject = if subject_clean.is_empty() || subject_clean.eq_ignore_ascii_case("no subject") {
-        "Rejected: message exceeds the mailing-list size limit".to_string()
-    } else {
-        format!("Rejected: {subject_clean}")
-    };
-
-    let body = format!(
-        "-------------------Deutsch------------------------\n\
-         Ihre E-Mail wurde nicht an die Mailingliste weitergeleitet, weil sie das Größenlimit überschreitet.\n\
-         Nachrichtengröße: {message_size} Bytes\n\
-         Maximale Größe: {maximum_size} Bytes\n\
-         \n\
-         -------------------English------------------------\n\
-         Your email was not forwarded to the mailing list because it exceeds the message size limit.\n\
-         Message size: {message_size} bytes\n\
-         Maximum size: {maximum_size} bytes\n"
-    );
-
-    (subject, body)
-}
-
 pub fn build_rejection_email(
     original_subject: &str,
     message: Option<&MtaMessage>,
@@ -240,27 +212,6 @@ mod tests {
         assert!(!is_valid_bounce_recipient("noreply@example.com"));
         assert!(!is_valid_bounce_recipient("bounce.123@example.com"));
         assert!(!is_valid_bounce_recipient("bounces+tag@example.com"));
-    }
-
-    #[test]
-    fn test_build_oversize_email_includes_size_and_reason() {
-        let (subject, body) = build_oversize_email("Planning", 2_000_001, 2_000_000);
-
-        assert_eq!(subject, "Rejected: Planning");
-        assert!(body.contains("2000001"));
-        assert!(body.contains("2000000"));
-        assert!(body.contains("nicht an die Mailingliste weitergeleitet"));
-        assert!(body.contains("not forwarded to the mailing list"));
-    }
-
-    #[test]
-    fn test_build_oversize_email_fallback_subject() {
-        let (subject, _) = build_oversize_email("No subject", 2_100_000, 2_000_000);
-
-        assert_eq!(
-            subject,
-            "Rejected: message exceeds the mailing-list size limit"
-        );
     }
 
     #[test]

@@ -6,7 +6,7 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_update_account_config, use_subscription, use_table_topic_message_counts,
-    use_table_total_messages, use_table_visible_account_configs, use_table_visible_mail_messages,
+    use_table_visible_account_configs, use_table_visible_mail_messages,
     use_table_visible_message_topics, use_table_visible_messages, use_table_visible_subscriptions,
 };
 use crate::module_bindings::{
@@ -152,7 +152,6 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
         "SELECT * FROM visible_message_topics",
         "SELECT * FROM visible_subscriptions",
         "SELECT * FROM visible_account_configs",
-        "SELECT * FROM total_messages",
         "SELECT * FROM topic_message_counts",
     ]);
 
@@ -162,7 +161,6 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let topics = use_table_visible_message_topics();
     let subscriptions = use_table_visible_subscriptions();
     let configs = use_table_visible_account_configs();
-    let total_messages_table = use_table_total_messages();
     let topic_message_counts_table = use_table_topic_message_counts();
     let update_config = use_reducer_update_account_config();
 
@@ -205,17 +203,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             .filter(|c| subscribed_topic_ids.contains(&c.topic_id))
             .map(|c| c.count as u32)
             .sum()
-    } else if filter_disposition.is_some() {
+    } else {
         topic_message_counts_table()
             .into_iter()
             .map(|c| c.count as u32)
             .sum()
-    } else {
-        total_messages_table()
-            .into_iter()
-            .next()
-            .map(|r| r.count as u32)
-            .unwrap_or_else(|| received_messages().len() as u32)
     };
 
     // Join ReceivedMessage with MailMessage using mail_message_id
@@ -508,11 +500,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                             }
                                             div {
                                                 div { class: "fw-bold",
-                                                    {tid!("messages-status-rejected")}
-                                                    ": "
-                                                    span { class: "fw-normal",
-                                                        "{reason.label()}"
-                                                    }
+                                                    {tid!("messages-status-rejected-reason", reason: reason.label())}
                                                 }
                                                 div { class: "small text-muted",
                                                     "{reason.description()}"

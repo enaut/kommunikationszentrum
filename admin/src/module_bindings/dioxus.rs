@@ -46,7 +46,6 @@ pub struct TableSignals {
     pub topic_message_counts: SyncSignal<Vec<TopicMessageCount>>,
     pub topic_subscriber_counts: SyncSignal<Vec<TopicSubscriberCount>>,
     pub total_accounts: SyncSignal<Vec<CountRow>>,
-    pub total_messages: SyncSignal<Vec<CountRow>>,
     pub visible_account_configs: SyncSignal<Vec<AccountConfig>>,
     pub visible_account_emails: SyncSignal<Vec<AccountEmail>>,
     pub visible_accounts: SyncSignal<Vec<Account>>,
@@ -231,7 +230,6 @@ pub fn use_spacetimedb_context_provider(
         topic_message_counts: use_signal_sync(Vec::new),
         topic_subscriber_counts: use_signal_sync(Vec::new),
         total_accounts: use_signal_sync(Vec::new),
-        total_messages: use_signal_sync(Vec::new),
         visible_account_configs: use_signal_sync(Vec::new),
         visible_account_emails: use_signal_sync(Vec::new),
         visible_accounts: use_signal_sync(Vec::new),
@@ -1031,19 +1029,6 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<CountRow> = ctx.db.total_accounts().iter().collect();
                             table_signals_on_connect.total_accounts.set(updated);
                         });
-                        // Populate initial rows for total_messages
-                        let current: Vec<CountRow> = conn.db.total_messages().iter().collect();
-                        table_signals_on_connect.total_messages.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.total_messages().on_insert(move |ctx, _row| {
-                            let updated: Vec<CountRow> = ctx.db.total_messages().iter().collect();
-                            table_signals_on_connect.total_messages.set(updated);
-                        });
-                        conn.db.total_messages().on_delete(move |ctx, _row| {
-                            let updated: Vec<CountRow> = ctx.db.total_messages().iter().collect();
-                            table_signals_on_connect.total_messages.set(updated);
-                        });
                         // Populate initial rows for visible_account_configs
                         let current: Vec<AccountConfig> =
                             conn.db.visible_account_configs().iter().collect();
@@ -1678,13 +1663,6 @@ pub fn use_table_topic_subscriber_counts() -> SyncSignal<Vec<TopicSubscriberCoun
 pub fn use_table_total_accounts() -> SyncSignal<Vec<CountRow>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.total_accounts
-}
-
-/// Get a reactive signal containing all rows of the `total_messages` table.
-#[must_use]
-pub fn use_table_total_messages() -> SyncSignal<Vec<CountRow>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.total_messages
 }
 
 /// Get a reactive signal containing all rows of the `visible_account_configs` table.

@@ -195,7 +195,10 @@ pub fn handle_data_stage(
             let mut write = false;
             for ae in &verified_active_emails {
                 for s in ctx.db.subscriptions().account_email_id().filter(&ae.id) {
-                    if s.topic_id == topic_id && s.status.is_active() {
+                    if s.subscriber_account_id == ae.account_id
+                        && s.topic_id == topic_id
+                        && s.status.is_active()
+                    {
                         subscribed_active = true;
                         if matches!(s.permission, SubscriptionPermission::Write) {
                             write = true;

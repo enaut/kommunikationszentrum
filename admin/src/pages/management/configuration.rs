@@ -583,9 +583,7 @@ fn StalwartConfigCard() -> Element {
                             if let Some(ref config) = current_config {
                                 span { class: "text-muted small",
                                     Icon { name: "clock-history", class: "me-1" }
-                                    {tid!("management-config-stalwart-last-updated")}
-                                    ": "
-                                    code { "{config.updated_at.to_string()}" }
+                                    {tid!("management-config-stalwart-last-updated", time: config.updated_at.to_string())}
                                 }
                             }
                         }
@@ -742,9 +740,7 @@ fn MailRetentionConfigCard() -> Element {
                             if let Some(ref config) = current_config {
                                 span { class: "text-muted small",
                                     Icon { name: "clock-history", class: "me-1" }
-                                    {tid!("management-config-retention-last-updated")}
-                                    ": "
-                                    code { "{config.updated_at.to_string()}" }
+                                    {tid!("management-config-retention-last-updated", time: config.updated_at.to_string())}
                                 }
                             }
                         }

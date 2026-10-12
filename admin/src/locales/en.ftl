@@ -83,6 +83,7 @@ messages-filter-status-accepted = Accepted
 messages-filter-status-rejected = Rejected
 messages-status-accepted = Accepted
 messages-status-rejected = Rejected
+messages-status-rejected-reason = Rejected: { $reason }
 messages-reason-not-registered = Not registered
 messages-reason-not-subscribed = Not subscribed
 messages-reason-no-write-permission = No write permission
@@ -249,7 +250,7 @@ management-config-stalwart-save = Save
 management-config-stalwart-saving = Saving…
 management-config-stalwart-saved = Stalwart configuration saved successfully.
 management-config-stalwart-reset = Discard changes
-management-config-stalwart-last-updated = Last updated
+management-config-stalwart-last-updated = Last updated: { $time }
 
 management-config-retention-title = Mail Retention & Cleanup
 management-config-retention-help = Configure automatic storage cleanup rules for rejected messages.
@@ -260,7 +261,7 @@ management-config-retention-save = Save
 management-config-retention-saving = Saving…
 management-config-retention-saved = Retention configuration saved successfully.
 management-config-retention-reset = Discard changes
-management-config-retention-last-updated = Last updated
+management-config-retention-last-updated = Last updated: { $time }
 
 
 management-status-title = Management · Status
