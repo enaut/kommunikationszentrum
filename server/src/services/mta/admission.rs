@@ -15,60 +15,6 @@ pub enum SenderEligibility {
     NotRegistered,
 }
 
-/// Account state of a sender email address.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SenderAccountState {
-    /// The email address belongs to an active account with an admin identity.
-    Admin,
-    /// The email address is verified and belongs to an active member account.
-    VerifiedActive,
-    /// The email address is unverified.
-    Unverified,
-    /// The account associated with the email address is inactive/deactivated.
-    InactiveAccount,
-    /// The email address is unknown (not registered to any account).
-    Unknown,
-}
-
-/// Active subscription status of the sender's exact email address (`account_email_id`) for a topic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TopicSubscriptionStatus {
-    /// Active subscription with Write permission.
-    ActiveWrite,
-    /// Active subscription with Read-only permission.
-    ActiveReadOnly,
-    /// No active subscription on this exact email address (either unsubscribed or subscription is on another email of the same account).
-    None,
-}
-
-impl SenderEligibility {
-    pub fn from_sender_facts(
-        account_state: SenderAccountState,
-        subscription: TopicSubscriptionStatus,
-    ) -> Self {
-        match account_state {
-            SenderAccountState::Admin => SenderEligibility::Admin,
-            SenderAccountState::Unknown
-            | SenderAccountState::Unverified
-            | SenderAccountState::InactiveAccount => SenderEligibility::NotRegistered,
-            SenderAccountState::VerifiedActive => match subscription {
-                TopicSubscriptionStatus::ActiveWrite => SenderEligibility::VerifiedActive {
-                    write: true,
-                    subscribed_active: true,
-                },
-                TopicSubscriptionStatus::ActiveReadOnly => SenderEligibility::VerifiedActive {
-                    write: false,
-                    subscribed_active: true,
-                },
-                TopicSubscriptionStatus::None => SenderEligibility::VerifiedActive {
-                    write: false,
-                    subscribed_active: false,
-                },
-            },
-        }
-    }
-}
-
 /// Per-topic admission decision. Oversize is evaluated before authorization
 /// for every sender, including admins.
 pub fn decide_topic_admission(
@@ -97,16 +43,6 @@ pub fn decide_topic_admission(
             }
         }
     }
-}
-
-/// Evaluate topic admission directly from semantic sender facts.
-pub fn decide_sender_admission(
-    oversize: bool,
-    account_state: SenderAccountState,
-    subscription: TopicSubscriptionStatus,
-) -> MessageDisposition {
-    let eligibility = SenderEligibility::from_sender_facts(account_state, subscription);
-    decide_topic_admission(oversize, eligibility)
 }
 
 #[cfg(test)]
@@ -259,30 +195,19 @@ mod tests {
     fn test_admission_policy_all_acceptance_criteria() {
         // 1. Admin (always accepted)
         assert_eq!(
-            decide_sender_admission(
-                false,
-                SenderAccountState::Admin,
-                TopicSubscriptionStatus::None
-            ),
+            decide_topic_admission(false, SenderEligibility::Admin),
             MessageDisposition::Accepted,
             "admin without subscription is accepted"
-        );
-        assert_eq!(
-            decide_sender_admission(
-                false,
-                SenderAccountState::Admin,
-                TopicSubscriptionStatus::ActiveWrite
-            ),
-            MessageDisposition::Accepted,
-            "admin with subscription is accepted"
         );
 
         // 2. Verified + active + Write subscription (accepted)
         assert_eq!(
-            decide_sender_admission(
+            decide_topic_admission(
                 false,
-                SenderAccountState::VerifiedActive,
-                TopicSubscriptionStatus::ActiveWrite
+                SenderEligibility::VerifiedActive {
+                    write: true,
+                    subscribed_active: true,
+                }
             ),
             MessageDisposition::Accepted,
             "verified active with write subscription is accepted"
@@ -290,10 +215,12 @@ mod tests {
 
         // 3. Read-only (rejected with NoWritePermission)
         assert_eq!(
-            decide_sender_admission(
+            decide_topic_admission(
                 false,
-                SenderAccountState::VerifiedActive,
-                TopicSubscriptionStatus::ActiveReadOnly
+                SenderEligibility::VerifiedActive {
+                    write: false,
+                    subscribed_active: true,
+                }
             ),
             MessageDisposition::Rejected(TopicRejectionReason::NoWritePermission),
             "read-only subscription is rejected with NoWritePermission"
@@ -301,106 +228,69 @@ mod tests {
 
         // 4. No subscription (rejected with NotSubscribed)
         assert_eq!(
-            decide_sender_admission(
+            decide_topic_admission(
                 false,
-                SenderAccountState::VerifiedActive,
-                TopicSubscriptionStatus::None
+                SenderEligibility::VerifiedActive {
+                    write: false,
+                    subscribed_active: false,
+                }
             ),
             MessageDisposition::Rejected(TopicRejectionReason::NotSubscribed),
             "no subscription is rejected with NotSubscribed"
         );
 
-        // 5. Subscription on a different email of the same account (rejected with NotSubscribed)
-        // Subscription check is strictly on exact sender account_email_id; another email having a subscription
-        // means this email has TopicSubscriptionStatus::None.
+        // 5. Not registered (unverified, inactive, or unknown address rejected with NotRegistered)
         assert_eq!(
-            decide_sender_admission(
-                false,
-                SenderAccountState::VerifiedActive,
-                TopicSubscriptionStatus::None
-            ),
-            MessageDisposition::Rejected(TopicRejectionReason::NotSubscribed),
-            "subscription on a different email of same account is rejected with NotSubscribed"
-        );
-
-        // 6. Unverified address (rejected with NotRegistered)
-        assert_eq!(
-            decide_sender_admission(
-                false,
-                SenderAccountState::Unverified,
-                TopicSubscriptionStatus::ActiveWrite
-            ),
+            decide_topic_admission(false, SenderEligibility::NotRegistered),
             MessageDisposition::Rejected(TopicRejectionReason::NotRegistered),
-            "unverified address is rejected with NotRegistered"
+            "not registered address is rejected with NotRegistered"
         );
 
-        // 7. Inactive account (rejected with NotRegistered)
+        // 6. Oversize (>2MB) (rejected with Oversize for all senders, including admins)
         assert_eq!(
-            decide_sender_admission(
-                false,
-                SenderAccountState::InactiveAccount,
-                TopicSubscriptionStatus::ActiveWrite
-            ),
-            MessageDisposition::Rejected(TopicRejectionReason::NotRegistered),
-            "inactive account is rejected with NotRegistered"
-        );
-
-        // 8. Unknown address (rejected with NotRegistered)
-        assert_eq!(
-            decide_sender_admission(
-                false,
-                SenderAccountState::Unknown,
-                TopicSubscriptionStatus::None
-            ),
-            MessageDisposition::Rejected(TopicRejectionReason::NotRegistered),
-            "unknown address is rejected with NotRegistered"
-        );
-
-        // 9. Oversize (>2MB) (rejected with Oversize for all senders, including admins)
-        assert_eq!(
-            decide_sender_admission(
-                true,
-                SenderAccountState::Admin,
-                TopicSubscriptionStatus::ActiveWrite
-            ),
+            decide_topic_admission(true, SenderEligibility::Admin),
             MessageDisposition::Rejected(TopicRejectionReason::Oversize),
             "oversize admin is rejected with Oversize"
         );
         assert_eq!(
-            decide_sender_admission(
+            decide_topic_admission(
                 true,
-                SenderAccountState::VerifiedActive,
-                TopicSubscriptionStatus::ActiveWrite
+                SenderEligibility::VerifiedActive {
+                    write: true,
+                    subscribed_active: true,
+                }
             ),
             MessageDisposition::Rejected(TopicRejectionReason::Oversize),
             "oversize verified active is rejected with Oversize"
         );
         assert_eq!(
-            decide_sender_admission(
-                true,
-                SenderAccountState::Unknown,
-                TopicSubscriptionStatus::None
-            ),
+            decide_topic_admission(true, SenderEligibility::NotRegistered),
             MessageDisposition::Rejected(TopicRejectionReason::Oversize),
-            "oversize unknown is rejected with Oversize"
+            "oversize not registered is rejected with Oversize"
         );
 
-        // 10. Multi-topic mixtures
+        // 7. Multi-topic mixtures
         let topic_results = [
-            decide_sender_admission(
+            decide_topic_admission(
                 false,
-                SenderAccountState::VerifiedActive,
-                TopicSubscriptionStatus::ActiveWrite,
+                SenderEligibility::VerifiedActive {
+                    write: true,
+                    subscribed_active: true,
+                },
             ),
-            decide_sender_admission(
+            decide_topic_admission(
                 false,
-                SenderAccountState::VerifiedActive,
-                TopicSubscriptionStatus::ActiveReadOnly,
+                SenderEligibility::VerifiedActive {
+                    write: false,
+                    subscribed_active: true,
+                },
             ),
-            decide_sender_admission(
+            decide_topic_admission(
                 false,
-                SenderAccountState::VerifiedActive,
-                TopicSubscriptionStatus::None,
+                SenderEligibility::VerifiedActive {
+                    write: false,
+                    subscribed_active: false,
+                },
             ),
         ];
         assert_eq!(

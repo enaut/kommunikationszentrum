@@ -58,6 +58,7 @@ pub mod mail_message_type;
 pub mod mail_retention_config_type;
 pub mod mark_mail_delivery_bounced_reducer;
 pub mod mark_mail_delivery_sent_reducer;
+pub mod message_disposition_filter_type;
 pub mod message_disposition_type;
 pub mod message_topic_category_type;
 pub mod message_topic_type;
@@ -185,6 +186,7 @@ pub use mail_message_type::MailMessage;
 pub use mail_retention_config_type::MailRetentionConfig;
 pub use mark_mail_delivery_bounced_reducer::mark_mail_delivery_bounced;
 pub use mark_mail_delivery_sent_reducer::mark_mail_delivery_sent;
+pub use message_disposition_filter_type::MessageDispositionFilter;
 pub use message_disposition_type::MessageDisposition;
 pub use message_topic_category_type::MessageTopicCategory;
 pub use message_topic_type::MessageTopic;
@@ -440,7 +442,7 @@ pub enum Reducer {
         clear_viewing_topic_id: bool,
         language: Option<String>,
         theme: Option<String>,
-        message_disposition_filter: Option<String>,
+        message_disposition_filter: Option<MessageDispositionFilter>,
         clear_message_disposition_filter: bool,
     },
     UpdateMessageTopic {

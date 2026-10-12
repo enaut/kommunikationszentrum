@@ -6,6 +6,8 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::message_disposition_filter_type::MessageDispositionFilter;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub(super) struct UpdateAccountConfigArgs {
@@ -21,7 +23,7 @@ pub(super) struct UpdateAccountConfigArgs {
     pub clear_viewing_topic_id: bool,
     pub language: Option<String>,
     pub theme: Option<String>,
-    pub message_disposition_filter: Option<String>,
+    pub message_disposition_filter: Option<MessageDispositionFilter>,
     pub clear_message_disposition_filter: bool,
 }
 
@@ -76,7 +78,7 @@ pub trait update_account_config {
         clear_viewing_topic_id: bool,
         language: Option<String>,
         theme: Option<String>,
-        message_disposition_filter: Option<String>,
+        message_disposition_filter: Option<MessageDispositionFilter>,
         clear_message_disposition_filter: bool,
     ) -> __sdk::Result<()> {
         self.update_account_config_then(
@@ -118,7 +120,7 @@ pub trait update_account_config {
         clear_viewing_topic_id: bool,
         language: Option<String>,
         theme: Option<String>,
-        message_disposition_filter: Option<String>,
+        message_disposition_filter: Option<MessageDispositionFilter>,
         clear_message_disposition_filter: bool,
         callback: impl FnOnce(
             &super::ReducerEventContext,
@@ -143,7 +145,7 @@ impl update_account_config for super::RemoteReducers {
         clear_viewing_topic_id: bool,
         language: Option<String>,
         theme: Option<String>,
-        message_disposition_filter: Option<String>,
+        message_disposition_filter: Option<MessageDispositionFilter>,
         clear_message_disposition_filter: bool,
         callback: impl FnOnce(
             &super::ReducerEventContext,

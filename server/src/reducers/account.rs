@@ -1073,7 +1073,7 @@ pub fn update_account_config(
     clear_viewing_topic_id: bool,
     language: Option<String>,
     theme: Option<String>,
-    message_disposition_filter: Option<String>,
+    message_disposition_filter: Option<MessageDispositionFilter>,
     clear_message_disposition_filter: bool,
 ) -> Result<(), String> {
     let sender = ctx.sender();

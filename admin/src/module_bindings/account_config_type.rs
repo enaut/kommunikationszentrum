@@ -4,6 +4,8 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::message_disposition_filter_type::MessageDispositionFilter;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub struct AccountConfig {
@@ -18,7 +20,7 @@ pub struct AccountConfig {
     pub language: Option<String>,
     pub theme: Option<String>,
     pub search_matching_accounts: u32,
-    pub message_disposition_filter: Option<String>,
+    pub message_disposition_filter: Option<MessageDispositionFilter>,
 }
 
 impl __sdk::InModule for AccountConfig {
@@ -40,7 +42,8 @@ pub struct AccountConfigCols {
     pub language: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
     pub theme: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
     pub search_matching_accounts: __sdk::__query_builder::Col<AccountConfig, u32>,
-    pub message_disposition_filter: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
+    pub message_disposition_filter:
+        __sdk::__query_builder::Col<AccountConfig, Option<MessageDispositionFilter>>,
 }
 
 impl __sdk::__query_builder::HasCols for AccountConfig {

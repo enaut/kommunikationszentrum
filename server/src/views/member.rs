@@ -129,16 +129,8 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
 
     if !is_admin {
         messages.retain(|m| matches!(m.disposition, MessageDisposition::Accepted));
-    } else if let Some(ref filter) = config.message_disposition_filter {
-        match filter.as_str() {
-            "accepted" => {
-                messages.retain(|m| matches!(m.disposition, MessageDisposition::Accepted))
-            }
-            "rejected" => {
-                messages.retain(|m| matches!(m.disposition, MessageDisposition::Rejected(_)))
-            }
-            _ => {}
-        }
+    } else if let Some(filter) = config.message_disposition_filter {
+        messages.retain(|m| filter.matches(&m.disposition));
     }
 
     messages.sort_unstable_by(|a, b| b.received_at.cmp(&a.received_at));

@@ -47,16 +47,6 @@ pub struct PurgeDecision {
     pub purge_mail_message: bool,
 }
 
-impl PurgeDecision {
-    pub fn can_purge_received(&self) -> bool {
-        self.purge_received_message
-    }
-
-    pub fn can_purge_mail_message(&self) -> bool {
-        self.purge_mail_message
-    }
-}
-
 /// Pure "is purgeable" predicate.
 ///
 /// Rules:
@@ -77,24 +67,6 @@ pub fn is_purgeable(input: PurgePredicateInput) -> PurgeDecision {
         purge_received_message: purge_received,
         purge_mail_message: purge_mail,
     }
-}
-
-/// Pure helper checking if a `ReceivedMessage` is purgeable.
-pub fn is_received_message_purgeable(
-    disposition: &MessageDisposition,
-    received_at: Timestamp,
-    cutoff: Timestamp,
-) -> bool {
-    matches!(disposition, MessageDisposition::Rejected(_)) && received_at <= cutoff
-}
-
-/// Pure helper checking if a `MailMessage` is purgeable (i.e. has no active references).
-pub fn is_mail_message_purgeable(
-    other_received_refs: usize,
-    ingress_refs: usize,
-    delivery_refs: usize,
-) -> bool {
-    other_received_refs == 0 && ingress_refs == 0 && delivery_refs == 0
 }
 
 /// Storage operations needed by the purge engine.
@@ -238,19 +210,13 @@ mod tests {
             delivery_refs: 0,
         });
         assert!(
-            case1.can_purge_received(),
+            case1.purge_received_message,
             "rejected+old must purge received_message"
         );
         assert!(
-            case1.can_purge_mail_message(),
+            case1.purge_mail_message,
             "rejected+old without other refs must purge mail_message"
         );
-        assert!(is_received_message_purgeable(
-            &rejected_disp,
-            old_time,
-            cutoff
-        ));
-        assert!(is_mail_message_purgeable(0, 0, 0));
 
         // 2. rejected + recent -> no
         let case2 = is_purgeable(PurgePredicateInput {
@@ -262,18 +228,13 @@ mod tests {
             delivery_refs: 0,
         });
         assert!(
-            !case2.can_purge_received(),
+            !case2.purge_received_message,
             "rejected+recent must NOT purge received_message"
         );
         assert!(
-            !case2.can_purge_mail_message(),
+            !case2.purge_mail_message,
             "rejected+recent must NOT purge mail_message"
         );
-        assert!(!is_received_message_purgeable(
-            &rejected_disp,
-            recent_time,
-            cutoff
-        ));
 
         // 3. accepted + old -> no
         let case3 = is_purgeable(PurgePredicateInput {
@@ -285,18 +246,13 @@ mod tests {
             delivery_refs: 0,
         });
         assert!(
-            !case3.can_purge_received(),
+            !case3.purge_received_message,
             "accepted+old must NOT purge received_message"
         );
         assert!(
-            !case3.can_purge_mail_message(),
+            !case3.purge_mail_message,
             "accepted+old must NOT purge mail_message"
         );
-        assert!(!is_received_message_purgeable(
-            &accepted_disp,
-            old_time,
-            cutoff
-        ));
 
         // 4. shared mail_message still referenced -> not deleted
         // Case 4a: still referenced by another received_message
@@ -309,14 +265,13 @@ mod tests {
             delivery_refs: 0,
         });
         assert!(
-            case4a.can_purge_received(),
+            case4a.purge_received_message,
             "rejected received_message itself is purged"
         );
         assert!(
-            !case4a.can_purge_mail_message(),
+            !case4a.purge_mail_message,
             "shared mail_message with other received refs must NOT be deleted"
         );
-        assert!(!is_mail_message_purgeable(1, 0, 0));
 
         // Case 4b: referenced by mail_ingress
         let case4b = is_purgeable(PurgePredicateInput {
@@ -327,12 +282,11 @@ mod tests {
             ingress_refs: 1,
             delivery_refs: 0,
         });
-        assert!(case4b.can_purge_received());
+        assert!(case4b.purge_received_message);
         assert!(
-            !case4b.can_purge_mail_message(),
+            !case4b.purge_mail_message,
             "mail_message referenced by mail_ingress must NOT be deleted"
         );
-        assert!(!is_mail_message_purgeable(0, 1, 0));
 
         // Case 4c: referenced by mail_delivery_message
         let case4c = is_purgeable(PurgePredicateInput {
@@ -343,12 +297,11 @@ mod tests {
             ingress_refs: 0,
             delivery_refs: 1,
         });
-        assert!(case4c.can_purge_received());
+        assert!(case4c.purge_received_message);
         assert!(
-            !case4c.can_purge_mail_message(),
+            !case4c.purge_mail_message,
             "mail_message referenced by delivery must NOT be deleted"
         );
-        assert!(!is_mail_message_purgeable(0, 0, 1));
     }
 
     #[test]
@@ -379,14 +332,30 @@ mod tests {
         let rejected = MessageDisposition::Rejected(TopicRejectionReason::NotSubscribed);
 
         // Under 30 days retention: 20 days is NOT purgeable (cutoff = 30 days ago, msg_time > cutoff)
-        assert!(!is_received_message_purgeable(
-            &rejected, msg_time, cutoff_30
-        ));
+        assert!(
+            !is_purgeable(PurgePredicateInput {
+                disposition: rejected,
+                received_at: msg_time,
+                cutoff: cutoff_30,
+                other_received_refs: 0,
+                ingress_refs: 0,
+                delivery_refs: 0,
+            })
+            .purge_received_message
+        );
 
         // Under 10 days retention: 20 days IS purgeable (cutoff = 10 days ago, msg_time <= cutoff)
-        assert!(is_received_message_purgeable(
-            &rejected, msg_time, cutoff_10
-        ));
+        assert!(
+            is_purgeable(PurgePredicateInput {
+                disposition: rejected,
+                received_at: msg_time,
+                cutoff: cutoff_10,
+                other_received_refs: 0,
+                ingress_refs: 0,
+                delivery_refs: 0,
+            })
+            .purge_received_message
+        );
     }
 
     /// In-memory implementation of PurgeStore for unit testing

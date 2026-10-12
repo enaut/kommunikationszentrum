@@ -5513,7 +5513,7 @@ pub fn use_reducer_update_account_config() -> impl Fn(
     bool,
     Option<String>,
     Option<String>,
-    Option<String>,
+    Option<MessageDispositionFilter>,
     bool,
 ) -> spacetimedb_sdk::Result<()>
 + Clone
@@ -5532,7 +5532,7 @@ pub fn use_reducer_update_account_config() -> impl Fn(
           clear_viewing_topic_id: bool,
           language: Option<String>,
           theme: Option<String>,
-          message_disposition_filter: Option<String>,
+          message_disposition_filter: Option<MessageDispositionFilter>,
           clear_message_disposition_filter: bool| {
         if let Some(conn) = conn_signal().as_ref() {
             conn.reducers.update_account_config(
@@ -5577,7 +5577,7 @@ pub fn use_reducer_update_account_config_then() -> (
         bool,
         Option<String>,
         Option<String>,
-        Option<String>,
+        Option<MessageDispositionFilter>,
         bool,
     ) + Clone
     + 'static,
@@ -5598,7 +5598,7 @@ pub fn use_reducer_update_account_config_then() -> (
                        clear_viewing_topic_id: bool,
                        language: Option<String>,
                        theme: Option<String>,
-                       message_disposition_filter: Option<String>,
+                       message_disposition_filter: Option<MessageDispositionFilter>,
                        clear_message_disposition_filter: bool| {
         let mut result = result;
         result.set(None);
@@ -5661,7 +5661,7 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
     bool,
     Option<String>,
     Option<String>,
-    Option<String>,
+    Option<MessageDispositionFilter>,
     bool,
 ) -> std::pin::Pin<
     Box<dyn std::future::Future<Output = Result<(), String>>>,
@@ -5681,7 +5681,7 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
           clear_viewing_topic_id: bool,
           language: Option<String>,
           theme: Option<String>,
-          message_disposition_filter: Option<String>,
+          message_disposition_filter: Option<MessageDispositionFilter>,
           clear_message_disposition_filter: bool|
           -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
         let conn = conn_signal();

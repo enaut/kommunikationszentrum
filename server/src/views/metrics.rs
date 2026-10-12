@@ -46,16 +46,8 @@ pub fn topic_message_counts(ctx: &ViewContext) -> Vec<TopicMessageCount> {
         let count = if !is_admin {
             rows.filter(|m| matches!(m.disposition, MessageDisposition::Accepted))
                 .count() as u64
-        } else if let Some(ref filter) = config.message_disposition_filter {
-            match filter.as_str() {
-                "accepted" => rows
-                    .filter(|m| matches!(m.disposition, MessageDisposition::Accepted))
-                    .count() as u64,
-                "rejected" => rows
-                    .filter(|m| matches!(m.disposition, MessageDisposition::Rejected(_)))
-                    .count() as u64,
-                _ => rows.count() as u64,
-            }
+        } else if let Some(filter) = config.message_disposition_filter {
+            rows.filter(|m| filter.matches(&m.disposition)).count() as u64
         } else {
             rows.count() as u64
         };

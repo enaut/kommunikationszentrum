@@ -3,6 +3,7 @@
 
 #![allow(unused, clippy::all)]
 use super::account_config_type::AccountConfig;
+use super::message_disposition_filter_type::MessageDispositionFilter;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
 /// Table handle for the table `visible_account_configs`.

@@ -32,6 +32,23 @@ pub enum MessageDisposition {
     Rejected(TopicRejectionReason),
 }
 
+/// Filter criteria for querying messages by disposition in account configurations.
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageDispositionFilter {
+    Accepted,
+    Rejected,
+}
+
+impl MessageDispositionFilter {
+    pub fn matches(&self, disposition: &MessageDisposition) -> bool {
+        match (self, disposition) {
+            (MessageDispositionFilter::Accepted, MessageDisposition::Accepted) => true,
+            (MessageDispositionFilter::Rejected, MessageDisposition::Rejected(_)) => true,
+            _ => false,
+        }
+    }
+}
+
 /// One row per topic delivery attempt, linked to its canonical `MailMessage`
 /// and the target mailing-list topic.
 #[derive(Clone)]

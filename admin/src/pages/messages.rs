@@ -10,8 +10,31 @@ use crate::module_bindings::dioxus::{
     use_table_visible_message_topics, use_table_visible_messages, use_table_visible_subscriptions,
 };
 use crate::module_bindings::{
-    MailMessage, MessageDisposition, ReceivedMessage, TopicRejectionReason,
+    MailMessage, MessageDisposition, MessageDispositionFilter, ReceivedMessage,
+    TopicRejectionReason,
 };
+
+impl TopicRejectionReason {
+    pub fn label(&self) -> String {
+        match self {
+            TopicRejectionReason::NotRegistered => tid!("messages-reason-not-registered"),
+            TopicRejectionReason::NotSubscribed => tid!("messages-reason-not-subscribed"),
+            TopicRejectionReason::NoWritePermission => tid!("messages-reason-no-write-permission"),
+            TopicRejectionReason::Oversize => tid!("messages-reason-oversize"),
+        }
+    }
+
+    pub fn description(&self) -> String {
+        match self {
+            TopicRejectionReason::NotRegistered => tid!("messages-reason-desc-not-registered"),
+            TopicRejectionReason::NotSubscribed => tid!("messages-reason-desc-not-subscribed"),
+            TopicRejectionReason::NoWritePermission => {
+                tid!("messages-reason-desc-no-write-permission")
+            }
+            TopicRejectionReason::Oversize => tid!("messages-reason-desc-oversize"),
+        }
+    }
+}
 use crate::oauth::UserInfo;
 use crate::router::use_is_admin;
 use spacetimedb_sdk::Timestamp;
@@ -152,9 +175,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let is_admin = use_is_admin();
     let config = configs().into_iter().next();
     let filter_topic = config.as_ref().and_then(|c| c.selected_message_topic);
-    let filter_disposition = config
-        .as_ref()
-        .and_then(|c| c.message_disposition_filter.as_deref());
+    let filter_disposition = config.as_ref().and_then(|c| c.message_disposition_filter);
     let current_offset = config.as_ref().map(|c| c.message_offset).unwrap_or(0);
     let current_limit = config.as_ref().map(|c| c.message_limit).unwrap_or(50);
 
@@ -268,26 +289,26 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                     {tid!("messages-filter-status-all")}
                                 }
                                 Button {
-                                    color: if filter_disposition == Some("accepted") { Color::Success } else { Color::Secondary },
-                                    outline: filter_disposition != Some("accepted"),
+                                    color: if filter_disposition == Some(MessageDispositionFilter::Accepted) { Color::Success } else { Color::Secondary },
+                                    outline: filter_disposition != Some(MessageDispositionFilter::Accepted),
                                     size: Size::Sm,
                                     onclick: {
                                         let update_config = update_config.clone();
                                         move |_| {
-                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, Some("accepted".to_string()), false);
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, Some(MessageDispositionFilter::Accepted), false);
                                             selected_id.set(None);
                                         }
                                     },
                                     {tid!("messages-filter-status-accepted")}
                                 }
                                 Button {
-                                    color: if filter_disposition == Some("rejected") { Color::Danger } else { Color::Secondary },
-                                    outline: filter_disposition != Some("rejected"),
+                                    color: if filter_disposition == Some(MessageDispositionFilter::Rejected) { Color::Danger } else { Color::Secondary },
+                                    outline: filter_disposition != Some(MessageDispositionFilter::Rejected),
                                     size: Size::Sm,
                                     onclick: {
                                         let update_config = update_config.clone();
                                         move |_| {
-                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, Some("rejected".to_string()), false);
+                                            let _ = update_config(Some(0), None, None, false, None, None, None, false, None, false, None, None, Some(MessageDispositionFilter::Rejected), false);
                                             selected_id.set(None);
                                         }
                                     },
@@ -376,14 +397,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
             if filtered.is_empty() {
                 Alert { color: Color::Info,
                     Icon { name: "inbox", class: "me-2" }
-                    if let Some("rejected") = filter_disposition {
-                        {tid!("messages-empty-rejected")}
-                    } else if let Some("accepted") = filter_disposition {
-                        {tid!("messages-empty-accepted")}
-                    } else if filter_topic.is_none() {
-                        {tid!("messages-empty")}
-                    } else {
-                        {tid!("messages-empty-topic")}
+                    match filter_disposition {
+                        Some(MessageDispositionFilter::Rejected) => {tid!("messages-empty-rejected")},
+                        Some(MessageDispositionFilter::Accepted) => {tid!("messages-empty-accepted")},
+                        None if filter_topic.is_none() => {tid!("messages-empty")},
+                        None => {tid!("messages-empty-topic")},
                     }
                 }
             } else {
@@ -433,12 +451,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                                 Badge {
                                                                     color: if msg.is_oversize() { Color::Warning } else { Color::Secondary },
                                                                     class: "text-nowrap",
-                                                                    match reason {
-                                                                        TopicRejectionReason::NotRegistered => tid!("messages-reason-not-registered"),
-                                                                        TopicRejectionReason::NotSubscribed => tid!("messages-reason-not-subscribed"),
-                                                                        TopicRejectionReason::NoWritePermission => tid!("messages-reason-no-write-permission"),
-                                                                        TopicRejectionReason::Oversize => tid!("messages-reason-oversize"),
-                                                                    }
+                                                                    "{reason.label()}"
                                                                 }
                                                             }
                                                         }
@@ -471,12 +484,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                             Badge { color: Color::Danger, {tid!("messages-status-rejected")} }
                                             Badge {
                                                 color: if msg.is_oversize() { Color::Warning } else { Color::Secondary },
-                                                match reason {
-                                                    TopicRejectionReason::NotRegistered => tid!("messages-reason-not-registered"),
-                                                    TopicRejectionReason::NotSubscribed => tid!("messages-reason-not-subscribed"),
-                                                    TopicRejectionReason::NoWritePermission => tid!("messages-reason-no-write-permission"),
-                                                    TopicRejectionReason::Oversize => tid!("messages-reason-oversize"),
-                                                }
+                                                "{reason.label()}"
                                             }
                                         }
                                         span { class: "fw-semibold",
@@ -503,21 +511,11 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                     {tid!("messages-status-rejected")}
                                                     ": "
                                                     span { class: "fw-normal",
-                                                        match reason {
-                                                            TopicRejectionReason::NotRegistered => tid!("messages-reason-not-registered"),
-                                                            TopicRejectionReason::NotSubscribed => tid!("messages-reason-not-subscribed"),
-                                                            TopicRejectionReason::NoWritePermission => tid!("messages-reason-no-write-permission"),
-                                                            TopicRejectionReason::Oversize => tid!("messages-reason-oversize"),
-                                                        }
+                                                        "{reason.label()}"
                                                     }
                                                 }
                                                 div { class: "small text-muted",
-                                                    match reason {
-                                                        TopicRejectionReason::NotRegistered => tid!("messages-reason-desc-not-registered"),
-                                                        TopicRejectionReason::NotSubscribed => tid!("messages-reason-desc-not-subscribed"),
-                                                        TopicRejectionReason::NoWritePermission => tid!("messages-reason-desc-no-write-permission"),
-                                                        TopicRejectionReason::Oversize => tid!("messages-reason-desc-oversize"),
-                                                    }
+                                                    "{reason.description()}"
                                                 }
                                             }
                                         }
