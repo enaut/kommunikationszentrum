@@ -59,7 +59,7 @@ SPACETIMEDB_URI=https://spacetimedb.example.org
 SPACETIMEDB_DATABASE_NAME=kommunikation
 SPACETIMEDB_TOKEN=<production-secret-token>
 
-SMTP_HOST=mail-eu.smtp2go.com
+SMTP_HOST=mx.example.org
 SMTP_PORT=465
 SMTP_USE_TLS=true
 SMTP_ACCEPT_INVALID_CERTS=false

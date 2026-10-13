@@ -808,11 +808,11 @@ async fn send_system_mail_jobs(
     in_flight: &mut std::collections::HashSet<u64>,
 ) -> Result<(), Box<dyn Error>> {
     let Some(username) = config.smtp_system_username.as_deref() else {
-        trace!("SMTP_SYSTEM_USERNAME not configured; skipping system mail dispatch");
+        error!("SMTP_SYSTEM_USERNAME not configured; skipping system mail dispatch");
         return Ok(());
     };
     let Some(password) = config.smtp_system_password.as_deref() else {
-        trace!("SMTP_SYSTEM_PASSWORD not configured; skipping system mail dispatch");
+        error!("SMTP_SYSTEM_PASSWORD not configured; skipping system mail dispatch");
         return Ok(());
     };
 
@@ -934,7 +934,6 @@ async fn send_system_mail_jobs(
             }
         }
     }
-
     Ok(())
 }
 

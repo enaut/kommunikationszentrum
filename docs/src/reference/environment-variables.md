@@ -94,7 +94,7 @@ All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 - **Used by**: `sender`
 - **Description**: Hostname or IP address of the outbound SMTP relay server. The daemon will panic on startup if this variable is not set.
 - **Format**: Hostname or IP string
-- **Examples**: `localhost`, `127.0.0.1`, `mail-eu.smtp2go.com`
+- **Examples**: `localhost`, `127.0.0.1`, `mx.example.org`
 
 ### `SMTP_PORT`
 - **Default**: `465`

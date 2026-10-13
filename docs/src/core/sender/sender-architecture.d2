@@ -43,7 +43,7 @@ sender: "Sender Daemon (Async Tokio Runtime)" {
     shape: diamond
     style.fill: "#c8e6c9"
   }
-  
+
   work_loop: "Main Reactive Work Loop" {
     fanout: "Fan-Out Engine\n(process_fanout_jobs)" { class: worker_node }
     system_mail: "System Mail Engine\n(send_system_mail_jobs)" { class: worker_node }
@@ -52,7 +52,7 @@ sender: "Sender Daemon (Async Tokio Runtime)" {
 }
 
 ext: "External Services" {
-  smtp: "Outbound SMTP Relay\n(Stalwart / SMTP2GO / Postfix)" { class: ext_node }
+  smtp: "Outbound SMTP Relay\n(Stalwart)" { class: ext_node }
   otel: "Grafana Alloy / Tempo / Loki\n(OTLP Traces + Logs)" { class: ext_node }
 }
 
