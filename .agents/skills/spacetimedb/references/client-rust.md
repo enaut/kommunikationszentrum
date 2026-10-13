@@ -39,7 +39,7 @@ fn main() -> anyhow::Result<()> {
                 .on_applied(|_ctx| log::info!("Initial subscription sync applied!"))
                 .on_error(|_ctx, err| log::error!("Subscription error: {err}"))
                 .add_query(|q| q.from.player())
-                .add_query(|q| q.from.combat_event()) // Event tables must be subscribed explicitly
+                .add_query(|q| q.from.combat_event()) // Selective subscription to an event table
                 .subscribe();
         })
         .on_connect_error(|_ctx, err| {
@@ -63,22 +63,24 @@ fn main() -> anyhow::Result<()> {
 In SpacetimeDB 2.0+, client subscriptions use client-assigned `QuerySetId` and typed query builders:
 
 ```rust
-// 1. Subscribe to specific tables
+// 1. Subscribe to specific tables (selective subscription)
 ctx.subscription_builder()
     .add_query(|q| q.from.player())
     .add_query(|q| q.from.world_state())
+    .add_query(|q| q.from.combat_event()) // Selective subscription to an event table
     .subscribe();
 
-// 2. Subscribe to all standard tables (excludes event tables!)
+// 2. Subscribe to all public tables (automatically includes public event tables)
 ctx.subscription_builder()
     .subscribe_to_all_tables();
 
-// 3. Subscribing to Event Tables:
-// Event tables are excluded from subscribe_to_all_tables() to prevent accidental high-volume traffic.
-// You MUST subscribe to them explicitly:
-ctx.subscription_builder()
-    .add_query(|q| q.from.combat_event())
-    .subscribe();
+// 3. Observing Event Tables:
+// Public event tables are automatically included in subscribe_to_all_tables(),
+// or can be subscribed to selectively via add_query().
+// Because event table rows are ephemeral and never cached, observe them via on_insert callbacks:
+conn.db.combat_event().on_insert(|_ctx, event| {
+    log::info!("Combat event received: {:?}", event);
+});
 ```
 
 ---

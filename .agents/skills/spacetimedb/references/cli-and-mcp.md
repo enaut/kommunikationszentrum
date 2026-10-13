@@ -114,7 +114,8 @@ When running `spacetime mcp`:
   * `call`: Invoke a reducer with positional JSON arguments (e.g. `["alice"]`).
 * **Host-wide mode** (`spacetime mcp`):
   * `list_databases`: Discover accessible databases on the host.
-  * `ping`, `get_schema`, `sql`, `call`: Same tools as above, with each tool accepting an explicit `database` parameter.
+  * `get_schema`, `sql`, `call`: Same tools as above, with each tool accepting an explicit `database` parameter.
+  * `ping`
 
 ### Maincloud MCP Endpoint
 For hosted deployments on Clockwork Labs Maincloud, connect directly using the native `/v1/mcp` endpoint with your Maincloud identity token.

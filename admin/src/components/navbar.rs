@@ -87,8 +87,8 @@ pub fn Navbar(
                                 Theme::Dark => "sun",
                             };
                             let label = match current_theme {
-                                Theme::Light => "Switch to dark mode",
-                                Theme::Dark => "Switch to light mode",
+                                Theme::Light => tid!("navbar-theme-dark"),
+                                Theme::Dark => tid!("navbar-theme-light"),
                             };
                             let update_fn = update_account_config_for_theme.clone();
                             let mut theme_sig = theme;

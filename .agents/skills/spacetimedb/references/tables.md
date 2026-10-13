@@ -135,7 +135,7 @@ pub struct CombatEvent {
 1. **Transaction-Bound:** During reducer execution, event tables behave like standard tables: you can insert rows, read them, and apply constraints.
 2. **Auto-Purge on Commit:** When the transaction commits, SpacetimeDB publishes inserted rows to subscribed clients, and immediately removes them from the table.
 3. **Empty Between Transactions:** Event tables are always empty outside of an active transaction. On clients, `iter()` is empty and `count()` is always 0.
-4. **Subscription Requirement:** `subscribe_to_all_tables()` automatically includes public event tables (observed via `on_insert` callbacks). Explicit queries via query builder or SQL are only required for selective subscriptions:
+4. **Subscriptions:** `subscribe_to_all_tables()` automatically includes public event tables (observed via `on_insert` callbacks). Explicit queries via query builder or SQL are only required when using selective subscriptions:
    ```rust
    ctx.subscription_builder().add_query(|q| q.from.combat_event()).subscribe();
    ```

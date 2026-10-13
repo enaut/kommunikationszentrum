@@ -89,7 +89,7 @@ use spacetimedb::{reducer, ReducerContext, Table};
 #[reducer]
 pub fn attack(ctx: &ReducerContext, target_id: u64, damage: u32) -> Result<(), String> {
     // Validate attacker
-    if ctx.db.player().identity().find(&ctx.sender).is_none() {
+    if ctx.db.player().identity().find(&ctx.sender()).is_none() {
         return Err("Attacker not registered".to_string());
     }
 
