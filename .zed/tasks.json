@@ -1,7 +1,7 @@
 [
   {
     "label": "Start Kommunikationszentrum",
-    "command": "export $(cat .env/.env.oidc | xargs) && dx serve --package admin --platform web",
+    "command": "sh -lc '. .env/.env.oidc && dx serve --package admin --platform web'",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
