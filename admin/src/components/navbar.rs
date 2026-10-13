@@ -94,6 +94,12 @@ pub fn Navbar(
                                 }
                             },
                             menu: rsx! {
+                                DropdownItem {
+                                    onclick: move |_| active_view.set(ActiveView::Profile),
+                                    Icon { name: "person", class: "me-2" }
+                                    {tid!("navbar-profile")}
+                                }
+                                hr { class: "dropdown-divider my-1" }
                                 DropdownItem { onclick: move |_| on_logout.call(()),
                                     Icon { name: "box-arrow-right", class: "me-2" }
                                     {tid!("navbar-logout")}

@@ -120,7 +120,7 @@ fn App() -> Element {
     });
 
     // Theme signal for ThemeProvider + ThemeToggle
-    let theme = use_signal(|| Theme::Light);
+    let theme = use_signal(|| i18n::detect_initial_theme());
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -324,6 +324,118 @@ fn AuthenticatedApp(
 
     let active_view = use_signal(|| ActiveView::MySubscriptions);
 
+    module_bindings::dioxus::use_subscription(&["SELECT * FROM visible_account_configs"]);
+    let account_configs = module_bindings::dioxus::use_table_visible_account_configs();
+    let i18n = i18n::use_i18n();
+    let mut theme_for_sync = theme;
+    let update_config_sync = module_bindings::dioxus::use_reducer_update_account_config();
+
+    let update_sync_1 = update_config_sync.clone();
+    let update_sync_2 = update_config_sync.clone();
+
+    use_effect(move || {
+        let configs = account_configs();
+        if let Some(cfg) = configs.first() {
+            // Sync language from SpacetimeDB to i18n and localStorage
+            if let Some(lang) = &cfg.language {
+                let current_lang = i18n.language();
+                let current_lang_str = current_lang.language.as_str();
+                if current_lang_str != lang {
+                    if lang == "de" {
+                        i18n::switch_language(i18n, unic_langid::langid!("de"));
+                    } else if lang == "en" {
+                        i18n::switch_language(i18n, unic_langid::langid!("en"));
+                    }
+                }
+            } else {
+                let current_lang = i18n.language();
+                let current_lang_str = current_lang.language.as_str().to_string();
+                let _ = update_sync_1(
+                    None,
+                    None,
+                    None,
+                    false,
+                    None,
+                    None,
+                    None,
+                    false,
+                    None,
+                    false,
+                    Some(current_lang_str),
+                    None,
+                    None,
+                    false,
+                );
+            }
+
+            // Sync theme from SpacetimeDB to theme signal and localStorage, or seed remote if None
+            let current_local_theme = *theme_for_sync.read();
+            if let Some(t_str) = &cfg.theme {
+                let target_theme = if t_str.eq_ignore_ascii_case("dark") {
+                    Theme::Dark
+                } else {
+                    Theme::Light
+                };
+                if current_local_theme != target_theme {
+                    theme_for_sync.set(target_theme);
+                    i18n::save_theme(t_str);
+                }
+            } else {
+                let current_theme_str = match current_local_theme {
+                    Theme::Dark => "dark".to_string(),
+                    _ => "light".to_string(),
+                };
+                let _ = update_sync_1(
+                    None,
+                    None,
+                    None,
+                    false,
+                    None,
+                    None,
+                    None,
+                    false,
+                    None,
+                    false,
+                    None,
+                    Some(current_theme_str),
+                    None,
+                    false,
+                );
+            }
+        }
+    });
+
+    // Also watch local theme signal changes to persist back to SpacetimeDB and localStorage
+    use_effect(move || {
+        let current_theme = *theme.read();
+        let current_theme_str = match current_theme {
+            Theme::Dark => "dark",
+            _ => "light",
+        };
+        let configs = account_configs();
+        if let Some(cfg) = configs.first() {
+            if cfg.theme.as_deref() != Some(current_theme_str) {
+                i18n::save_theme(current_theme_str);
+                let _ = update_sync_2(
+                    None,
+                    None,
+                    None,
+                    false,
+                    None,
+                    None,
+                    None,
+                    false,
+                    None,
+                    false,
+                    None,
+                    Some(current_theme_str.to_string()),
+                    None,
+                    false,
+                );
+            }
+        }
+    });
+
     rsx! {
         components::navbar::Navbar {
             user_info: user_info.clone(),
@@ -354,7 +466,7 @@ fn AuthenticatedApp(
                     info!("Connected to SpacetimeDB as: {}", id);
                     match active_view() {
                         ActiveView::MySubscriptions => rsx! {
-                            pages::subscriptions::SubscriptionsPage { user_info: user_info.clone() }
+                            pages::subscriptions::SubscriptionsPage { user_info: user_info.clone(), active_view }
                         },
                         ActiveView::Messages => rsx! {
                             pages::messages::MessagesPage { user_info: user_info.clone() }
@@ -370,6 +482,9 @@ fn AuthenticatedApp(
                         },
                         ActiveView::ManagementStatus => rsx! {
                             pages::management::status::ManagementStatusPage { user_info: user_info.clone() }
+                        },
+                        ActiveView::Profile => rsx! {
+                            pages::profile::ProfilePage { user_info: user_info.clone(), theme }
                         },
                     }
                 }

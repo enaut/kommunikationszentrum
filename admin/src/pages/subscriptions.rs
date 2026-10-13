@@ -9,15 +9,15 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::SubscriptionStatus;
 use crate::module_bindings::{
-    EmailSource, MessageTopic, TopicVisibility,
+    MessageTopic, TopicVisibility,
     dioxus::{
-        use_reducer_add_subscription, use_reducer_remove_account_email,
-        use_reducer_remove_subscription, use_reducer_user_request_email_verification,
-        use_subscription, use_table_visible_categories, use_table_visible_message_topic_categories,
+        use_reducer_add_subscription, use_reducer_remove_subscription, use_subscription,
+        use_table_visible_categories, use_table_visible_message_topic_categories,
         use_table_visible_message_topics, use_table_visible_subscriptions,
     },
 };
 use crate::oauth::UserInfo;
+use crate::router::ActiveView;
 
 /// Tab identity for the member subscriptions page.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -30,7 +30,7 @@ enum CategoryTab {
 /// user subscribe or unsubscribe with a single button click. Topics are
 /// grouped into tabs by category; topics without categories appear under "Sonstige".
 #[component]
-pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
+pub fn SubscriptionsPage(user_info: UserInfo, active_view: Signal<ActiveView>) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
         "SELECT * FROM visible_account_emails",
@@ -47,11 +47,6 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
     let topic_categories = use_table_visible_message_topic_categories();
     let add_subscription = use_reducer_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
-
-    let add_email = use_reducer_user_request_email_verification();
-    let remove_email = use_reducer_remove_account_email();
-    let mut show_add_email = use_signal(|| false);
-    let mut add_email_input = use_signal(|| String::new());
 
     let my_account = accounts()
         .into_iter()
@@ -129,117 +124,19 @@ pub fn SubscriptionsPage(user_info: UserInfo) -> Element {
                 }
             }
 
-            Card { class: "mb-4 shadow-sm",
-                header: rsx! {
-                    h5 { class: "mb-0", {tid!("subscriptions-linked-emails-title")} }
-                },
-                body: rsx! {
-                    ul { class: "list-group list-group-flush mb-3",
-                        for email in &my_emails {
-                            {
-                                let email_id = email.id;
-                                let is_unverified = !email.is_verified;
-                                let remove_email_for_row = remove_email.clone();
-                                rsx! {
-                                    li {
-                                        class: if is_unverified {
-                                            "list-group-item d-flex justify-content-between align-items-center px-0 text-muted"
-                                        } else {
-                                            "list-group-item d-flex justify-content-between align-items-center px-0"
-                                        },
-                                        style: if is_unverified { "opacity: 0.65;" } else { "" },
-                                        div {
-                                            if email.id == my_primary_email_id {
-                                                strong { "{email.email} " }
-                                                span { class: "text-muted", {tid!("subscriptions-primary-badge")} }
-                                            } else if is_unverified {
-                                                span { class: "text-muted fst-italic", "{email.email}" }
-                                            } else {
-                                                span { "{email.email}" }
-                                            }
-                                            if is_unverified {
-                                                span {
-                                                    title: tid!("subscriptions-email-unconfirmed-tooltip"),
-                                                    Badge {
-                                                        color: Color::Warning,
-                                                        class: "ms-2",
-                                                        {tid!("subscriptions-email-not-confirmed")}
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        if email.source != EmailSource::ExternalSync && email.id != my_primary_email_id {
-                                            Button {
-                                                color: Color::Danger,
-                                                size: Size::Sm,
-                                                onclick: move |_| {
-                                                    if let Err(e) = remove_email_for_row(email_id) {
-                                                        error!("remove_account_email failed: {e:?}");
-                                                    }
-                                                },
-                                                Icon { name: "trash" }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if show_add_email() {
-                        div { class: "d-flex gap-2 align-items-center",
-                            input {
-                                class: "form-control form-control-sm",
-                                r#type: "email",
-                                placeholder: tid!("subscriptions-add-email-placeholder"),
-                                style: "max-width: 300px;",
-                                value: "{add_email_input}",
-                                oninput: move |e: FormEvent| add_email_input.set(e.value()),
-                            }
-                            {
-                                let add_email_for_submit = add_email.clone();
-                                rsx! {
-                                    Button {
-                                        color: Color::Success,
-                                        size: Size::Sm,
-                                        onclick: move |_| {
-                                            let email_str = add_email_input();
-                                            if !email_str.is_empty() {
-                                                if let Err(e) = add_email_for_submit(email_str) {
-                                                    error!("Failed to request email verification: {e:?}");
-                                                } else {
-                                                    show_add_email.set(false);
-                                                    add_email_input.set(String::new());
-                                                }
-                                            }
-                                        },
-                                        {tid!("subscriptions-send-verification")}
-                                    }
-                                }
-                            }
-                            Button {
-                                color: Color::Secondary,
-                                size: Size::Sm,
-                                onclick: move |_| {
-                                    show_add_email.set(false);
-                                    add_email_input.set(String::new());
-                                },
-                                {tid!("general-cancel")}
-                            }
-                        }
-                    } else {
-                        Button {
-                            color: Color::Primary,
-                            size: Size::Sm,
-                            onclick: move |_| {
-                                show_add_email.set(true);
-                                add_email_input.set(String::new());
-                            },
-                            Icon { name: "plus-lg", class: "me-2" }
-                            {tid!("subscriptions-add-email-button")}
-                        }
-                    }
-                },
+            div { class: "d-flex justify-content-between align-items-center mb-4 p-3 bg-light rounded border",
+                span { class: "text-muted small",
+                    Icon { name: "envelope-plus", class: "me-2 text-primary" }
+                    {tid!("subscriptions-manage-emails-hint")}
+                }
+                Button {
+                    color: Color::Primary,
+                    outline: true,
+                    size: Size::Sm,
+                    onclick: move |_| active_view.set(ActiveView::Profile),
+                    Icon { name: "person", class: "me-1" }
+                    {tid!("subscriptions-manage-emails-link")}
+                }
             }
 
             if !category_ids.is_empty() || show_sonstige {

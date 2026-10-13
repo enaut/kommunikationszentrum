@@ -7,6 +7,7 @@ navbar-management = Management
 navbar-settings = Settings
 navbar-status = Status
 navbar-logout = Log out
+navbar-profile = Profile
 navbar-language = Language
 language-switcher-de = Deutsch (DE)
 language-switcher-en = English (EN)
@@ -113,9 +114,13 @@ subscriptions-email-not-confirmed = not confirmed
 subscriptions-email-unconfirmed-tooltip = Please click the confirmation link in the email sent to this address to activate it.
 subscriptions-add-email-placeholder = New email address
 subscriptions-send-verification = Send Verification Link
+subscriptions-resend-verification = Resend link
+subscriptions-verification-resent = Sent!
 subscriptions-add-email-button = Add Email Address
 subscriptions-cannot-remove-primary-tooltip = A confirmed primary email cannot be removed unless another confirmed email replaces it.
 subscriptions-card-email-subscriptions = E-Mail Subscriptions:
+subscriptions-manage-emails-hint = Need to add or remove email addresses for topic subscriptions?
+subscriptions-manage-emails-link = Manage in Profile
 
 # Topic list page
 topic-page-title = Topics
@@ -377,3 +382,25 @@ unsubscribe-success-desc = You have been successfully unsubscribed from this mai
 unsubscribe-failed-title = Unsubscription failed
 unsubscribe-failed-desc = The unsubscribe link is invalid, expired, or the subscription could not be found.
 unsubscribe-continue = Continue to Communication Center
+
+# Profile
+profile-page-title = User Profile
+profile-page-description = Manage your personal information, linked email addresses, and preferences.
+profile-account-overview-title = Account Information
+profile-account-name = Name
+profile-account-username = Username
+profile-account-status = Account Status
+profile-account-status-active = Active
+profile-account-role = Role
+profile-role-admin = Administrator
+profile-role-member = Member
+profile-account-primary-email = Primary Email
+profile-settings-title = Preferences
+profile-settings-language = Language
+profile-settings-theme = Appearance
+profile-theme-light = Light
+profile-theme-dark = Dark
+profile-advanced-title = Advanced & Diagnostics
+profile-advanced-identity = SpacetimeDB Identity
+profile-advanced-copy-id = Copy ID
+profile-advanced-copied = Copied!

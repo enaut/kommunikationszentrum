@@ -10,6 +10,7 @@ pub enum ActiveView {
     Members,
     ManagementConfiguration,
     ManagementStatus,
+    Profile,
 }
 
 /// Returns `true` when the currently connected SpacetimeDB identity is present
