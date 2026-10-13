@@ -43,6 +43,17 @@ impl Default for OAuthConfig {
     }
 }
 
+macro_rules! require_env {
+    ($name:literal) => {{
+        const VAL: &str = env!($name);
+        const _: () = assert!(
+            !VAL.is_empty(),
+            concat!("Environment variable `", $name, "` must not be empty")
+        );
+        VAL.to_string()
+    }};
+}
+
 impl AdminConfig {
     /// Load configuration from build-time environment variables with defaults
     pub fn from_env() -> Self {
@@ -54,15 +65,9 @@ impl AdminConfig {
                 .unwrap_or("kommunikation")
                 .to_string(),
             oauth: OAuthConfig {
-                issuer_url: option_env!("OIDC_ISSUER_URL")
-                    .unwrap_or("http://127.0.0.1:8000/o")
-                    .to_string(),
-                client_id: option_env!("OIDC_CLIENT_ID")
-                    .unwrap_or("admin-app")
-                    .to_string(),
-                redirect_uri: option_env!("ADMIN_REDIRECT_URI")
-                    .unwrap_or("http://127.0.0.1:8080/callback")
-                    .to_string(),
+                issuer_url: require_env!("OIDC_ISSUER_URL"),
+                client_id: require_env!("OIDC_CLIENT_ID"),
+                redirect_uri: require_env!("ADMIN_REDIRECT_URI"),
                 scope: option_env!("OAUTH_SCOPES")
                     .unwrap_or("openid profile email")
                     .to_string(),

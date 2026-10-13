@@ -1,7 +1,7 @@
 use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::{
     Color, Dropdown, DropdownItem, Icon, NavItem, NavLink, Navbar as BsNavbar, NavbarCollapse,
-    NavbarExpand, NavbarNav, NavbarToggler, Theme, ThemeToggle,
+    NavbarExpand, NavbarNav, NavbarToggler, Theme,
 };
 use dioxus_i18n::tid;
 
@@ -20,6 +20,8 @@ pub fn Navbar(
     let collapsed = use_signal(|| true);
     let user_dropdown_open = use_signal(|| false);
     let management_dropdown_open = use_signal(|| false);
+    let update_account_config = crate::module_bindings::dioxus::use_reducer_update_account_config();
+    let update_account_config_for_theme = update_account_config.clone();
     rsx! {
         BsNavbar {
             expand: NavbarExpand::Lg,
@@ -78,7 +80,53 @@ pub fn Navbar(
                         LanguageSwitcher {}
                     }
                     NavItem {
-                        ThemeToggle { theme }
+                        {
+                            let current_theme = *theme.read();
+                            let icon = match current_theme {
+                                Theme::Light => "moon-stars",
+                                Theme::Dark => "sun",
+                            };
+                            let label = match current_theme {
+                                Theme::Light => "Switch to dark mode",
+                                Theme::Dark => "Switch to light mode",
+                            };
+                            let update_fn = update_account_config_for_theme.clone();
+                            let mut theme_sig = theme;
+                            rsx! {
+                                button {
+                                    class: "btn btn-outline-light nav-link px-2 d-flex align-items-center",
+                                    r#type: "button",
+                                    title: "{label}",
+                                    "aria-label": "{label}",
+                                    onclick: move |_| {
+                                        let next = theme_sig.read().toggle();
+                                        theme_sig.set(next);
+                                        let next_str = match next {
+                                            Theme::Dark => "dark",
+                                            _ => "light",
+                                        };
+                                        crate::i18n::save_theme(next_str);
+                                        let _ = update_fn(
+                                            None,
+                                            None,
+                                            None,
+                                            false,
+                                            None,
+                                            None,
+                                            None,
+                                            false,
+                                            None,
+                                            false,
+                                            None,
+                                            Some(next_str.to_string()),
+                                            None,
+                                            false,
+                                        );
+                                    },
+                                    i { class: "bi bi-{icon}" }
+                                }
+                            }
+                        }
                     }
                     NavItem {
                         Dropdown {

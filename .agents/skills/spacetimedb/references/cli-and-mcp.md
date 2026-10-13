@@ -71,7 +71,7 @@ When you run `spacetime publish <DATABASE>`, the engine analyzes the delta betwe
 
 ### Automatic / Safe Migrations:
 * Adding new tables.
-* Adding new columns with default values or at the end of the schema.
+* Adding new columns at the end of the schema with default values.
 * Adding BTree or composite indexes.
 * Adding or removing `#[auto_inc]`.
 * Adding new reducers, procedures, or views.
@@ -99,20 +99,22 @@ Add SpacetimeDB to your AI tool's `mcpServers` configuration (`claude_desktop_co
   "mcpServers": {
     "spacetimedb": {
       "command": "spacetime",
-      "args": ["mcp"]
+      "args": ["mcp", "my-database"]
     }
   }
 }
 ```
 
 When running `spacetime mcp`:
-* Target database settings are resolved from the current directory's `spacetime.json`.
-* Exposes tools for:
-  * `list_tables`: Discover all relational schemas and row counts.
-  * `describe_table`: Detailed column definitions, keys, and indexes.
-  * `execute_sql`: Read and verify live database state with standard SQL queries.
-  * `call_reducer`: Test state transitions and trigger logic directly.
-  * `call_procedure`: Test external HTTP integration and return values.
+* `spacetime mcp` does not automatically resolve a database from `spacetime.json`. Without a database argument or `SPACETIMEDB_DB_NAME`, it starts in **host-wide mode**.
+* **Database-scoped mode** (`spacetime mcp <database>` or `SPACETIMEDB_DB_NAME=<database>`):
+  * `ping`: Health check ping.
+  * `get_schema`: Discover relational schemas, column definitions, types, and reducers.
+  * `sql`: Read and query live database state with standard SQL queries.
+  * `call`: Invoke a reducer with positional JSON arguments (e.g. `["alice"]`).
+* **Host-wide mode** (`spacetime mcp`):
+  * `list_databases`: Discover accessible databases on the host.
+  * `ping`, `get_schema`, `sql`, `call`: Same tools as above, with each tool accepting an explicit `database` parameter.
 
 ### Maincloud MCP Endpoint
 For hosted deployments on Clockwork Labs Maincloud, connect directly using the native `/v1/mcp` endpoint with your Maincloud identity token.

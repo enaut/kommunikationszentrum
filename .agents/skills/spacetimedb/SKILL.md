@@ -88,15 +88,21 @@ use spacetimedb::{reducer, ReducerContext, Table};
 
 #[reducer]
 pub fn attack(ctx: &ReducerContext, target_id: u64, damage: u32) -> Result<(), String> {
+    // Validate attacker
+    if ctx.db.player().identity().find(&ctx.sender).is_none() {
+        return Err("Attacker not registered".to_string());
+    }
+
     let mut player = ctx.db.player().id().find(&target_id)
         .ok_or_else(|| "Target player not found".to_string())?;
 
+    let target_identity = player.identity;
     player.score = player.score.saturating_sub(damage);
     ctx.db.player().id().update(player);
 
     // Publish transient event to subscribers
     ctx.db.combat_event().insert(CombatEvent {
-        target: player.identity,
+        target: target_identity,
         damage,
     });
 

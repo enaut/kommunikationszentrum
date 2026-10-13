@@ -11,7 +11,7 @@ use crate::module_bindings::dioxus::{
     use_table_sender_system_mail_pending,
 };
 use crate::module_bindings::{
-    DeliveryFinalState, DeliveryStatus, MailDeliveryMessage, MailIngress, SystemMailPending,
+    DeliveryFinalState, DeliveryStatus, MailDeliveryMessage, SystemMailPending,
 };
 use crate::oauth::UserInfo;
 
@@ -148,7 +148,7 @@ fn MailIngressCard() -> Element {
     let mail_messages = use_table_sender_mail_messages();
 
     let mut show_detail_modal = use_signal(|| false);
-    let mut selected_ingress = use_signal(|| None::<MailIngress>);
+    let mut selected_ingress_id = use_signal(|| None::<String>);
 
     let mut rows = ingress_list();
     rows.sort_by(|a, b| b.claim.updated_at.cmp(&a.claim.updated_at));
@@ -193,9 +193,9 @@ fn MailIngressCard() -> Element {
                                     }
                                 }
                                 tbody {
-                                    for ingress in rows {
+                                    for ingress in &rows {
                                         {
-                                            let ingress_clone = ingress.clone();
+                                            let ingress_id = ingress.id.clone();
                                             let msg = msg_list.iter().find(|m| m.id == ingress.mail_message_id);
                                             let subject = msg.map(|m| m.subject.as_str()).unwrap_or("–");
                                             let sender = msg.map(|m| m.sender_email.as_str()).unwrap_or("–");
@@ -236,7 +236,7 @@ fn MailIngressCard() -> Element {
                                                         }
                                                         if ingress.failed_delivery_count > 0 {
                                                             span { class: "badge bg-danger ms-1",
-                                                                "{ingress.failed_delivery_count} err"
+                                                                {tid!("status-ingress-err", count: ingress.failed_delivery_count)}
                                                             }
                                                         }
                                                     }
@@ -247,16 +247,21 @@ fn MailIngressCard() -> Element {
                                                         small { class: "text-muted", "{time_str}" }
                                                     }
                                                     td { class: "text-end",
-                                                        Button {
-                                                            color: Color::Secondary,
-                                                            outline: true,
-                                                            size: Size::Sm,
-                                                            onclick: move |_| {
-                                                                selected_ingress.set(Some(ingress_clone.clone()));
-                                                                show_detail_modal.set(true);
-                                                            },
-                                                            Icon { name: "eye", class: "me-1" }
-                                                            {tid!("status-ingress-view")}
+                                                        {
+                                                            let id_for_click = ingress_id.clone();
+                                                            rsx! {
+                                                                Button {
+                                                                    color: Color::Secondary,
+                                                                    outline: true,
+                                                                    size: Size::Sm,
+                                                                    onclick: move |_| {
+                                                                        selected_ingress_id.set(Some(id_for_click.clone()));
+                                                                        show_detail_modal.set(true);
+                                                                    },
+                                                                    Icon { name: "eye", class: "me-1" }
+                                                                    {tid!("status-ingress-view")}
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -270,8 +275,13 @@ fn MailIngressCard() -> Element {
                 }
             }
         }
-        if let Some(target) = selected_ingress() {
-            {
+        {
+            let target_opt = selected_ingress_id().and_then(|id| rows.iter().find(|r| r.id == id).cloned());
+            if show_detail_modal() && selected_ingress_id().is_some() && target_opt.is_none() {
+                show_detail_modal.set(false);
+                selected_ingress_id.set(None);
+            }
+            if let Some(target) = target_opt {
                 let msg = msg_list.iter().find(|m| m.id == target.mail_message_id);
                 let subject = msg.map(|m| m.subject.as_str()).unwrap_or("–");
                 let sender = msg.map(|m| m.sender_email.as_str()).unwrap_or("–");
@@ -302,11 +312,18 @@ fn MailIngressCard() -> Element {
                                 strong { "{tid!(\"status-ingress-status\")}: " }
                                 span { class: "{status_class} ms-2", "{status_label}" }
                                 span { class: "ms-2 small text-muted",
-                                    "({target.delivery_count} / {target.recipient_count} deliveries enqueued"
                                     if target.failed_delivery_count > 0 {
-                                        ", {target.failed_delivery_count} failed"
+                                        {tid!("status-ingress-enqueued-failed",
+                                            delivered: target.delivery_count,
+                                            total: target.recipient_count,
+                                            failed: target.failed_delivery_count
+                                        )}
+                                    } else {
+                                        {tid!("status-ingress-enqueued",
+                                            delivered: target.delivery_count,
+                                            total: target.recipient_count
+                                        )}
                                     }
-                                    ")"
                                 }
                             }
                             div { class: "mb-3",
@@ -354,12 +371,17 @@ fn MailIngressCard() -> Element {
                         footer: rsx! {
                             Button {
                                 color: Color::Secondary,
-                                onclick: move |_| show_detail_modal.set(false),
+                                onclick: move |_| {
+                                    show_detail_modal.set(false);
+                                    selected_ingress_id.set(None);
+                                },
                                 {tid!("status-ingress-close")}
                             }
                         }
                     }
                 }
+            } else {
+                rsx! {}
             }
         }
     }

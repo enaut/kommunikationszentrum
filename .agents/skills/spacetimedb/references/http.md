@@ -78,6 +78,14 @@ fn admin_router() -> Router {
 ```rust
 #[handler]
 fn process_incoming_order(ctx: &mut HandlerContext, req: Request) -> Response {
+    // Authenticate request before opening transaction (see section 4)
+    if !authenticate_request(ctx, &req) {
+        return Response::builder()
+            .status(401)
+            .body(Body::from_bytes(b"{\"error\":\"Unauthorized\"}".as_slice()))
+            .unwrap();
+    }
+
     let body_bytes = req.into_body().into_bytes();
     let order: OrderPayload = match serde_json::from_slice(&body_bytes) {
         Ok(data) => data,

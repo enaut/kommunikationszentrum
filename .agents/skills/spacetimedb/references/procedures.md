@@ -145,7 +145,7 @@ pub fn notify_discord(ctx: &mut ProcedureContext, message: String) -> Result<(),
 ```
 
 ### HTTP Client Features & Limits:
-* **Host Timeout Limit:** SpacetimeDB enforces an upper limit of 500 milliseconds for all procedure HTTP calls.
+* **Host Timeout Limit:** SpacetimeDB HTTP requests default to 30 seconds, and configured timeouts are clamped at a maximum of 180 seconds.
 * **Transparent Compression (v2.10.2+):** Outbound HTTP requests automatically request and transparently decompress `gzip` and `Brotli` payloads.
 * **Synchronous from Guest Perspective:** The WASM module suspends during host I/O and resumes seamlessly when the HTTP response arrives.
 

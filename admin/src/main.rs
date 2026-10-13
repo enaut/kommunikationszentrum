@@ -331,7 +331,6 @@ fn AuthenticatedApp(
     let update_config_sync = module_bindings::dioxus::use_reducer_update_account_config();
 
     let update_sync_1 = update_config_sync.clone();
-    let update_sync_2 = update_config_sync.clone();
 
     use_effect(move || {
         let configs = account_configs();
@@ -398,37 +397,6 @@ fn AuthenticatedApp(
                     false,
                     None,
                     Some(current_theme_str),
-                    None,
-                    false,
-                );
-            }
-        }
-    });
-
-    // Also watch local theme signal changes to persist back to SpacetimeDB and localStorage
-    use_effect(move || {
-        let current_theme = *theme.read();
-        let current_theme_str = match current_theme {
-            Theme::Dark => "dark",
-            _ => "light",
-        };
-        let configs = account_configs();
-        if let Some(cfg) = configs.first() {
-            if cfg.theme.as_deref() != Some(current_theme_str) {
-                i18n::save_theme(current_theme_str);
-                let _ = update_sync_2(
-                    None,
-                    None,
-                    None,
-                    false,
-                    None,
-                    None,
-                    None,
-                    false,
-                    None,
-                    false,
-                    None,
-                    Some(current_theme_str.to_string()),
                     None,
                     false,
                 );

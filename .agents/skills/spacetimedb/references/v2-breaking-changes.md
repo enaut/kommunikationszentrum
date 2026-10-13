@@ -118,9 +118,9 @@ pub struct Player { ... }
 
 When writing or reviewing SpacetimeDB code, reject the following patterns immediately:
 
-1. **`conn.reducers.on_<name>()`:** Does not exist. Use Event Tables.
+1. **Expecting `conn.reducers.on_<name>()` to broadcast across clients:** Reducer callbacks only notify the caller; use Event Tables for cross-client notifications and `_then()` for the caller's result.
 2. **`ctx.http` inside `ctx.with_tx(...)`:** Prohibited. Perform HTTP calls outside transactions.
 3. **`ctx.db.<table>().iter()` inside views:** Prohibited. Full table iteration is disabled in views.
 4. **Caching counts in table columns:** Prohibited. Use `AnonymousViewContext` views with `ctx.db.<table>().count()`.
-5. **Omitting explicit subscriptions for Event Tables:** Event tables are not subscribed by `subscribe_to_all_tables()`; they must have an explicit query in the subscription builder.
+5. **Treating Event Tables like persistent client cache:** Event tables auto-purge on transaction commit. Observe them via `on_insert` callbacks (`subscribe_to_all_tables()` includes them automatically).
 6. **Writing to captured `Cell`/`RefCell` in `with_tx` closures:** Prohibited due to automatic transaction conflict retries.
