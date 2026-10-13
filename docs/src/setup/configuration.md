@@ -39,12 +39,14 @@ All components support environment-based configuration with sensible defaults fo
 | `SMTP_USE_TLS` | `true` | sender | Enable TLS for SMTP connection |
 | `SMTP_ACCEPT_INVALID_CERTS` | `false` | sender | Accept self-signed certificates (dev only) |
 | `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | sender | Accept mismatched hostnames (dev only) |
+| `SMTP_SYSTEM_USERNAME` | _(none)_ | sender | Username for authenticating transactional system emails (e.g. verification tokens) |
+| `SMTP_SYSTEM_PASSWORD` | _(none)_ | sender | Password for system email SMTP relay authentication |
 | `MAIL_MESSAGE_ID_DOMAIN` | host of `SPACETIMEDB_URI` / `localhost` | sender | Domain for generated Message-ID headers |
 | `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | sender | Endpoint for RFC 8058 one-click unsubscribe links |
 | `OTLP_ENDPOINT` | `http://localhost:4317` | sender | OpenTelemetry collector endpoint |
 
 > [!NOTE]
-> Outbound SMTP authentication is per-topic via app passwords stored in SpacetimeDB (`TopicAppPassword` table), not global environment variables.
+> Outbound SMTP authentication for topic mailing lists is per-topic via app passwords stored in SpacetimeDB (`TopicAppPassword` table), not global environment variables. In contrast, transactional system emails (such as email verification tokens) authenticate using the dedicated `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` environment variables.
 
 ### Stalwart Mailserver Fallback Configuration
 
@@ -101,6 +103,8 @@ SMTP_PORT=1025
 SMTP_USE_TLS=false
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
+SMTP_SYSTEM_USERNAME=system@localhost
+SMTP_SYSTEM_PASSWORD=
 MAIL_MESSAGE_ID_DOMAIN=localhost
 MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://localhost:4317
@@ -134,6 +138,8 @@ SMTP_PORT=465
 SMTP_USE_TLS=true
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
+SMTP_SYSTEM_USERNAME=system@your-domain.com
+SMTP_SYSTEM_PASSWORD=your-system-smtp-password-here
 MAIL_MESSAGE_ID_DOMAIN=your-domain.com
 MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.your-domain.com/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://alloy.internal:4317

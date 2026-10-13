@@ -20,6 +20,8 @@ All sender daemon configuration is loaded at startup from **environment variable
 | `SMTP_USE_TLS` | `true` | Enable TLS (`true` for production relays, `false` for local debug relays) |
 | `SMTP_ACCEPT_INVALID_CERTS` | `false` | Accept expired or self-signed SMTP server certificates when TLS is enabled |
 | `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | Accept mismatched certificate hostnames for SMTP TLS connections |
+| `SMTP_SYSTEM_USERNAME` | _(none)_ | Username for authenticating transactional system emails (e.g. email verification tokens). Also used as the sender address in `From` headers when containing `@` (otherwise `no-reply@{MAIL_MESSAGE_ID_DOMAIN}`). Required if system email dispatch is enabled. |
+| `SMTP_SYSTEM_PASSWORD` | _(none)_ | Password or app password for the system user on the outbound SMTP relay. Required if system email dispatch is enabled. |
 | `MAIL_MESSAGE_ID_DOMAIN` | derived from `SPACETIMEDB_URI` / `solawis.de` | Domain used in generated `Message-ID` headers |
 | `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | Endpoint for RFC 8058 HTTPS one-click unsubscribe links |
 | `OTLP_ENDPOINT` | `http://localhost:4317` | OpenTelemetry gRPC collector endpoint (Alloy / Jaeger) |
@@ -28,7 +30,9 @@ All sender daemon configuration is loaded at startup from **environment variable
 > [!NOTE]
 > **SMTP TLS Modes**: When `SMTP_USE_TLS` is `true`, connecting to port `465` automatically uses implicit TLS (`Tls::Wrapper`), while other ports (such as `587`) use explicit STARTTLS (`Tls::Required`). If `SMTP_ACCEPT_INVALID_CERTS` or `SMTP_ACCEPT_INVALID_HOSTNAMES` is enabled, the sender configures permissive TLS parameters via `builder_dangerous`.
 >
-> **SMTP Credentials**: Global `SMTP_USERNAME` and `SMTP_PASSWORD` environment variables are **not** used. SMTP authentication credentials (username and app password) are configured per message topic and stored securely in SpacetimeDB (`TopicAppPassword` table), managed through the Admin Web UI.
+> **SMTP Credentials**:
+> - **Mailing List Deliveries**: Global `SMTP_USERNAME` and `SMTP_PASSWORD` environment variables are **not** used for topic deliveries. SMTP authentication credentials (username and app password) are configured per message topic and stored securely in SpacetimeDB (`TopicAppPassword` table), managed through the Admin Web UI.
+> - **Transactional System Emails**: Dedicated system user credentials configured via `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` are used to authenticate system emails (such as self-service email verification tokens queued in `sender_system_mail_pending`). If either variable is omitted, the sender skips system mail dispatch and logs an error.
 
 ## Environment Profiles
 
@@ -44,6 +48,8 @@ SMTP_PORT=1025
 SMTP_USE_TLS=false
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
+SMTP_SYSTEM_USERNAME=system@localhost
+SMTP_SYSTEM_PASSWORD=system-password
 
 MAIL_MESSAGE_ID_DOMAIN=localhost
 MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe
@@ -64,6 +70,8 @@ SMTP_PORT=465
 SMTP_USE_TLS=true
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
+SMTP_SYSTEM_USERNAME=system@example.org
+SMTP_SYSTEM_PASSWORD=<production-system-password>
 
 MAIL_MESSAGE_ID_DOMAIN=solawis.de
 MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.example.org/v1/database/kommunikation/route/mailing-list/unsubscribe

@@ -26,7 +26,7 @@ The sender daemon is the only component in the system that performs **external o
 | Concern | Technology | Notes |
 |---|---|---|
 | Runtime | Tokio (async Rust) | Multi-threaded async event processing |
-| SpacetimeDB SDK | `spacetimedb-sdk 2.10` | Client bindings & reactive table cache |
+| SpacetimeDB SDK | `spacetimedb-sdk 2.11` | Client bindings & reactive table cache |
 | SMTP Transport | `lettre 0.11` | Tokio Rustls TLS, async send, connection pooling |
 | Tracing & Logs | `opentelemetry` + OTLP | Bridge to Grafana Alloy / Loki / Tempo |
 | Hashing | `blake3` | Deterministic W3C traceparent derivation from queue IDs |
