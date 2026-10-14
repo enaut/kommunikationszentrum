@@ -101,7 +101,7 @@ sudo chown root:kommunikationszentrum /etc/kommunikationszentrum
 
 ### 3. Environment Configuration
 
-Generate a SpacetimeDB webhook bearer token with the `sync-user` permission if not already created (see [User Synchronisation](../spacetimedb/http-handlers/user-sync.md#authentication) and [Managing Webhook Tokens](../spacetimedb/module-publishing.md#managing-webhook-tokens)):
+Generate a SpacetimeDB webhook bearer token with the `sync-user` permission if not already created (see [User Synchronisation](spacetimedb/http-handlers/user-sync.md#authentication) and [Managing Webhook Tokens](spacetimedb/module-publishing.md#managing-webhook-tokens)):
 
 ```bash
 # 1. Generate random token
