@@ -14,14 +14,9 @@ Kommunikationszentrum can use a standard-compliant OpenID Connect (OIDC) provide
 
 ## Configuring SpacetimeDB & Admin
 
-Set the following environment variables when building/deploying. `OIDC_ISSUER_URL` must be set when building both the admin and the server module, and both builds must use the same issuer. The module uses this value for its issuer check and synced account identity derivation; SpacetimeDB standalone does not enforce it as a connection-time issuer allowlist. Changing providers can change account identities and requires an explicit migration plan.
+Configure the `[oauth]` section in your organization profile (e.g. `profiles/my-org.toml`). The selected profile is compiled into both the admin web interface and the server module at build time, ensuring that the module's `register_self` validation matches the frontend discovery issuer.
 
-| Variable | Description | Example |
-|---|---|---|
-| `OIDC_ISSUER_URL` | Issuer URL of the OIDC provider (where `/.well-known/openid-configuration` resides) | `https://cloud.example.org` |
-| `OIDC_CLIENT_ID` | Client ID registered in the OIDC provider | `admin-app` |
-| `ADMIN_REDIRECT_URI` | Callback URL for OAuth redirection | `https://kom.example.org/callback` |
-| `OAUTH_SCOPES` | Scopes requested during authorization | `openid profile email` |
+For full schema details and options, see [Configuration Profiles — OAuth](../reference/configuration.md#oauth).
 
 ---
 
@@ -34,12 +29,13 @@ Set the following environment variables when building/deploying. `OIDC_ISSUER_UR
 3. Add a new client:
    - **Name**: `Kommunikationszentrum`
    - **Redirection URI**: `http://localhost:8080/callback` (or your production frontend URL)
-4. Configure your environment:
-   ```bash
-   export OIDC_ISSUER_URL="https://cloud.yourdomain.org"
-   export OIDC_CLIENT_ID="<client-id-from-nextcloud>"
-   export ADMIN_REDIRECT_URI="https://kom.yourdomain.org/callback"
-   export OAUTH_SCOPES="openid profile email"
+4. Configure the `[oauth]` section in your profile (e.g. `profiles/my-org.toml`):
+   ```toml
+   [oauth]
+   issuer_url = "https://cloud.yourdomain.org"
+   client_id = "<client-id-from-nextcloud>"
+   redirect_uri = "https://kom.yourdomain.org/callback"
+   scope = "openid profile email"
    ```
 
 ### 2. Keycloak
@@ -52,12 +48,13 @@ Set the following environment variables when building/deploying. `OIDC_ISSUER_UR
    - **Authentication flow**: Standard flow (Authorization Code) + Direct access grants
    - **Valid redirect URIs**: `http://localhost:8080/callback`, `https://kom.yourdomain.org/callback`
    - **Web origins**: `+` (or your frontend domain)
-3. Configure your environment:
-   ```bash
-   export OIDC_ISSUER_URL="https://keycloak.yourdomain.org/realms/community"
-   export OIDC_CLIENT_ID="admin-app"
-   export ADMIN_REDIRECT_URI="https://kom.yourdomain.org/callback"
-   export OAUTH_SCOPES="openid profile email"
+3. Configure the `[oauth]` section in your profile (e.g. `profiles/my-org.toml`):
+   ```toml
+   [oauth]
+   issuer_url = "https://keycloak.yourdomain.org/realms/community"
+   client_id = "admin-app"
+   redirect_uri = "https://kom.yourdomain.org/callback"
+   scope = "openid profile email"
    ```
 
 ### 3. Django (`django-oauth-toolkit` / Solawispielplatz)
@@ -67,12 +64,13 @@ Set the following environment variables when building/deploying. `OIDC_ISSUER_UR
    - **Authorization grant type**: Authorization code
    - **Redirect URIs**: `http://127.0.0.1:8080/callback`
    - **Algorithm**: RSA with SHA-2 256
-2. Configure your environment:
-   ```bash
-   export OIDC_ISSUER_URL="http://127.0.0.1:8000/o"
-   export OIDC_CLIENT_ID="admin-app"
-   export ADMIN_REDIRECT_URI="http://127.0.0.1:8080/callback"
-   export OAUTH_SCOPES="openid profile email"
+2. Configure the `[oauth]` section in your profile (e.g. `profiles/my-org.toml`):
+   ```toml
+   [oauth]
+   issuer_url = "http://127.0.0.1:8000/o"
+   client_id = "admin-app"
+   redirect_uri = "http://127.0.0.1:8080/callback"
+   scope = "openid profile email"
    ```
 
 ---

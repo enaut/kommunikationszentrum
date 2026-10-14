@@ -44,17 +44,13 @@ The `lib.rs` crate root declares all sub-modules and the three lifecycle reducer
 
 ## Build
 
+The server module compiles configuration from a TOML profile in `profiles/` (see [Configuration Profiles](../reference/configuration.md)).
+
 ```bash
 cd server
 
-# Standard debug build (used by `spacetime publish`)
-cargo build --target wasm32-unknown-unknown
-
-# Optional: build with environment variable fallback for Stalwart
-STALWART_JMAP_URL="https://mail.example.org" \
-STALWART_ADMIN_TOKEN="secret" \
-cargo build --target wasm32-unknown-unknown
-# Alternatively, configure Stalwart credentials post-publish via the Admin UI or set_stalwart_config reducer
+# Standard build with specific profile (defaults to profiles/example.toml)
+APP_PROFILE=my-org cargo build --target wasm32-unknown-unknown
 ```
 
 The SpacetimeDB CLI handles the WASM build and packaging automatically during `spacetime publish`.
@@ -66,11 +62,11 @@ The SpacetimeDB CLI handles the WASM build and packaging automatically during `s
 ```bash
 cd server
 
-# Publish to local SpacetimeDB (creates or updates the module)
-spacetime publish --server http://localhost:3000 kommunikationszentrum
+# Publish to local SpacetimeDB with target profile
+APP_PROFILE=my-org spacetime publish --server http://localhost:3000 kommunikation
 
 # Watch logs
-spacetime logs kommunikationszentrum --follow
+spacetime logs kommunikation --follow
 ```
 
 After each code change, re-run `spacetime publish` to update the live module.
@@ -180,11 +176,19 @@ daemon crashes. Any daemon instance can re-claim after the lease expires.
 
 ### Unit Tests (host-side)
 
-SpacetimeDB modules cannot run standard `cargo test` because they compile to WASM. Use the
-SpacetimeDB test harness or test helper scripts instead.
+Run host-side unit tests using cargo:
 
 ```bash
-# Run the test scripts against a local instance
+# Run tests with the default example profile
+cargo test -p spacetime-module
+
+# Run tests with a specific profile
+APP_PROFILE=solawis cargo test -p spacetime-module
+```
+
+Integration test scripts are also available:
+
+```bash
 cd docs/testscripts
 ./test_mta_hook.sh
 ```
@@ -231,8 +235,8 @@ limit retain their complete MIME body for fan-out.
 Clients **must** subscribe to views (e.g. `visible_accounts`), not raw table names. Raw tables
 either have a client visibility filter that limits rows, or are not declared `public`.
 
-### Environment Variables & Stalwart Configuration
-`DJANGO_BASE_URL` is set at **compile time** using `option_env!()` (defaulting to `http://127.0.0.1:8000`).
+### Configuration Profiles & Stalwart Configuration
+Frontend URLs, OIDC issuer URLs, and localized brand names are compiled into the server module at build time from the selected profile in `profiles/` via `server/build.rs`. See [Configuration Profiles](../reference/configuration.md).
 Stalwart credentials (`STALWART_JMAP_URL` and `STALWART_ADMIN_TOKEN`) can be set dynamically at runtime via the `set_stalwart_config` reducer (stored in the `stalwart_config` database table) or passed as runtime environment variables fallback (`std::env::var`).
 
 ### Subscription Check in DATA Stage

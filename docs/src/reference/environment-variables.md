@@ -1,31 +1,52 @@
 # Environment Variables Reference
 
-Complete reference of all environment variables supported by Kommunikationszentrum components (`admin`, `sender`, `server`, and integration scripts).
+Reference of environment variables supported by Kommunikationszentrum components (`sender`, build scripts, and operational tools).
+
+> [!IMPORTANT]
+> **Admin Web Interface & Server Module Configuration**:
+> The `admin` frontend and `server` module do **not** read operational settings from runtime environment variables. Configuration settings—such as SpacetimeDB connection URIs, OAuth/OIDC endpoints, visual branding tokens, and localized texts—are configured via compile-time profiles (`profiles/*.toml`). See the [Configuration Profiles Reference](./configuration.md).
 
 ---
 
-## Core Database Configuration
+## Build-Time Environment Variables
+
+These variables control profile selection when building the `admin` frontend or the `server` module.
+
+### `APP_PROFILE`
+- **Default**: `"example"`
+- **Used by**: `admin/build.rs`, `server/build.rs`
+- **Description**: Name of the profile file located in `profiles/` to compile into the binary (e.g. `APP_PROFILE=solawis` resolves to `profiles/solawis.toml`).
+- **Examples**:
+  ```bash
+  APP_PROFILE=solawis dx build -p admin
+  APP_PROFILE=solawis spacetime publish -p server kommunikation
+  ```
+
+### `APP_CONFIG_PATH`
+- **Default**: _(none)_
+- **Used by**: `admin/build.rs`, `server/build.rs`
+- **Description**: Overrides `APP_PROFILE` with an explicit absolute or relative path to a profile TOML file.
+- **Example**: `APP_CONFIG_PATH=/etc/kommunikationszentrum/production.toml`
+
+---
+
+## Runtime Database Configuration (Sender Daemon)
+
+The `sender` background daemon connects to SpacetimeDB to process outbound email queues and record delivery events.
 
 ### `SPACETIMEDB_URI`
-- **Default**: `http://localhost:3000` (admin), `http://127.0.0.1:3000` (sender)
-- **Used by**: `admin`, `sender`
+- **Default**: `http://127.0.0.1:3000`
+- **Used by**: `sender`
 - **Description**: HTTP / WebSocket connection endpoint for the SpacetimeDB server.
 - **Format**: `http://host:port` or `https://host:port`
 - **Examples**:
   - Development: `http://localhost:3000`
   - Production: `https://spacetime.example.org`
 
-### `SPACETIMEDB_MODULE_NAME`
-- **Default**: `kommunikation`
-- **Used by**: `admin`
-- **Description**: SpacetimeDB database/module name for client connections and subscriptions.
-- **Format**: String identifier
-- **Examples**: `kommunikation`, `kommunikationszentrum`
-
 ### `SPACETIMEDB_DATABASE_NAME`
 - **Default**: `kommunikation`
 - **Used by**: `sender`
-- **Description**: SpacetimeDB database/module name to which the sender daemon connects.
+- **Description**: SpacetimeDB database / module name to which the sender daemon connects.
 - **Format**: String identifier
 - **Examples**: `kommunikation`, `kommunikationszentrum`
 
@@ -38,51 +59,7 @@ Complete reference of all environment variables supported by Kommunikationszentr
 
 ---
 
-## Authentication & OIDC Configuration
-
-### `OIDC_ISSUER_URL`
-- **Default**: `http://127.0.0.1:8000/o`
-- **Used by**: `admin`, `server` (compile-time fallback via `option_env!`)
-- **Description**: The single trusted OIDC issuer URL for this deployment. The admin uses it for provider discovery; the server module embeds it at compile time and requires JWT `iss` to match it exactly in `register_self`. User-sync account identities are derived from this issuer and the external user ID.
-- **Format**: `http://host:port/path` or `https://host:port/path`; it must exactly match the issuer claim emitted by the provider.
-- **Deployment**: Set this value when building both the admin and server module. The server uses the compile-time value from `option_env!`; SpacetimeDB standalone does not use this variable as a server-level issuer allowlist. Changing the issuer changes the account identity namespace and may require an explicit identity migration.
-- **Examples**:
-  - Django: `http://127.0.0.1:8000/o`
-  - Nextcloud: `https://cloud.example.org`
-  - Keycloak: `https://auth.example.org/realms/myrealm`
-
-### `OIDC_CLIENT_ID`
-- **Default**: `admin-app`
-- **Used by**: `admin`, `docs/testscripts/spacetime_oidc_login.py`
-- **Description**: OAuth 2.0 client identifier registered in Django OAuth Toolkit.
-- **Format**: String identifier
-- **Security**: Should be unique per deployment environment.
-- **Notes**: Not a SpacetimeDB setting. The standalone server does not check the token `aud` claim.
-- **Examples**: `admin-app`, `kommunikationszentrum-prod`
-
-### `ADMIN_REDIRECT_URI`
-- **Default**: `http://127.0.0.1:8080/callback`
-- **Used by**: `admin`
-- **Description**: Callback redirect URL for the OAuth authorization code flow in the admin UI.
-- **Format**: Full URL with protocol
-- **Requirements**: Must be registered in Django's redirect URIs.
-
-### `OAUTH_SCOPES`
-- **Default**: `openid profile email`
-- **Used by**: `admin`
-- **Description**: Space-separated list of OAuth scopes requested during login.
-- **Format**: `scope1 scope2 scope3`
-- **Requirements**: `openid` must be included.
-
-### `OIDC_TIMEOUT`
-- **Default**: `180`
-- **Used by**: `docs/testscripts/spacetime_oidc_login.py`
-- **Description**: Timeout in seconds waiting for the local browser callback during the OIDC login helper script.
-- **Format**: Integer (seconds)
-
----
-
-## Sender Daemon Configuration
+## Sender Daemon SMTP Configuration
 
 All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 
@@ -101,53 +78,49 @@ All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 ### `SMTP_PORT`
 - **Default**: `465`
 - **Used by**: `sender`
-- **Description**: TCP port of the outbound SMTP relay (e.g. `25` for unauthenticated local relay, `465` for implicit TLS, `587` for STARTTLS). Ports `143` and `993` are rejected because they are IMAP ports.
-- **Format**: Integer port number
+- **Description**: Port on which the SMTP relay accepts connections. Common ports: `465` (Implicit TLS/SMTPS), `587` (STARTTLS / submission), `25` (standard relay), `1025` (local test mailcatcher).
 
 ### `SMTP_USE_TLS`
 - **Default**: `true`
 - **Used by**: `sender`
-- **Description**: Whether to use TLS encryption when connecting to the SMTP relay.
-- **Format**: Boolean (`true` or `false`)
+- **Description**: Whether to use TLS when connecting to the SMTP relay.
+- **Format**: Boolean (`true` / `false`)
 
 ### `SMTP_ACCEPT_INVALID_CERTS`
 - **Default**: `false`
 - **Used by**: `sender`
-- **Description**: Accept expired or self-signed certificates when TLS is enabled. Useful for local development relays (e.g. self-signed Stalwart or MailHog).
-- **Format**: Boolean (`true` or `false`)
+- **Description**: When `true`, skips certificate validation (useful for self-signed certificates in development).
+- **Warning**: Never enable in production.
 
 ### `SMTP_ACCEPT_INVALID_HOSTNAMES`
 - **Default**: `false`
 - **Used by**: `sender`
-- **Description**: Accept mismatched certificate hostnames when TLS is enabled. Useful for local testing against `localhost` or IP addresses.
-- **Format**: Boolean (`true` or `false`)
+- **Description**: When `true`, skips TLS hostname matching validation.
+- **Warning**: Never enable in production.
 
 ### `SMTP_SYSTEM_USERNAME`
 - **Default**: _(none)_
 - **Used by**: `sender`
-- **Description**: Username / email address used for authenticating with the SMTP relay when dispatching transactional system emails (e.g. self-service email verification tokens from `sender_system_mail_pending`). Also acts as the default sender address in `From` headers if it contains an `@` symbol (otherwise falling back to `no-reply@{MAIL_MESSAGE_ID_DOMAIN}`). Required if system email dispatch is enabled.
-- **Format**: Email address or username string
-- **Examples**: `system@solawis.de`, `no-reply@example.org`
+- **Description**: Username for authenticating transactional system emails (e.g. email verification tokens).
+- **Format**: Email address or SMTP account username
 
 ### `SMTP_SYSTEM_PASSWORD`
 - **Default**: _(none)_
 - **Used by**: `sender`
-- **Description**: SMTP authentication password or app password for `SMTP_SYSTEM_USERNAME`. Required if system email dispatch is enabled.
-- **Format**: Secret password string
-- **Security**: Must be kept secret; do not commit to version control.
+- **Description**: Password for authenticating transactional system emails.
+- **Security**: Must be kept secret.
 
 ### `MAIL_MESSAGE_ID_DOMAIN`
-- **Default**: Derived from the host of `SPACETIMEDB_URI`, falling back to `solawis.de`
+- **Default**: Host extracted from `SPACETIMEDB_URI`, or `localhost`
 - **Used by**: `sender`
-- **Description**: Fully qualified domain name used to generate unique `Message-ID` headers for outbound emails.
-- **Format**: Domain string
+- **Description**: Domain name used in the right-hand part of generated `Message-ID` headers (`<timestamp-uuid@domain>`).
 - **Examples**: `solawis.de`, `mail.example.org`
 
 ### `MAIL_UNSUBSCRIBE_BASE_URL`
-- **Default**: `{SPACETIMEDB_URI}/v1/database/{SPACETIMEDB_DATABASE_NAME}/route/mailing-list/unsubscribe`
+- **Default**: `<SPACETIMEDB_URI>/v1/database/<DB>/route/mailing-list/unsubscribe`
 - **Used by**: `sender`
-- **Description**: Base URL for generating RFC 8058 one-click unsubscribe links included in outbound `List-Unsubscribe` headers. Points to the SpacetimeDB HTTP endpoint, which processes RFC 8058 `POST` requests directly and redirects browser `GET` requests to the Admin frontend UI.
-- **Format**: Full HTTP/HTTPS URL (e.g. `http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe` or `https://spacetimedb.your-domain.com/v1/database/kommunikation/route/mailing-list/unsubscribe`)
+- **Description**: Endpoint base URL used to construct RFC 8058 `List-Unsubscribe` header URLs.
+- **Format**: Full HTTP/HTTPS URL
 
 ### `OTLP_ENDPOINT`
 - **Default**: `http://localhost:4317`
@@ -162,14 +135,13 @@ All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 SpacetimeDB integrates with the Stalwart mailserver's JMAP API for automated topic mailbox provisioning and domain synchronization.
 
 > [!TIP]
-> The primary and recommended method for configuring Stalwart is via the **Admin Web UI** (under **Stalwart Mailserver**) or the `set_stalwart_config` reducer, which stores configuration in the database `stalwart_config` table. The environment variables below are used as fallbacks if the database table is empty.
+> The primary method for configuring Stalwart is via the **Admin Web UI** (under **Stalwart Mailserver**) or the `set_stalwart_config` reducer, which stores configuration in the database `stalwart_config` table. The environment variables below are used only as fallbacks if the database table is empty.
 
 ### `STALWART_JMAP_URL`
 - **Default**: _(none)_
 - **Used by**: `server`
 - **Description**: JMAP endpoint URL of the Stalwart mailserver. If the URL does not end with `/jmap`, it is automatically appended.
-- **Format**: `http://host:port/jmap` or `https://host:port/jmap`
-- **Examples**: `http://localhost:8093/jmap`, `http://fedora.fritz.box:8093/jmap`
+- **Examples**: `http://localhost:8093/jmap`, `https://mail.example.org/jmap`
 
 ### `STALWART_ADMIN_TOKEN`
 - **Default**: _(none)_
@@ -183,7 +155,7 @@ SpacetimeDB integrates with the Stalwart mailserver's JMAP API for automated top
 
 ### `RUST_LOG`
 - **Default**: `info` (all crates), `sender=info` (sender)
-- **Used by**: `admin`, `sender`, `server`
+- **Used by**: `sender`, `server`
 - **Description**: Tracing and logging filter directives conforming to `tracing-subscriber::EnvFilter`.
 - **Values**: `error`, `warn`, `info`, `debug`, `trace`
 - **Examples**:
@@ -193,29 +165,27 @@ SpacetimeDB integrates with the Stalwart mailserver's JMAP API for automated top
 
 ---
 
-## External Integration Variables
+## External Integration & Testing Variables
 
 ### `SPACETIME_WEBHOOK_TOKEN`
 - **Default**: _(none)_
 - **Used by**: Django backend settings (`solawispielplatz`)
 - **Description**: Bearer token sent by Django signal handlers to the `/route/user-sync` endpoint for account synchronization.
 
+### `OIDC_TIMEOUT`
+- **Default**: `180`
+- **Used by**: `docs/testscripts/spacetime_oidc_login.py`
+- **Description**: Timeout in seconds waiting for the local browser callback during the OIDC login helper script.
+
 ---
 
-## Deployment Profiles
+## Sender Daemon Configuration Templates
 
-### Local Development (`.env/.env.example`)
+### Local Development (`.env/.env.sender.example`)
 ```ini
 SPACETIMEDB_URI=http://localhost:3000
-SPACETIMEDB_MODULE_NAME=kommunikation
 SPACETIMEDB_DATABASE_NAME=kommunikation
 SPACETIMEDB_TOKEN=
-
-DJANGO_BASE_URL=http://127.0.0.1:8000
-OIDC_ISSUER_URL=http://127.0.0.1:8000/o
-OIDC_CLIENT_ID=admin-app
-ADMIN_REDIRECT_URI=http://127.0.0.1:8080/callback
-OAUTH_SCOPES=openid profile email
 
 SMTP_HOST=localhost
 SMTP_PORT=1025
@@ -223,29 +193,18 @@ SMTP_USE_TLS=false
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
 SMTP_SYSTEM_USERNAME=system@localhost
-SMTP_SYSTEM_PASSWORD=your-system-smtp-password
+SMTP_SYSTEM_PASSWORD=
 MAIL_MESSAGE_ID_DOMAIN=localhost
 MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://localhost:4317
-
-STALWART_JMAP_URL=http://localhost:8093/jmap
-STALWART_ADMIN_TOKEN=
-
 RUST_LOG=info
 ```
 
-### Production Deployment (`.env/.env.production.example`)
+### Production Deployment
 ```ini
 SPACETIMEDB_URI=https://spacetimedb.your-domain.com
-SPACETIMEDB_MODULE_NAME=kommunikation
 SPACETIMEDB_DATABASE_NAME=kommunikation
 SPACETIMEDB_TOKEN=your-sender-identity-token-here
-
-DJANGO_BASE_URL=https://auth.your-domain.com
-OIDC_ISSUER_URL=https://auth.your-domain.com/o
-OIDC_CLIENT_ID=kommunikationszentrum-prod
-ADMIN_REDIRECT_URI=https://admin.your-domain.com/callback
-OAUTH_SCOPES=openid profile email
 
 SMTP_HOST=mail-relay.your-domain.com
 SMTP_PORT=465
@@ -257,34 +216,17 @@ SMTP_SYSTEM_PASSWORD=your-system-smtp-password-here
 MAIL_MESSAGE_ID_DOMAIN=your-domain.com
 MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.your-domain.com/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://alloy.internal:4317
-
-STALWART_JMAP_URL=https://mail.your-domain.com:8093/jmap
-STALWART_ADMIN_TOKEN=your-stalwart-admin-api-token-here
-
 RUST_LOG=warn
 ```
 
 ---
 
-## Configuration Validation
+## Configuration Validation Checklist
 
-### Required Variables Checklist
-- **Admin UI**:
-  - `SPACETIMEDB_URI`
-  - `DJANGO_BASE_URL`
-  - `OIDC_CLIENT_ID`
-  - `ADMIN_REDIRECT_URI`
-- **Sender Daemon**:
-  - `SPACETIMEDB_URI`
-  - `SPACETIMEDB_DATABASE_NAME`
-  - `SMTP_HOST` (mandatory; daemon exits if not set)
-  - `SPACETIMEDB_TOKEN` (required for production so the admin identity is retained)
-  - `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` (mandatory if transactional system emails / verification tokens are dispatched)
-
-### Security Checklist
-- [ ] No `.env` files containing secrets or production tokens are committed to git.
-- [ ] `SPACETIMEDB_TOKEN`, `STALWART_ADMIN_TOKEN`, and `SMTP_SYSTEM_PASSWORD` are kept confidential.
-- [ ] Production URLs strictly use `https://`.
+### Sender Daemon Checklist
+- [ ] `SMTP_HOST` is set and resolvable.
+- [ ] `SPACETIMEDB_URI` is configured and matches the target SpacetimeDB instance.
+- [ ] `SPACETIMEDB_TOKEN` is set for production deployments.
+- [ ] `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` are set if self-service verification is enabled.
 - [ ] `SMTP_ACCEPT_INVALID_CERTS` and `SMTP_ACCEPT_INVALID_HOSTNAMES` are set to `false` in production.
-- [ ] `RUST_LOG` is set to `warn` or `info` in production.
-- [ ] `ADMIN_REDIRECT_URI` is registered and authorized in Django OAuth settings.
+- [ ] No files containing passwords or production tokens are committed to git.

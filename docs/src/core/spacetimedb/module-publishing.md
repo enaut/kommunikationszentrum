@@ -7,23 +7,23 @@ How to build, publish, and manage the SpacetimeDB module.
 - SpacetimeDB CLI installed
 - Rust toolchain with `wasm32-unknown-unknown` target
 - SpacetimeDB running on port 3000
-- Environment variables set:
-  - `STALWART_ADMIN_TOKEN` (see [Stalwart Admin API Key Setup](../../email/stalwart-setup.md#admin-api-key-configuration-stalwart_admin_token))
-  - `STALWART_JMAP_URL` (typically `http://localhost:8093`; see [Listeners Configuration](../../email/stalwart-setup.md#listeners-configuration-port-8093))
-
-Build and publish require these env vars, so they cannot be run by AI agents.
+- Configuration profile in `profiles/` (see [Configuration Profiles](../../reference/configuration.md))
+- Optional: Stalwart credentials (can be set at publish time or configured post-publish via the Admin UI; see [Stalwart MTA Setup](../../email/stalwart-setup.md))
 
 ## Build and Publish
 
+Build and publish the module, selecting the target profile via `APP_PROFILE` (defaults to `profiles/example.toml` if omitted):
+
 ```bash
-spacetime build -p server kommunikation
-spacetime publish -p server kommunikation
+# Standard build and publish
+APP_PROFILE=my-org spacetime build -p server kommunikation
+APP_PROFILE=my-org spacetime publish -p server kommunikation
 ```
 
 Use `-c` with publish to clear the database when the schema changes (deletes all data):
 
 ```bash
-spacetime publish -p server kommunikation -c
+APP_PROFILE=my-org spacetime publish -p server kommunikation -c
 ```
 
 ## Client Bindings
