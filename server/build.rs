@@ -30,24 +30,10 @@ struct OAuthConfig {
 #[derive(Debug, Deserialize, Default)]
 struct BrandConfig {
     #[serde(default)]
-    i18n: BrandI18nConfig,
+    name: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Default)]
-struct BrandI18nConfig {
-    #[serde(default)]
-    de: BrandTexts,
-    #[serde(default)]
-    en: BrandTexts,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct BrandTexts {
-    #[serde(default)]
-    brand_name: Option<String>,
-}
-
-fn resolve_profile_path(manifest_dir: &Path) -> (String, PathBuf) {
+fn resolve_profile_dir(manifest_dir: &Path) -> (String, PathBuf) {
     if let Ok(path_str) = env::var("APP_CONFIG_PATH") {
         if !path_str.trim().is_empty() {
             let path = PathBuf::from(&path_str);
@@ -56,7 +42,12 @@ fn resolve_profile_path(manifest_dir: &Path) -> (String, PathBuf) {
             } else {
                 manifest_dir.join(path)
             };
-            return (path_str, path);
+            let dir = if path.is_dir() {
+                path
+            } else {
+                path.parent().unwrap_or(&path).to_path_buf()
+            };
+            return (path_str, dir);
         }
     }
 
@@ -70,15 +61,9 @@ fn resolve_profile_path(manifest_dir: &Path) -> (String, PathBuf) {
         profile
     };
 
-    let filename = if profile_name.ends_with(".toml") {
-        profile_name.clone()
-    } else {
-        format!("{profile_name}.toml")
-    };
-
     let workspace_root = manifest_dir.parent().unwrap_or(manifest_dir);
-    let path = workspace_root.join("profiles").join(filename);
-    (profile_name, path)
+    let dir = workspace_root.join("profiles").join(&profile_name);
+    (profile_name, dir)
 }
 
 fn main() {
@@ -86,14 +71,15 @@ fn main() {
     println!("cargo:rerun-if-env-changed=APP_CONFIG_PATH");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let (profile_name, profile_path) = resolve_profile_path(&manifest_dir);
+    let (profile_name, profile_dir) = resolve_profile_dir(&manifest_dir);
+    let profile_path = profile_dir.join("profile.toml");
 
     println!("cargo:rerun-if-changed={}", profile_path.display());
 
     let profile_content = fs::read_to_string(&profile_path).unwrap_or_else(|e| {
         panic!(
             "Failed to read profile configuration file at '{}' (selected profile: '{}'): {}.\n\
-             Ensure the profile TOML file exists in the 'profiles/' directory or configure APP_CONFIG_PATH.",
+             Ensure the profile directory exists under 'profiles/<name>/' and contains 'profile.toml'.",
             profile_path.display(),
             profile_name,
             e
@@ -128,19 +114,10 @@ fn main() {
         })
         .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
 
-    let brand_name_de = config
+    let brand_name = config
         .brand
-        .i18n
-        .de
-        .brand_name
+        .name
         .unwrap_or_else(|| "Kommunikationszentrum".to_string());
-
-    let brand_name_en = config
-        .brand
-        .i18n
-        .en
-        .brand_name
-        .unwrap_or_else(|| "Communication Center".to_string());
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
@@ -150,14 +127,14 @@ fn main() {
 
 pub const OIDC_ISSUER_URL: &str = {oidc_issuer_url:?};
 pub const FRONTEND_BASE_URL: &str = {frontend_base_url:?};
-pub const BRAND_NAME_DE: &str = {brand_name_de:?};
-pub const BRAND_NAME_EN: &str = {brand_name_en:?};
+pub const BRAND_NAME: &str = {brand_name:?};
+pub const BRAND_NAME_DE: &str = BRAND_NAME;
+pub const BRAND_NAME_EN: &str = BRAND_NAME;
 "#,
         profile_name = profile_name,
         oidc_issuer_url = oidc_issuer_url,
         frontend_base_url = frontend_base_url,
-        brand_name_de = brand_name_de,
-        brand_name_en = brand_name_en,
+        brand_name = brand_name,
     );
 
     fs::write(out_dir.join("generated_config.rs"), generated_code)

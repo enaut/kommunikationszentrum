@@ -1,11 +1,12 @@
 # =============================================================================
 # Kommunikationszentrum Configuration Profile Template
 # =============================================================================
-# Copy this file to a new profile (e.g. `profiles/my-org.toml`) and build with:
+# Copy this folder to a new profile (e.g. `cp -r profiles/example profiles/my-org`)
+# and build with:
 #   APP_PROFILE=my-org dx build -p admin
 #
-# Custom profiles (*.toml except example.toml) are gitignored to prevent
-# committing sensitive tokens or credentials.
+# Custom profile directories (`profiles/*` except `example/`) are gitignored
+# to prevent committing sensitive tokens, credentials, or private copy.
 
 [spacetimedb]
 # SpacetimeDB server URI
@@ -28,6 +29,8 @@ redirect_uri = "http://127.0.0.1:8080/callback"
 scope = "openid profile email"
 
 [brand]
+# Service / brand name (used in navbar, rejection emails, and verification emails)
+name = "Kommunikationszentrum"
 # Page title for browser tab
 page_title = "Kommunikationszentrum Admin"
 # Bootstrap icon name for navbar and login card (e.g. "envelope-fill", "mortarboard-fill")
@@ -74,23 +77,3 @@ secondary_color = "#adb5bd"
 border_color = "#373b3e"
 link_color = "#6ea8fe"
 link_hover_color = "#9ec5fe"
-
-# German localized brand copy
-[brand.i18n.de]
-brand_name = "Kommunikationszentrum"
-login_title = "Kommunikationszentrum"
-login_subtitle = "Nachrichtenverwaltung"
-login_button = "Anmelden"
-community_name = "Gemeinschaft"
-subscriptions_required = "Dieses Thema ist unbedingt notwendig für das Teilnehmen an der Gemeinschaft"
-email_verification_continue = "Weiter zum Kommunikationszentrum"
-
-# English localized brand copy
-[brand.i18n.en]
-brand_name = "Communication Center"
-login_title = "Communication Center"
-login_subtitle = "Message Management"
-login_button = "Sign in"
-community_name = "Community"
-subscriptions_required = "This topic is required to participate in the community"
-email_verification_continue = "Continue to Communication Center"

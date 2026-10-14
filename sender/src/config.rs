@@ -50,7 +50,14 @@ impl SenderConfig {
         let message_id_domain = env::var("MAIL_MESSAGE_ID_DOMAIN").unwrap_or_else(|_| {
             spacetimedb_uri
                 .split_once("//")
-                .map(|(_, rest)| rest.split('/').next().unwrap_or("localhost").to_string())
+                .map(|(_, rest)| {
+                    let host_port = rest.split('/').next().unwrap_or("localhost");
+                    host_port
+                        .split(':')
+                        .next()
+                        .unwrap_or("localhost")
+                        .to_string()
+                })
                 .unwrap_or_else(|| "localhost".to_string())
         });
         let unsubscribe_base_url = env::var("MAIL_UNSUBSCRIBE_BASE_URL").unwrap_or_else(|_| {

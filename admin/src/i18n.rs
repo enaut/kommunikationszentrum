@@ -42,37 +42,33 @@ pub fn detect_initial_theme() -> dioxus_bootstrap_css::prelude::Theme {
 pub fn detect_initial_language() -> LanguageIdentifier {
     if let Some(saved) = get_saved_language() {
         if saved.starts_with("en") {
-            return langid!("en");
+            return langid!("en-US");
         } else if saved.starts_with("de") {
-            return langid!("de");
+            return langid!("de-DE");
         }
     }
     if let Some(browser_lang) = web_sys::window().and_then(|w| w.navigator().language()) {
         if browser_lang.starts_with("en") {
-            return langid!("en");
+            return langid!("en-US");
         }
     }
-    langid!("de")
+    langid!("de-DE")
 }
 
-const DE_FTL: &str = concat!(
-    include_str!(concat!(env!("OUT_DIR"), "/brand_terms_de.ftl")),
-    "\n",
-    include_str!("locales/de.ftl"),
-);
+const BASE_DE_FTL: &str = include_str!("locales/de.ftl");
+const PROFILE_DE_FTL: &str = include_str!(concat!(env!("OUT_DIR"), "/profile_de.ftl"));
 
-const EN_FTL: &str = concat!(
-    include_str!(concat!(env!("OUT_DIR"), "/brand_terms_en.ftl")),
-    "\n",
-    include_str!("locales/en.ftl"),
-);
+const BASE_EN_FTL: &str = include_str!("locales/en.ftl");
+const PROFILE_EN_FTL: &str = include_str!(concat!(env!("OUT_DIR"), "/profile_en.ftl"));
 
 pub fn use_init_app_i18n() -> I18n {
     use_init_i18n(|| {
         let initial_lang = detect_initial_language();
         I18nConfig::new(initial_lang)
-            .with_locale((langid!("de"), DE_FTL))
-            .with_locale((langid!("en"), EN_FTL))
+            .with_locale((langid!("de"), BASE_DE_FTL))
+            .with_locale((langid!("de-DE"), PROFILE_DE_FTL))
+            .with_locale((langid!("en"), BASE_EN_FTL))
+            .with_locale((langid!("en-US"), PROFILE_EN_FTL))
             .with_fallback(langid!("de"))
     })
 }
@@ -120,7 +116,7 @@ pub fn preference_to_langid(
     pref: crate::module_bindings::LanguagePreference,
 ) -> LanguageIdentifier {
     match pref {
-        crate::module_bindings::LanguagePreference::En => langid!("en"),
-        crate::module_bindings::LanguagePreference::De => langid!("de"),
+        crate::module_bindings::LanguagePreference::En => langid!("en-US"),
+        crate::module_bindings::LanguagePreference::De => langid!("de-DE"),
     }
 }

@@ -4,7 +4,7 @@ Reference of environment variables supported by Kommunikationszentrum components
 
 > [!IMPORTANT]
 > **Admin Web Interface & Server Module Configuration**:
-> The `admin` frontend and `server` module do **not** read operational settings from runtime environment variables. Configuration settings—such as SpacetimeDB connection URIs, OAuth/OIDC endpoints, visual branding tokens, and localized texts—are configured via compile-time profiles (`profiles/*.toml`). See the [Configuration Profiles Reference](./configuration.md).
+> Core settings for the `admin` frontend and `server` module—such as SpacetimeDB connection URIs, OAuth/OIDC endpoints, visual branding tokens, and localized copy—are configured via compile-time profiles (`profiles/<name>/`). See the [Configuration Profiles Reference](./configuration.md).
 
 ---
 
@@ -15,7 +15,7 @@ These variables control profile selection when building the `admin` frontend or 
 ### `APP_PROFILE`
 - **Default**: `"example"`
 - **Used by**: `admin/build.rs`, `server/build.rs`
-- **Description**: Name of the profile file located in `profiles/` to compile into the binary (e.g. `APP_PROFILE=solawis` resolves to `profiles/solawis.toml`).
+- **Description**: Name of the profile directory located in `profiles/` to compile into the binary (e.g. `APP_PROFILE=solawis` resolves to `profiles/solawis/profile.toml`).
 - **Examples**:
   ```bash
   APP_PROFILE=solawis dx build -p admin
@@ -111,7 +111,7 @@ All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 - **Security**: Must be kept secret.
 
 ### `MAIL_MESSAGE_ID_DOMAIN`
-- **Default**: Host extracted from `SPACETIMEDB_URI`, or `localhost`
+- **Default**: Host extracted from `SPACETIMEDB_URI` (port stripped), or `localhost`
 - **Used by**: `sender`
 - **Description**: Domain name used in the right-hand part of generated `Message-ID` headers (`<timestamp-uuid@domain>`).
 - **Examples**: `solawis.de`, `mail.example.org`

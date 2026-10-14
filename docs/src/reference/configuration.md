@@ -2,7 +2,7 @@
 
 Kommunikationszentrum uses a compile-time, profile-driven configuration system for the **admin web interface** (`admin`) and the **SpacetimeDB server module** (`server`).
 
-Instead of reading environment variables at runtime, configuration parameters (endpoints, OAuth settings, branding, colors, and localized copy) are defined in TOML profile files located in the `profiles/` directory and compiled directly into the respective WebAssembly binaries.
+Instead of reading operational environment variables at runtime, configuration parameters (endpoints, OAuth settings, branding, colors, and localized copy) are defined in profile directories located under `profiles/<profile_name>/` and compiled directly into the respective WebAssembly binaries.
 
 ---
 
@@ -10,13 +10,13 @@ Instead of reading environment variables at runtime, configuration parameters (e
 
 ### 1. Profile Location & Tracking
 
-- **Template Profile**: [`profiles/example.toml`](file:///home/dietrich/Projekte/Source/kommunikationszentrum/profiles/example.toml) is tracked in git. It provides sensible development defaults and documents all supported fields.
-- **Custom Profiles**: Custom profile files (such as `profiles/my-org.toml`, `profiles/solawis.toml`, or `profiles/uhle.toml`) are ignored by git via `.gitignore` (`/profiles/*.toml` with `!/profiles/example.toml`). This prevents accidental leakage of organization-specific endpoints, client IDs, or branding assets into version control.
+- **Template Profile**: `profiles/example/` is tracked in git. It provides sensible development defaults and documents all supported fields in `profile.toml` and sample localization overrides in `locales/`.
+- **Custom Profiles**: Custom profile directories (such as `profiles/my-org/`, `profiles/solawis/`, or `profiles/uhle/`) are ignored by git via `.gitignore` (`/profiles/*` with `!/profiles/example/`). This prevents accidental leakage of organization-specific endpoints, client IDs, or branding assets into version control.
 
 To create a new profile:
 
 ```bash
-cp profiles/example.toml profiles/my-org.toml
+cp -r profiles/example profiles/my-org
 ```
 
 ### 2. Selecting a Profile at Build Time
@@ -25,10 +25,10 @@ Both `admin/build.rs` and `server/build.rs` resolve the profile configuration us
 
 | Variable | Description | Default |
 |---|---|---|
-| `APP_PROFILE` | Name of the profile file in `profiles/` (e.g. `my-org` or `my-org.toml`) | `"example"` |
-| `APP_CONFIG_PATH` | Explicit path to a profile TOML file (relative to manifest or absolute) | _(none)_ |
+| `APP_PROFILE` | Name of the profile directory in `profiles/` (e.g. `my-org`) | `"example"` |
+| `APP_CONFIG_PATH` | Explicit path to a profile directory or profile TOML file (relative to manifest or absolute) | _(none)_ |
 
-If neither variable is specified, the build system defaults to `profiles/example.toml`.
+If neither variable is specified, the build system defaults to `profiles/example`.
 
 #### Building the Admin Interface with a Profile
 
@@ -115,11 +115,12 @@ scope = "openid profile email"
 
 ### `[brand]`
 
-Customizes browser metadata, icons, and visual branding in the admin interface.
+Customizes brand identity, browser metadata, icons, and visual branding across the admin interface and server module.
 
 | Field | Type | Default | Used by | Description |
 |---|---|---|---|---|
-| `page_title` | String | `"Kommunikationszentrum Admin"` | `admin` | Document title rendered in the browser tab. |
+| `name` | String | `"Kommunikationszentrum"` | `admin`, `server` | Service / brand name used in navbar, system emails (MTA bounce notifications and verification mail), and default page title. |
+| `page_title` | String | `"<name> Admin"` | `admin` | Document title rendered in the browser tab. |
 | `icon` | String | `"envelope-fill"` | `admin` | Bootstrap icon name for the navigation bar and login card (e.g. `"envelope-fill"`, `"mortarboard-fill"`). |
 | `favicon` | String | `"/assets/favicon.ico"` | `admin` | Path to the favicon relative to admin web assets. |
 
@@ -127,6 +128,7 @@ Example:
 
 ```toml
 [brand]
+name = "UhleCloud Schulmail"
 page_title = "UhleCloud Schulmail Admin"
 icon = "mortarboard-fill"
 favicon = "/assets/favicon.ico"
@@ -183,45 +185,51 @@ border_color = "#d0dbe5"
 
 ---
 
-### `[brand.i18n]`
+## Profile Locales (`profiles/<name>/locales/`)
 
-Customizes localized brand copy. Localized terms are compiled directly into Fluent translation bundles (`-brand-*` terms in `de.ftl` and `en.ftl`) for `admin`, and used in system emails (rejection notices and verification emails) in `server`.
+Customizes localized copy directly via native Fluent (`.ftl`) files. Each profile directory must contain:
+- `locales/de.ftl`: German locale overrides
+- `locales/en.ftl`: English locale overrides
 
-#### Supported Language Sections
+### Overriding Translations
 
-- `[brand.i18n.de]`: German brand terms.
-- `[brand.i18n.en]`: English brand terms.
+Any translation key defined in `locales/de.ftl` or `locales/en.ftl` overrides the default translation in `admin/src/locales/` natively using Fluent's `add_resource_overriding`. Keys omitted from profile FTL files seamlessly fall back to the base application translations.
 
-#### Fields
+### Common Brand Copy Keys
 
-| Field | Used by | Description |
+| Key | Used in | Description |
 |---|---|---|
-| `brand_name` | `admin`, `server` | Service name (used in navbar, rejection messages, and verification mail subjects). |
-| `login_title` | `admin` | Main title on the login screen. |
-| `login_subtitle` | `admin` | Subtitle displayed below the login title. |
-| `login_button` | `admin` | Text for the OIDC login action button. |
-| `community_name` | `admin` | Name of the community or collective (e.g. `"Gemeinschaft"`, `"Schulgemeinschaft"`). |
-| `subscriptions_required` | `admin` | Explanatory note displayed next to mandatory topic subscriptions. |
-| `email_verification_continue` | `admin` | Button text directing the user back to the application after email verification. |
+| `navbar-brand` | Top navigation bar | Brand name displayed in the navbar header. |
+| `app-login-title` | Login screen | Main title on the login card. |
+| `app-login-subtitle` | Login screen | Subtitle displayed below the login title. |
+| `app-login-button` | Login screen | Text for the OIDC login action button. |
+| `community-name` | Topic descriptions | Name of the collective or organization. |
+| `subscriptions-required` | Subscriptions page | Explanatory note displayed next to mandatory topic subscriptions. |
+| `email-verification-continue` | Email verification | Button text directing the user back to the application after email verification. |
+| `unsubscribe-continue` | Unsubscribe page | Button text directing the user back to the application after unsubscribing. |
 
-Example:
+Example `profiles/my-org/locales/de.ftl`:
 
-```toml
-[brand.i18n.de]
-brand_name = "UhleCloud Schulmail"
-login_title = "UhleCloud Schulmail"
-login_subtitle = "Nachrichtenverwaltung"
-login_button = "Mit Schulkonto anmelden"
-community_name = "Schulgemeinschaft"
-subscriptions_required = "Dieses Thema ist für die Teilnahme an der Schulgemeinschaft erforderlich"
-email_verification_continue = "Weiter zur Schulmail"
+```ftl
+navbar-brand = UhleCloud Schulmail
+app-login-title = UhleCloud Schulmail
+app-login-subtitle = Schul-Nachrichtenverwaltung
+app-login-button = Mit Schulkonto anmelden
+community-name = Schulgemeinschaft
+subscriptions-required = Dieses Thema ist für die Teilnahme an der Schulgemeinschaft erforderlich
+email-verification-continue = Weiter zur Schulmail
+unsubscribe-continue = Weiter zur Schulmail
+```
 
-[brand.i18n.en]
-brand_name = "UhleCloud School Mail"
-login_title = "UhleCloud School Mail"
-login_subtitle = "Message Management"
-login_button = "Sign in with school account"
-community_name = "School Community"
-subscriptions_required = "This topic is required to participate in the school community"
-email_verification_continue = "Continue to School Mail"
+Example `profiles/my-org/locales/en.ftl`:
+
+```ftl
+navbar-brand = UhleCloud School Mail
+app-login-title = UhleCloud School Mail
+app-login-subtitle = School Message Management
+app-login-button = Sign in with school account
+community-name = School Community
+subscriptions-required = This topic is required to participate in the school community
+email-verification-continue = Continue to School Mail
+unsubscribe-continue = Continue to School Mail
 ```

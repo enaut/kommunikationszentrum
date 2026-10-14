@@ -25,5 +25,6 @@ Cargo.lock
 /test-data/
 
 # Profiles
-/profiles/*.toml
-!/profiles/example.toml
+/profiles/*
+!/profiles/example/
+!/profiles/example/**

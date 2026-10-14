@@ -1,4 +1,4 @@
-navbar-brand = {-brand-name}
+navbar-brand = Kommunikationszentrum
 navbar-my-topics = Meine Themen
 navbar-messages = Nachrichten
 navbar-topics = Themen
@@ -16,9 +16,9 @@ language-switcher-en = English (EN)
 members-filter-count = { $filtered } von { $total } Mitgliedern
 
 # App shell
-app-login-title = {-brand-login-title}
-app-login-subtitle = {-brand-login-subtitle}
-app-login-button = {-brand-login-button}
+app-login-title = Kommunikationszentrum
+app-login-subtitle = Nachrichtenverwaltung
+app-login-button = Anmelden
 app-loading = Laden…
 app-authenticating = Anmeldung wird verarbeitet…
 app-authentication-error = Authentifizierungsfehler
@@ -106,7 +106,7 @@ subscriptions-empty-category = Keine Mailinglisten in diesem Bereich.
 subscriptions-subscribed = Abonniert
 subscriptions-public = Öffentlich
 subscriptions-private = Privat
-subscriptions-required = {-brand-subscriptions-required}
+subscriptions-required = Dieses Thema ist unbedingt notwendig für das Teilnehmen an der Gemeinschaft
 subscriptions-unsubscribe = Abbestellen
 subscriptions-subscribe = Abonnieren
 subscriptions-linked-emails-title = Verknüpfte E-Mail-Adressen
@@ -378,7 +378,7 @@ email-verification-success-title = E-Mail-Adresse bestätigt!
 email-verification-success-desc = Deine E-Mail-Adresse wurde erfolgreich bestätigt und aktiviert.
 email-verification-failed-title = Bestätigung fehlgeschlagen
 email-verification-failed-desc = Der Bestätigungslink ist ungültig oder abgelaufen.
-email-verification-continue = {-brand-verification-continue}
+email-verification-continue = Weiter zum Kommunikationszentrum
 
 # Unsubscribe
 unsubscribe-title = Mailingliste abbestellen

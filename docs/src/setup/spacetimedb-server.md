@@ -43,10 +43,10 @@ When publishing the module to a local or remote SpacetimeDB instance, specify th
 APP_PROFILE=my-org spacetime publish -p server kommunikation
 
 # If schema changes require clearing the database tables:
-APP_PROFILE=my-org spacetime publish -p server kommunikation -c
+APP_PROFILE=my-org spacetime publish -p server kommunikation -c on-conflict
 ```
 
-If `APP_PROFILE` is omitted, the build defaults to `profiles/example.toml`.
+If `APP_PROFILE` is omitted, the build defaults to `profiles/example`.
 
 ---
 

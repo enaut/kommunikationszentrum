@@ -17,8 +17,6 @@ use module_bindings::dioxus::{
 use oauth::{AuthState, UserInfo, use_oauth};
 use router::ActiveView;
 
-const FAVICON: Asset = asset!("/assets/favicon.ico");
-
 fn main() {
     ::dioxus::launch(App);
 }
@@ -134,7 +132,7 @@ fn App() -> Element {
 
     rsx! {
         document::Title { "{config::generated::GENERATED_BRAND.page_title}" }
-        document::Link { rel: "icon", href: FAVICON }
+        document::Link { rel: "icon", href: "{config::generated::GENERATED_BRAND.favicon}" }
         ThemeProvider { theme }
         BootstrapHead {}
         BootstrapThemeProvider { theme: configured_theme() }

@@ -1,7 +1,9 @@
+use fluent_bundle::{FluentBundle, FluentResource};
 use serde::Deserialize;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use unic_langid::langid;
 
 #[derive(Debug, Deserialize, Default)]
 struct ProfileConfig {
@@ -36,6 +38,8 @@ struct OAuthConfig {
 #[derive(Debug, Deserialize, Default)]
 struct BrandConfig {
     #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
     page_title: Option<String>,
     #[serde(default)]
     icon: Option<String>,
@@ -43,8 +47,6 @@ struct BrandConfig {
     favicon: Option<String>,
     #[serde(default)]
     theme: ThemeConfig,
-    #[serde(default)]
-    i18n: BrandI18nConfig,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -103,33 +105,7 @@ struct SurfaceTokens {
     link_hover_color: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Default)]
-struct BrandI18nConfig {
-    #[serde(default)]
-    de: BrandTexts,
-    #[serde(default)]
-    en: BrandTexts,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct BrandTexts {
-    #[serde(default)]
-    brand_name: Option<String>,
-    #[serde(default)]
-    login_title: Option<String>,
-    #[serde(default)]
-    login_subtitle: Option<String>,
-    #[serde(default)]
-    login_button: Option<String>,
-    #[serde(default)]
-    community_name: Option<String>,
-    #[serde(default)]
-    subscriptions_required: Option<String>,
-    #[serde(default)]
-    email_verification_continue: Option<String>,
-}
-
-fn resolve_profile_path(manifest_dir: &Path) -> (String, PathBuf) {
+fn resolve_profile_dir(manifest_dir: &Path) -> (String, PathBuf) {
     if let Ok(path_str) = env::var("APP_CONFIG_PATH") {
         if !path_str.trim().is_empty() {
             let path = PathBuf::from(&path_str);
@@ -138,7 +114,12 @@ fn resolve_profile_path(manifest_dir: &Path) -> (String, PathBuf) {
             } else {
                 manifest_dir.join(path)
             };
-            return (path_str, path);
+            let dir = if path.is_dir() {
+                path
+            } else {
+                path.parent().unwrap_or(&path).to_path_buf()
+            };
+            return (path_str, dir);
         }
     }
 
@@ -152,15 +133,9 @@ fn resolve_profile_path(manifest_dir: &Path) -> (String, PathBuf) {
         profile
     };
 
-    let filename = if profile_name.ends_with(".toml") {
-        profile_name.clone()
-    } else {
-        format!("{profile_name}.toml")
-    };
-
     let workspace_root = manifest_dir.parent().unwrap_or(manifest_dir);
-    let path = workspace_root.join("profiles").join(filename);
-    (profile_name, path)
+    let dir = workspace_root.join("profiles").join(&profile_name);
+    (profile_name, dir)
 }
 
 fn format_opt_str(val: &Option<String>) -> String {
@@ -197,68 +172,20 @@ fn format_surfaces(surfaces: &SurfaceTokens) -> String {
     )
 }
 
-fn generate_ftl_terms(texts: &BrandTexts, is_de: bool) -> String {
-    let brand_name = texts.brand_name.as_deref().unwrap_or(if is_de {
-        "Kommunikationszentrum"
-    } else {
-        "Communication Center"
-    });
-    let login_title = texts.login_title.as_deref().unwrap_or(brand_name);
-    let login_subtitle = texts.login_subtitle.as_deref().unwrap_or(if is_de {
-        "Nachrichtenverwaltung"
-    } else {
-        "Message Management"
-    });
-    let login_button =
-        texts
-            .login_button
-            .as_deref()
-            .unwrap_or(if is_de { "Anmelden" } else { "Sign in" });
-    let community_name =
-        texts
-            .community_name
-            .as_deref()
-            .unwrap_or(if is_de { "Gemeinschaft" } else { "Community" });
-    let subscriptions_required = texts.subscriptions_required.as_deref().unwrap_or(if is_de {
-        "Dieses Thema ist unbedingt notwendig für das Teilnehmen an der Gemeinschaft"
-    } else {
-        "This topic is required to participate in the community"
-    });
-    let email_verification_continue =
-        texts
-            .email_verification_continue
-            .as_deref()
-            .unwrap_or(if is_de {
-                "Weiter zum Kommunikationszentrum"
-            } else {
-                "Continue to Communication Center"
-            });
-
-    format!(
-        "-brand-name = {}\n-brand-login-title = {}\n-brand-login-subtitle = {}\n-brand-login-button = {}\n-brand-community-name = {}\n-brand-subscriptions-required = {}\n-brand-verification-continue = {}\n",
-        brand_name,
-        login_title,
-        login_subtitle,
-        login_button,
-        community_name,
-        subscriptions_required,
-        email_verification_continue
-    )
-}
-
 fn main() {
     println!("cargo:rerun-if-env-changed=APP_PROFILE");
     println!("cargo:rerun-if-env-changed=APP_CONFIG_PATH");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let (profile_name, profile_path) = resolve_profile_path(&manifest_dir);
+    let (profile_name, profile_dir) = resolve_profile_dir(&manifest_dir);
+    let profile_path = profile_dir.join("profile.toml");
 
     println!("cargo:rerun-if-changed={}", profile_path.display());
 
     let profile_content = fs::read_to_string(&profile_path).unwrap_or_else(|e| {
         panic!(
             "Failed to read profile configuration file at '{}' (selected profile: '{}'): {}.\n\
-             Ensure the profile TOML file exists in the 'profiles/' directory or configure APP_CONFIG_PATH.",
+             Ensure the profile directory exists under 'profiles/<name>/' and contains 'profile.toml'.",
             profile_path.display(),
             profile_name,
             e
@@ -304,10 +231,15 @@ fn main() {
         .scope
         .unwrap_or_else(|| "openid profile email".to_string());
 
+    let brand_name = config
+        .brand
+        .name
+        .unwrap_or_else(|| "Kommunikationszentrum".to_string());
+
     let page_title = config
         .brand
         .page_title
-        .unwrap_or_else(|| "Kommunikationszentrum Admin".to_string());
+        .unwrap_or_else(|| format!("{brand_name} Admin"));
 
     let icon = config
         .brand
@@ -319,15 +251,87 @@ fn main() {
         .favicon
         .unwrap_or_else(|| "/assets/favicon.ico".to_string());
 
+    let locales_dir = profile_dir.join("locales");
+    let profile_de_path = locales_dir.join("de.ftl");
+    let profile_en_path = locales_dir.join("en.ftl");
+
+    println!("cargo:rerun-if-changed={}", profile_de_path.display());
+    println!("cargo:rerun-if-changed={}", profile_en_path.display());
+
+    let base_de_path = manifest_dir.join("src/locales/de.ftl");
+    let base_en_path = manifest_dir.join("src/locales/en.ftl");
+
+    let base_de_content =
+        fs::read_to_string(&base_de_path).expect("Failed to read admin/src/locales/de.ftl");
+    let base_en_content =
+        fs::read_to_string(&base_en_path).expect("Failed to read admin/src/locales/en.ftl");
+
+    let profile_de_content = fs::read_to_string(&profile_de_path).unwrap_or_else(|e| {
+        panic!(
+            "Failed to read profile German locale at '{}' (selected profile: '{}'): {}.\n\
+             Every profile must contain 'locales/de.ftl'.",
+            profile_de_path.display(),
+            profile_name,
+            e
+        );
+    });
+    let profile_en_content = fs::read_to_string(&profile_en_path).unwrap_or_else(|e| {
+        panic!(
+            "Failed to read profile English locale at '{}' (selected profile: '{}'): {}.\n\
+             Every profile must contain 'locales/en.ftl'.",
+            profile_en_path.display(),
+            profile_name,
+            e
+        );
+    });
+
+    // Validate German bundle with add_resource_overriding
+    let base_de_res = FluentResource::try_new(base_de_content)
+        .map_err(|(_, errs)| format!("Parse error in base de.ftl: {:?}", errs))
+        .unwrap();
+    let profile_de_res = FluentResource::try_new(profile_de_content.clone())
+        .map_err(|(_, errs)| {
+            format!(
+                "Parse error in profile locale '{}': {:?}",
+                profile_de_path.display(),
+                errs
+            )
+        })
+        .unwrap();
+    let mut bundle_de = FluentBundle::new(vec![langid!("de")]);
+    bundle_de
+        .add_resource(base_de_res)
+        .map_err(|errs| format!("Error adding base de.ftl to bundle: {:?}", errs))
+        .unwrap();
+    bundle_de.add_resource_overriding(profile_de_res);
+
+    // Validate English bundle with add_resource_overriding
+    let base_en_res = FluentResource::try_new(base_en_content)
+        .map_err(|(_, errs)| format!("Parse error in base en.ftl: {:?}", errs))
+        .unwrap();
+    let profile_en_res = FluentResource::try_new(profile_en_content.clone())
+        .map_err(|(_, errs)| {
+            format!(
+                "Parse error in profile locale '{}': {:?}",
+                profile_en_path.display(),
+                errs
+            )
+        })
+        .unwrap();
+    let mut bundle_en = FluentBundle::new(vec![langid!("en")]);
+    bundle_en
+        .add_resource(base_en_res)
+        .map_err(|errs| format!("Error adding base en.ftl to bundle: {:?}", errs))
+        .unwrap();
+    bundle_en.add_resource_overriding(profile_en_res);
+
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    // Generate brand_terms_de.ftl and brand_terms_en.ftl
-    let ftl_de = generate_ftl_terms(&config.brand.i18n.de, true);
-    let ftl_en = generate_ftl_terms(&config.brand.i18n.en, false);
-    fs::write(out_dir.join("brand_terms_de.ftl"), ftl_de)
-        .expect("Failed to write brand_terms_de.ftl");
-    fs::write(out_dir.join("brand_terms_en.ftl"), ftl_en)
-        .expect("Failed to write brand_terms_en.ftl");
+    // Write validated profile FTL files to OUT_DIR
+    fs::write(out_dir.join("profile_de.ftl"), profile_de_content)
+        .expect("Failed to write profile_de.ftl");
+    fs::write(out_dir.join("profile_en.ftl"), profile_en_content)
+        .expect("Failed to write profile_en.ftl");
 
     // Generate generated_config.rs
     let dark_section = if let Some(dark) = &config.brand.theme.dark {
@@ -357,6 +361,7 @@ pub struct GeneratedOAuthConfig {{
 }}
 
 pub struct GeneratedBrandConfig {{
+    pub name: &'static str,
     pub page_title: &'static str,
     pub icon: &'static str,
     pub favicon: &'static str,
@@ -410,6 +415,7 @@ pub const GENERATED_OAUTH: GeneratedOAuthConfig = GeneratedOAuthConfig {{
 }};
 
 pub const GENERATED_BRAND: GeneratedBrandConfig = GeneratedBrandConfig {{
+    name: {brand_name:?},
     page_title: {page_title:?},
     icon: {icon:?},
     favicon: {favicon:?},
@@ -428,6 +434,7 @@ pub const GENERATED_THEME: GeneratedThemeConfig = GeneratedThemeConfig {{
         oidc_client_id = oidc_client_id,
         oidc_redirect_uri = oidc_redirect_uri,
         oauth_scope = oauth_scope,
+        brand_name = brand_name,
         page_title = page_title,
         icon = icon,
         favicon = favicon,

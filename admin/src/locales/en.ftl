@@ -1,4 +1,4 @@
-navbar-brand = {-brand-name}
+navbar-brand = Communication Center
 navbar-my-topics = My Topics
 navbar-messages = Messages
 navbar-topics = Topics
@@ -16,9 +16,9 @@ language-switcher-en = English (EN)
 members-filter-count = { $filtered } of { $total } members
 
 # App shell
-app-login-title = {-brand-login-title}
-app-login-subtitle = {-brand-login-subtitle}
-app-login-button = {-brand-login-button}
+app-login-title = Communication Center
+app-login-subtitle = Message Management
+app-login-button = Sign in
 app-loading = Loading…
 app-authenticating = Authentication is being processed…
 app-authentication-error = Authentication error
@@ -105,7 +105,7 @@ subscriptions-empty-category = No mailing lists in this area.
 subscriptions-subscribed = Subscribed
 subscriptions-public = Public
 subscriptions-private = Private
-subscriptions-required = {-brand-subscriptions-required}
+subscriptions-required = This topic is required to participate in the community
 subscriptions-unsubscribe = Unsubscribe
 subscriptions-subscribe = Subscribe
 subscriptions-linked-emails-title = Linked Email Addresses
@@ -376,7 +376,7 @@ email-verification-success-title = Email address confirmed!
 email-verification-success-desc = Your email address has been successfully verified and activated.
 email-verification-failed-title = Verification failed
 email-verification-failed-desc = The confirmation link is invalid or has expired.
-email-verification-continue = {-brand-verification-continue}
+email-verification-continue = Continue to Communication Center
 
 # Unsubscribe
 unsubscribe-title = Mailing List Unsubscribe
