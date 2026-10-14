@@ -112,30 +112,32 @@ pub fn SubscriptionsPage(user_info: UserInfo, active_view: Signal<ActiveView>) -
 
     rsx! {
         Container { fluid: true, class: "mt-4",
-            Row { class: "mb-3",
-                Col {
+            Row { class: "mb-3 align-items-center justify-content-between",
+                Col { md: ColumnSize::Auto,
                     h2 { class: "mb-0",
                         Icon { name: "envelope-check", class: "me-2" }
                         {tid!("subscriptions-page-title")}
                     }
-                    p { class: "text-muted mt-1",
+                    p { class: "text-muted mt-1 mb-0",
                         {tid!("subscriptions-page-description")}
                     }
                 }
-            }
-
-            div { class: "d-flex justify-content-between align-items-center mb-4 p-3 bg-light rounded border",
-                span { class: "text-muted small",
-                    Icon { name: "envelope-plus", class: "me-2 text-primary" }
-                    {tid!("subscriptions-manage-emails-hint")}
-                }
-                Button {
-                    color: Color::Primary,
-                    outline: true,
-                    size: Size::Sm,
-                    onclick: move |_| active_view.set(ActiveView::Profile),
-                    Icon { name: "person", class: "me-1" }
-                    {tid!("subscriptions-manage-emails-link")}
+                Col { md: ColumnSize::Auto, class: "mt-2 mt-md-0",
+                    div { class: "d-flex justify-content-between align-items-center gap-3 p-2 px-3 bg-light rounded border",
+                        span { class: "text-muted small",
+                            Icon { name: "envelope-plus", class: "me-2 text-primary" }
+                            {tid!("subscriptions-manage-emails-hint")}
+                        }
+                        Button {
+                            color: Color::Primary,
+                            outline: true,
+                            size: Size::Sm,
+                            class: "text-nowrap",
+                            onclick: move |_| active_view.set(ActiveView::Profile),
+                            Icon { name: "person", class: "me-1" }
+                            {tid!("subscriptions-manage-emails-link")}
+                        }
+                    }
                 }
             }
 
