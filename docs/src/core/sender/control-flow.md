@@ -195,7 +195,7 @@ If a daemon crashes while holding an active ingress, delivery, or system mail le
 |---|---|---|
 | `From` | `topic.name <topic.email_address>` | List display address |
 | `To` | `recipient_email` (from AccountEmail) | Individual recipient address |
-| `Reply-To` | `original_sender_email` | Direct replies to original author |
+| `Reply-To` | `topic.email_address` | List address so replies are also posted to the list |
 | `Subject` | `[ListName] <original_subject>` | Ensured list prefix (reply/forward tags normalized) |
 | `Message-ID` | `<seed@domain>` | Unique deterministic ID |
 | `List-Id` | `ListName <topic.email_address>` | RFC 2919 List Identifier |

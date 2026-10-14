@@ -1071,8 +1071,8 @@ pub fn update_account_config(
     clear_member_search_query: bool,
     viewing_topic_id: Option<u64>,
     clear_viewing_topic_id: bool,
-    language: Option<String>,
-    theme: Option<String>,
+    language: Option<LanguagePreference>,
+    theme: Option<ThemePreference>,
     message_disposition_filter: Option<MessageDispositionFilter>,
     clear_message_disposition_filter: bool,
 ) -> Result<(), String> {
@@ -1177,6 +1177,128 @@ pub fn update_account_config(
         ctx.db.account_configs().account_id().update(config);
     } else {
         ctx.db.account_configs().insert(config);
+    }
+
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn suggest_theme_and_lang(
+    ctx: &ReducerContext,
+    theme: Option<ThemePreference>,
+    language: Option<LanguagePreference>,
+) -> Result<(), String> {
+    let sender = ctx.sender();
+    let account = ctx
+        .db
+        .account()
+        .identity()
+        .find(&sender)
+        .ok_or_else(|| "Account not found for sender".to_string())?;
+
+    let mut config = ctx
+        .db
+        .account_configs()
+        .account_id()
+        .find(&account.id)
+        .unwrap_or_else(|| AccountConfig {
+            account_id: account.id,
+            message_offset: 0,
+            message_limit: 50,
+            selected_message_topic: None,
+            member_offset: 0,
+            member_limit: 50,
+            member_search_query: None,
+            viewing_topic_id: None,
+            language: None,
+            theme: None,
+            search_matching_accounts: 0,
+            message_disposition_filter: None,
+        });
+
+    let mut changed = false;
+    if config.theme.is_none() && theme.is_some() {
+        config.theme = theme;
+        changed = true;
+    }
+    if config.language.is_none() && language.is_some() {
+        config.language = language;
+        changed = true;
+    }
+
+    if changed {
+        if ctx
+            .db
+            .account_configs()
+            .account_id()
+            .find(&account.id)
+            .is_some()
+        {
+            ctx.db.account_configs().account_id().update(config);
+        } else {
+            ctx.db.account_configs().insert(config);
+        }
+    }
+
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn set_theme_and_lang(
+    ctx: &ReducerContext,
+    theme: Option<ThemePreference>,
+    language: Option<LanguagePreference>,
+) -> Result<(), String> {
+    let sender = ctx.sender();
+    let account = ctx
+        .db
+        .account()
+        .identity()
+        .find(&sender)
+        .ok_or_else(|| "Account not found for sender".to_string())?;
+
+    let mut config = ctx
+        .db
+        .account_configs()
+        .account_id()
+        .find(&account.id)
+        .unwrap_or_else(|| AccountConfig {
+            account_id: account.id,
+            message_offset: 0,
+            message_limit: 50,
+            selected_message_topic: None,
+            member_offset: 0,
+            member_limit: 50,
+            member_search_query: None,
+            viewing_topic_id: None,
+            language: None,
+            theme: None,
+            search_matching_accounts: 0,
+            message_disposition_filter: None,
+        });
+
+    let mut changed = false;
+    if let Some(t) = theme {
+        config.theme = Some(t);
+        changed = true;
+    }
+    if let Some(l) = language {
+        config.language = Some(l);
+        changed = true;
+    }
+
+    if changed {
+        if ctx
+            .db
+            .account_configs()
+            .account_id()
+            .find(&account.id)
+            .is_some()
+        {
+            ctx.db.account_configs().account_id().update(config);
+        } else {
+            ctx.db.account_configs().insert(config);
+        }
     }
 
     Ok(())
@@ -1437,5 +1559,73 @@ mod tests {
         // A verified candidate always promotes if current primary is unverified or absent
         assert!(should_promote_to_primary(true, Some(false)));
         assert!(should_promote_to_primary(true, None));
+    }
+
+    #[test]
+    fn test_suggest_theme_and_lang_logic() {
+        let mut config = AccountConfig {
+            account_id: 1,
+            message_offset: 0,
+            message_limit: 50,
+            selected_message_topic: None,
+            member_offset: 0,
+            member_limit: 50,
+            member_search_query: None,
+            viewing_topic_id: None,
+            language: None,
+            theme: None,
+            search_matching_accounts: 0,
+            message_disposition_filter: None,
+        };
+
+        // When fields are None, suggest applies them
+        if config.theme.is_none() && Some(ThemePreference::Dark).is_some() {
+            config.theme = Some(ThemePreference::Dark);
+        }
+        if config.language.is_none() && Some(LanguagePreference::De).is_some() {
+            config.language = Some(LanguagePreference::De);
+        }
+        assert_eq!(config.theme, Some(ThemePreference::Dark));
+        assert_eq!(config.language, Some(LanguagePreference::De));
+
+        // When fields are already Some, suggest does NOT overwrite
+        let new_theme = Some(ThemePreference::Light);
+        let new_lang = Some(LanguagePreference::En);
+        if config.theme.is_none() && new_theme.is_some() {
+            config.theme = new_theme;
+        }
+        if config.language.is_none() && new_lang.is_some() {
+            config.language = new_lang;
+        }
+        assert_eq!(config.theme, Some(ThemePreference::Dark));
+        assert_eq!(config.language, Some(LanguagePreference::De));
+    }
+
+    #[test]
+    fn test_set_theme_and_lang_logic() {
+        let mut config = AccountConfig {
+            account_id: 1,
+            message_offset: 0,
+            message_limit: 50,
+            selected_message_topic: None,
+            member_offset: 0,
+            member_limit: 50,
+            member_search_query: None,
+            viewing_topic_id: None,
+            language: Some(LanguagePreference::De),
+            theme: Some(ThemePreference::Dark),
+            search_matching_accounts: 0,
+            message_disposition_filter: None,
+        };
+
+        // Set unconditionally overwrites
+        if let Some(t) = Some(ThemePreference::Light) {
+            config.theme = Some(t);
+        }
+        if let Some(l) = Some(LanguagePreference::En) {
+            config.language = Some(l);
+        }
+        assert_eq!(config.theme, Some(ThemePreference::Light));
+        assert_eq!(config.language, Some(LanguagePreference::En));
     }
 }

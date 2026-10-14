@@ -5188,6 +5188,108 @@ pub fn use_reducer_set_stalwart_config_async()
     }
 }
 
+/// Get a callback to invoke the `set_theme_and_lang` reducer.
+#[must_use]
+pub fn use_reducer_set_theme_and_lang()
+-> impl Fn(Option<ThemePreference>, Option<LanguagePreference>) -> spacetimedb_sdk::Result<()>
++ Clone
++ 'static {
+    let conn_signal = use_connection();
+
+    move |theme: Option<ThemePreference>, language: Option<LanguagePreference>| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.set_theme_and_lang(theme, language)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `set_theme_and_lang` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_set_theme_and_lang_then() -> (
+    impl Fn(Option<ThemePreference>, Option<LanguagePreference>) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |theme: Option<ThemePreference>, language: Option<LanguagePreference>| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) =
+                conn.reducers
+                    .set_theme_and_lang_then(theme, language, move |_ctx, res| {
+                        let _ = tx.send(res);
+                    })
+            {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `set_theme_and_lang` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_set_theme_and_lang_async() -> impl Fn(
+    Option<ThemePreference>,
+    Option<LanguagePreference>,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
+    let conn_signal = use_connection();
+
+    move |theme: Option<ThemePreference>,
+          language: Option<LanguagePreference>|
+          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) =
+                conn.reducers
+                    .set_theme_and_lang_then(theme, language, move |_ctx, res| {
+                        let _ = tx.send(res);
+                    })
+            {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
 /// Get a callback to invoke the `set_topic_categories` reducer.
 #[must_use]
 pub fn use_reducer_set_topic_categories()
@@ -5275,6 +5377,108 @@ pub fn use_reducer_set_topic_categories_async()
                     let _ = tx.send(res);
                 },
             ) {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
+/// Get a callback to invoke the `suggest_theme_and_lang` reducer.
+#[must_use]
+pub fn use_reducer_suggest_theme_and_lang()
+-> impl Fn(Option<ThemePreference>, Option<LanguagePreference>) -> spacetimedb_sdk::Result<()>
++ Clone
++ 'static {
+    let conn_signal = use_connection();
+
+    move |theme: Option<ThemePreference>, language: Option<LanguagePreference>| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.suggest_theme_and_lang(theme, language)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `suggest_theme_and_lang` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_suggest_theme_and_lang_then() -> (
+    impl Fn(Option<ThemePreference>, Option<LanguagePreference>) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |theme: Option<ThemePreference>, language: Option<LanguagePreference>| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) =
+                conn.reducers
+                    .suggest_theme_and_lang_then(theme, language, move |_ctx, res| {
+                        let _ = tx.send(res);
+                    })
+            {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `suggest_theme_and_lang` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_suggest_theme_and_lang_async() -> impl Fn(
+    Option<ThemePreference>,
+    Option<LanguagePreference>,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<(), String>>>,
+> + Clone
++ 'static {
+    let conn_signal = use_connection();
+
+    move |theme: Option<ThemePreference>,
+          language: Option<LanguagePreference>|
+          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) =
+                conn.reducers
+                    .suggest_theme_and_lang_then(theme, language, move |_ctx, res| {
+                        let _ = tx.send(res);
+                    })
+            {
                 return Err(e.to_string());
             }
             match rx.await {
@@ -5489,8 +5693,8 @@ pub fn use_reducer_update_account_config() -> impl Fn(
     bool,
     Option<u64>,
     bool,
-    Option<String>,
-    Option<String>,
+    Option<LanguagePreference>,
+    Option<ThemePreference>,
     Option<MessageDispositionFilter>,
     bool,
 ) -> spacetimedb_sdk::Result<()>
@@ -5508,8 +5712,8 @@ pub fn use_reducer_update_account_config() -> impl Fn(
           clear_member_search_query: bool,
           viewing_topic_id: Option<u64>,
           clear_viewing_topic_id: bool,
-          language: Option<String>,
-          theme: Option<String>,
+          language: Option<LanguagePreference>,
+          theme: Option<ThemePreference>,
           message_disposition_filter: Option<MessageDispositionFilter>,
           clear_message_disposition_filter: bool| {
         if let Some(conn) = conn_signal().as_ref() {
@@ -5553,8 +5757,8 @@ pub fn use_reducer_update_account_config_then() -> (
         bool,
         Option<u64>,
         bool,
-        Option<String>,
-        Option<String>,
+        Option<LanguagePreference>,
+        Option<ThemePreference>,
         Option<MessageDispositionFilter>,
         bool,
     ) + Clone
@@ -5574,8 +5778,8 @@ pub fn use_reducer_update_account_config_then() -> (
                        clear_member_search_query: bool,
                        viewing_topic_id: Option<u64>,
                        clear_viewing_topic_id: bool,
-                       language: Option<String>,
-                       theme: Option<String>,
+                       language: Option<LanguagePreference>,
+                       theme: Option<ThemePreference>,
                        message_disposition_filter: Option<MessageDispositionFilter>,
                        clear_message_disposition_filter: bool| {
         let mut result = result;
@@ -5637,8 +5841,8 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
     bool,
     Option<u64>,
     bool,
-    Option<String>,
-    Option<String>,
+    Option<LanguagePreference>,
+    Option<ThemePreference>,
     Option<MessageDispositionFilter>,
     bool,
 ) -> std::pin::Pin<
@@ -5657,8 +5861,8 @@ pub fn use_reducer_update_account_config_async() -> impl Fn(
           clear_member_search_query: bool,
           viewing_topic_id: Option<u64>,
           clear_viewing_topic_id: bool,
-          language: Option<String>,
-          theme: Option<String>,
+          language: Option<LanguagePreference>,
+          theme: Option<ThemePreference>,
           message_disposition_filter: Option<MessageDispositionFilter>,
           clear_message_disposition_filter: bool|
           -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {

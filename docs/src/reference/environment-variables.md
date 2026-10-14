@@ -87,7 +87,9 @@ Complete reference of all environment variables supported by Kommunikationszentr
 All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 
 > [!NOTE]
-> **SMTP Authentication**: The sender daemon does **not** take global `SMTP_USERNAME` or `SMTP_PASSWORD` environment variables. SMTP authentication credentials (username and app password) are configured per message topic and stored securely in SpacetimeDB (`TopicAppPassword` table), managed via the Admin UI.
+> **SMTP Authentication**:
+> - **Mailing List Deliveries**: The sender daemon does **not** take global `SMTP_USERNAME` or `SMTP_PASSWORD` environment variables for mailing list distributions. SMTP authentication credentials (username and app password) are configured per message topic and stored securely in SpacetimeDB (`TopicAppPassword` table), managed via the Admin UI.
+> - **Transactional System Emails**: Dedicated system user credentials configured via `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` are used to authenticate system emails (such as self-service email verification tokens queued in `sender_system_mail_pending`). If either variable is omitted, the sender skips system mail dispatch and logs an error.
 
 ### `SMTP_HOST`
 - **Default**: _(none — required)_
@@ -119,6 +121,20 @@ All outbound mail delivery is performed by the `sender` daemon using `lettre`.
 - **Used by**: `sender`
 - **Description**: Accept mismatched certificate hostnames when TLS is enabled. Useful for local testing against `localhost` or IP addresses.
 - **Format**: Boolean (`true` or `false`)
+
+### `SMTP_SYSTEM_USERNAME`
+- **Default**: _(none)_
+- **Used by**: `sender`
+- **Description**: Username / email address used for authenticating with the SMTP relay when dispatching transactional system emails (e.g. self-service email verification tokens from `sender_system_mail_pending`). Also acts as the default sender address in `From` headers if it contains an `@` symbol (otherwise falling back to `no-reply@{MAIL_MESSAGE_ID_DOMAIN}`). Required if system email dispatch is enabled.
+- **Format**: Email address or username string
+- **Examples**: `system@solawis.de`, `no-reply@example.org`
+
+### `SMTP_SYSTEM_PASSWORD`
+- **Default**: _(none)_
+- **Used by**: `sender`
+- **Description**: SMTP authentication password or app password for `SMTP_SYSTEM_USERNAME`. Required if system email dispatch is enabled.
+- **Format**: Secret password string
+- **Security**: Must be kept secret; do not commit to version control.
 
 ### `MAIL_MESSAGE_ID_DOMAIN`
 - **Default**: Derived from the host of `SPACETIMEDB_URI`, falling back to `solawis.de`
@@ -206,6 +222,8 @@ SMTP_PORT=1025
 SMTP_USE_TLS=false
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
+SMTP_SYSTEM_USERNAME=system@localhost
+SMTP_SYSTEM_PASSWORD=your-system-smtp-password
 MAIL_MESSAGE_ID_DOMAIN=localhost
 MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://localhost:4317
@@ -234,6 +252,8 @@ SMTP_PORT=465
 SMTP_USE_TLS=true
 SMTP_ACCEPT_INVALID_CERTS=false
 SMTP_ACCEPT_INVALID_HOSTNAMES=false
+SMTP_SYSTEM_USERNAME=system@your-domain.com
+SMTP_SYSTEM_PASSWORD=your-system-smtp-password-here
 MAIL_MESSAGE_ID_DOMAIN=your-domain.com
 MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.your-domain.com/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://alloy.internal:4317
@@ -259,10 +279,11 @@ RUST_LOG=warn
   - `SPACETIMEDB_DATABASE_NAME`
   - `SMTP_HOST` (mandatory; daemon exits if not set)
   - `SPACETIMEDB_TOKEN` (required for production so the admin identity is retained)
+  - `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` (mandatory if transactional system emails / verification tokens are dispatched)
 
 ### Security Checklist
 - [ ] No `.env` files containing secrets or production tokens are committed to git.
-- [ ] `SPACETIMEDB_TOKEN` and `STALWART_ADMIN_TOKEN` are kept confidential.
+- [ ] `SPACETIMEDB_TOKEN`, `STALWART_ADMIN_TOKEN`, and `SMTP_SYSTEM_PASSWORD` are kept confidential.
 - [ ] Production URLs strictly use `https://`.
 - [ ] `SMTP_ACCEPT_INVALID_CERTS` and `SMTP_ACCEPT_INVALID_HOSTNAMES` are set to `false` in production.
 - [ ] `RUST_LOG` is set to `warn` or `info` in production.

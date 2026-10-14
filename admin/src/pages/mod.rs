@@ -3,6 +3,7 @@ use crate::module_bindings::SubscriptionStatus;
 pub mod management;
 pub mod members;
 pub mod messages;
+pub mod profile;
 pub mod subscriptions;
 pub mod topic;
 pub mod unsubscribe;

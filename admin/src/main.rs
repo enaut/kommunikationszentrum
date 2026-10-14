@@ -120,7 +120,7 @@ fn App() -> Element {
     });
 
     // Theme signal for ThemeProvider + ThemeToggle
-    let theme = use_signal(|| Theme::Light);
+    let theme = use_signal(|| i18n::detect_initial_theme());
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -324,6 +324,58 @@ fn AuthenticatedApp(
 
     let active_view = use_signal(|| ActiveView::MySubscriptions);
 
+    module_bindings::dioxus::use_subscription(&["SELECT * FROM visible_account_configs"]);
+    let account_configs = module_bindings::dioxus::use_table_visible_account_configs();
+    let i18n = i18n::use_i18n();
+    let mut theme_for_sync = theme;
+    let suggest_theme_and_lang = module_bindings::dioxus::use_reducer_suggest_theme_and_lang();
+    let mut has_suggested = use_signal(|| false);
+
+    use_effect(move || {
+        let configs = account_configs();
+        if let Some(cfg) = configs.first() {
+            // Seed SpacetimeDB if remote preferences are None
+            if (cfg.theme.is_none() || cfg.language.is_none()) && !*has_suggested.peek() {
+                has_suggested.set(true);
+                let initial_theme_pref = i18n::theme_to_preference(*theme_for_sync.peek());
+                let initial_lang_pref = i18n::langid_to_preference(&i18n.language());
+                let theme_arg = if cfg.theme.is_none() {
+                    Some(initial_theme_pref)
+                } else {
+                    None
+                };
+                let lang_arg = if cfg.language.is_none() {
+                    Some(initial_lang_pref)
+                } else {
+                    None
+                };
+                let _ = suggest_theme_and_lang(theme_arg, lang_arg);
+            }
+
+            // Sync theme from SpacetimeDB to theme signal and localStorage
+            if let Some(theme_pref) = cfg.theme {
+                let target_theme = i18n::preference_to_theme(theme_pref);
+                if *theme_for_sync.peek() != target_theme {
+                    theme_for_sync.set(target_theme);
+                    let theme_str = match target_theme {
+                        Theme::Dark => "dark",
+                        Theme::Light => "light",
+                    };
+                    i18n::save_theme(theme_str);
+                }
+            }
+
+            // Sync language from SpacetimeDB to i18n and localStorage
+            if let Some(lang_pref) = cfg.language {
+                let target_lang = i18n::preference_to_langid(lang_pref);
+                let current_lang = i18n.language();
+                if current_lang.language != target_lang.language {
+                    i18n::switch_language(i18n, target_lang);
+                }
+            }
+        }
+    });
+
     rsx! {
         components::navbar::Navbar {
             user_info: user_info.clone(),
@@ -354,7 +406,7 @@ fn AuthenticatedApp(
                     info!("Connected to SpacetimeDB as: {}", id);
                     match active_view() {
                         ActiveView::MySubscriptions => rsx! {
-                            pages::subscriptions::SubscriptionsPage { user_info: user_info.clone() }
+                            pages::subscriptions::SubscriptionsPage { user_info: user_info.clone(), active_view }
                         },
                         ActiveView::Messages => rsx! {
                             pages::messages::MessagesPage { user_info: user_info.clone() }
@@ -370,6 +422,9 @@ fn AuthenticatedApp(
                         },
                         ActiveView::ManagementStatus => rsx! {
                             pages::management::status::ManagementStatusPage { user_info: user_info.clone() }
+                        },
+                        ActiveView::Profile => rsx! {
+                            pages::profile::ProfilePage { user_info: user_info.clone(), theme }
                         },
                     }
                 }

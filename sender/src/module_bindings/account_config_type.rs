@@ -4,7 +4,9 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::language_preference_type::LanguagePreference;
 use super::message_disposition_filter_type::MessageDispositionFilter;
+use super::theme_preference_type::ThemePreference;
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
@@ -17,8 +19,8 @@ pub struct AccountConfig {
     pub member_limit: u32,
     pub member_search_query: Option<String>,
     pub viewing_topic_id: Option<u64>,
-    pub language: Option<String>,
-    pub theme: Option<String>,
+    pub language: Option<LanguagePreference>,
+    pub theme: Option<ThemePreference>,
     pub search_matching_accounts: u32,
     pub message_disposition_filter: Option<MessageDispositionFilter>,
 }
@@ -39,8 +41,8 @@ pub struct AccountConfigCols {
     pub member_limit: __sdk::__query_builder::Col<AccountConfig, u32>,
     pub member_search_query: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
     pub viewing_topic_id: __sdk::__query_builder::Col<AccountConfig, Option<u64>>,
-    pub language: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
-    pub theme: __sdk::__query_builder::Col<AccountConfig, Option<String>>,
+    pub language: __sdk::__query_builder::Col<AccountConfig, Option<LanguagePreference>>,
+    pub theme: __sdk::__query_builder::Col<AccountConfig, Option<ThemePreference>>,
     pub search_matching_accounts: __sdk::__query_builder::Col<AccountConfig, u32>,
     pub message_disposition_filter:
         __sdk::__query_builder::Col<AccountConfig, Option<MessageDispositionFilter>>,

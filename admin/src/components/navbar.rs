@@ -1,7 +1,7 @@
 use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::{
     Color, Dropdown, DropdownItem, Icon, NavItem, NavLink, Navbar as BsNavbar, NavbarCollapse,
-    NavbarExpand, NavbarNav, NavbarToggler, Theme, ThemeToggle,
+    NavbarExpand, NavbarNav, NavbarToggler, Theme,
 };
 use dioxus_i18n::tid;
 
@@ -20,6 +20,7 @@ pub fn Navbar(
     let collapsed = use_signal(|| true);
     let user_dropdown_open = use_signal(|| false);
     let management_dropdown_open = use_signal(|| false);
+    let set_theme_and_lang = crate::module_bindings::dioxus::use_reducer_set_theme_and_lang();
     rsx! {
         BsNavbar {
             expand: NavbarExpand::Lg,
@@ -78,7 +79,34 @@ pub fn Navbar(
                         LanguageSwitcher {}
                     }
                     NavItem {
-                        ThemeToggle { theme }
+                        {
+                            let current_theme = *theme.read();
+                            let icon = match current_theme {
+                                Theme::Light => "moon-stars",
+                                Theme::Dark => "sun",
+                            };
+                            let label = match current_theme {
+                                Theme::Light => tid!("navbar-theme-dark"),
+                                Theme::Dark => tid!("navbar-theme-light"),
+                            };
+                            let set_theme_fn = set_theme_and_lang.clone();
+                            rsx! {
+                                button {
+                                    class: "btn btn-outline-light nav-link px-2 d-flex align-items-center",
+                                    r#type: "button",
+                                    title: "{label}",
+                                    "aria-label": "{label}",
+                                    onclick: move |_| {
+                                        let next_pref = match current_theme {
+                                            Theme::Light => crate::module_bindings::ThemePreference::Dark,
+                                            Theme::Dark => crate::module_bindings::ThemePreference::Light,
+                                        };
+                                        let _ = set_theme_fn(Some(next_pref), None);
+                                    },
+                                    i { class: "bi bi-{icon}" }
+                                }
+                            }
+                        }
                     }
                     NavItem {
                         Dropdown {
@@ -94,6 +122,12 @@ pub fn Navbar(
                                 }
                             },
                             menu: rsx! {
+                                DropdownItem {
+                                    onclick: move |_| active_view.set(ActiveView::Profile),
+                                    Icon { name: "person", class: "me-2" }
+                                    {tid!("navbar-profile")}
+                                }
+                                hr { class: "dropdown-divider my-1" }
                                 DropdownItem { onclick: move |_| on_logout.call(()),
                                     Icon { name: "box-arrow-right", class: "me-2" }
                                     {tid!("navbar-logout")}

@@ -2,7 +2,7 @@ direction: right
 
 env: "Environment Variables" {
   spacetimedb: "SPACETIMEDB_URI\nSPACETIMEDB_DATABASE_NAME\nSPACETIMEDB_TOKEN" { style.fill: "#bbdefb" }
-  smtp: "SMTP_HOST\nSMTP_PORT\nSMTP_USE_TLS\nSMTP_ACCEPT_INVALID_CERTS\nSMTP_ACCEPT_INVALID_HOSTNAMES" { style.fill: "#e1bee7" }
+  smtp: "SMTP_HOST\nSMTP_PORT\nSMTP_USE_TLS\nSMTP_ACCEPT_INVALID_CERTS\nSMTP_ACCEPT_INVALID_HOSTNAMES\nSMTP_SYSTEM_USERNAME\nSMTP_SYSTEM_PASSWORD" { style.fill: "#e1bee7" }
   mail: "MAIL_MESSAGE_ID_DOMAIN\nMAIL_UNSUBSCRIBE_BASE_URL" { style.fill: "#fff9c4" }
   observability: "OTLP_ENDPOINT\nRUST_LOG" { style.fill: "#ffe0b2" }
 }
@@ -20,6 +20,8 @@ struct: "SenderConfig (config.rs)" {
   message_id_domain: "String"
   unsubscribe_base_url: "String"
   otlp_endpoint: "String"
+  smtp_system_username: "Option<String>"
+  smtp_system_password: "Option<String>"
 }
 
 consumers: "Daemon Consumers" {
