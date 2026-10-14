@@ -34,11 +34,7 @@ pub struct OAuthConfig {
 }
 ```
 
-Configuration is loaded from environment variables:
-- `OIDC_ISSUER_URL`: e.g. `http://127.0.0.1:8000/o` or `https://cloud.example.org`
-- `OIDC_CLIENT_ID`: default `"admin-app"`
-- `ADMIN_REDIRECT_URI`: default `"http://127.0.0.1:8080/callback"`
-- `OAUTH_SCOPES`: default `"openid profile email"`
+Configuration is populated at compile time from the profile's `[oauth]` section (e.g. `profiles/my-org.toml`) via `admin/build.rs`, generating typed constants. See [Configuration Profiles — OAuth](../reference/configuration.md#oauth) for field definitions and defaults.
 
 ## OAuth Flow Implementation
 

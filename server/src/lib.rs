@@ -14,6 +14,7 @@ use crate::models::{
 use crate::services::mta::purge::DEFAULT_REJECTED_RETENTION_DAYS;
 
 pub mod common;
+pub mod config;
 pub mod http_handlers;
 pub mod models;
 pub mod reducers;

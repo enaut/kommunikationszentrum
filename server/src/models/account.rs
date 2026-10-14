@@ -2,19 +2,8 @@ use spacetimedb::{Identity, Timestamp};
 
 pub use crate::models::mta::MessageDispositionFilter;
 
-// Configuration constants that can be set at compile time via environment variables
-pub const OIDC_ISSUER_URL: &str = match option_env!("OIDC_ISSUER_URL") {
-    Some(url) => url,
-    None => "http://127.0.0.1:8000/o",
-};
-
-pub const FRONTEND_BASE_URL: &str = match option_env!("FRONTEND_BASE_URL") {
-    Some(url) => url,
-    None => match option_env!("APP_BASE_URL") {
-        Some(url) => url,
-        None => "http://127.0.0.1:8080",
-    },
-};
+// Re-export profile-driven compile-time configuration constants
+pub use crate::config::{FRONTEND_BASE_URL, OIDC_ISSUER_URL};
 
 #[derive(spacetimedb::SpacetimeType, Debug, Clone, PartialEq)]
 pub enum EmailSource {

@@ -172,8 +172,7 @@ fn mailing_list_unsubscribe_handler(
             let token = urlencoding::decode(&raw_token)
                 .map(|s| s.into_owned())
                 .unwrap_or(raw_token);
-            let base_url = option_env!("FRONTEND_BASE_URL")
-                .unwrap_or(crate::models::account::FRONTEND_BASE_URL);
+            let base_url = crate::config::FRONTEND_BASE_URL;
             let redirect_url = format!(
                 "{}/?unsubscribe_token={}",
                 base_url.trim_end_matches('/'),

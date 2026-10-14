@@ -23,3 +23,8 @@ Cargo.lock
 /admin/assets/static
 /kommunikationszentrum.code-workspace
 /test-data/
+
+# Profiles
+/profiles/*
+!/profiles/example/
+!/profiles/example/**

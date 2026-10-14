@@ -110,12 +110,13 @@ pub fn AddSubscriberModal(
     };
 
     // Track show transitions using a non-reactive Cell to avoid feedback loops
-    let was_open = use_hook(|| Cell::new(false));
+    let was_open = use_hook(|| Rc::new(Cell::new(false)));
     use_effect({
         let update_config = update_config.clone();
         let saved_offset = saved_member_offset.clone();
         let saved_query = saved_member_search_query.clone();
         let restore = restore_filters.clone();
+        let was_open = was_open.clone();
         move || {
             let is_open = show();
             let had_open = was_open.get();
@@ -125,10 +126,10 @@ pub fn AddSubscriberModal(
                 account_filter.set(String::new());
                 selected_status.set(SubscriptionStatus::ManuallySubscribed);
                 add_sub_error.set(None);
-                // Snapshot current member filter state
-                if let Some(config) = account_configs_table().into_iter().next() {
+                // Snapshot current member filter state without registering reactive dependency
+                if let Some(config) = account_configs_table.peek().first() {
                     saved_offset.set(Some(config.member_offset));
-                    *saved_query.borrow_mut() = Some(config.member_search_query);
+                    *saved_query.borrow_mut() = Some(config.member_search_query.clone());
                 }
                 // Clear server-side search query while searching in modal
                 let _ = update_config(

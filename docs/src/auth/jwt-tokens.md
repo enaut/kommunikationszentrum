@@ -42,7 +42,7 @@ On connect, SpacetimeDB 2.7 and 2.10 validate a bearer token as follows:
 2. Otherwise the unverified `iss` claim is used only to find keys. The server requests `{iss}/.well-known/openid-configuration`, follows redirects, and reads `jwks_uri`. A trailing slash on `iss` is removed. The URL scheme must be `http` or `https`.
 3. The signature is checked against that JWKS. `RS256`, `ES256`, and `HS256` keys are accepted.
 4. The verified `iss` must equal the issuer used for discovery. `sub` and `iss` are required. If `exp` is present, it must not be more than 60 seconds in the past.
-5. `aud` is not checked. `OIDC_CLIENT_ID` is read only by the admin build.
+5. `aud` is not checked. `client_id` is configured in the profile's `[oauth]` section and used by the admin build.
 
 Any issuer that publishes discovery and a JWKS which verifies the token may be accepted at connection time. This does not make that issuer trusted by the application module.
 
@@ -81,7 +81,7 @@ let identity = Identity::from_claims(OIDC_ISSUER_URL, &data.external_id);
 
 The account's `external_id` is the OIDC `sub`. For a token from the configured issuer, the sender identity and synced account identity therefore derive from the same `(iss, sub)` pair. When an account is found by `external_id`, `register_self` also requires its stored identity to match the sender; it does not rebind the account to a different identity. A mismatch indicates stale or inconsistent account identity data and must be resolved explicitly.
 
-`OIDC_ISSUER_URL` is compiled into the server module via `option_env!`. Set it to the same exact issuer used by the admin OIDC configuration when building and publishing the module. A token from another issuer may still connect to SpacetimeDB, but it cannot register or update an account through `register_self`.
+`OIDC_ISSUER_URL` is resolved from the configuration profile (`[oauth].issuer_url`) and compiled into the server module via `server/build.rs`. Using the same profile (`APP_PROFILE=<profile>`) when building the admin frontend and server module guarantees that both components agree on the exact trusted issuer. A token from another issuer may still connect to SpacetimeDB, but it cannot register or update an account through `register_self`. See [Configuration Profiles](../reference/configuration.md#oauth).
 
 ### Email Claims and Primary Email Handling
 

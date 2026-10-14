@@ -1,0 +1,79 @@
+# =============================================================================
+# Kommunikationszentrum Configuration Profile Template
+# =============================================================================
+# Copy this folder to a new profile (e.g. `cp -r profiles/example profiles/my-org`)
+# and build with:
+#   APP_PROFILE=my-org dx build -p admin
+#
+# Custom profile directories (`profiles/*` except `example/`) are gitignored
+# to prevent committing sensitive tokens, credentials, or private copy.
+
+[spacetimedb]
+# SpacetimeDB server URI
+uri = "http://localhost:3000"
+# SpacetimeDB module/database name
+module_name = "kommunikation"
+
+[server]
+# Base URL of the web frontend for email verification links and unsubscribe redirects
+frontend_base_url = "http://127.0.0.1:8080"
+
+[oauth]
+# OIDC issuer base URL (where /.well-known/openid-configuration resides)
+issuer_url = "http://127.0.0.1:8000/o"
+# OAuth client ID registered with the OIDC provider
+client_id = "admin-app"
+# Redirect URI registered with the OIDC provider
+redirect_uri = "http://127.0.0.1:8080/callback"
+# OAuth scopes (space-separated)
+scope = "openid profile email"
+
+[brand]
+# Service / brand name (used in navbar, rejection emails, and verification emails)
+name = "Kommunikationszentrum"
+# Page title for browser tab
+page_title = "Kommunikationszentrum Admin"
+# Bootstrap icon name for navbar and login card (e.g. "envelope-fill", "mortarboard-fill")
+icon = "envelope-fill"
+# Favicon path relative to admin assets
+favicon = "/assets/favicon.ico"
+
+# Light mode color palette
+[brand.theme.colors]
+primary = "#0d6efd"
+secondary = "#6c757d"
+success = "#198754"
+info = "#0dcaf0"
+warning = "#ffc107"
+danger = "#dc3545"
+light = "#f8f9fa"
+dark = "#212529"
+
+# Light mode surface colors
+[brand.theme.surfaces]
+body_bg = "#ffffff"
+body_color = "#212529"
+secondary_bg = "#f8f9fa"
+secondary_color = "#495057"
+border_color = "#dee2e6"
+
+# Dark mode color palette
+[brand.theme.dark.colors]
+primary = "#3d8bfd"
+secondary = "#a7acb1"
+success = "#20c997"
+info = "#3dd5f3"
+warning = "#ffda6a"
+danger = "#ea868f"
+light = "#343a40"
+dark = "#121416"
+
+# Dark mode surface colors
+[brand.theme.dark.surfaces]
+body_bg = "#121416"
+body_color = "#e9ecef"
+secondary_bg = "#1f2327"
+secondary_color = "#adb5bd"
+border_color = "#373b3e"
+link_color = "#6ea8fe"
+link_hover_color = "#9ec5fe"

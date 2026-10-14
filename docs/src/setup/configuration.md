@@ -1,103 +1,80 @@
 # Configuration
 
-The Kommunikationszentrum follows the [12-factor app](https://12factor.net/) methodology, using environment variables for configuration. This approach provides flexibility for different deployment environments while maintaining security best practices.
+Kommunikationszentrum employs a three-tier configuration architecture designed to optimize security, branding flexibility, and deployment ergonomics across its different components:
 
-## Configuration Overview
+1. **Compile-Time Configuration Profiles (`profiles/<name>/`)**: Used by the **Admin Web Interface** (`admin`) and the **SpacetimeDB Server Module** (`server`). Configuration settings—including backend URLs, OpenID Connect parameters, visual branding, and localized copy—are compiled directly into WebAssembly binaries at build time.
+2. **Runtime Environment Variables (`.env`)**: Used by the background **Sender Daemon** (`sender`) and operational logging/tracing. Follows the [12-factor app](https://12factor.net/) methodology.
+3. **Database-Backed Runtime Settings**: Outbound topic SMTP credentials (`TopicAppPassword`) and Stalwart mail server integration parameters are stored securely inside SpacetimeDB tables, managed dynamically via reducers or the Admin UI.
 
-All components support environment-based configuration with sensible defaults for development. Configuration is loaded in the following order:
+---
 
-1. Environment variables
-2. `.env` file (if present)
-3. Default values
+## 1. Build-Time Configuration Profiles (`admin` & `server`)
 
-## Environment Variables
+Both the admin frontend and server module resolve configuration from a profile directory during build time.
 
-### Core Database Configuration
+### Quick Setup
 
-| Variable | Default | Used by | Description |
-|----------|---------|---------|-------------|
-| `SPACETIMEDB_URI` | `http://localhost:3000` | admin, sender | SpacetimeDB server endpoint |
-| `SPACETIMEDB_MODULE_NAME` | `kommunikation` | admin | SpacetimeDB module name |
-| `SPACETIMEDB_DATABASE_NAME` | `kommunikation` | sender | SpacetimeDB module/database name |
-| `SPACETIMEDB_TOKEN` | _(none)_ | sender | Authentication token for sender's admin identity |
+1. Copy the tracked template profile to create an organization profile:
+   ```bash
+   cp -r profiles/example profiles/my-org
+   ```
+2. Adjust your endpoints, OIDC provider configuration, branding, and color palette in `profiles/my-org/profile.toml`, and customize localized copy in `profiles/my-org/locales/`.
+3. Build or serve the components by setting `APP_PROFILE`:
 
-### OpenID Connect (OIDC) / Authentication Configuration
+   ```bash
+   # Build the WebAssembly admin interface
+   APP_PROFILE=my-org dx build -p admin
 
-| Variable | Default | Used by | Description |
-|----------|---------|---------|-------------|
-| `OIDC_ISSUER_URL` | `http://127.0.0.1:8000/o` | admin, server module build | OIDC discovery issuer and the exact issuer accepted by `register_self`; compiled into the module and used to derive synced account identities. It is not a SpacetimeDB server-level issuer allowlist.|
-| `OIDC_CLIENT_ID` | `admin-app` | admin | OAuth client identifier; not a SpacetimeDB setting.|
-| `ADMIN_REDIRECT_URI` | `http://127.0.0.1:8080/callback` | admin | OAuth callback URL for admin UI |
-| `OAUTH_SCOPES` | `openid profile email` | admin | Requested OAuth scopes |
+   # Run the admin interface with live reloading
+   APP_PROFILE=my-org dx serve -p admin
 
-### Sender Daemon Configuration
+   # Publish the server module to SpacetimeDB
+   APP_PROFILE=my-org spacetime publish -p server kommunikation
+   ```
 
-| Variable | Default | Used by | Description |
-|----------|---------|---------|-------------|
-| `SMTP_HOST` | _(none — required)_ | sender | Outbound SMTP relay hostname or IP |
-| `SMTP_PORT` | `465` | sender | Outbound SMTP relay port |
-| `SMTP_USE_TLS` | `true` | sender | Enable TLS for SMTP connection |
-| `SMTP_ACCEPT_INVALID_CERTS` | `false` | sender | Accept self-signed certificates (dev only) |
-| `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | sender | Accept mismatched hostnames (dev only) |
-| `SMTP_SYSTEM_USERNAME` | _(none)_ | sender | Username for authenticating transactional system emails (e.g. verification tokens) |
-| `SMTP_SYSTEM_PASSWORD` | _(none)_ | sender | Password for system email SMTP relay authentication |
-| `MAIL_MESSAGE_ID_DOMAIN` | host of `SPACETIMEDB_URI` / `localhost` | sender | Domain for generated Message-ID headers |
-| `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | sender | Endpoint for RFC 8058 one-click unsubscribe links |
-| `OTLP_ENDPOINT` | `http://localhost:4317` | sender | OpenTelemetry collector endpoint |
+> [!TIP]
+> Custom profile directories (`profiles/*` except `example/`) are gitignored automatically to keep organization domains, OAuth credentials, and theme tokens private.
+>
+> [!IMPORTANT]
+> For the complete schema, list of all supported fields, color tokens, and localized Fluent translations, see the [Configuration Profiles Reference](../reference/configuration.md).
+
+---
+
+## 2. Runtime Environment Variables (`sender`)
+
+The `sender` daemon is a native Rust background service responsible for SMTP delivery, retry queues, and OpenTelemetry instrumentation. It reads configuration from environment variables on startup.
+
+### Sender Configuration Options
+
+| Variable | Default | Description |
+|---|---|---|
+| `SPACETIMEDB_URI` | `http://127.0.0.1:3000` | HTTP / WebSocket URL of the SpacetimeDB instance |
+| `SPACETIMEDB_DATABASE_NAME` | `kommunikation` | Database / module name to connect to |
+| `SPACETIMEDB_TOKEN` | _(none)_ | Admin identity authentication token for the sender daemon |
+| `SMTP_HOST` | _(required)_ | Outbound SMTP relay host or IP |
+| `SMTP_PORT` | `465` | Outbound SMTP relay port |
+| `SMTP_USE_TLS` | `true` | Enable TLS for SMTP connection |
+| `SMTP_ACCEPT_INVALID_CERTS` | `false` | Accept self-signed certificates (dev only) |
+| `SMTP_ACCEPT_INVALID_HOSTNAMES` | `false` | Accept mismatched hostnames (dev only) |
+| `SMTP_SYSTEM_USERNAME` | _(none)_ | SMTP username for transactional system emails (e.g. verification tokens) |
+| `SMTP_SYSTEM_PASSWORD` | _(none)_ | SMTP password for transactional system emails |
+| `MAIL_MESSAGE_ID_DOMAIN` | Host of `SPACETIMEDB_URI` (port stripped) / `localhost` | Domain for generated `Message-ID` headers |
+| `MAIL_UNSUBSCRIBE_BASE_URL` | `<SPACETIMEDB_URI>/.../unsubscribe` | RFC 8058 one-click HTTPS unsubscribe endpoint |
+| `OTLP_ENDPOINT` | `http://localhost:4317` | OpenTelemetry collector endpoint |
+| `RUST_LOG` | `info` | Tracing / logging filter directive (e.g. `sender=debug,info`) |
 
 > [!NOTE]
-> Outbound SMTP authentication for topic mailing lists is per-topic via app passwords stored in SpacetimeDB (`TopicAppPassword` table), not global environment variables. In contrast, transactional system emails (such as email verification tokens) authenticate using the dedicated `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` environment variables.
+> Outbound SMTP authentication for topic mailing lists is per-topic via app passwords stored in SpacetimeDB (`TopicAppPassword` table), not global environment variables. In contrast, transactional system emails authenticate using `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD`.
 
-### Stalwart Mailserver Fallback Configuration
+### Example Sender `.env` File
 
-| Variable | Default | Used by | Description |
-|----------|---------|---------|-------------|
-| `STALWART_JMAP_URL` | _(none)_ | server | Stalwart JMAP URL (fallback if not configured in DB) |
-| `STALWART_ADMIN_TOKEN` | _(none)_ | server | Stalwart Admin API key (fallback if not configured in DB) |
-
-### Logging Configuration
-
-| Variable | Default | Used by | Description |
-|----------|---------|---------|-------------|
-| `RUST_LOG` | `info` | all | Tracing/logging filter directive (e.g. `info`, `sender=trace`) |
-
-## Configuration Files
-
-The `.env/` directory provides pre-configured template files for different components and environments:
-
-- `.env/.env.example`: Complete environment template for local development.
-- `.env/.env.production.example`: Full production configuration template.
-- `.env/.env.sender.example` / `.env/.env.webhook-proxy.example`: Standalone environment file for running the sender daemon.
-- `.env/.env.stalwart-jmap.example`: Environment file for Stalwart JMAP credentials.
-- `.env/.env.oidc`: Environment variables for OIDC authentication.
-
-### Development Configuration
-
-For local development, copy the example configuration:
-
-```bash
-cp .env/.env.example .env
-```
-
-The `.env/.env.example` file contains development-appropriate defaults:
+For local development:
 
 ```ini
-# SpacetimeDB Configuration (Admin & Sender)
 SPACETIMEDB_URI=http://localhost:3000
-SPACETIMEDB_MODULE_NAME=kommunikation
 SPACETIMEDB_DATABASE_NAME=kommunikation
 SPACETIMEDB_TOKEN=
 
-# Django / OAuth Configuration (Admin & Server)
-DJANGO_BASE_URL=http://127.0.0.1:8000
-OIDC_ISSUER_URL=http://127.0.0.1:8000/o
-OIDC_CLIENT_ID=admin-app
-
-# Admin Web App Configuration (Admin)
-ADMIN_REDIRECT_URI=http://127.0.0.1:8080/callback
-OAUTH_SCOPES=openid profile email
-
-# Sender Daemon Configuration (Sender)
 SMTP_HOST=localhost
 SMTP_PORT=1025
 SMTP_USE_TLS=false
@@ -108,116 +85,36 @@ SMTP_SYSTEM_PASSWORD=
 MAIL_MESSAGE_ID_DOMAIN=localhost
 MAIL_UNSUBSCRIBE_BASE_URL=http://localhost:3000/v1/database/kommunikation/route/mailing-list/unsubscribe
 OTLP_ENDPOINT=http://localhost:4317
-
-# Stalwart JMAP Configuration (Server fallback)
-STALWART_JMAP_URL=http://localhost:8093/jmap
-STALWART_ADMIN_TOKEN=
-
-# Logging & Tracing
 RUST_LOG=info
 ```
 
-### Production Configuration
-
-For production deployments, see `.env/.env.production.example` for guidance:
-
-```ini
-SPACETIMEDB_URI=https://spacetimedb.your-domain.com
-SPACETIMEDB_MODULE_NAME=kommunikation
-SPACETIMEDB_DATABASE_NAME=kommunikation
-SPACETIMEDB_TOKEN=your-sender-identity-token-here
-
-DJANGO_BASE_URL=https://auth.your-domain.com
-OIDC_ISSUER_URL=https://auth.your-domain.com/o
-OIDC_CLIENT_ID=kommunikationszentrum-prod
-ADMIN_REDIRECT_URI=https://admin.your-domain.com/callback
-OAUTH_SCOPES=openid profile email
-
-SMTP_HOST=mail-relay.your-domain.com
-SMTP_PORT=465
-SMTP_USE_TLS=true
-SMTP_ACCEPT_INVALID_CERTS=false
-SMTP_ACCEPT_INVALID_HOSTNAMES=false
-SMTP_SYSTEM_USERNAME=system@your-domain.com
-SMTP_SYSTEM_PASSWORD=your-system-smtp-password-here
-MAIL_MESSAGE_ID_DOMAIN=your-domain.com
-MAIL_UNSUBSCRIBE_BASE_URL=https://spacetimedb.your-domain.com/v1/database/kommunikation/route/mailing-list/unsubscribe
-OTLP_ENDPOINT=http://alloy.internal:4317
-
-STALWART_JMAP_URL=https://mail.your-domain.com:8093/jmap
-STALWART_ADMIN_TOKEN=your-stalwart-admin-api-token-here
-
-RUST_LOG=warn
-```
-
-## Component-Specific Configuration
-
-### Admin Web Interface
-
-The admin interface loads configuration in the browser:
-
-```rust
-// Loads configuration from environment variables set at build time
-let config = AdminConfig::load();
-```
-
-For WASM targets, environment variables must be set during the build process (`dx serve` or `dx build`).
-
-### Sender Daemon
-
-The sender daemon loads its configuration using `SenderConfig::from_env()` on startup:
+Run the sender with the environment file loaded:
 
 ```bash
-# Sourcing the sender environment before running
 sh -lc '. .env/.env.sender && cargo run --package sender'
 ```
 
-### SpacetimeDB Server Module
+> [!TIP]
+> For a full list and descriptions of all runtime environment variables, see the [Environment Variables Reference](../reference/environment-variables.md).
 
-Since SpacetimeDB modules run in a sandboxed WASM environment, compile-time defaults can be configured via `option_env!`:
+---
 
-```rust
-const DJANGO_OAUTH_BASE_URL: &str = match option_env!("DJANGO_BASE_URL") {
-    Some(url) => url,
-    None => "http://127.0.0.1:8000",
-};
-```
+## 3. Database-Backed Settings (Stalwart MTA)
 
-Runtime settings for Stalwart mailserver are managed via the `set_stalwart_config` reducer (persisted in SpacetimeDB) or fallback environment variables `STALWART_JMAP_URL` and `STALWART_ADMIN_TOKEN`.
+Runtime settings for the Stalwart mail server (JMAP URL and Admin API token) can be configured dynamically after publishing via the `set_stalwart_config` reducer or through the Admin UI.
+
+---
 
 ## Security Considerations
 
-### Sensitive Information
+- Never commit custom `.env` files or custom `profiles/*.toml` containing sensitive production secrets to public version control.
+- In production, set runtime environment variables for the sender daemon directly via systemd unit files (`EnvironmentFile`) or container orchestration.
+- Use HTTPS and TLS for all production endpoints (`spacetimedb.uri`, `oauth.issuer_url`, `SMTP_USE_TLS=true`).
 
-- Never commit `.env` files containing sensitive tokens, passwords, or production secrets to version control.
-- In production, set environment variables directly via process managers (e.g. systemd `EnvironmentFile` or container orchestration).
-- Regularly rotate OAuth client secrets and Stalwart admin API keys.
+---
 
-### HTTPS in Production
+## Troubleshooting
 
-For production deployments:
-- Use HTTPS URLs for all external endpoints (`SPACETIMEDB_URI`, `DJANGO_BASE_URL`, `OIDC_ISSUER_URL`, `MAIL_UNSUBSCRIBE_BASE_URL`).
-- Update OAuth redirect URIs to use HTTPS.
-- Set `SMTP_USE_TLS=true`, `SMTP_ACCEPT_INVALID_CERTS=false`, and `SMTP_ACCEPT_INVALID_HOSTNAMES=false`.
-
-## Troubleshooting Configuration
-
-### Verification
-
-Check configuration loading by examining startup logs:
-
-```bash
-# View module logs at startup
-spacetime logs kommunikation --follow
-
-# View sender logs with debug level
-RUST_LOG=sender=debug cargo run --package sender
-```
-
-### Common Issues
-
-**Connection failures**: Verify `SPACETIMEDB_URI` is correct and SpacetimeDB is running.
-
-**OAuth errors**: Check `DJANGO_BASE_URL` and `OIDC_CLIENT_ID` match your Django OAuth provider configuration.
-
-**SMTP relay errors**: Ensure `SMTP_HOST` is set, and verify TLS settings match relay requirements.
+- **Admin or Server using wrong endpoints**: Verify `APP_PROFILE` is set when running `dx build` or `spacetime publish`. When unspecified, both fall back to `profiles/example.toml`.
+- **Sender connection failures**: Verify `SPACETIMEDB_URI` matches the running SpacetimeDB instance and `SPACETIMEDB_TOKEN` is authorized.
+- **System email sending failures**: Ensure `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` are configured if self-service verification emails are enabled.

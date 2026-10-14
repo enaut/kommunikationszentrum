@@ -873,12 +873,25 @@ pub fn user_request_email_verification(ctx: &ReducerContext, email: String) -> R
         });
 
     // Queue system email to the newly added address only
-    let subject = "Verify your email for Kommunikationszentrum".to_string();
-    let base_url = option_env!("FRONTEND_BASE_URL").unwrap_or(FRONTEND_BASE_URL);
+    let brand_de = crate::config::BRAND_NAME_DE;
+    let brand_en = crate::config::BRAND_NAME_EN;
+    let subject = if brand_de == brand_en {
+        format!("E-Mail-Adresse bestätigen / Verify email - {}", brand_de)
+    } else {
+        format!(
+            "E-Mail-Adresse bestätigen für {} / Verify your email for {}",
+            brand_de, brand_en
+        )
+    };
+    let base_url = crate::config::FRONTEND_BASE_URL;
     let link = format!("{}/?token={}", base_url.trim_end_matches('/'), token);
     let body_text = format!(
-        "Please verify your email address by clicking the following link:\n\n{}",
-        link
+        "Bitte bestätigen Sie Ihre E-Mail-Adresse über folgenden Link:\n\
+         {}\n\n\
+         --------------------------------------------------\n\n\
+         Please verify your email address by clicking the following link:\n\
+         {}",
+        link, link
     );
 
     ctx.db.system_mail_pending().insert(SystemMailPending {

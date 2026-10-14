@@ -73,7 +73,7 @@
 - [Reference](./reference/overview.md)
   - [Environment Variables](./reference/environment-variables.md)
   - [Command Line Tools]()
-  - [Configuration Files]()
+  - [Configuration Profiles](./reference/configuration.md)
   - [Error Codes]()
   - [FAQ]()
 

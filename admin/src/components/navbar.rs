@@ -27,7 +27,7 @@ pub fn Navbar(
             color: Color::Primary,
             class: "navbar-dark",
             brand: rsx! {
-                Icon { name: "envelope-fill", class: "me-2 text-white" }
+                Icon { name: crate::config::generated::GENERATED_BRAND.icon, class: "me-2 text-white" }
                 span { class: "text-white", {tid!("navbar-brand")} }
             },
             NavbarToggler { collapsed }

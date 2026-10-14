@@ -17,8 +17,8 @@ members-filter-count = { $filtered } of { $total } members
 
 # App shell
 app-login-title = Communication Center
-app-login-subtitle = SoLaWi message management
-app-login-button = Sign in with SoLaWi account
+app-login-subtitle = Message Management
+app-login-button = Sign in
 app-loading = Loading…
 app-authenticating = Authentication is being processed…
 app-authentication-error = Authentication error
@@ -105,7 +105,7 @@ subscriptions-empty-category = No mailing lists in this area.
 subscriptions-subscribed = Subscribed
 subscriptions-public = Public
 subscriptions-private = Private
-subscriptions-required = This topic is required to participate in the SoLaWiS community
+subscriptions-required = This topic is required to participate in the community
 subscriptions-unsubscribe = Unsubscribe
 subscriptions-subscribe = Subscribe
 subscriptions-linked-emails-title = Linked Email Addresses
