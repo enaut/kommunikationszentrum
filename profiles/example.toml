@@ -13,6 +13,10 @@ uri = "http://localhost:3000"
 # SpacetimeDB module/database name
 module_name = "kommunikation"
 
+[server]
+# Base URL of the web frontend for email verification links and unsubscribe redirects
+frontend_base_url = "http://127.0.0.1:8080"
+
 [oauth]
 # OIDC issuer base URL (where /.well-known/openid-configuration resides)
 issuer_url = "http://127.0.0.1:8000/o"

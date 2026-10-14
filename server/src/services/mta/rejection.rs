@@ -106,13 +106,15 @@ pub fn build_rejection_email(
                 body_en.push_str("  Reason: You are not subscribed to this topic. Only subscribed members with write permission can post messages to this topic. You can subscribe to this topic in your member profile.\n\n");
             }
             TopicRejectionReason::NotRegistered => {
+                let brand_de = crate::config::BRAND_NAME_DE;
+                let brand_en = crate::config::BRAND_NAME_EN;
                 body_de.push_str(&format!(
-                    "  Grund: Ihre Absenderadresse '{}' ist keinem aktiven Mitgliedskonto im Kommunikationszentrum zugeordnet. Bitte senden Sie E-Mails von Ihrer bei uns registrierten E-Mail-Adresse oder hinterlegen Sie diese Adresse in Ihrem Profil.\n",
-                    from_address
+                    "  Grund: Ihre Absenderadresse '{}' ist keinem aktiven Mitgliedskonto bei {} zugeordnet. Bitte senden Sie E-Mails von Ihrer bei uns registrierten E-Mail-Adresse oder hinterlegen Sie diese Adresse in Ihrem Profil.\n",
+                    from_address, brand_de
                 ));
                 body_en.push_str(&format!(
-                    "  Reason: Your sender email address '{}' is not associated with an active member account in Kommunikationszentrum. Please send emails from your registered email address or add this address to your account profile.\n\n",
-                    from_address
+                    "  Reason: Your sender email address '{}' is not associated with an active member account in {}. Please send emails from your registered email address or add this address to your account profile.\n\n",
+                    from_address, brand_en
                 ));
             }
             TopicRejectionReason::Oversize => {
@@ -143,11 +145,16 @@ pub fn build_rejection_email(
     body_de.push_str("HINWEIS:\n");
     body_en.push_str("--------------------------------------------------\n");
     body_en.push_str("NOTE:\n");
-    body_de.push_str(
-        "Dies ist eine automatisch generierte Benachrichtigung des Kommunikationszentrums.\n",
-    );
-    body_en
-        .push_str("This is an automatically generated notification from Kommunikationszentrum.\n");
+    let brand_de = crate::config::BRAND_NAME_DE;
+    let brand_en = crate::config::BRAND_NAME_EN;
+    body_de.push_str(&format!(
+        "Dies ist eine automatisch generierte Benachrichtigung von {}.\n",
+        brand_de
+    ));
+    body_en.push_str(&format!(
+        "This is an automatically generated notification from {}.\n",
+        brand_en
+    ));
 
     (subject, body_de + "\n\n" + &body_en)
 }
