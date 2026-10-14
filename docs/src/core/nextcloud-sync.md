@@ -68,25 +68,7 @@ Save this value: it must be used identically when registering the webhook listen
 ### 4. Nextcloud Webhook Listeners
 Nextcloud (version 30+) provides the `webhook_listeners` app to send webhooks on core events:
 
-```bash
-# Register webhook listener for user created
-occ webhook_listeners:register \
-  --event="OCP\User\Events\UserCreatedEvent" \
-  --url="https://sync.example.org/nextcloud/webhook" \
-  --header="X-Nextcloud-Token: $NC_WEBHOOK_SECRET"
-
-# Register webhook listener for user updated
-occ webhook_listeners:register \
-  --event="OCP\User\Events\UserChangedEvent" \
-  --url="https://sync.example.org/nextcloud/webhook" \
-  --header="X-Nextcloud-Token: $NC_WEBHOOK_SECRET"
-
-# Register webhook listener for user deleted
-occ webhook_listeners:register \
-  --event="OCP\User\Events\UserDeletedEvent" \
-  --url="https://sync.example.org/nextcloud/webhook" \
-  --header="X-Nextcloud-Token: $NC_WEBHOOK_SECRET"
-```
+Unfortunately as of now it is not yet possible to subscribe to user events. So the only sync option is the periodic pull for now.
 
 ---
 
