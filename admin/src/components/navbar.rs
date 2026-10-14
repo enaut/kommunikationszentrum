@@ -20,8 +20,7 @@ pub fn Navbar(
     let collapsed = use_signal(|| true);
     let user_dropdown_open = use_signal(|| false);
     let management_dropdown_open = use_signal(|| false);
-    let update_account_config = crate::module_bindings::dioxus::use_reducer_update_account_config();
-    let update_account_config_for_theme = update_account_config.clone();
+    let set_theme_and_lang = crate::module_bindings::dioxus::use_reducer_set_theme_and_lang();
     rsx! {
         BsNavbar {
             expand: NavbarExpand::Lg,
@@ -90,8 +89,7 @@ pub fn Navbar(
                                 Theme::Light => tid!("navbar-theme-dark"),
                                 Theme::Dark => tid!("navbar-theme-light"),
                             };
-                            let update_fn = update_account_config_for_theme.clone();
-                            let mut theme_sig = theme;
+                            let set_theme_fn = set_theme_and_lang.clone();
                             rsx! {
                                 button {
                                     class: "btn btn-outline-light nav-link px-2 d-flex align-items-center",
@@ -99,29 +97,11 @@ pub fn Navbar(
                                     title: "{label}",
                                     "aria-label": "{label}",
                                     onclick: move |_| {
-                                        let next = theme_sig.read().toggle();
-                                        theme_sig.set(next);
-                                        let next_str = match next {
-                                            Theme::Dark => "dark",
-                                            _ => "light",
+                                        let next_pref = match current_theme {
+                                            Theme::Light => crate::module_bindings::ThemePreference::Dark,
+                                            Theme::Dark => crate::module_bindings::ThemePreference::Light,
                                         };
-                                        crate::i18n::save_theme(next_str);
-                                        let _ = update_fn(
-                                            None,
-                                            None,
-                                            None,
-                                            false,
-                                            None,
-                                            None,
-                                            None,
-                                            false,
-                                            None,
-                                            false,
-                                            None,
-                                            Some(next_str.to_string()),
-                                            None,
-                                            false,
-                                        );
+                                        let _ = set_theme_fn(Some(next_pref), None);
                                     },
                                     i { class: "bi bi-{icon}" }
                                 }

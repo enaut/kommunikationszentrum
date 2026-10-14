@@ -56,6 +56,18 @@ pub struct Account {
     pub last_synced: Timestamp,
 }
 
+#[derive(spacetimedb::SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemePreference {
+    Light,
+    Dark,
+}
+
+#[derive(spacetimedb::SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LanguagePreference {
+    De,
+    En,
+}
+
 #[derive(Debug, Clone)]
 #[spacetimedb::table(accessor = account_configs)]
 pub struct AccountConfig {
@@ -72,8 +84,8 @@ pub struct AccountConfig {
 
     pub viewing_topic_id: Option<u64>,
 
-    pub language: Option<String>,
-    pub theme: Option<String>,
+    pub language: Option<LanguagePreference>,
+    pub theme: Option<ThemePreference>,
 
     pub search_matching_accounts: u32,
     pub message_disposition_filter: Option<MessageDispositionFilter>,

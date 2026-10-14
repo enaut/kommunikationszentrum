@@ -73,3 +73,42 @@ pub fn switch_language(mut i18n: I18n, lang: LanguageIdentifier) {
     save_language(lang.language.as_str());
     i18n.set_language(lang);
 }
+
+pub fn theme_to_preference(
+    theme: dioxus_bootstrap_css::prelude::Theme,
+) -> crate::module_bindings::ThemePreference {
+    match theme {
+        dioxus_bootstrap_css::prelude::Theme::Dark => crate::module_bindings::ThemePreference::Dark,
+        _ => crate::module_bindings::ThemePreference::Light,
+    }
+}
+
+pub fn preference_to_theme(
+    pref: crate::module_bindings::ThemePreference,
+) -> dioxus_bootstrap_css::prelude::Theme {
+    match pref {
+        crate::module_bindings::ThemePreference::Dark => dioxus_bootstrap_css::prelude::Theme::Dark,
+        crate::module_bindings::ThemePreference::Light => {
+            dioxus_bootstrap_css::prelude::Theme::Light
+        }
+    }
+}
+
+pub fn langid_to_preference(
+    lang: &LanguageIdentifier,
+) -> crate::module_bindings::LanguagePreference {
+    if lang.language.as_str() == "en" {
+        crate::module_bindings::LanguagePreference::En
+    } else {
+        crate::module_bindings::LanguagePreference::De
+    }
+}
+
+pub fn preference_to_langid(
+    pref: crate::module_bindings::LanguagePreference,
+) -> LanguageIdentifier {
+    match pref {
+        crate::module_bindings::LanguagePreference::En => langid!("en"),
+        crate::module_bindings::LanguagePreference::De => langid!("de"),
+    }
+}

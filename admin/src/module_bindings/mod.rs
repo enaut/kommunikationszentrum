@@ -47,6 +47,7 @@ pub mod fail_mail_delivery_reducer;
 pub mod fail_mail_ingress_reducer;
 pub mod increment_mail_ingress_delivery_count_reducer;
 pub mod increment_mail_ingress_failed_delivery_count_reducer;
+pub mod language_preference_type;
 pub mod mail_delivery_claimed_type;
 pub mod mail_delivery_done_type;
 pub mod mail_delivery_event_type;
@@ -95,16 +96,19 @@ pub mod sender_system_mail_pending_table;
 pub mod sender_topic_app_passwords_table;
 pub mod set_mail_retention_config_reducer;
 pub mod set_stalwart_config_reducer;
+pub mod set_theme_and_lang_reducer;
 pub mod set_topic_categories_reducer;
 pub mod stalwart_config_type;
 pub mod subscription_permission_type;
 pub mod subscription_status_type;
 pub mod subscription_type;
 pub mod subscription_unsubscribe_token_type;
+pub mod suggest_theme_and_lang_reducer;
 pub mod sync_domains_result_type;
 pub mod sync_stalwart_domains_procedure;
 pub mod sync_user_reducer;
 pub mod system_mail_pending_type;
+pub mod theme_preference_type;
 pub mod topic_app_password_type;
 pub mod topic_message_count_type;
 pub mod topic_message_counts_table;
@@ -174,6 +178,7 @@ pub use fail_mail_delivery_reducer::fail_mail_delivery;
 pub use fail_mail_ingress_reducer::fail_mail_ingress;
 pub use increment_mail_ingress_delivery_count_reducer::increment_mail_ingress_delivery_count;
 pub use increment_mail_ingress_failed_delivery_count_reducer::increment_mail_ingress_failed_delivery_count;
+pub use language_preference_type::LanguagePreference;
 pub use mail_delivery_claimed_type::MailDeliveryClaimed;
 pub use mail_delivery_done_type::MailDeliveryDone;
 pub use mail_delivery_event_type::MailDeliveryEvent;
@@ -222,16 +227,19 @@ pub use sender_system_mail_pending_table::*;
 pub use sender_topic_app_passwords_table::*;
 pub use set_mail_retention_config_reducer::set_mail_retention_config;
 pub use set_stalwart_config_reducer::set_stalwart_config;
+pub use set_theme_and_lang_reducer::set_theme_and_lang;
 pub use set_topic_categories_reducer::set_topic_categories;
 pub use stalwart_config_type::StalwartConfig;
 pub use subscription_permission_type::SubscriptionPermission;
 pub use subscription_status_type::SubscriptionStatus;
 pub use subscription_type::Subscription;
 pub use subscription_unsubscribe_token_type::SubscriptionUnsubscribeToken;
+pub use suggest_theme_and_lang_reducer::suggest_theme_and_lang;
 pub use sync_domains_result_type::SyncDomainsResult;
 pub use sync_stalwart_domains_procedure::sync_stalwart_domains;
 pub use sync_user_reducer::sync_user;
 pub use system_mail_pending_type::SystemMailPending;
+pub use theme_preference_type::ThemePreference;
 pub use topic_app_password_type::TopicAppPassword;
 pub use topic_message_count_type::TopicMessageCount;
 pub use topic_message_counts_table::*;
@@ -416,9 +424,17 @@ pub enum Reducer {
         jmap_url: String,
         admin_token: String,
     },
+    SetThemeAndLang {
+        theme: Option<ThemePreference>,
+        language: Option<LanguagePreference>,
+    },
     SetTopicCategories {
         topic_id: u64,
         category_names: Vec<String>,
+    },
+    SuggestThemeAndLang {
+        theme: Option<ThemePreference>,
+        language: Option<LanguagePreference>,
     },
     SyncUser {
         action: String,
@@ -438,8 +454,8 @@ pub enum Reducer {
         clear_member_search_query: bool,
         viewing_topic_id: Option<u64>,
         clear_viewing_topic_id: bool,
-        language: Option<String>,
-        theme: Option<String>,
+        language: Option<LanguagePreference>,
+        theme: Option<ThemePreference>,
         message_disposition_filter: Option<MessageDispositionFilter>,
         clear_message_disposition_filter: bool,
     },
@@ -512,7 +528,9 @@ impl __sdk::Reducer for Reducer {
             Reducer::ScheduleMailDeliveryRetry { .. } => "schedule_mail_delivery_retry",
             Reducer::SetMailRetentionConfig { .. } => "set_mail_retention_config",
             Reducer::SetStalwartConfig { .. } => "set_stalwart_config",
+            Reducer::SetThemeAndLang { .. } => "set_theme_and_lang",
             Reducer::SetTopicCategories { .. } => "set_topic_categories",
+            Reducer::SuggestThemeAndLang { .. } => "suggest_theme_and_lang",
             Reducer::SyncUser { .. } => "sync_user",
             Reducer::UnregisterAdminIdentity { .. } => "unregister_admin_identity",
             Reducer::UpdateAccountConfig { .. } => "update_account_config",
@@ -786,12 +804,26 @@ impl __sdk::Reducer for Reducer {
                 jmap_url: jmap_url.clone(),
                 admin_token: admin_token.clone(),
 }),
+            Reducer::SetThemeAndLang{
+                theme,
+                language,
+}             => __sats::bsatn::to_vec(&set_theme_and_lang_reducer::SetThemeAndLangArgs {
+                theme: theme.clone(),
+                language: language.clone(),
+}),
             Reducer::SetTopicCategories{
                 topic_id,
                 category_names,
 }             => __sats::bsatn::to_vec(&set_topic_categories_reducer::SetTopicCategoriesArgs {
                 topic_id: topic_id.clone(),
                 category_names: category_names.clone(),
+}),
+            Reducer::SuggestThemeAndLang{
+                theme,
+                language,
+}             => __sats::bsatn::to_vec(&suggest_theme_and_lang_reducer::SuggestThemeAndLangArgs {
+                theme: theme.clone(),
+                language: language.clone(),
 }),
             Reducer::SyncUser{
                 action,

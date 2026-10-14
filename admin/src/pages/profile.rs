@@ -1,16 +1,15 @@
 use dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
-use unic_langid::langid;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 
-use crate::i18n::{save_theme, switch_language, use_i18n};
-use crate::module_bindings::EmailSource;
+use crate::i18n::use_i18n;
 use crate::module_bindings::dioxus::{
     ConnectionState, use_connection_state, use_reducer_remove_account_email,
-    use_reducer_update_account_config, use_reducer_user_request_email_verification,
-    use_subscription, use_table_visible_account_emails, use_table_visible_accounts,
+    use_reducer_set_theme_and_lang, use_reducer_user_request_email_verification, use_subscription,
+    use_table_visible_account_emails, use_table_visible_accounts,
 };
+use crate::module_bindings::{EmailSource, LanguagePreference, ThemePreference};
 use crate::oauth::UserInfo;
 use crate::router::use_is_admin;
 
@@ -30,7 +29,7 @@ pub fn ProfilePage(user_info: UserInfo, theme: Signal<Theme>) -> Element {
 
     let add_email = use_reducer_user_request_email_verification();
     let remove_email = use_reducer_remove_account_email();
-    let update_config = use_reducer_update_account_config();
+    let set_theme_and_lang = use_reducer_set_theme_and_lang();
 
     let mut show_add_email = use_signal(|| false);
     let mut add_email_input = use_signal(|| String::new());
@@ -154,10 +153,9 @@ pub fn ProfilePage(user_info: UserInfo, theme: Signal<Theme>) -> Element {
                                             outline: current_lang_code != "de",
                                             size: Size::Sm,
                                             onclick: {
-                                                let update_fn = update_config.clone();
+                                                let set_fn = set_theme_and_lang.clone();
                                                 move |_| {
-                                                    switch_language(i18n, langid!("de"));
-                                                    let _ = update_fn(None, None, None, false, None, None, None, false, None, false, Some("de".to_string()), None, None, false);
+                                                    let _ = set_fn(None, Some(LanguagePreference::De));
                                                 }
                                             },
                                             {tid!("language-switcher-de")}
@@ -167,10 +165,9 @@ pub fn ProfilePage(user_info: UserInfo, theme: Signal<Theme>) -> Element {
                                             outline: current_lang_code != "en",
                                             size: Size::Sm,
                                             onclick: {
-                                                let update_fn = update_config.clone();
+                                                let set_fn = set_theme_and_lang.clone();
                                                 move |_| {
-                                                    switch_language(i18n, langid!("en"));
-                                                    let _ = update_fn(None, None, None, false, None, None, None, false, None, false, Some("en".to_string()), None, None, false);
+                                                    let _ = set_fn(None, Some(LanguagePreference::En));
                                                 }
                                             },
                                             {tid!("language-switcher-en")}
@@ -191,12 +188,9 @@ pub fn ProfilePage(user_info: UserInfo, theme: Signal<Theme>) -> Element {
                                             outline: is_dark,
                                             size: Size::Sm,
                                             onclick: {
-                                                let mut theme_sig = theme;
-                                                let update_fn = update_config.clone();
+                                                let set_fn = set_theme_and_lang.clone();
                                                 move |_| {
-                                                    theme_sig.set(Theme::Light);
-                                                    save_theme("light");
-                                                    let _ = update_fn(None, None, None, false, None, None, None, false, None, false, None, Some("light".to_string()), None, false);
+                                                    let _ = set_fn(Some(ThemePreference::Light), None);
                                                 }
                                             },
                                             Icon { name: "sun-fill", class: "me-1" }
@@ -207,12 +201,9 @@ pub fn ProfilePage(user_info: UserInfo, theme: Signal<Theme>) -> Element {
                                             outline: !is_dark,
                                             size: Size::Sm,
                                             onclick: {
-                                                let mut theme_sig = theme;
-                                                let update_fn = update_config.clone();
+                                                let set_fn = set_theme_and_lang.clone();
                                                 move |_| {
-                                                    theme_sig.set(Theme::Dark);
-                                                    save_theme("dark");
-                                                    let _ = update_fn(None, None, None, false, None, None, None, false, None, false, None, Some("dark".to_string()), None, false);
+                                                    let _ = set_fn(Some(ThemePreference::Dark), None);
                                                 }
                                             },
                                             Icon { name: "moon-fill", class: "me-1" }

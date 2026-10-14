@@ -4,7 +4,9 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::language_preference_type::LanguagePreference;
 use super::message_disposition_filter_type::MessageDispositionFilter;
+use super::theme_preference_type::ThemePreference;
 
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
@@ -19,8 +21,8 @@ pub(super) struct UpdateAccountConfigArgs {
     pub clear_member_search_query: bool,
     pub viewing_topic_id: Option<u64>,
     pub clear_viewing_topic_id: bool,
-    pub language: Option<String>,
-    pub theme: Option<String>,
+    pub language: Option<LanguagePreference>,
+    pub theme: Option<ThemePreference>,
     pub message_disposition_filter: Option<MessageDispositionFilter>,
     pub clear_message_disposition_filter: bool,
 }
@@ -73,8 +75,8 @@ pub trait update_account_config {
         clear_member_search_query: bool,
         viewing_topic_id: Option<u64>,
         clear_viewing_topic_id: bool,
-        language: Option<String>,
-        theme: Option<String>,
+        language: Option<LanguagePreference>,
+        theme: Option<ThemePreference>,
         message_disposition_filter: Option<MessageDispositionFilter>,
         clear_message_disposition_filter: bool,
     ) -> __sdk::Result<()> {
@@ -115,8 +117,8 @@ pub trait update_account_config {
         clear_member_search_query: bool,
         viewing_topic_id: Option<u64>,
         clear_viewing_topic_id: bool,
-        language: Option<String>,
-        theme: Option<String>,
+        language: Option<LanguagePreference>,
+        theme: Option<ThemePreference>,
         message_disposition_filter: Option<MessageDispositionFilter>,
         clear_message_disposition_filter: bool,
 
@@ -141,8 +143,8 @@ impl update_account_config for super::RemoteReducers {
         clear_member_search_query: bool,
         viewing_topic_id: Option<u64>,
         clear_viewing_topic_id: bool,
-        language: Option<String>,
-        theme: Option<String>,
+        language: Option<LanguagePreference>,
+        theme: Option<ThemePreference>,
         message_disposition_filter: Option<MessageDispositionFilter>,
         clear_message_disposition_filter: bool,
 
