@@ -55,12 +55,24 @@ pub fn detect_initial_language() -> LanguageIdentifier {
     langid!("de")
 }
 
+const DE_FTL: &str = concat!(
+    include_str!(concat!(env!("OUT_DIR"), "/brand_terms_de.ftl")),
+    "\n",
+    include_str!("locales/de.ftl"),
+);
+
+const EN_FTL: &str = concat!(
+    include_str!(concat!(env!("OUT_DIR"), "/brand_terms_en.ftl")),
+    "\n",
+    include_str!("locales/en.ftl"),
+);
+
 pub fn use_init_app_i18n() -> I18n {
     use_init_i18n(|| {
         let initial_lang = detect_initial_language();
         I18nConfig::new(initial_lang)
-            .with_locale((langid!("de"), include_str!("locales/de.ftl")))
-            .with_locale((langid!("en"), include_str!("locales/en.ftl")))
+            .with_locale((langid!("de"), DE_FTL))
+            .with_locale((langid!("en"), EN_FTL))
             .with_fallback(langid!("de"))
     })
 }

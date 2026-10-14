@@ -23,52 +23,62 @@ fn main() {
     ::dioxus::launch(App);
 }
 
-fn solawi_theme() -> BootstrapTheme {
-    BootstrapTheme {
-        colors: ThemeColors {
-            primary: Some(SemanticColorScale::new("#165317")),
-            secondary: Some(SemanticColorScale::new("#5c6b5d")),
-            success: Some(SemanticColorScale::new("#2f9e44")),
-            info: Some(SemanticColorScale::new("#0b7285")),
-            warning: Some(SemanticColorScale::new("#e67700")),
-            danger: Some(SemanticColorScale::new("#c92a2a")),
-            light: Some(SemanticColorScale::new("#e9f2ea")),
-            dark: Some(SemanticColorScale::new("#092817")),
-        },
-        surfaces: SurfaceColors {
-            body_bg: Some("#f7fbf7".into()),
-            body_color: Some("#165317".into()),
-            secondary_bg: Some("#edf3ed".into()),
-            secondary_color: Some("#314033".into()),
-            tertiary_bg: None,
-            tertiary_color: None,
-            border_color: Some("#d4dfd4".into()),
-            link_color: None,
-            link_hover_color: None,
-        },
-        dark: Some(ThemeModeTokens {
+fn configured_theme() -> BootstrapTheme {
+    let to_scale = |s: Option<&'static str>| s.map(SemanticColorScale::new);
+    let to_string = |s: Option<&'static str>| s.map(|v| v.to_string());
+
+    let light_colors = config::generated::GENERATED_THEME.colors;
+    let light_surfaces = config::generated::GENERATED_THEME.surfaces;
+
+    let dark_tokens = config::generated::GENERATED_THEME
+        .dark
+        .map(|dark| ThemeModeTokens {
             colors: ThemeColors {
-                primary: Some(SemanticColorScale::new("#1D480D")),
-                secondary: Some(SemanticColorScale::new("#7b8b7d")),
-                success: Some(SemanticColorScale::new("#004E00")),
-                info: Some(SemanticColorScale::new("#15b")),
-                warning: Some(SemanticColorScale::new("#940")),
-                danger: Some(SemanticColorScale::new("#922")),
-                light: Some(SemanticColorScale::new("#49624a")),
-                dark: Some(SemanticColorScale::new("#081e12")),
+                primary: to_scale(dark.colors.primary),
+                secondary: to_scale(dark.colors.secondary),
+                success: to_scale(dark.colors.success),
+                info: to_scale(dark.colors.info),
+                warning: to_scale(dark.colors.warning),
+                danger: to_scale(dark.colors.danger),
+                light: to_scale(dark.colors.light),
+                dark: to_scale(dark.colors.dark),
             },
             surfaces: SurfaceColors {
-                body_bg: Some("#0b120c".into()),
-                body_color: Some("#e6efe7".into()),
-                secondary_bg: Some("#162019".into()),
-                secondary_color: Some("#c7d3c8".into()),
+                body_bg: to_string(dark.surfaces.body_bg),
+                body_color: to_string(dark.surfaces.body_color),
+                secondary_bg: to_string(dark.surfaces.secondary_bg),
+                secondary_color: to_string(dark.surfaces.secondary_color),
                 tertiary_bg: None,
                 tertiary_color: None,
-                border_color: Some("#2a382d".into()),
-                link_color: Some("#74c97d".into()),
-                link_hover_color: Some("#95d89c".into()),
+                border_color: to_string(dark.surfaces.border_color),
+                link_color: to_string(dark.surfaces.link_color),
+                link_hover_color: to_string(dark.surfaces.link_hover_color),
             },
-        }),
+        });
+
+    BootstrapTheme {
+        colors: ThemeColors {
+            primary: to_scale(light_colors.primary),
+            secondary: to_scale(light_colors.secondary),
+            success: to_scale(light_colors.success),
+            info: to_scale(light_colors.info),
+            warning: to_scale(light_colors.warning),
+            danger: to_scale(light_colors.danger),
+            light: to_scale(light_colors.light),
+            dark: to_scale(light_colors.dark),
+        },
+        surfaces: SurfaceColors {
+            body_bg: to_string(light_surfaces.body_bg),
+            body_color: to_string(light_surfaces.body_color),
+            secondary_bg: to_string(light_surfaces.secondary_bg),
+            secondary_color: to_string(light_surfaces.secondary_color),
+            tertiary_bg: None,
+            tertiary_color: None,
+            border_color: to_string(light_surfaces.border_color),
+            link_color: to_string(light_surfaces.link_color),
+            link_hover_color: to_string(light_surfaces.link_hover_color),
+        },
+        dark: dark_tokens,
         ..BootstrapTheme::default()
     }
 }
@@ -123,10 +133,11 @@ fn App() -> Element {
     let theme = use_signal(|| i18n::detect_initial_theme());
 
     rsx! {
+        document::Title { "{config::generated::GENERATED_BRAND.page_title}" }
         document::Link { rel: "icon", href: FAVICON }
         ThemeProvider { theme }
         BootstrapHead {}
-        BootstrapThemeProvider { theme: solawi_theme() }
+        BootstrapThemeProvider { theme: configured_theme() }
         if let Some(token) = unsubscribe_token.cloned() {
             {
                 let (is_authenticated, id_token) = match &*auth_state.read() {
@@ -194,7 +205,7 @@ fn LoginPage(on_login: Callback<()>) -> Element {
         div { class: "d-flex justify-content-center align-items-center vh-100 bg-light",
             Card { class: "shadow p-4", style: "min-width: 320px;",
                 div { class: "text-center mb-4",
-                    Icon { name: "envelope-fill", class: "text-primary" }
+                    Icon { name: config::generated::GENERATED_BRAND.icon, class: "text-primary" }
                     h4 { class: "mt-2 mb-0", {tid!("app-login-title")} }
                     p { class: "text-muted small", {tid!("app-login-subtitle")} }
                 }
