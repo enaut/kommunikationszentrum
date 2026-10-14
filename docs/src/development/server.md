@@ -197,24 +197,24 @@ cd docs/testscripts
 
 ```bash
 # Add a test topic
-spacetime call kommunikationszentrum add_message_topic \
+spacetime call kommunikation add_message_topic \
   "Test List" "test@example.org" "Test topic"
 
 # Add a test subscription
-spacetime call kommunikationszentrum add_subscription 42 "user@example.org" 1
+spacetime call kommunikation add_subscription 42 "user@example.org" 1
 
 # Dump MTA logs
-spacetime call kommunikationszentrum dump_mta_logs_to_server_logs
-spacetime logs kommunikationszentrum | grep "MTA"
+spacetime call kommunikation dump_mta_logs_to_server_logs
+spacetime logs kommunikation | grep "MTA"
 ```
 
 ### Inspecting the Database
 
 ```bash
 # All tables
-spacetime sql kommunikationszentrum "SELECT * FROM mail_ingress"
-spacetime sql kommunikationszentrum "SELECT * FROM mail_delivery_pending"
-spacetime sql kommunikationszentrum "SELECT * FROM mail_delivery_events LIMIT 10"
+spacetime sql kommunikation "SELECT * FROM mail_ingress"
+spacetime sql kommunikation "SELECT * FROM mail_delivery_pending"
+spacetime sql kommunikation "SELECT * FROM mail_delivery_events LIMIT 10"
 ```
 
 ---
@@ -249,16 +249,16 @@ recipient topic exists. Only known accounts with active subscriptions (or admins
 
 ```bash
 # Publish module
-spacetime publish --server http://localhost:3000 kommunikationszentrum
+spacetime publish --server http://localhost:3000 kommunikation
 
 # Tail logs
-spacetime logs kommunikationszentrum --follow
+spacetime logs kommunikation --follow
 
 # Call a reducer
-spacetime call kommunikationszentrum <reducer_name> [args...]
+spacetime call kommunikation <reducer_name> [args...]
 
 # Run SQL query
-spacetime sql kommunikationszentrum "<query>"
+spacetime sql kommunikation "<query>"
 
 # List registered modules
 spacetime list

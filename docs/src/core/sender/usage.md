@@ -25,7 +25,7 @@ cargo build --release
 ```bash
 # Run with active debug logging against local dev services
 SPACETIMEDB_URI=http://localhost:3000 \
-SPACETIMEDB_DATABASE_NAME=kommunikationszentrum \
+SPACETIMEDB_DATABASE_NAME=kommunikation \
 SMTP_HOST=localhost \
 SMTP_PORT=1025 \
 SMTP_USE_TLS=false \
@@ -66,7 +66,7 @@ WantedBy=multi-user.target
    ```
 3. Register the sender's identity hex in `admin_identities` (required to call claim reducers):
    ```bash
-   spacetime call kommunikationszentrum register_admin_identity "<identity-hex>"
+   spacetime call kommunikation register_admin_identity "<identity-hex>"
    ```
 4. Save the generated auth token to `SPACETIMEDB_TOKEN` in the environment file so the identity is preserved across restarts.
 
