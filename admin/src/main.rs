@@ -203,7 +203,7 @@ fn LoginPage(on_login: Callback<()>) -> Element {
         div { class: "d-flex justify-content-center align-items-center vh-100 bg-light",
             Card { class: "shadow p-4", style: "min-width: 320px;",
                 div { class: "text-center mb-4",
-                    Icon { name: config::generated::GENERATED_BRAND.icon, class: "text-primary" }
+                    Icon { name: config::generated::GENERATED_BRAND.icon, class: "text-primary display-1" }
                     h4 { class: "mt-2 mb-0", {tid!("app-login-title")} }
                     p { class: "text-muted small", {tid!("app-login-subtitle")} }
                 }
