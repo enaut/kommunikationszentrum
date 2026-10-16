@@ -1,6 +1,5 @@
 use crate::config::Config;
-use crate::models::{OcsResponse, OcsUserDetails};
-use std::collections::HashMap;
+use crate::models::{OcsResponse, OcsUserDetails, UsersWrapper};
 
 #[derive(Clone)]
 pub struct OcsClient {
@@ -12,12 +11,20 @@ pub struct OcsClient {
 
 #[derive(Debug, thiserror::Error)]
 pub enum OcsError {
-    #[error("HTTP error: {0}")]
+    #[error("HTTP network/transport error: {0}")]
     Http(#[from] reqwest::Error),
+    #[error("HTTP error status {status}: {body}")]
+    HttpStatus {
+        status: reqwest::StatusCode,
+        body: String,
+    },
     #[error("OCS API error {code}: {message}")]
     OcsApi { code: i64, message: String },
-    #[error("JSON deserialization error: {0}")]
-    Json(#[from] serde_json::Error),
+    #[error("JSON deserialization error: {source} (raw body: {body})")]
+    JsonWithBody {
+        source: serde_json::Error,
+        body: String,
+    },
 }
 
 impl OcsClient {
@@ -28,7 +35,7 @@ impl OcsClient {
                 .timeout(std::time::Duration::from_secs(40))
                 .build()
                 .expect("Failed to initialize reqwest client"),
-            nc_url: config.nc_url.clone(),
+            nc_url: config.nc_url.trim_end_matches('/').to_string(),
             nc_user: config.nc_user.clone(),
             nc_app_password: config.nc_app_password.clone(),
         }
@@ -47,6 +54,7 @@ impl OcsClient {
             .basic_auth(&self.nc_user, Some(&self.nc_app_password))
             .header("OCS-APIRequest", "true")
             .header("Accept", "application/json")
+            .header("User-Agent", "Kommunikationszentrum-Nextcloud-Sync/1.0")
             .send()
             .await?;
 
@@ -54,10 +62,22 @@ impl OcsClient {
             return Ok(None);
         }
 
-        let resp_body: OcsResponse<OcsUserDetails> = res.json().await?;
+        let status = res.status();
+        let body = res.text().await?;
+
+        let resp_body: OcsResponse<OcsUserDetails> = match serde_json::from_str(&body) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                if !status.is_success() {
+                    return Err(OcsError::HttpStatus { status, body });
+                }
+                return Err(OcsError::JsonWithBody { source: e, body });
+            }
+        };
+
         if resp_body.ocs.meta.statuscode != 100 && resp_body.ocs.meta.statuscode != 200 {
-            if resp_body.ocs.meta.statuscode == 998 {
-                // Not found code in some Nextcloud OCS versions
+            if resp_body.ocs.meta.statuscode == 998 || resp_body.ocs.meta.statuscode == 404 {
+                // Not found code in Nextcloud OCS
                 return Ok(None);
             }
             return Err(OcsError::OcsApi {
@@ -66,17 +86,11 @@ impl OcsClient {
             });
         }
 
-        Ok(Some(resp_body.ocs.data))
+        Ok(resp_body.ocs.data)
     }
 
     /// Fetch all users with details: GET /ocs/v2.php/cloud/users/details
     pub async fn list_all_users_details(&self) -> Result<Vec<OcsUserDetails>, OcsError> {
-        // Nextcloud /ocs/v2.php/cloud/users/details returns { users: { "uid1": {...}, "uid2": {...} } }
-        #[derive(serde::Deserialize)]
-        struct UsersMapWrapper {
-            users: HashMap<String, OcsUserDetails>,
-        }
-
         let mut all_users = Vec::new();
         let mut offset = 0;
         let limit = 100;
@@ -93,10 +107,29 @@ impl OcsClient {
                 .basic_auth(&self.nc_user, Some(&self.nc_app_password))
                 .header("OCS-APIRequest", "true")
                 .header("Accept", "application/json")
+                .header("User-Agent", "Kommunikationszentrum-Nextcloud-Sync/1.0")
                 .send()
                 .await?;
 
-            let resp_body: OcsResponse<UsersMapWrapper> = res.json().await?;
+            let status = res.status();
+            let link_header = res
+                .headers()
+                .get("link")
+                .and_then(|h| h.to_str().ok())
+                .map(str::to_string);
+
+            let body = res.text().await?;
+
+            let resp_body: OcsResponse<UsersWrapper> = match serde_json::from_str(&body) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    if !status.is_success() {
+                        return Err(OcsError::HttpStatus { status, body });
+                    }
+                    return Err(OcsError::JsonWithBody { source: e, body });
+                }
+            };
+
             if resp_body.ocs.meta.statuscode != 100 && resp_body.ocs.meta.statuscode != 200 {
                 return Err(OcsError::OcsApi {
                     code: resp_body.ocs.meta.statuscode,
@@ -104,14 +137,31 @@ impl OcsClient {
                 });
             }
 
-            let batch_count = resp_body.ocs.data.users.len();
-            for (_, user) in resp_body.ocs.data.users {
+            let users = resp_body.ocs.data.map(|d| d.users).unwrap_or_default();
+            let batch_count = users.len();
+
+            for user in users {
                 all_users.push(user);
             }
 
-            if batch_count < limit {
+            // Pagination termination checks:
+            // 1. If 0 users returned in this batch, reached the end
+            if batch_count == 0 {
                 break;
             }
+
+            // 2. Nextcloud 35+ Link header pagination check:
+            // If Link header is present, continue only if it includes rel="next".
+            if let Some(ref link) = link_header {
+                if !link.contains("rel=\"next\"") && !link.contains("rel=next") {
+                    break;
+                }
+            } else if batch_count < limit {
+                // Fallback for endpoints without Link header:
+                // fewer than limit items means we have fetched the last batch.
+                break;
+            }
+
             offset += limit;
         }
 
@@ -120,7 +170,6 @@ impl OcsClient {
 }
 
 fn urlencoding_encode(s: &str) -> String {
-    // Simple URL-encoding for path component
     let mut encoded = String::new();
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.' || b == b'~' {

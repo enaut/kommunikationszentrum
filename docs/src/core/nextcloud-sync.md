@@ -65,10 +65,37 @@ echo "Generated webhook secret: $NC_WEBHOOK_SECRET"
 
 Save this value: it must be used identically when registering the webhook listeners below and in `/etc/kommunikationszentrum/nextcloud-sync.env`.
 
-### 4. Nextcloud Webhook Listeners
-Nextcloud (version 30+) provides the `webhook_listeners` app to send webhooks on core events:
+### 4. Nextcloud Trigger App (`kommunikationszentrum_sync`)
+Because Nextcloud core does not dispatch user lifecycle events over generic webhook apps, use the included [`kommunikationszentrum_sync`](../../nextcloud-app/kommunikationszentrum_sync) app:
 
-Unfortunately as of now it is not yet possible to subscribe to user events. So the only sync option is the periodic pull for now.
+
+1. Copy or symlink the app directory into your Nextcloud `apps` folder, fix ownership, and restore SELinux contexts (required on Fedora/RHEL):
+   ```bash
+   cp -r /path/to/kommunikationszentrum/nextcloud-app/kommunikationszentrum_sync /var/www/nextcloud/apps/
+   chown -R www-data:www-data /var/www/nextcloud/apps/kommunikationszentrum_sync
+   # On Fedora / RHEL with SELinux:
+   restorecon -Rv /var/www/nextcloud/apps/kommunikationszentrum_sync
+   ```
+
+2. Enable the app:
+   ```bash
+   occ app:enable kommunikationszentrum_sync
+   ```
+
+3. Configure the webhook destination and secret:
+   ```bash
+   occ config:app:set kommunikationszentrum_sync webhook_url --value="http://127.0.0.1:8088/nextcloud/webhook"
+   occ config:app:set kommunikationszentrum_sync webhook_secret --value="$NC_WEBHOOK_SECRET"
+   ```
+
+The app hooks into Nextcloud's `UserCreatedEvent`, `UserChangedEvent`, `UserUpdatedEvent`, and `UserDeletedEvent`, instantly notifying `nextcloud-sync` when user lifecycle operations occur.
+
+> [!TIP]
+> **Fedora / RHEL (SELinux):** If PHP-FPM or Apache cannot reach the local webhook service, ensure SELinux allows the web server to make network connections:
+> ```bash
+> sudo setsebool -P httpd_can_network_connect 1
+> ```
+
 
 ---
 
