@@ -1,6 +1,5 @@
-use serde::de::{self, Deserializer, Visitor};
+use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncedEmail {
@@ -29,27 +28,121 @@ pub struct UserSyncRequest {
 }
 
 /// Raw representation from Nextcloud OCS API (/ocs/v2.php/cloud/users/{uid} or /users/details)
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct OcsUserDetails {
-    #[serde(default, deserialize_with = "deserialize_flexible_string")]
     pub id: String,
-    #[serde(default, alias = "display-name", alias = "displayName")]
     pub displayname: Option<String>,
-    #[serde(default, alias = "mail")]
     pub email: Option<String>,
-    #[serde(default, alias = "notify-email", alias = "notifyEmail")]
     pub notify_email: Option<String>,
-    #[serde(default, alias = "additional-mail", alias = "additionalMail")]
     pub additional_mail: Option<Vec<String>>,
-    #[serde(
-        default = "default_true",
-        deserialize_with = "deserialize_flexible_bool"
-    )]
     pub enabled: bool,
 }
 
-fn default_true() -> bool {
-    true
+impl OcsUserDetails {
+    pub fn from_json_value(val: serde_json::Value) -> Result<Self, String> {
+        let mut map = match val {
+            serde_json::Value::Object(m) => m,
+            other => return Err(format!("Expected user object, got {other:?}")),
+        };
+
+        let id = match map.remove("id") {
+            Some(serde_json::Value::String(s)) => s,
+            Some(serde_json::Value::Number(n)) => n.to_string(),
+            _ => String::new(),
+        };
+
+        let displayname = map
+            .remove("displayname")
+            .or_else(|| map.remove("display-name"))
+            .or_else(|| map.remove("displayName"))
+            .and_then(parse_string_opt);
+
+        let email = map
+            .remove("email")
+            .or_else(|| map.remove("mail"))
+            .and_then(parse_string_opt);
+
+        let notify_email = map
+            .remove("notify_email")
+            .or_else(|| map.remove("notify-email"))
+            .or_else(|| map.remove("notifyEmail"))
+            .and_then(parse_string_opt);
+
+        let additional_mail = map
+            .remove("additional_mail")
+            .or_else(|| map.remove("additional-mail"))
+            .or_else(|| map.remove("additionalMail"))
+            .and_then(|v| match v {
+                serde_json::Value::Array(arr) => {
+                    let list: Vec<String> = arr
+                        .into_iter()
+                        .filter_map(|item| match item {
+                            serde_json::Value::String(s) => {
+                                let t = s.trim();
+                                if t.is_empty() {
+                                    None
+                                } else {
+                                    Some(t.to_string())
+                                }
+                            }
+                            serde_json::Value::Number(n) => Some(n.to_string()),
+                            _ => None,
+                        })
+                        .collect();
+                    Some(list)
+                }
+                _ => None,
+            });
+
+        let enabled = map.remove("enabled").map(parse_bool).unwrap_or(true);
+
+        Ok(Self {
+            id,
+            displayname,
+            email,
+            notify_email,
+            additional_mail,
+            enabled,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for OcsUserDetails {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let val = serde_json::Value::deserialize(deserializer)?;
+        Self::from_json_value(val).map_err(de::Error::custom)
+    }
+}
+
+fn parse_string_opt(v: serde_json::Value) -> Option<String> {
+    match v {
+        serde_json::Value::String(s) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
+fn parse_bool(v: serde_json::Value) -> bool {
+    match v {
+        serde_json::Value::Bool(b) => b,
+        serde_json::Value::Number(n) => n.as_i64().map(|i| i != 0).unwrap_or(true),
+        serde_json::Value::String(s) => match s.trim().to_ascii_lowercase().as_str() {
+            "false" | "0" | "no" => false,
+            "true" | "1" | "yes" => true,
+            _ => true,
+        },
+        _ => true,
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -84,136 +177,20 @@ pub struct UsersWrapper {
     pub users: Vec<OcsUserDetails>,
 }
 
-pub fn deserialize_flexible_string<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct StringVisitor;
-
-    impl<'de> Visitor<'de> for StringVisitor {
-        type Value = String;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string or integer")
-        }
-
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v.to_string())
-        }
-
-        fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v)
-        }
-
-        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v.to_string())
-        }
-
-        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v.to_string())
-        }
-    }
-
-    deserializer.deserialize_any(StringVisitor)
-}
-
-pub fn deserialize_flexible_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct BoolVisitor;
-
-    impl<'de> Visitor<'de> for BoolVisitor {
-        type Value = bool;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a boolean, string, or number")
-        }
-
-        fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v)
-        }
-
-        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v != 0)
-        }
-
-        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v != 0)
-        }
-
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            match v.trim().to_ascii_lowercase().as_str() {
-                "true" | "1" | "yes" => Ok(true),
-                "false" | "0" | "no" => Ok(false),
-                _ => Ok(true),
-            }
-        }
-    }
-
-    deserializer.deserialize_any(BoolVisitor)
-}
-
 fn deserialize_flexible_statuscode<'de, D>(deserializer: D) -> Result<i64, D::Error>
 where
     D: Deserializer<'de>,
 {
-    struct StatuscodeVisitor;
-
-    impl<'de> Visitor<'de> for StatuscodeVisitor {
-        type Value = i64;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("an integer or string statuscode")
-        }
-
-        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v)
-        }
-
-        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(v as i64)
-        }
-
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            v.trim().parse::<i64>().map_err(de::Error::custom)
-        }
+    let val = serde_json::Value::deserialize(deserializer)?;
+    match val {
+        serde_json::Value::Number(n) => n
+            .as_i64()
+            .ok_or_else(|| de::Error::custom("Invalid integer statuscode")),
+        serde_json::Value::String(s) => s.trim().parse::<i64>().map_err(de::Error::custom),
+        other => Err(de::Error::custom(format!(
+            "Expected integer or string for statuscode, got {other:?}"
+        ))),
     }
-
-    deserializer.deserialize_any(StatuscodeVisitor)
 }
 
 pub fn deserialize_nullable_or_empty_array<'de, D, T>(
@@ -398,6 +375,44 @@ mod tests {
         let req = map_uid_to_delete("alice");
         assert_eq!(req.action, "delete");
         assert_eq!(req.user.external_id, "alice");
+    }
+
+    #[test]
+    fn test_deserialize_nextcloud_with_duplicate_displayname_fields() {
+        // Nextcloud outputs both "displayname" AND "display-name" in the same object.
+        let json = r#"{
+            "ocs": {
+                "meta": {
+                    "status": "ok",
+                    "statuscode": 200,
+                    "message": "OK"
+                },
+                "data": {
+                    "users": {
+                        "2012puppa@googlemail.com": {
+                            "enabled": false,
+                            "storageLocation": "/var/www/nextcloud/data/2012puppa@googlemail.com",
+                            "id": "2012puppa@googlemail.com",
+                            "email": "2012puppa@googlemail.com",
+                            "additional_mail": [],
+                            "displayname": "Yannic Hils",
+                            "display-name": "Yannic Hils",
+                            "notify_email": null
+                        }
+                    }
+                }
+            }
+        }"#;
+
+        let res: OcsResponse<UsersWrapper> = serde_json::from_str(json).unwrap();
+        assert_eq!(res.ocs.meta.statuscode, 200);
+        let users = res.ocs.data.unwrap().users;
+        assert_eq!(users.len(), 1);
+        let u = &users[0];
+        assert_eq!(u.id, "2012puppa@googlemail.com");
+        assert_eq!(u.displayname.as_deref(), Some("Yannic Hils"));
+        assert_eq!(u.email.as_deref(), Some("2012puppa@googlemail.com"));
+        assert!(!u.enabled);
     }
 
     #[test]
