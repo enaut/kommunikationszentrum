@@ -13,6 +13,7 @@ pub struct Account {
     pub name: String,
     pub primary_email_id: u64,
     pub is_active: bool,
+    pub is_deleted_from_idp: bool,
     pub last_synced: __sdk::Timestamp,
 }
 
@@ -30,6 +31,7 @@ pub struct AccountCols {
     pub name: __sdk::__query_builder::Col<Account, String>,
     pub primary_email_id: __sdk::__query_builder::Col<Account, u64>,
     pub is_active: __sdk::__query_builder::Col<Account, bool>,
+    pub is_deleted_from_idp: __sdk::__query_builder::Col<Account, bool>,
     pub last_synced: __sdk::__query_builder::Col<Account, __sdk::Timestamp>,
 }
 
@@ -43,6 +45,10 @@ impl __sdk::__query_builder::HasCols for Account {
             name: __sdk::__query_builder::Col::new(table_name, "name"),
             primary_email_id: __sdk::__query_builder::Col::new(table_name, "primary_email_id"),
             is_active: __sdk::__query_builder::Col::new(table_name, "is_active"),
+            is_deleted_from_idp: __sdk::__query_builder::Col::new(
+                table_name,
+                "is_deleted_from_idp",
+            ),
             last_synced: __sdk::__query_builder::Col::new(table_name, "last_synced"),
         }
     }

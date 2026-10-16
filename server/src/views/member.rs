@@ -92,7 +92,7 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
         }
     } else {
         match ctx.db.account().identity().find(&sender) {
-            Some(acc) => {
+            Some(acc) if acc.is_active && !acc.is_deleted_from_idp => {
                 let mut subscribed_topic_ids: Vec<u64> = ctx
                     .db
                     .subscriptions()
@@ -123,7 +123,7 @@ pub fn get_paginated_received_messages(ctx: &ViewContext) -> Vec<ReceivedMessage
                     })
                     .collect()
             }
-            None => vec![],
+            _ => vec![],
         }
     };
 
@@ -237,18 +237,11 @@ pub fn visible_message_topics(ctx: &ViewContext) -> Vec<MessageTopic> {
         return result;
     }
 
-    let has_account = ctx.db.account().identity().find(&sender).is_some();
-    if !has_account {
-        return vec![];
-    }
-
     // For regular users: show public topics + private topics they're subscribed to
-    let account = ctx
-        .db
-        .account()
-        .identity()
-        .find(&sender)
-        .expect("Account must exist");
+    let account = match ctx.db.account().identity().find(&sender) {
+        Some(acc) if acc.is_active && !acc.is_deleted_from_idp => acc,
+        _ => return vec![],
+    };
     let subscribed_topic_ids: Vec<u64> = ctx
         .db
         .subscriptions()

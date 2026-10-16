@@ -41,6 +41,7 @@ pub struct Account {
     #[index(btree)]
     pub primary_email_id: u64,
     pub is_active: bool,
+    pub is_deleted_from_idp: bool,
     #[index(btree)]
     pub last_synced: Timestamp,
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>kommunikationszentrum_sync</id>
+    <name>Kommunikationszentrum User Sync</name>
+    <summary>Forward Nextcloud user lifecycle events to the Kommunikationszentrum sync daemon</summary>
+    <description>Hooks into Nextcloud user creation, change, and deletion events and triggers the Kommunikationszentrum nextcloud-sync daemon via webhook.</description>
+    <version>1.0.0</version>
+    <licence>agpl</licence>
+    <author>Kommunikationszentrum Contributors</author>
+    <namespace>KommunikationszentrumSync</namespace>
+    <category>integration</category>
+    <dependencies>
+        <nextcloud min-version="30"/>
+        <php min-version="8.2"/>
+    </dependencies>
+</info>

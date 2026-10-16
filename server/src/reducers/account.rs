@@ -314,6 +314,7 @@ pub fn register_self(
         name,
         primary_email_id: primary_email.id,
         is_active: true,
+        is_deleted_from_idp: false,
         last_synced: timestamp,
     });
 
@@ -489,6 +490,7 @@ pub(crate) fn do_sync_user(
                         name: data.name.unwrap_or_default(),
                         primary_email_id,
                         is_active: data.is_active.unwrap_or(true),
+                        is_deleted_from_idp: false,
                         last_synced: timestamp,
                         ..existing
                     };
@@ -503,6 +505,7 @@ pub(crate) fn do_sync_user(
                         name: data.name.unwrap_or_default(),
                         primary_email_id,
                         is_active: data.is_active.unwrap_or(true),
+                        is_deleted_from_idp: false,
                         last_synced: timestamp,
                     };
                     log::info!("Inserting new account: {:#?}", account);
@@ -681,10 +684,18 @@ pub(crate) fn do_sync_user(
             }
             "delete" => {
                 if let Some(existing) = ctx.db.account().external_id().find(&data.external_id) {
-                    let account_id = existing.id;
                     let identity_of_user = existing.identity;
-                    ctx.db.account().delete(existing);
-                    log::info!("Deleted user: {} ({})", data.external_id, action);
+                    let mut updated = existing.clone();
+                    updated.is_active = false;
+                    updated.is_deleted_from_idp = true;
+                    updated.last_synced = timestamp;
+                    ctx.db.account().id().update(updated);
+                    log::info!(
+                        "Soft-deleted user from IdP: {} ({})",
+                        data.external_id,
+                        action
+                    );
+
                     if ctx
                         .db
                         .admin_identities()
@@ -697,64 +708,13 @@ pub(crate) fn do_sync_user(
                             .identity()
                             .delete(&identity_of_user);
                         log::info!(
-                            "Removed admin_identities for deleted account: {}",
+                            "Removed admin_identities for soft-deleted account: {}",
                             data.external_id
                         );
                     }
-
-                    // Cascade delete all subscriptions and their unsubscribe tokens
-                    let subs: Vec<_> = ctx
-                        .db
-                        .subscriptions()
-                        .subscriber_account_id()
-                        .filter(&account_id)
-                        .collect();
-                    for sub in subs {
-                        if let Some(tok) = ctx
-                            .db
-                            .subscription_unsubscribe_tokens()
-                            .subscription_id()
-                            .find(&sub.id)
-                        {
-                            ctx.db
-                                .subscription_unsubscribe_tokens()
-                                .token()
-                                .delete(&tok.token);
-                        }
-                        ctx.db.subscriptions().id().delete(&sub.id);
-                    }
-                    log::info!(
-                        "Removed subscriptions for deleted account: {}",
-                        data.external_id
-                    );
-
-                    // Cascade delete all linked emails
-                    let emails: Vec<_> = ctx
-                        .db
-                        .account_emails()
-                        .account_id()
-                        .filter(&account_id)
-                        .collect();
-                    for email in emails {
-                        ctx.db.account_emails().id().delete(&email.id);
-                    }
-                    log::info!(
-                        "Removed account emails for deleted account: {}",
-                        data.external_id
-                    );
-
-                    // Cascade delete pending verification tokens
-                    let tokens: Vec<_> = ctx
-                        .db
-                        .email_verification_tokens()
-                        .iter()
-                        .filter(|t| t.account_id == account_id)
-                        .collect();
-                    for t in tokens {
-                        ctx.db.email_verification_tokens().token().delete(&t.token);
-                    }
-                    log::info!(
-                        "Removed email verification tokens for deleted account: {}",
+                } else {
+                    log::warn!(
+                        "Attempted to delete user that does not exist: {}",
                         data.external_id
                     );
                 }
@@ -768,6 +728,119 @@ pub(crate) fn do_sync_user(
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UserSyncReconcileResult {
+    pub flagged_deleted: usize,
+    pub reactivated: usize,
+    pub total_active_idp: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReconcilePlan<'a> {
+    pub to_flag: Vec<&'a Account>,
+    pub to_reactivate: Vec<&'a Account>,
+}
+
+pub fn compute_reconcile_plan<'a>(
+    external_accounts: &'a [&'a Account],
+    active_set: &std::collections::HashSet<&str>,
+) -> Result<ReconcilePlan<'a>, String> {
+    let mut to_flag = Vec::new();
+    let mut to_reactivate = Vec::new();
+
+    for account in external_accounts {
+        if active_set.contains(account.external_id.as_str()) {
+            if account.is_deleted_from_idp {
+                to_reactivate.push(*account);
+            }
+        } else if !account.is_deleted_from_idp {
+            to_flag.push(*account);
+        }
+    }
+
+    // 50% Threshold Guard
+    let total_count = external_accounts.len();
+    if total_count >= 10 && to_flag.len() * 2 > total_count {
+        return Err(format!(
+            "Threshold guard triggered: reconciliation would flag {} of {} external accounts as deleted (>50%). Aborting.",
+            to_flag.len(),
+            total_count
+        ));
+    }
+
+    Ok(ReconcilePlan {
+        to_flag,
+        to_reactivate,
+    })
+}
+
+pub(crate) fn do_reconcile_users(
+    ctx: &ReducerContext,
+    active_external_ids: &[String],
+) -> Result<UserSyncReconcileResult, String> {
+    if active_external_ids.is_empty() {
+        return Err(
+            "Reconciliation payload active_external_ids cannot be empty (Zero-User Abort)"
+                .to_string(),
+        );
+    }
+
+    let timestamp = ctx.timestamp;
+    let active_set: std::collections::HashSet<&str> =
+        active_external_ids.iter().map(|s| s.as_str()).collect();
+
+    let all_accounts: Vec<Account> = ctx.db.account().iter().collect();
+    let external_accounts: Vec<&Account> = all_accounts
+        .iter()
+        .filter(|a| !a.external_id.is_empty())
+        .collect();
+
+    let plan = compute_reconcile_plan(&external_accounts, &active_set)?;
+
+    let flagged_count = plan.to_flag.len();
+    let reactivated_count = plan.to_reactivate.len();
+
+    for account in plan.to_flag {
+        let mut updated = account.clone();
+        updated.is_active = false;
+        updated.is_deleted_from_idp = true;
+        updated.last_synced = timestamp;
+        let identity = updated.identity;
+        ctx.db.account().id().update(updated);
+
+        // Revoke admin if flagged deleted
+        if ctx
+            .db
+            .admin_identities()
+            .identity()
+            .find(&identity)
+            .is_some()
+        {
+            ctx.db.admin_identities().identity().delete(&identity);
+        }
+    }
+
+    for account in plan.to_reactivate {
+        let mut updated = account.clone();
+        updated.is_deleted_from_idp = false;
+        updated.last_synced = timestamp;
+        ctx.db.account().id().update(updated);
+    }
+
+    log::info!(
+        "Completed user reconciliation: {} flagged as deleted, {} reactivated, {} active in IdP",
+        flagged_count,
+        reactivated_count,
+        active_external_ids.len()
+    );
+
+    Ok(UserSyncReconcileResult {
+        flagged_deleted: flagged_count,
+        reactivated: reactivated_count,
+        total_active_idp: active_external_ids.len(),
+    })
 }
 
 #[spacetimedb::reducer]
@@ -1640,5 +1713,81 @@ mod tests {
         }
         assert_eq!(config.theme, Some(ThemePreference::Light));
         assert_eq!(config.language, Some(LanguagePreference::En));
+    }
+
+    fn mock_account(
+        id: u64,
+        external_id: &str,
+        is_active: bool,
+        is_deleted_from_idp: bool,
+    ) -> Account {
+        Account {
+            id,
+            external_id: external_id.to_string(),
+            identity: Identity::from_byte_array([id as u8; 32]),
+            name: format!("User {id}"),
+            primary_email_id: id,
+            is_active,
+            is_deleted_from_idp,
+            last_synced: spacetimedb::Timestamp::UNIX_EPOCH,
+        }
+    }
+
+    #[test]
+    fn test_compute_reconcile_plan_flags_and_reactivates() {
+        let a1 = mock_account(1, "alice", true, false);
+        let a2 = mock_account(2, "bob", true, false);
+        let a3 = mock_account(3, "charlie", false, true); // was deleted
+        let a4 = mock_account(4, "dave", false, false); // disabled in Nextcloud
+
+        let accounts = vec![&a1, &a2, &a3, &a4];
+        let mut active = std::collections::HashSet::new();
+        active.insert("alice");
+        active.insert("charlie");
+        active.insert("dave");
+        // "bob" is missing
+
+        let plan = compute_reconcile_plan(&accounts, &active).unwrap();
+        assert_eq!(plan.to_flag.len(), 1);
+        assert_eq!(plan.to_flag[0].external_id, "bob");
+        assert_eq!(plan.to_reactivate.len(), 1);
+        assert_eq!(plan.to_reactivate[0].external_id, "charlie");
+    }
+
+    #[test]
+    fn test_compute_reconcile_plan_threshold_guard_triggers() {
+        // 10 external accounts, 6 missing (>50%) -> threshold guard triggers
+        let mut accounts = Vec::new();
+        for i in 1..=10 {
+            accounts.push(mock_account(i, &format!("user{i}"), true, false));
+        }
+        let account_refs: Vec<&Account> = accounts.iter().collect();
+
+        let mut active = std::collections::HashSet::new();
+        active.insert("user1");
+        active.insert("user2");
+        active.insert("user3");
+        active.insert("user4");
+        // user5..user10 are missing (6 of 10 = 60%)
+
+        let err = compute_reconcile_plan(&account_refs, &active).unwrap_err();
+        assert!(err.contains("Threshold guard triggered"));
+        assert!(err.contains("6 of 10"));
+    }
+
+    #[test]
+    fn test_compute_reconcile_plan_threshold_guard_allows_small_instance() {
+        // Total accounts < 10 (e.g. 4 accounts, 3 missing = 75%) is allowed
+        let mut accounts = Vec::new();
+        for i in 1..=4 {
+            accounts.push(mock_account(i, &format!("user{i}"), true, false));
+        }
+        let account_refs: Vec<&Account> = accounts.iter().collect();
+
+        let mut active = std::collections::HashSet::new();
+        active.insert("user1");
+
+        let plan = compute_reconcile_plan(&account_refs, &active).unwrap();
+        assert_eq!(plan.to_flag.len(), 3);
     }
 }
