@@ -9,11 +9,13 @@ pub enum SyncJob {
     SyncUser(String),        // uid to fetch and upsert
     DeleteUser(String),      // uid to cascade delete
     Upsert(UserSyncRequest), // pre-mapped upsert from reconciler
+    Reconcile(Vec<String>),  // active external_ids from Nextcloud
 }
 
 pub struct SyncPoster {
     client: reqwest::Client,
     sync_url: String,
+    reconcile_url: String,
     webhook_token: String,
 }
 
@@ -26,6 +28,7 @@ impl SyncPoster {
                 .build()
                 .unwrap(),
             sync_url: config.spacetime_sync_url.clone(),
+            reconcile_url: config.spacetime_reconcile_url.clone(),
             webhook_token: config.spacetime_webhook_token.clone(),
         }
     }
@@ -96,6 +99,72 @@ impl SyncPoster {
             backoff = (backoff * 2).min(Duration::from_secs(10));
         }
     }
+
+    pub async fn send_reconcile(&self, active_external_ids: &[String]) -> Result<(), String> {
+        let mut attempts = 0;
+        let mut backoff = Duration::from_millis(500);
+        let req_body = crate::models::UserSyncReconcileRequest {
+            active_external_ids: active_external_ids.to_vec(),
+        };
+
+        loop {
+            attempts += 1;
+            let resp = self
+                .client
+                .post(&self.reconcile_url)
+                .header("Authorization", format!("Bearer {}", self.webhook_token))
+                .header("Content-Type", "application/json")
+                .json(&req_body)
+                .send()
+                .await;
+
+            match resp {
+                Ok(res) if res.status().is_success() => {
+                    let text = res.text().await.unwrap_or_default();
+                    tracing::info!(
+                        response = %text,
+                        count = active_external_ids.len(),
+                        "Successfully posted user reconciliation"
+                    );
+                    return Ok(());
+                }
+                Ok(res) if res.status().is_client_error() => {
+                    let status = res.status();
+                    let text = res.text().await.unwrap_or_default();
+                    tracing::error!(
+                        status = %status,
+                        body = %text,
+                        "Client error posting user reconciliation; will not retry"
+                    );
+                    return Err(format!("Client error: {} - {}", status, text));
+                }
+                Ok(res) => {
+                    let status = res.status();
+                    let text = res.text().await.unwrap_or_default();
+                    tracing::warn!(
+                        attempt = attempts,
+                        status = %status,
+                        body = %text,
+                        "Server error posting user reconciliation; retrying..."
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        attempt = attempts,
+                        error = %e,
+                        "Network error posting user reconciliation; retrying..."
+                    );
+                }
+            }
+
+            if attempts >= 5 {
+                return Err("Exceeded max retry attempts for user reconciliation".to_string());
+            }
+
+            tokio::time::sleep(backoff).await;
+            backoff = (backoff * 2).min(Duration::from_secs(10));
+        }
+    }
 }
 
 pub async fn run_sync_worker(
@@ -140,6 +209,15 @@ pub async fn run_sync_worker(
                 tracing::info!(external_id = %req.user.external_id, "Processing upsert user job");
                 if let Err(e) = poster.send_sync(&req).await {
                     tracing::error!(external_id = %req.user.external_id, error = %e, "Failed to upsert user");
+                }
+            }
+            SyncJob::Reconcile(active_ids) => {
+                tracing::info!(
+                    count = active_ids.len(),
+                    "Processing user reconciliation job"
+                );
+                if let Err(e) = poster.send_reconcile(&active_ids).await {
+                    tracing::error!(error = %e, "Failed to execute user reconciliation");
                 }
             }
         }

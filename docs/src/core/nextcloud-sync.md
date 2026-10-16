@@ -18,7 +18,7 @@ flowchart LR
 1. **Push (Webhooks):** Nextcloud sends real-time webhook events (user created, changed, deleted).
 2. **Pull (OCS REST API):** The service fetches user details (display name, email, enabled status) from Nextcloud's OCS Provisioning API (`/ocs/v2.php/cloud/users/{uid}`).
 3. **Upsert / Delete:** The service posts the normalized user data to the SpacetimeDB `user-sync` HTTP route using a webhook bearer token with `sync-user` permission.
-4. **Reconciler / Initial Backfill:** Upon startup and periodically (e.g. every 6 hours), the service pages through all Nextcloud users to ensure complete synchronization and heal any missed webhook events.
+4. **Reconciler / Eventual Consistency:** Upon startup and periodically (e.g. every 6 hours), the service pages through all Nextcloud users to ensure complete synchronization and heal any missed events. At the conclusion of each run, it posts the list of active Nextcloud user IDs to `POST /user-sync-reconcile`. SpacetimeDB performs a single-transaction diff: accounts deleted from Nextcloud are soft-deleted (`is_active = false, is_deleted_from_idp = true`, revoking admin access while preserving email subscriptions) and accounts restored in Nextcloud are automatically reactivated. Circuit breakers (Zero-User Abort and a 50% deletion threshold guard) prevent accidental database wipeouts on upstream failures.
 
 ---
 
@@ -33,6 +33,7 @@ flowchart LR
 | `NC_SYNC_LISTEN_ADDR` | — | `0.0.0.0:8088` | Address and port for the incoming webhook HTTP listener. |
 | `NC_RECONCILE_INTERVAL_SECS` | — | `21600` | Full reconciliation interval in seconds (default: 6 hours). |
 | `SPACETIME_SYNC_URL` | ✓ | — | URL to Kommunikationszentrum `user-sync` route (e.g. `http://localhost:3000/v1/database/kommunikation/route/user-sync`). |
+| `SPACETIME_RECONCILE_URL` | — | Auto-derived | URL to Kommunikationszentrum `user-sync-reconcile` route (defaults to replacing `user-sync` with `user-sync-reconcile`). |
 | `SPACETIME_WEBHOOK_TOKEN` | ✓ | — | Plaintext bearer token authorized for `sync-user`. |
 
 ---
@@ -66,7 +67,7 @@ echo "Generated webhook secret: $NC_WEBHOOK_SECRET"
 Save this value: it must be used identically when registering the webhook listeners below and in `/etc/kommunikationszentrum/nextcloud-sync.env`.
 
 ### 4. Nextcloud Trigger App (`kommunikationszentrum_sync`)
-Because Nextcloud core does not dispatch user lifecycle events over generic webhook apps, use the included [`kommunikationszentrum_sync`](../../nextcloud-app/kommunikationszentrum_sync) app:
+Because Nextcloud core does not dispatch user lifecycle events over generic webhook apps, use the included `kommunikationszentrum_sync` app:
 
 
 1. Copy or symlink the app directory into your Nextcloud `apps` folder, fix ownership, and restore SELinux contexts (required on Fedora/RHEL):

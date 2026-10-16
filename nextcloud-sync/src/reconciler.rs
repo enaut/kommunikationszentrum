@@ -19,6 +19,20 @@ pub async fn run_reconciler(config: Config, ocs_client: OcsClient, tx: mpsc::Sen
                 let total = users.len();
                 tracing::info!(count = total, "Fetched users from Nextcloud OCS");
 
+                if users.is_empty() {
+                    tracing::warn!(
+                        "Received 0 users from Nextcloud OCS; aborting reconciliation to prevent accidental deactivations."
+                    );
+                    tokio::time::sleep(Duration::from_secs(interval_secs)).await;
+                    continue;
+                }
+
+                let active_uids: Vec<String> = users
+                    .iter()
+                    .map(|u| u.id.clone())
+                    .filter(|id| !id.trim().is_empty())
+                    .collect();
+
                 let mut synced = 0;
                 let mut skipped = 0;
                 let mut failed = 0;
@@ -38,12 +52,18 @@ pub async fn run_reconciler(config: Config, ocs_client: OcsClient, tx: mpsc::Sen
                     }
                 }
 
+                if !active_uids.is_empty() {
+                    if let Err(e) = tx.send(SyncJob::Reconcile(active_uids)).await {
+                        tracing::error!(error = %e, "Failed to enqueue user reconciliation job");
+                    }
+                }
+
                 tracing::info!(
                     total = total,
                     synced = synced,
                     skipped = skipped,
                     failed = failed,
-                    "Completed Nextcloud full user reconciliation"
+                    "Completed Nextcloud full user reconciliation dispatch"
                 );
             }
             Err(e) => {

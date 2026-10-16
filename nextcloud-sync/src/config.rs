@@ -9,6 +9,7 @@ pub struct Config {
     pub nc_app_password: String,
     pub reconcile_interval_secs: u64,
     pub spacetime_sync_url: String,
+    pub spacetime_reconcile_url: String,
     pub spacetime_webhook_token: String,
 }
 
@@ -36,6 +37,17 @@ impl Config {
 
         let spacetime_sync_url = env::var("SPACETIME_SYNC_URL")
             .map_err(|_| "SPACETIME_SYNC_URL environment variable is required".to_string())?;
+        let spacetime_reconcile_url = env::var("SPACETIME_RECONCILE_URL")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| {
+                let base = spacetime_sync_url.trim_end_matches('/');
+                if base.ends_with("/user-sync") {
+                    format!("{}-reconcile", base)
+                } else {
+                    format!("{}/user-sync-reconcile", base)
+                }
+            });
         let spacetime_webhook_token = env::var("SPACETIME_WEBHOOK_TOKEN")
             .map_err(|_| "SPACETIME_WEBHOOK_TOKEN environment variable is required".to_string())?;
 
@@ -47,6 +59,7 @@ impl Config {
             nc_app_password,
             reconcile_interval_secs,
             spacetime_sync_url,
+            spacetime_reconcile_url,
             spacetime_webhook_token,
         })
     }

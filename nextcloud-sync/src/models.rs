@@ -27,6 +27,11 @@ pub struct UserSyncRequest {
     pub user: UserSyncPayload,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSyncReconcileRequest {
+    pub active_external_ids: Vec<String>,
+}
+
 /// Raw representation from Nextcloud OCS API (/ocs/v2.php/cloud/users/{uid} or /users/details)
 #[derive(Debug, Clone)]
 pub struct OcsUserDetails {

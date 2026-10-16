@@ -89,6 +89,7 @@ mod tests {
             name: format!("User {}", id),
             primary_email_id: id * 10,
             is_active,
+            is_deleted_from_idp: false,
             last_synced: Timestamp::UNIX_EPOCH,
         }
     }

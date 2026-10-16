@@ -3,7 +3,9 @@ use crate::models::mta::blocked_ips;
 use crate::models::topic::{
     MessageTopic, SubscriptionPermission, TopicSyncData, TopicVisibility, message_topics,
 };
-use crate::reducers::{UserSyncData, do_sync_user, unsubscribe_subscription_by_token};
+use crate::reducers::{
+    UserSyncData, do_reconcile_users, do_sync_user, unsubscribe_subscription_by_token,
+};
 use crate::services::stalwart::topic::provision_stalwart_topic_mailbox;
 use log::info;
 use serde::Deserialize;
@@ -491,11 +493,64 @@ fn topic_sync_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpRes
     }
 }
 
+#[derive(Deserialize)]
+struct UserSyncReconcilePayload {
+    active_external_ids: Vec<String>,
+}
+
+#[spacetimedb::http::handler]
+fn user_sync_reconcile_handler(ctx: &mut HandlerContext, request: HttpRequest) -> HttpResponse {
+    let token = match request
+        .headers()
+        .get("authorization")
+        .and_then(|hv| hv.to_str().ok())
+        .and_then(|s| {
+            s.strip_prefix("Bearer ")
+                .or_else(|| s.strip_prefix("bearer "))
+        })
+        .map(|s| s.trim().to_string())
+    {
+        Some(t) => t,
+        None => return json_response(401, json!({"error":"missing Authorization bearer token"})),
+    };
+    if !token_has_permission(ctx, &token, "sync-user") {
+        return json_response(403, json!({"error":"forbidden"}));
+    }
+
+    let body_bytes: Vec<u8> = request.into_body().into_bytes().into();
+    let payload: UserSyncReconcilePayload = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(_) => return json_response(400, json!({"error":"invalid JSON"})),
+    };
+
+    let result = ctx.with_tx(|tx| do_reconcile_users(tx, &payload.active_external_ids));
+
+    match result {
+        Ok(res) => json_response(
+            200,
+            json!({
+                "status": "success",
+                "flagged_deleted": res.flagged_deleted,
+                "reactivated": res.reactivated,
+                "total_active_idp": res.total_active_idp,
+            }),
+        ),
+        Err(e) => {
+            if e.contains("Zero-User Abort") || e.contains("Threshold guard triggered") {
+                json_response(422, json!({"error": e}))
+            } else {
+                json_response(500, json!({"error": e}))
+            }
+        }
+    }
+}
+
 #[spacetimedb::http::router]
 fn router() -> Router {
     Router::new()
         .post("/mta-hook", mta_hook_handler)
         .post("/user-sync", user_sync_handler)
+        .post("/user-sync-reconcile", user_sync_reconcile_handler)
         .post("/topic-sync", topic_sync_handler)
         .post(
             "/mailing-list/unsubscribe",
