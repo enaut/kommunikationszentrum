@@ -824,7 +824,6 @@ pub(crate) fn do_reconcile_users(
 
     for account in plan.to_reactivate {
         let mut updated = account.clone();
-        updated.is_active = true;
         updated.is_deleted_from_idp = false;
         updated.last_synced = timestamp;
         ctx.db.account().id().update(updated);
