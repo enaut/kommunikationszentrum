@@ -41,9 +41,10 @@ pub struct Account {
     #[index(btree)]
     pub primary_email_id: u64,
     pub is_active: bool,
-    pub is_deleted_from_idp: bool,
     #[index(btree)]
     pub last_synced: Timestamp,
+    #[default(false)]
+    pub is_deleted_from_idp: bool,
 }
 
 #[derive(spacetimedb::SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]

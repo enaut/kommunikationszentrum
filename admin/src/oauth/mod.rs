@@ -47,42 +47,69 @@ impl UserInfo {
         Some(jwt_utils::decode_jwt(token))
     }
 
-    /// Return the optimal JWT token to use for SpacetimeDB authentication.
+    /// Return the optimal unexpired JWT token to use for SpacetimeDB authentication.
     ///
-    /// 1. If `id_token` contains an `email_verified` claim, use `id_token`.
-    /// 2. If `id_token` lacks `email_verified` (e.g. Nextcloud/OIDC provider defaults),
-    ///    but `access_token` is an RFC 9068 JWT that contains `email_verified` and matches the subject,
+    /// 1. If `id_token` is unexpired and contains an `email_verified` claim, use `id_token`.
+    /// 2. If `access_token` is an unexpired RFC 9068 JWT matching subject and contains `email_verified`,
     ///    use `access_token` so SpacetimeDB receives verified email claims.
-    /// 3. Otherwise fall back to `id_token`, or `access_token` if valid JWT.
+    /// 3. Otherwise fall back to unexpired `id_token`.
+    /// 4. Otherwise fall back to unexpired `access_token` matching subject.
+    /// 5. If both are expired or invalid, return `None`.
     pub fn spacetimedb_token(&self) -> Option<String> {
-        let id_claims = self
-            .decode_id_token()
-            .and_then(|r| r.ok())
-            .map(|d| d.claims);
-        let id_has_verified = id_claims
+        self.spacetimedb_token_with_leeway(30)
+    }
+
+    pub fn spacetimedb_token_with_leeway(&self, leeway_secs: u64) -> Option<String> {
+        let now = jwt_utils::current_unix_timestamp();
+        self.spacetimedb_token_at(now, leeway_secs)
+    }
+
+    pub fn spacetimedb_token_at(&self, now: u64, leeway_secs: u64) -> Option<String> {
+        let id_jwt = self.decode_id_token().and_then(|r| r.ok());
+        let id_unexpired = id_jwt
             .as_ref()
-            .is_some_and(|c| c.get("email_verified").is_some() || c.get("emailVerified").is_some());
+            .map(|d| jwt_utils::is_jwt_unexpired_at(&d.claims, now, leeway_secs))
+            .unwrap_or(false);
+
+        let id_has_verified = id_unexpired
+            && id_jwt.as_ref().is_some_and(|d| {
+                d.claims.get("email_verified").is_some() || d.claims.get("emailVerified").is_some()
+            });
 
         if id_has_verified {
             return self.id_token.clone();
         }
 
-        if let Ok(access_jwt) = jwt_utils::decode_jwt(&self.access_token) {
-            let sub = access_jwt.claims.get("sub").and_then(|v| v.as_str());
-            let has_verified = access_jwt.claims.get("email_verified").is_some()
-                || access_jwt.claims.get("emailVerified").is_some();
-            if sub == Some(&self.subject_id) && has_verified {
-                return Some(self.access_token.clone());
-            }
+        let access_jwt = jwt_utils::decode_jwt(&self.access_token).ok();
+        let access_unexpired = access_jwt
+            .as_ref()
+            .map(|d| jwt_utils::is_jwt_unexpired_at(&d.claims, now, leeway_secs))
+            .unwrap_or(false);
+
+        let access_sub = access_jwt
+            .as_ref()
+            .and_then(|d| d.claims.get("sub").and_then(|v| v.as_str()));
+        let access_sub_matches = access_sub == Some(&self.subject_id);
+
+        let access_has_verified = access_unexpired
+            && access_sub_matches
+            && access_jwt.as_ref().is_some_and(|d| {
+                d.claims.get("email_verified").is_some() || d.claims.get("emailVerified").is_some()
+            });
+
+        if access_has_verified {
+            return Some(self.access_token.clone());
         }
 
-        self.id_token.clone().or_else(|| {
-            if jwt_utils::decode_jwt(&self.access_token).is_ok() {
-                Some(self.access_token.clone())
-            } else {
-                None
-            }
-        })
+        if id_unexpired {
+            return self.id_token.clone();
+        }
+
+        if access_unexpired && access_sub_matches {
+            return Some(self.access_token.clone());
+        }
+
+        None
     }
 }
 
@@ -303,4 +330,93 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
     });
 
     (auth_state, login, logout)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine;
+
+    fn make_test_jwt(claims: serde_json::Value) -> String {
+        let h = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
+        let c = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(serde_json::to_vec(&claims).unwrap());
+        format!("{h}.{c}.test_signature")
+    }
+
+    #[test]
+    fn test_spacetimedb_token_selection() {
+        let sub = "user123".to_string();
+        let now = 1700000000u64;
+
+        // 1. Both unexpired, id_token has email_verified -> id_token chosen
+        let id_token_1 = make_test_jwt(serde_json::json!({
+            "sub": sub,
+            "email_verified": true,
+            "exp": now + 3600
+        }));
+        let access_token_1 = make_test_jwt(serde_json::json!({
+            "sub": sub,
+            "exp": now + 3600
+        }));
+        let user_1 = UserInfo {
+            username: "user".into(),
+            email: None,
+            access_token: access_token_1.clone(),
+            id_token: Some(id_token_1.clone()),
+            refresh_token: None,
+            subject_id: sub.clone(),
+            given_name: None,
+            family_name: None,
+            name: None,
+        };
+        assert_eq!(
+            user_1.spacetimedb_token_at(now, 30),
+            Some(id_token_1.clone())
+        );
+
+        // 2. id_token is EXPIRED, but access_token is unexpired -> access_token chosen!
+        let id_token_expired = make_test_jwt(serde_json::json!({
+            "sub": sub,
+            "email_verified": true,
+            "exp": now - 100 // expired!
+        }));
+        let access_token_fresh = make_test_jwt(serde_json::json!({
+            "sub": sub,
+            "exp": now + 3600
+        }));
+        let user_2 = UserInfo {
+            username: "user".into(),
+            email: None,
+            access_token: access_token_fresh.clone(),
+            id_token: Some(id_token_expired),
+            refresh_token: None,
+            subject_id: sub.clone(),
+            given_name: None,
+            family_name: None,
+            name: None,
+        };
+        assert_eq!(
+            user_2.spacetimedb_token_at(now, 30),
+            Some(access_token_fresh)
+        );
+
+        // 3. Both are expired -> None
+        let access_token_expired = make_test_jwt(serde_json::json!({
+            "sub": sub,
+            "exp": now - 10 // expired or within leeway!
+        }));
+        let user_3 = UserInfo {
+            username: "user".into(),
+            email: None,
+            access_token: access_token_expired,
+            id_token: Some(id_token_1), // make it expired by testing at future time
+            refresh_token: None,
+            subject_id: sub,
+            given_name: None,
+            family_name: None,
+            name: None,
+        };
+        assert_eq!(user_3.spacetimedb_token_at(now + 7200, 30), None);
+    }
 }

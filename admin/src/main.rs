@@ -182,8 +182,19 @@ fn App() -> Element {
                 AuthState::Authenticating => rsx! {
                     AuthenticatingPage {}
                 },
-                AuthState::Authenticated(user_info) => rsx! {
-                    AuthenticatedApp { user_info: user_info.clone(), on_logout: logout, theme }
+                AuthState::Authenticated(user_info) => {
+                    if let Some(token) = user_info.spacetimedb_token() {
+                        rsx! {
+                            AuthenticatedApp { user_info: user_info.clone(), token, on_logout: logout, theme }
+                        }
+                    } else {
+                        rsx! {
+                            ErrorPage {
+                                error: "Session expired or invalid token. Please log in again.".to_string(),
+                                on_retry: login,
+                            }
+                        }
+                    }
                 },
                 AuthState::Error(error) => rsx! {
                     ErrorPage { error: error.clone(), on_retry: login }
@@ -257,6 +268,7 @@ fn ErrorPage(error: String, on_retry: Callback<()>) -> Element {
 #[component]
 fn AuthenticatedApp(
     user_info: UserInfo,
+    token: String,
     on_logout: EventHandler<()>,
     theme: Signal<Theme>,
 ) -> Element {
@@ -266,7 +278,7 @@ fn AuthenticatedApp(
 
     info!("Authenticated as: {}", user_info.subject_id);
 
-    let _ctx = use_spacetimedb_context_provider(&uri, &module_name, user_info.spacetimedb_token());
+    let _ctx = use_spacetimedb_context_provider(&uri, &module_name, Some(token));
 
     let state = use_connection_state();
     let register_self_async = module_bindings::dioxus::use_reducer_register_self_async();
