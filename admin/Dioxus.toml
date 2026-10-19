@@ -4,3 +4,6 @@
 
 # HTML title tag content
 title = "Kommunikationszentrum Admin"
+
+[bundle]
+identifier = "kommunikationszentrum.teilgedanken.de"
