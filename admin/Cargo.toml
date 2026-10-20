@@ -7,9 +7,9 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dioxus = { version = "0.8.0-alpha.3", features = [] }
+dioxus = { version = "0.7" }
 dioxus-bootstrap-css = "0.7"
-dioxus-i18n = "0.7.0-alpha.1"
+dioxus-i18n = "0.6"
 unic-langid = "0.9"
 futures-util = "0.3"
 spacetimedb-sdk = { version = "2.12" }
