@@ -18,7 +18,7 @@ hex = "0.4"
 blake3 = "1.8"
 gloo-timers = { version = "0.4", features = ["futures"] }
 getrandom = { version = "0.3", features = ["wasm_js"] }
-reqwest = { version = "0.13", default-features = false, features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
@@ -48,7 +48,7 @@ dotenvy = "0.15"
 futures-channel = "0.3.34"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-spacetimedb-sdk = { version = "2.12", features = ["browser"] }
+spacetimedb-sdk = { version = "2.11", features = ["browser"] }
 
 [features]
 default = ["web"]
@@ -58,6 +58,6 @@ mobile = ["dioxus/mobile"]
 
 [build-dependencies]
 serde = { version = "1.0", features = ["derive"] }
-toml = "1.1"
+toml = "0.8"
 fluent-bundle = "0.16"
 unic-langid = { version = "0.9", features = ["macros"] }

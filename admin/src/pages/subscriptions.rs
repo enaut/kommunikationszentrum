@@ -33,6 +33,7 @@ enum CategoryTab {
 pub fn SubscriptionsPage(user_info: UserInfo, active_view: Signal<ActiveView>) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
+        "SELECT * FROM context_accounts",
         "SELECT * FROM visible_account_emails",
         "SELECT * FROM visible_message_topics",
         "SELECT * FROM visible_subscriptions",
@@ -40,6 +41,7 @@ pub fn SubscriptionsPage(user_info: UserInfo, active_view: Signal<ActiveView>) -
         "SELECT * FROM visible_message_topic_categories",
     ]);
     let accounts = crate::module_bindings::dioxus::use_table_visible_accounts();
+    let context_accounts = crate::module_bindings::dioxus::use_table_context_accounts();
     let account_emails = crate::module_bindings::dioxus::use_table_visible_account_emails();
     let topics = use_table_visible_message_topics();
     let subscriptions = use_table_visible_subscriptions();
@@ -48,9 +50,14 @@ pub fn SubscriptionsPage(user_info: UserInfo, active_view: Signal<ActiveView>) -
     let add_subscription = use_reducer_add_subscription();
     let remove_subscription = use_reducer_remove_subscription();
 
-    let my_account = accounts()
+    let my_account = context_accounts()
         .into_iter()
-        .find(|a| a.external_id == user_info.subject_id);
+        .find(|a| a.external_id == user_info.subject_id)
+        .or_else(|| {
+            accounts()
+                .into_iter()
+                .find(|a| a.external_id == user_info.subject_id)
+        });
     let account_id = my_account.as_ref().map(|a| a.id).unwrap_or(0);
     let my_primary_email_id = my_account.map(|a| a.primary_email_id).unwrap_or(0);
     let my_emails: Vec<_> = account_emails()

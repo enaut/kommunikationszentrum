@@ -153,8 +153,8 @@ pub fn visible_account_configs(ctx: &ViewContext) -> Vec<AccountConfig> {
     vec![]
 }
 
-#[spacetimedb::view(accessor = visible_accounts, public)]
-pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
+#[spacetimedb::view(accessor = context_accounts, public)]
+pub fn context_accounts(ctx: &ViewContext) -> Vec<Account> {
     let sender = ctx.sender();
     let is_admin = is_admin_user(ctx);
 
@@ -166,10 +166,6 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
     }
 
     if is_admin {
-        for id in get_paginated_account_ids(ctx) {
-            account_ids.insert(id);
-        }
-
         let config = get_account_config(ctx);
         if let Some(topic_id) = config.viewing_topic_id {
             for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
@@ -186,9 +182,40 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
         .collect()
 }
 
+#[spacetimedb::view(accessor = visible_accounts, public)]
+pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
+    let sender = ctx.sender();
+    let is_admin = is_admin_user(ctx);
+
+    if is_admin {
+        let ids = get_paginated_account_ids(ctx);
+        ids.into_iter()
+            .filter_map(|id| ctx.db.account().id().find(&id))
+            .collect()
+    } else {
+        ctx.db
+            .account()
+            .identity()
+            .find(&sender)
+            .into_iter()
+            .collect()
+    }
+}
+
+fn all_visible_accounts(ctx: &ViewContext) -> Vec<Account> {
+    let mut accounts = visible_accounts(ctx);
+    let mut seen_ids: std::collections::HashSet<u64> = accounts.iter().map(|a| a.id).collect();
+    for acc in context_accounts(ctx) {
+        if seen_ids.insert(acc.id) {
+            accounts.push(acc);
+        }
+    }
+    accounts
+}
+
 #[spacetimedb::view(accessor = visible_account_emails, public)]
 pub fn visible_account_emails(ctx: &ViewContext) -> Vec<AccountEmail> {
-    let accounts = visible_accounts(ctx);
+    let accounts = all_visible_accounts(ctx);
     accounts
         .into_iter()
         .flat_map(|acc| {
@@ -203,7 +230,7 @@ pub fn visible_account_emails(ctx: &ViewContext) -> Vec<AccountEmail> {
 
 #[spacetimedb::view(accessor = visible_subscriptions, public)]
 pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
-    let accounts = visible_accounts(ctx);
+    let accounts = all_visible_accounts(ctx);
     accounts
         .into_iter()
         .flat_map(|acc| {

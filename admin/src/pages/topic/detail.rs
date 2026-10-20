@@ -170,6 +170,7 @@ pub fn TopicDetailsCard(
 pub fn TopicDetailPage(topic_id: u64, on_back: EventHandler<()>) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
+        "SELECT * FROM context_accounts",
         "SELECT * FROM visible_account_emails",
         "SELECT * FROM visible_message_topics",
         "SELECT * FROM visible_subscriptions",

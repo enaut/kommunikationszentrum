@@ -147,6 +147,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     // We subscribe to messages and mail_messages instead of calling reducers
     use_subscription(&[
         "SELECT * FROM visible_accounts",
+        "SELECT * FROM context_accounts",
         "SELECT * FROM visible_messages",
         "SELECT * FROM visible_mail_messages",
         "SELECT * FROM visible_message_topics",
@@ -165,9 +166,15 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
     let update_config = use_reducer_update_account_config();
 
     let accounts = crate::module_bindings::dioxus::use_table_visible_accounts();
-    let account_id = accounts()
+    let context_accounts = crate::module_bindings::dioxus::use_table_context_accounts();
+    let account_id = context_accounts()
         .into_iter()
         .find(|a| a.external_id == user_info.subject_id)
+        .or_else(|| {
+            accounts()
+                .into_iter()
+                .find(|a| a.external_id == user_info.subject_id)
+        })
         .map(|a| a.id)
         .unwrap_or(0);
     let is_admin = use_is_admin();
