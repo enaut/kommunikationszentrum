@@ -99,6 +99,16 @@ impl UserInfo {
                 d.claims.get("email_verified").is_some() || d.claims.get("emailVerified").is_some()
             });
 
+        let id_has_email = id_jwt
+            .as_ref()
+            .and_then(|d| auth_flow::extract_email_from_claims(&d.claims))
+            .is_some();
+
+        let access_has_email = access_jwt
+            .as_ref()
+            .and_then(|d| auth_flow::extract_email_from_claims(&d.claims))
+            .is_some();
+
         let access_preferred = match (access_exp, id_exp) {
             (Some(access_exp), Some(id_exp)) => access_exp > id_exp,
             (None, Some(_)) => true,
@@ -122,8 +132,15 @@ impl UserInfo {
             return Some(self.access_token.clone());
         }
 
-        // Neither has verified email claims; prefer whichever has longer remaining validity.
+        // Neither has verified email claims.
+        // If both are unexpired, preserve email claim if only one token provides it (needed by register_self).
         if id_unexpired && access_unexpired && access_sub_matches {
+            if id_has_email && !access_has_email {
+                return self.id_token.clone();
+            }
+            if access_has_email && !id_has_email {
+                return Some(self.access_token.clone());
+            }
             if access_preferred {
                 return Some(self.access_token.clone());
             } else {
@@ -308,15 +325,19 @@ pub fn use_oauth(config: OAuthConfig) -> (Signal<AuthState>, Callback<()>, Callb
                     let ui = user_info;
                     let now = (Date::new_0().get_time() / 1000.0) as u64;
                     let mut exp_opt: Option<u64> = None;
-                    if let Some(Ok(decoded)) = ui.decode_id_token() {
-                        if let Some(exp) = decoded.claims.get("exp").and_then(|v| v.as_u64()) {
-                            exp_opt = Some(exp);
+                    if let Some(active_token) = ui.spacetimedb_token() {
+                        if let Ok(decoded) = jwt_utils::decode_jwt(&active_token) {
+                            exp_opt = jwt_utils::get_jwt_exp(&decoded.claims);
                         }
+                    } else if let Some(Ok(decoded)) = ui.decode_id_token() {
+                        exp_opt = jwt_utils::get_jwt_exp(&decoded.claims);
+                    } else if let Ok(decoded) = jwt_utils::decode_jwt(&ui.access_token) {
+                        exp_opt = jwt_utils::get_jwt_exp(&decoded.claims);
                     }
 
                     let needs_refresh = match exp_opt {
                         Some(exp) => exp <= now.saturating_add(60),
-                        None => false,
+                        None => ui.refresh_token.is_some() && ui.spacetimedb_token().is_none(),
                     };
 
                     if needs_refresh {
@@ -517,5 +538,31 @@ mod tests {
             name: None,
         };
         assert!(user_5b.spacetimedb_token_at(now, 30).is_some());
+
+        // 6. Neither token is verified, but only id_token has email claim -> id_token chosen to preserve registration email!
+        let id_token_unverified_with_email = make_test_jwt(serde_json::json!({
+            "sub": "user123",
+            "email": "user@example.com",
+            "exp": now + 60
+        }));
+        let access_token_unverified_no_email = make_test_jwt(serde_json::json!({
+            "sub": "user123",
+            "exp": now + 3600
+        }));
+        let user_6 = UserInfo {
+            username: "user".into(),
+            email: None,
+            access_token: access_token_unverified_no_email,
+            id_token: Some(id_token_unverified_with_email.clone()),
+            refresh_token: None,
+            subject_id: "user123".into(),
+            given_name: None,
+            family_name: None,
+            name: None,
+        };
+        assert_eq!(
+            user_6.spacetimedb_token_at(now, 30),
+            Some(id_token_unverified_with_email)
+        );
     }
 }
