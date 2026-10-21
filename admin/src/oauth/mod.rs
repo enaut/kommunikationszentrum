@@ -99,9 +99,15 @@ impl UserInfo {
                 d.claims.get("email_verified").is_some() || d.claims.get("emailVerified").is_some()
             });
 
+        let access_preferred = match (access_exp, id_exp) {
+            (Some(access_exp), Some(id_exp)) => access_exp > id_exp,
+            (None, Some(_)) => true,
+            _ => false,
+        };
+
         // When both tokens have verified email claims, prefer whichever has longer remaining validity.
         if id_has_verified && access_has_verified {
-            if access_exp.unwrap_or(0) > id_exp.unwrap_or(0) {
+            if access_preferred {
                 return Some(self.access_token.clone());
             } else {
                 return self.id_token.clone();
@@ -118,7 +124,7 @@ impl UserInfo {
 
         // Neither has verified email claims; prefer whichever has longer remaining validity.
         if id_unexpired && access_unexpired && access_sub_matches {
-            if access_exp.unwrap_or(0) > id_exp.unwrap_or(0) {
+            if access_preferred {
                 return Some(self.access_token.clone());
             } else {
                 return self.id_token.clone();
@@ -469,5 +475,47 @@ mod tests {
             user_4.spacetimedb_token_at(now, 30),
             Some(access_token_long_lived)
         );
+
+        // 5. Token without exp claim treated as non-expiring (longer validity)
+        let id_token_finite = make_test_jwt(serde_json::json!({
+            "sub": "user123",
+            "email_verified": true,
+            "exp": now + 3600
+        }));
+        let access_token_no_exp = make_test_jwt(serde_json::json!({
+            "sub": "user123",
+            "email_verified": true
+        }));
+        let user_5a = UserInfo {
+            username: "user".into(),
+            email: None,
+            access_token: access_token_no_exp.clone(),
+            id_token: Some(id_token_finite.clone()),
+            refresh_token: None,
+            subject_id: "user123".into(),
+            given_name: None,
+            family_name: None,
+            name: None,
+        };
+        assert_eq!(
+            user_5a.spacetimedb_token_at(now, 30),
+            Some(access_token_no_exp)
+        );
+
+        let user_5b = UserInfo {
+            username: "user".into(),
+            email: None,
+            access_token: id_token_finite,
+            id_token: Some(make_test_jwt(serde_json::json!({
+                "sub": "user123",
+                "email_verified": true
+            }))),
+            refresh_token: None,
+            subject_id: "user123".into(),
+            given_name: None,
+            family_name: None,
+            name: None,
+        };
+        assert!(user_5b.spacetimedb_token_at(now, 30).is_some());
     }
 }
