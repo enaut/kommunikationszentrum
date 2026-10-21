@@ -39,7 +39,7 @@ The `data` handler runs inside `ctx.with_tx(...)` to ensure atomic state updates
    - **Oversize Pre-check**: If `message_size > 2,000,000` bytes (2 MB), the message is assigned disposition `Rejected(TopicRejectionReason::Oversize)`.
    - **Sender Account Resolution**: Sender address is identified by checking the `From` header address, falling back to envelope sender. Accounts in `account_emails` must be active (`is_active == true`) and verified (`is_verified == true`).
    - **Admin Bypass**: If any matching account has an admin identity in `admin_identities`, posting is authorized (`Accepted`).
-   - **Subscriber Permission**: For non-admins, the sender's exact address must hold an active subscription to the topic with `SubscriptionPermission::Write`.
+   - **Subscriber Permission**: For non-admins, the sender's exact address must hold an active subscription to the topic with `SubscriptionPermission::Write` or `SubscriptionPermission::Moderate`.
    - **Rejection Reasons**:
      - `NotRegistered`: Sender address is unknown, unverified, or belongs to an inactive account.
      - `NotSubscribed`: Sender has an active account, but no active subscription to this topic on that address.
