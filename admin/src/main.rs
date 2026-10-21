@@ -190,7 +190,7 @@ fn App() -> Element {
                     } else {
                         rsx! {
                             ErrorPage {
-                                error: "Session expired or invalid token. Please log in again.".to_string(),
+                                error: tid!("app-session-expired"),
                                 on_retry: login,
                             }
                         }
@@ -272,13 +272,45 @@ fn AuthenticatedApp(
     on_logout: EventHandler<()>,
     theme: Signal<Theme>,
 ) -> Element {
+    let mut current_token = use_signal(|| token.clone());
+    if *current_token.peek() != token {
+        current_token.set(token.clone());
+    }
+
+    let user_info_for_token_expiry = user_info.clone();
+    use_effect(move || {
+        let active = current_token.read().clone();
+        if let Ok(jwt) = crate::oauth::jwt_utils::decode_jwt(&active) {
+            if let Some(exp) = crate::oauth::jwt_utils::get_jwt_exp(&jwt.claims) {
+                let now = crate::oauth::jwt_utils::current_unix_timestamp();
+                // Check 30s before expiration (with minimum 1s)
+                let wait_secs = exp.saturating_sub(now).saturating_sub(30).max(1);
+                let u_info = user_info_for_token_expiry.clone();
+                let mut current_token = current_token;
+                spawn(async move {
+                    gloo_timers::future::TimeoutFuture::new(
+                        (wait_secs * 1000).min(u32::MAX as u64) as u32,
+                    )
+                    .await;
+                    if let Some(next_token) = u_info.spacetimedb_token() {
+                        if next_token != active {
+                            info!("Proactively switching to unexpired SpacetimeDB token");
+                            current_token.set(next_token);
+                        }
+                    }
+                });
+            }
+        }
+    });
+
     let config = use_signal(AdminConfig::load);
     let uri = config.read().spacetimedb_uri.clone();
     let module_name = config.read().spacetimedb_module_name.clone();
 
     info!("Authenticated as: {}", user_info.subject_id);
 
-    let _ctx = use_spacetimedb_context_provider(&uri, &module_name, Some(token));
+    let _ctx =
+        use_spacetimedb_context_provider(&uri, &module_name, Some(current_token.read().clone()));
 
     let state = use_connection_state();
     let register_self_async = module_bindings::dioxus::use_reducer_register_self_async();

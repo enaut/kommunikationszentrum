@@ -457,7 +457,13 @@ pub fn attempt_refresh(
                         updated.email = current.email.clone();
                     }
                     if updated.id_token.is_none() {
-                        updated.id_token = current.id_token.clone();
+                        if let Some(ref old_id) = current.id_token {
+                            if let Ok(jwt) = crate::oauth::jwt_utils::decode_jwt(old_id) {
+                                if crate::oauth::jwt_utils::is_jwt_unexpired(&jwt.claims, 60) {
+                                    updated.id_token = Some(old_id.clone());
+                                }
+                            }
+                        }
                     }
                     store_user_info(&updated);
                     auth_state.set(AuthState::Authenticated(updated.clone()));
