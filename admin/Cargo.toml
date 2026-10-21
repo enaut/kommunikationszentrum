@@ -49,6 +49,7 @@ futures-channel = "0.3.34"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 spacetimedb-sdk = { version = "2.12", features = ["browser"] }
+console_error_panic_hook = "0.1"
 
 [features]
 default = ["web"]

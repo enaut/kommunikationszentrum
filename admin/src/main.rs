@@ -18,6 +18,8 @@ use oauth::{AuthState, UserInfo, use_oauth};
 use router::ActiveView;
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    console_error_panic_hook::set_once();
     ::dioxus::launch(App);
 }
 

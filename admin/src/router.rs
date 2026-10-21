@@ -38,15 +38,15 @@ pub fn use_moderated_topic_ids() -> Vec<u64> {
         "SELECT * FROM context_accounts",
         "SELECT * FROM visible_subscriptions",
     ]);
+    let accounts = use_table_context_accounts();
+    let subscriptions = use_table_visible_subscriptions();
     let state = use_connection_state();
     if let ConnectionState::Connected(identity, _) = state() {
-        let accounts = use_table_context_accounts();
         let my_account_id = accounts()
             .iter()
             .find(|a| a.identity == identity)
             .map(|a| a.id);
         if let Some(acc_id) = my_account_id {
-            let subscriptions = use_table_visible_subscriptions();
             return subscriptions()
                 .iter()
                 .filter(|s| {
