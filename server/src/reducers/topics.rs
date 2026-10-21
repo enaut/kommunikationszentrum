@@ -62,6 +62,32 @@ pub fn remove_message_topic(ctx: &ReducerContext, topic_id: u64) -> Result<(), S
 /// Updates the editable fields (name, description, visibility, default_permission, locked_is_provisioning)
 /// of an existing message topic. The `email_address` is immutable via this reducer since it is
 /// used to route incoming mail and to match topics during user sync.
+pub(crate) fn can_update_topic_default_permission(
+    is_admin: bool,
+    current_default: SubscriptionPermission,
+    new_default: Option<SubscriptionPermission>,
+) -> Result<(), &'static str> {
+    if !is_admin {
+        if let Some(new_perm) = new_default {
+            if new_perm == SubscriptionPermission::Moderate
+                && current_default != SubscriptionPermission::Moderate
+            {
+                return Err(
+                    "Unauthorized: Only administrators can set Moderate as a topic default",
+                );
+            }
+            if current_default == SubscriptionPermission::Moderate
+                && new_perm != SubscriptionPermission::Moderate
+            {
+                return Err(
+                    "Unauthorized: Only administrators can remove Moderate default permission",
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 #[spacetimedb::reducer]
 pub fn update_message_topic(
     ctx: &ReducerContext,
@@ -85,6 +111,13 @@ pub fn update_message_topic(
     if name.trim().is_empty() {
         return Err("Name must not be empty".to_string());
     }
+
+    can_update_topic_default_permission(
+        is_admin_user(ctx),
+        existing.default_permission,
+        default_permission,
+    )
+    .map_err(|e| e.to_string())?;
 
     let mut updated = MessageTopic {
         name,
@@ -355,6 +388,41 @@ pub fn add_subscription(
     Ok(())
 }
 
+pub(crate) fn can_moderator_set_subscription_status(
+    is_admin: bool,
+    status: SubscriptionStatus,
+) -> Result<(), &'static str> {
+    if !is_admin
+        && status != SubscriptionStatus::ManuallySubscribed
+        && status != SubscriptionStatus::ManuallyUnsubscribed
+    {
+        return Err(
+            "Unauthorized: Moderators can only set manually subscribed or manually unsubscribed status",
+        );
+    }
+    Ok(())
+}
+
+pub(crate) fn can_moderator_modify_existing_subscription(
+    is_admin: bool,
+    existing_status: SubscriptionStatus,
+    existing_permission: SubscriptionPermission,
+) -> Result<(), &'static str> {
+    if !is_admin {
+        if existing_permission.is_moderator() {
+            return Err(
+                "Unauthorized: Only global administrators can modify moderator subscriptions",
+            );
+        }
+        if existing_status == SubscriptionStatus::RequiredSubscribed {
+            return Err(
+                "Unauthorized: Required subscriptions can only be modified by an administrator or sync",
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Admin or topic moderator reducer that adds or updates a subscription with an explicitly chosen status.
 #[spacetimedb::reducer]
 pub fn admin_add_subscription(
@@ -364,9 +432,25 @@ pub fn admin_add_subscription(
     topic_id: u64,
     status: SubscriptionStatus,
 ) -> Result<(), String> {
+    let is_admin = is_admin_user(ctx);
     if !is_admin_or_topic_moderator(ctx, topic_id) {
         return Err("Unauthorized: Admin or topic moderator access required".to_string());
     }
+
+    can_moderator_set_subscription_status(is_admin, status).map_err(|e| e.to_string())?;
+
+    let existing = ctx
+        .db
+        .subscriptions()
+        .subscriber_account_id()
+        .filter(&subscriber_account_id)
+        .find(|s| s.topic_id == topic_id && s.account_email_id == account_email_id);
+
+    if let Some(existing) = existing {
+        can_moderator_modify_existing_subscription(is_admin, existing.status, existing.permission)
+            .map_err(|e| e.to_string())?;
+    }
+
     do_add_subscription(
         ctx,
         subscriber_account_id,
@@ -622,6 +706,32 @@ pub(crate) fn do_remove_subscription_for_topic_email(
     Ok(())
 }
 
+pub(crate) fn can_remove_subscription(
+    is_admin: bool,
+    is_self: bool,
+    is_moderator: bool,
+    target_permission: SubscriptionPermission,
+    target_status: SubscriptionStatus,
+) -> Result<(), &'static str> {
+    if !is_admin && !is_self && !is_moderator {
+        return Err(
+            "Unauthorized: can only remove your own subscriptions or requires admin or topic moderator",
+        );
+    }
+
+    if !is_admin && !is_self && target_permission.is_moderator() {
+        return Err("Unauthorized: Only global administrators can remove moderator subscriptions");
+    }
+
+    if !is_admin && target_status == SubscriptionStatus::RequiredSubscribed {
+        return Err(
+            "Required subscriptions can only be removed by an administrator or Django sync",
+        );
+    }
+
+    Ok(())
+}
+
 #[spacetimedb::reducer]
 pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result<(), String> {
     let is_admin = is_admin_user(ctx);
@@ -640,18 +750,8 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
         .unwrap_or(false);
     let is_moderator = is_topic_moderator(ctx, sub.topic_id);
 
-    if !is_admin && !is_self && !is_moderator {
-        return Err(
-            "Unauthorized: can only remove your own subscriptions or requires admin or topic moderator".to_string(),
-        );
-    }
-
-    if !is_admin && sub.status == SubscriptionStatus::RequiredSubscribed {
-        return Err(
-            "Required subscriptions can only be removed by an administrator or Django sync"
-                .to_string(),
-        );
-    }
+    can_remove_subscription(is_admin, is_self, is_moderator, sub.permission, sub.status)
+        .map_err(|e| e.to_string())?;
 
     let sub = ctx
         .db
@@ -677,6 +777,10 @@ pub(crate) fn can_update_permission(
 ) -> Result<(), &'static str> {
     if !is_admin && !is_moderator {
         return Err("Unauthorized: Admin or topic moderator access required");
+    }
+
+    if current_permission == new_permission {
+        return Ok(());
     }
 
     // Only global admins can grant or revoke Moderate permission
@@ -1028,6 +1132,17 @@ mod tests {
             .is_ok()
         );
 
+        // Moderator preserving Moderate (unchanged) is allowed
+        assert!(
+            can_update_permission(
+                false,
+                true,
+                SubscriptionPermission::Moderate,
+                SubscriptionPermission::Moderate
+            )
+            .is_ok()
+        );
+
         // Moderator cannot grant Moderate
         assert!(
             can_update_permission(
@@ -1095,6 +1210,290 @@ mod tests {
                 false,
                 SubscriptionPermission::Read,
                 SubscriptionPermission::Moderate
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test_default_permission_restrictions() {
+        // Admin can set or remove Moderate default permission
+        assert!(
+            can_update_topic_default_permission(
+                true,
+                SubscriptionPermission::Read,
+                Some(SubscriptionPermission::Moderate)
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_topic_default_permission(
+                true,
+                SubscriptionPermission::Moderate,
+                Some(SubscriptionPermission::Read)
+            )
+            .is_ok()
+        );
+
+        // Moderator cannot set Moderate default permission
+        assert!(
+            can_update_topic_default_permission(
+                false,
+                SubscriptionPermission::Read,
+                Some(SubscriptionPermission::Moderate)
+            )
+            .is_err()
+        );
+        assert!(
+            can_update_topic_default_permission(
+                false,
+                SubscriptionPermission::Write,
+                Some(SubscriptionPermission::Moderate)
+            )
+            .is_err()
+        );
+
+        // Moderator cannot remove Moderate default permission
+        assert!(
+            can_update_topic_default_permission(
+                false,
+                SubscriptionPermission::Moderate,
+                Some(SubscriptionPermission::Read)
+            )
+            .is_err()
+        );
+        assert!(
+            can_update_topic_default_permission(
+                false,
+                SubscriptionPermission::Moderate,
+                Some(SubscriptionPermission::Write)
+            )
+            .is_err()
+        );
+
+        // Moderator can keep Moderate default permission unchanged
+        assert!(
+            can_update_topic_default_permission(
+                false,
+                SubscriptionPermission::Moderate,
+                Some(SubscriptionPermission::Moderate)
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_topic_default_permission(false, SubscriptionPermission::Moderate, None)
+                .is_ok()
+        );
+
+        // Moderator can change between Read and Write
+        assert!(
+            can_update_topic_default_permission(
+                false,
+                SubscriptionPermission::Read,
+                Some(SubscriptionPermission::Write)
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_topic_default_permission(
+                false,
+                SubscriptionPermission::Write,
+                Some(SubscriptionPermission::Read)
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_moderator_add_subscription_status() {
+        // Admin can set any status
+        assert!(
+            can_moderator_set_subscription_status(true, SubscriptionStatus::ManuallySubscribed)
+                .is_ok()
+        );
+        assert!(
+            can_moderator_set_subscription_status(true, SubscriptionStatus::ManuallyUnsubscribed)
+                .is_ok()
+        );
+        assert!(
+            can_moderator_set_subscription_status(true, SubscriptionStatus::RequiredSubscribed)
+                .is_ok()
+        );
+        assert!(
+            can_moderator_set_subscription_status(
+                true,
+                SubscriptionStatus::AutomaticallySubscribed
+            )
+            .is_ok()
+        );
+
+        // Moderator can only set ManuallySubscribed or ManuallyUnsubscribed
+        assert!(
+            can_moderator_set_subscription_status(false, SubscriptionStatus::ManuallySubscribed)
+                .is_ok()
+        );
+        assert!(
+            can_moderator_set_subscription_status(false, SubscriptionStatus::ManuallyUnsubscribed)
+                .is_ok()
+        );
+        assert!(
+            can_moderator_set_subscription_status(false, SubscriptionStatus::RequiredSubscribed)
+                .is_err()
+        );
+        assert!(
+            can_moderator_set_subscription_status(
+                false,
+                SubscriptionStatus::AutomaticallySubscribed
+            )
+            .is_err()
+        );
+        assert!(
+            can_moderator_set_subscription_status(false, SubscriptionStatus::LinkUnsubscribed)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_moderator_modify_existing_subscription() {
+        // Admin can modify any subscription
+        assert!(
+            can_moderator_modify_existing_subscription(
+                true,
+                SubscriptionStatus::RequiredSubscribed,
+                SubscriptionPermission::Moderate
+            )
+            .is_ok()
+        );
+
+        // Moderator cannot modify moderator subscription
+        assert!(
+            can_moderator_modify_existing_subscription(
+                false,
+                SubscriptionStatus::ManuallySubscribed,
+                SubscriptionPermission::Moderate
+            )
+            .is_err()
+        );
+
+        // Moderator cannot modify RequiredSubscribed subscription
+        assert!(
+            can_moderator_modify_existing_subscription(
+                false,
+                SubscriptionStatus::RequiredSubscribed,
+                SubscriptionPermission::Read
+            )
+            .is_err()
+        );
+
+        // Moderator can modify standard subscription
+        assert!(
+            can_moderator_modify_existing_subscription(
+                false,
+                SubscriptionStatus::ManuallySubscribed,
+                SubscriptionPermission::Read
+            )
+            .is_ok()
+        );
+        assert!(
+            can_moderator_modify_existing_subscription(
+                false,
+                SubscriptionStatus::ManuallyUnsubscribed,
+                SubscriptionPermission::Write
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_can_remove_subscription() {
+        // Admin can remove any subscription
+        assert!(
+            can_remove_subscription(
+                true,
+                false,
+                false,
+                SubscriptionPermission::Moderate,
+                SubscriptionStatus::RequiredSubscribed
+            )
+            .is_ok()
+        );
+
+        // Self can remove own subscription, unless it is RequiredSubscribed
+        assert!(
+            can_remove_subscription(
+                false,
+                true,
+                false,
+                SubscriptionPermission::Read,
+                SubscriptionStatus::ManuallySubscribed
+            )
+            .is_ok()
+        );
+        assert!(
+            can_remove_subscription(
+                false,
+                true,
+                false,
+                SubscriptionPermission::Read,
+                SubscriptionStatus::RequiredSubscribed
+            )
+            .is_err()
+        );
+
+        // Moderator can remove ordinary subscriber
+        assert!(
+            can_remove_subscription(
+                false,
+                false,
+                true,
+                SubscriptionPermission::Read,
+                SubscriptionStatus::ManuallySubscribed
+            )
+            .is_ok()
+        );
+        assert!(
+            can_remove_subscription(
+                false,
+                false,
+                true,
+                SubscriptionPermission::Write,
+                SubscriptionStatus::AutomaticallySubscribed
+            )
+            .is_ok()
+        );
+
+        // Moderator cannot remove peer moderator
+        assert!(
+            can_remove_subscription(
+                false,
+                false,
+                true,
+                SubscriptionPermission::Moderate,
+                SubscriptionStatus::ManuallySubscribed
+            )
+            .is_err()
+        );
+
+        // Moderator cannot remove RequiredSubscribed
+        assert!(
+            can_remove_subscription(
+                false,
+                false,
+                true,
+                SubscriptionPermission::Read,
+                SubscriptionStatus::RequiredSubscribed
+            )
+            .is_err()
+        );
+
+        // Unrelated user cannot remove someone else's subscription
+        assert!(
+            can_remove_subscription(
+                false,
+                false,
+                false,
+                SubscriptionPermission::Read,
+                SubscriptionStatus::ManuallySubscribed
             )
             .is_err()
         );

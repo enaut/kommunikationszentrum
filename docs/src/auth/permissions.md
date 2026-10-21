@@ -22,20 +22,23 @@ Subscribed users granted `SubscriptionPermission::Moderate` on specific topics:
 
 **Topic Management**: Access to the "Themen" (Topics) view in the admin interface, scoped exclusively to their moderated topics.
 
-**Topic Metadata**: Capability to update the title, description, visibility, and default permission of their assigned topics via `update_message_topic`.
+**Topic Metadata**: Capability to update the title, description, and visibility of their assigned topics via `update_message_topic`. They may adjust default permission between `Read` and `Write`, but setting or removing `Moderate` default permissions is Admin-only.
 
 **Category Assignments**: Capability to assign or remove category tags on their assigned topics via `set_topic_categories`.
 
-**Subscriber Roster**: Full visibility into subscribers for their assigned topics (`context_accounts`, `visible_account_emails`, and `visible_subscriptions`).
+**Subscriber Roster & Privacy-Preserving Search**: Visibility into active subscribers for their assigned topics (`context_accounts`, `visible_account_emails`, and `visible_subscriptions`). For adding new subscribers, topic moderators query `subscriber_search_candidates` with a search term of at least 5 characters; this returns only minimal candidate details (`account_id`, `name`, `account_email_id`, `email`) and excludes unverified or already-subscribed accounts, preserving member privacy.
 
-**Subscriber Management**: Capability to add new subscribers (`add_subscription` / `admin_add_subscription`), remove subscribers (`remove_subscription`), and toggle subscriber permissions between `Read` and `Write` (`update_subscription_permission`).
+**Subscriber Management**: Capability to add new subscribers (`add_subscription` / `admin_add_subscription`), remove subscribers (`remove_subscription`), and toggle subscriber permissions between `Read` and `Write` (`update_subscription_permission`). Non-admin moderators can only assign or remove `ManuallySubscribed` or `ManuallyUnsubscribed` statuses.
 
 **Mailing List Ingress**: Authorized to send emails to the topic address via SMTP through the MTA hook (`Moderate` implies `Write`).
 
 **Strict Boundaries**:
 - Cannot create new topics (`add_message_topic` / `provision_message_topic` is Admin-only).
 - Cannot delete topics (`remove_message_topic` is Admin-only).
+- Cannot set or remove `Moderate` default permission on topics (`update_message_topic` default permission to/from `Moderate` is Admin-only).
 - Cannot grant or revoke `Moderate` rights (`update_subscription_permission` to/from `Moderate` is Admin-only).
+- Cannot unsubscribe or modify other moderators on the topic.
+- Cannot set, modify, or remove `RequiredSubscribed` subscriptions.
 
 ### Staff Users
 

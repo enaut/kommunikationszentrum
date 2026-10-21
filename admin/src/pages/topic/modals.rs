@@ -1,5 +1,4 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashSet;
 use std::rc::Rc;
 
 use ::dioxus::{
@@ -11,11 +10,13 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_admin_add_subscription, use_reducer_update_account_config,
-    use_reducer_update_subscription_permission, use_table_total_accounts,
+    use_reducer_update_subscription_permission, use_table_subscriber_search_candidates,
     use_table_visible_account_configs,
 };
-use crate::module_bindings::{Account, AccountEmail, SubscriptionPermission, SubscriptionStatus};
-use crate::pages::topic::subscribers::{ALL_STATUSES, parse_status, status_key, status_label};
+use crate::module_bindings::{SubscriptionPermission, SubscriptionStatus};
+use crate::pages::topic::subscribers::{
+    ALL_STATUSES, MODERATOR_STATUSES, parse_status, status_key, status_label,
+};
 use crate::router::use_is_admin;
 
 /// Auto-select threshold: if the filtered list has fewer than this many entries,
@@ -36,17 +37,12 @@ pub struct EditSubscriptionTarget {
 
 /// Modal for adding a new subscriber to the topic.
 #[component]
-pub fn AddSubscriberModal(
-    mut show: Signal<bool>,
-    topic_id: u64,
-    available_accounts: Vec<Account>,
-    available_emails: Vec<AccountEmail>,
-    #[props(default)] subscribed_email_ids: HashSet<u64>,
-) -> Element {
+pub fn AddSubscriberModal(mut show: Signal<bool>, topic_id: u64) -> Element {
     let admin_add_subscription = use_reducer_admin_add_subscription();
     let update_config = use_reducer_update_account_config();
-    let total_accounts_table = use_table_total_accounts();
+    let candidates_table = use_table_subscriber_search_candidates();
     let account_configs_table = use_table_visible_account_configs();
+    let is_admin = use_is_admin();
 
     let mut selected_account_id = use_signal(|| 0u64);
     let mut selected_email_id = use_signal(|| 0u64);
@@ -164,68 +160,62 @@ pub fn AddSubscriberModal(
         }
     });
 
+    let candidates = candidates_table();
     let filter_lower = account_filter().to_lowercase();
     let trimmed_filter = filter_lower.trim();
 
-    let filtered_accounts: Vec<_> = available_accounts
-        .iter()
-        .filter(|a| {
-            trimmed_filter.is_empty()
-                || a.name.to_lowercase().contains(trimmed_filter)
-                || a.id.to_string().contains(trimmed_filter)
-                || available_emails.iter().any(|e| {
-                    e.account_id == a.id
-                        && e.is_verified
-                        && e.email.to_lowercase().contains(trimmed_filter)
-                })
-        })
-        .cloned()
-        .collect();
-
-    let total_accounts = total_accounts_table()
-        .into_iter()
-        .next()
-        .map(|r| r.count as usize)
-        .unwrap_or(available_accounts.len());
+    let mut unique_accounts: Vec<(u64, String)> = Vec::new();
+    for c in &candidates {
+        if !unique_accounts.iter().any(|(id, _)| *id == c.account_id) {
+            unique_accounts.push((c.account_id, c.name.clone()));
+        }
+    }
 
     let filter_count_text = tid!(
         "members-filter-count",
-        filtered: filtered_accounts.len(),
-        total: total_accounts
+        filtered: unique_accounts.len(),
+        total: unique_accounts.len()
     );
 
     // Determine effective account id purely from state (no side-effect loops)
     let current_acc_id = selected_account_id();
     let effective_account_id =
-        if current_acc_id != 0 && filtered_accounts.iter().any(|a| a.id == current_acc_id) {
+        if current_acc_id != 0 && unique_accounts.iter().any(|(id, _)| *id == current_acc_id) {
             current_acc_id
         } else if !trimmed_filter.is_empty()
-            && filtered_accounts.len() < AUTO_SELECT_THRESHOLD
-            && !filtered_accounts.is_empty()
+            && unique_accounts.len() < AUTO_SELECT_THRESHOLD
+            && !unique_accounts.is_empty()
         {
-            filtered_accounts[0].id
+            unique_accounts[0].0
         } else {
             0
         };
 
-    let selectable_emails: Vec<_> = available_emails
+    let selectable_emails: Vec<_> = candidates
         .iter()
-        .filter(|e| {
-            e.account_id == effective_account_id
-                && e.is_verified
-                && !subscribed_email_ids.contains(&e.id)
-        })
-        .cloned()
+        .filter(|c| c.account_id == effective_account_id)
         .collect();
 
     // Determine effective email id purely from state
     let current_email_id = selected_email_id();
-    let effective_email_id =
-        if current_email_id != 0 && selectable_emails.iter().any(|e| e.id == current_email_id) {
-            current_email_id
-        } else {
-            selectable_emails.first().map(|e| e.id).unwrap_or(0)
-        };
+    let effective_email_id = if current_email_id != 0
+        && selectable_emails
+            .iter()
+            .any(|c| c.account_email_id == current_email_id)
+    {
+        current_email_id
+    } else {
+        selectable_emails
+            .first()
+            .map(|c| c.account_email_id)
+            .unwrap_or(0)
+    };
+
+    let status_options = if is_admin {
+        ALL_STATUSES
+    } else {
+        MODERATOR_STATUSES
+    };
 
     rsx! {
         Modal {
@@ -257,6 +247,9 @@ pub fn AddSubscriberModal(
                             },
                         }
                     }
+                    if !is_admin && !trimmed_filter.is_empty() && trimmed_filter.chars().count() < 5 {
+                        FormText { class: "text-muted mb-2", {tid!("subscriber-search-min-chars")} }
+                    }
                     Select {
                         value: effective_account_id.to_string(),
                         onchange: move |e: FormEvent| {
@@ -266,27 +259,23 @@ pub fn AddSubscriberModal(
                             }
                         },
                         option { value: "0",
-                            if filtered_accounts.is_empty() {
+                            if unique_accounts.is_empty() {
                                 {tid!("general-no-results")}
                             } else {
                                 {tid!("subscriber-select-member")}
                             }
                         }
-                        for acc in filtered_accounts.clone() {
+                        for (acc_id, acc_name) in unique_accounts.clone() {
                             option {
-                                key: "{acc.id}",
-                                value: "{acc.id}",
-                                "{acc.name}"
+                                key: "{acc_id}",
+                                value: "{acc_id}",
+                                "{acc_name}"
                             }
                         }
                     }
-                    if !trimmed_filter.is_empty() {
+                    if !trimmed_filter.is_empty() && (is_admin || trimmed_filter.chars().count() >= 5) {
                         FormText {
                             "{filter_count_text}"
-                        }
-                    } else if available_accounts.is_empty() {
-                        FormText {
-                            {tid!("subscriber-add-all-claimed")}
                         }
                     }
                 }
@@ -303,8 +292,8 @@ pub fn AddSubscriberModal(
                             option { value: "0", {tid!("subscriber-select-email")} }
                             for email in selectable_emails {
                                 option {
-                                    key: "{email.id}",
-                                    value: "{email.id}",
+                                    key: "{email.account_email_id}",
+                                    value: "{email.account_email_id}",
                                     "{email.email}"
                                 }
                             }
@@ -320,7 +309,7 @@ pub fn AddSubscriberModal(
                                 selected_status.set(s);
                             }
                         },
-                        for s in ALL_STATUSES {
+                        for s in status_options {
                             option {
                                 key: "{status_key(s)}",
                                 value: "{status_key(s)}",
@@ -410,6 +399,20 @@ pub fn EditSubscriptionModal(
         .as_ref()
         .map(|t| t.email.clone())
         .unwrap_or_default();
+    let is_target_moderator = target_val
+        .as_ref()
+        .map(|t| t.permission == SubscriptionPermission::Moderate)
+        .unwrap_or(false);
+    let is_target_required = target_val
+        .as_ref()
+        .map(|t| t.status == SubscriptionStatus::RequiredSubscribed)
+        .unwrap_or(false);
+
+    let edit_status_options = if is_admin {
+        ALL_STATUSES
+    } else {
+        MODERATOR_STATUSES
+    };
 
     rsx! {
         Modal {
@@ -438,12 +441,13 @@ pub fn EditSubscriptionModal(
                 FormGroup { label: tid!("subscriber-status-label"),
                     Select {
                         value: status_key(&edit_status()).to_string(),
+                        disabled: !is_admin && (is_target_required || is_target_moderator),
                         onchange: move |e: FormEvent| {
                             if let Some(s) = parse_status(&e.value()) {
                                 edit_status.set(s);
                             }
                         },
-                        for s in ALL_STATUSES {
+                        for s in edit_status_options {
                             option {
                                 key: "{status_key(s)}",
                                 value: "{status_key(s)}",
@@ -459,12 +463,12 @@ pub fn EditSubscriptionModal(
                             SubscriptionPermission::Write => "write",
                             SubscriptionPermission::Moderate => "moderate",
                         },
-                        disabled: !is_admin && edit_permission() == SubscriptionPermission::Moderate,
+                        disabled: !is_admin,
                         onchange: move |e: FormEvent| {
                             match e.value().as_str() {
                                 "read" => edit_permission.set(SubscriptionPermission::Read),
                                 "write" => edit_permission.set(SubscriptionPermission::Write),
-                                "moderate" => edit_permission.set(SubscriptionPermission::Moderate),
+                                "moderate" if is_admin => edit_permission.set(SubscriptionPermission::Moderate),
                                 _ => {}
                             }
                         },
@@ -484,6 +488,7 @@ pub fn EditSubscriptionModal(
                 }
                 Button {
                     color: Color::Primary,
+                    disabled: !is_admin && (is_target_moderator || is_target_required),
                     onclick: move |_| {
                         let Some(t) = target() else { return };
                         let status = edit_status();
@@ -493,8 +498,16 @@ pub fn EditSubscriptionModal(
                             t.account_id
                         );
 
-                        let res1 = admin_add_subscription(t.account_id, t.account_email_id, topic_id, status);
-                        let res2 = update_permission(t.subscription_id, permission);
+                        let res1 = if status != t.status {
+                            admin_add_subscription(t.account_id, t.account_email_id, topic_id, status)
+                        } else {
+                            Ok(())
+                        };
+                        let res2 = if permission != t.permission {
+                            update_permission(t.subscription_id, permission)
+                        } else {
+                            Ok(())
+                        };
 
                         if res1.is_err() || res2.is_err() {
                             error!("admin_add_subscription or update_permission failed");

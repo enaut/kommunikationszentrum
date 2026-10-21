@@ -31,32 +31,36 @@ pub fn use_is_admin() -> bool {
     }
 }
 
+/// Returns the account ID for the currently connected identity, if available.
+pub fn use_current_account_id() -> Option<u64> {
+    use_subscription(&["SELECT * FROM context_accounts"]);
+    let accounts = use_table_context_accounts();
+    let state = use_connection_state();
+    if let ConnectionState::Connected(identity, _) = state() {
+        accounts()
+            .iter()
+            .find(|a| a.identity == identity)
+            .map(|a| a.id)
+    } else {
+        None
+    }
+}
+
 /// Returns the topic IDs for which the currently connected user has an active
 /// subscription with `Moderate` permissions.
 pub fn use_moderated_topic_ids() -> Vec<u64> {
-    use_subscription(&[
-        "SELECT * FROM context_accounts",
-        "SELECT * FROM visible_subscriptions",
-    ]);
-    let accounts = use_table_context_accounts();
     let subscriptions = use_table_visible_subscriptions();
-    let state = use_connection_state();
-    if let ConnectionState::Connected(identity, _) = state() {
-        let my_account_id = accounts()
+    let my_account_id = use_current_account_id();
+    if let Some(acc_id) = my_account_id {
+        return subscriptions()
             .iter()
-            .find(|a| a.identity == identity)
-            .map(|a| a.id);
-        if let Some(acc_id) = my_account_id {
-            return subscriptions()
-                .iter()
-                .filter(|s| {
-                    s.subscriber_account_id == acc_id
-                        && is_active_subscription(&s.status)
-                        && s.permission == SubscriptionPermission::Moderate
-                })
-                .map(|s| s.topic_id)
-                .collect();
-        }
+            .filter(|s| {
+                s.subscriber_account_id == acc_id
+                    && is_active_subscription(&s.status)
+                    && s.permission == SubscriptionPermission::Moderate
+            })
+            .map(|s| s.topic_id)
+            .collect();
     }
     vec![]
 }

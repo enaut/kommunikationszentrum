@@ -4,7 +4,7 @@ use crate::models::domain::*;
 use crate::models::mail_message::*;
 use crate::models::mta::*;
 use crate::models::topic::*;
-use spacetimedb::{Query, Timestamp, ViewContext};
+use spacetimedb::{Query, SpacetimeType, Timestamp, ViewContext};
 
 #[spacetimedb::view(accessor = visible_domains, public)]
 pub fn visible_domains(ctx: &ViewContext) -> impl Query<Domain> {
@@ -36,7 +36,7 @@ pub fn get_account_config(ctx: &ViewContext) -> AccountConfig {
 }
 
 pub fn get_paginated_account_ids(ctx: &ViewContext) -> Vec<u64> {
-    if !is_admin_user(ctx) && !is_any_topic_moderator(ctx) {
+    if !is_admin_user(ctx) {
         return vec![];
     }
     let config = get_account_config(ctx);
@@ -185,9 +185,9 @@ pub fn context_accounts(ctx: &ViewContext) -> Vec<Account> {
 #[spacetimedb::view(accessor = visible_accounts, public)]
 pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
     let sender = ctx.sender();
-    let is_admin_or_mod = is_admin_user(ctx) || is_any_topic_moderator(ctx);
+    let is_admin = is_admin_user(ctx);
 
-    if is_admin_or_mod {
+    if is_admin {
         let ids = get_paginated_account_ids(ctx);
         ids.into_iter()
             .filter_map(|id| ctx.db.account().id().find(&id))
@@ -200,6 +200,94 @@ pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
             .into_iter()
             .collect()
     }
+}
+
+#[derive(SpacetimeType, Clone, Debug, PartialEq, Eq)]
+pub struct SubscriberCandidate {
+    pub account_id: u64,
+    pub name: String,
+    pub account_email_id: u64,
+    pub email: String,
+}
+
+#[spacetimedb::view(accessor = subscriber_search_candidates, public)]
+pub fn subscriber_search_candidates(ctx: &ViewContext) -> Vec<SubscriberCandidate> {
+    let is_admin = is_admin_user(ctx);
+    let is_mod = is_any_topic_moderator(ctx);
+
+    if !is_admin && !is_mod {
+        return vec![];
+    }
+
+    let config = get_account_config(ctx);
+    let query = match config.member_search_query {
+        Some(ref q) => q.trim(),
+        None => return vec![],
+    };
+
+    // Non-admin moderators require >= 5 characters. Admins require >= 1 character.
+    if is_admin {
+        if query.is_empty() {
+            return vec![];
+        }
+    } else if query.chars().count() < 5 {
+        return vec![];
+    }
+
+    let q = query.to_lowercase();
+
+    // If viewing a specific topic, find emails with active subscriptions so we can exclude them
+    let mut active_subscribed_email_ids = std::collections::HashSet::new();
+    if let Some(topic_id) = config.viewing_topic_id {
+        for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
+            if sub.status.is_active() {
+                active_subscribed_email_ids.insert(sub.account_email_id);
+            }
+        }
+    }
+
+    let mut candidates = Vec::new();
+
+    for acc in ctx
+        .db
+        .account()
+        .last_synced()
+        .filter(Timestamp::UNIX_EPOCH..)
+    {
+        if !acc.is_active || acc.is_deleted_from_idp {
+            continue;
+        }
+
+        let name_matches = acc.name.to_lowercase().contains(&q);
+
+        let emails: Vec<AccountEmail> = ctx
+            .db
+            .account_emails()
+            .account_id()
+            .filter(&acc.id)
+            .filter(|e| e.is_verified && !active_subscribed_email_ids.contains(&e.id))
+            .collect();
+
+        for email in emails {
+            if name_matches || email.email.to_lowercase().contains(&q) {
+                candidates.push(SubscriberCandidate {
+                    account_id: acc.id,
+                    name: acc.name.clone(),
+                    account_email_id: email.id,
+                    email: email.email,
+                });
+            }
+        }
+    }
+
+    candidates.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then_with(|| a.email.to_lowercase().cmp(&b.email.to_lowercase()))
+    });
+
+    candidates
 }
 
 fn all_visible_accounts(ctx: &ViewContext) -> Vec<Account> {

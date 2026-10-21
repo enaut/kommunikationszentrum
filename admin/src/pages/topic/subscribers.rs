@@ -12,6 +12,7 @@ use crate::module_bindings::dioxus::{
     use_table_visible_accounts, use_table_visible_subscriptions,
 };
 use crate::pages::topic::modals::EditSubscriptionTarget;
+use crate::router::{use_current_account_id, use_is_admin};
 
 /// Localized display label for each subscription status.
 pub fn status_label(status: &SubscriptionStatus) -> String {
@@ -78,6 +79,12 @@ pub const ALL_STATUSES: &[SubscriptionStatus] = &[
     SubscriptionStatus::RequiredSubscribed,
 ];
 
+/// Status variants permitted for non-admin topic moderators.
+pub const MODERATOR_STATUSES: &[SubscriptionStatus] = &[
+    SubscriptionStatus::ManuallySubscribed,
+    SubscriptionStatus::ManuallyUnsubscribed,
+];
+
 /// Card displaying the list of subscribers for a topic with removal and edit actions.
 #[component]
 pub fn TopicSubscribersCard(
@@ -123,6 +130,8 @@ pub fn TopicSubscribersCard(
     let context_accounts = use_table_context_accounts();
     let account_emails = use_table_visible_account_emails();
     let remove_subscription = use_reducer_remove_subscription();
+    let is_admin = use_is_admin();
+    let my_account_id = use_current_account_id();
 
     let topic_subscriptions: Vec<_> = subscriptions()
         .into_iter()
@@ -220,6 +229,11 @@ pub fn TopicSubscribersCard(
                                     };
                                     let badge_color = status_color(&sub.status);
                                     let badge_label = status_label(&sub.status);
+                                    let is_self = my_account_id.map_or(false, |id| id == sub_account_id);
+                                    let is_peer_moderator = !is_admin && permission == crate::module_bindings::SubscriptionPermission::Moderate && !is_self;
+                                    let is_protected_required = !is_admin && sub_status == SubscriptionStatus::RequiredSubscribed;
+                                    let can_manage_row = !is_peer_moderator;
+                                    let can_remove = !is_peer_moderator && !is_protected_required;
                                     let row_target = EditSubscriptionTarget {
                                         subscription_id: sub_id,
                                         account_id: sub_account_id,
@@ -232,10 +246,12 @@ pub fn TopicSubscribersCard(
                                     rsx! {
                                         tr {
                                             key: "{sub_id}",
-                                            style: "cursor: pointer;",
+                                            style: if can_manage_row { "cursor: pointer;" } else { "" },
                                             onclick: move |_| {
-                                                edit_target.set(Some(row_target.clone()));
-                                                show_edit_modal.set(true);
+                                                if can_manage_row {
+                                                    edit_target.set(Some(row_target.clone()));
+                                                    show_edit_modal.set(true);
+                                                }
                                             },
                                             td { "{name_disp}" }
                                             td {
@@ -255,8 +271,12 @@ pub fn TopicSubscribersCard(
                                                 Button {
                                                     color: Color::Danger,
                                                     size: Size::Sm,
+                                                    disabled: !can_remove,
                                                     onclick: move |evt: MouseEvent| {
                                                         evt.stop_propagation();
+                                                        if !can_remove {
+                                                            return;
+                                                        }
                                                         info!("Removing subscription {sub_id}");
                                                         if let Err(e) = remove(sub_id) {
                                                              error!("remove_subscription failed: {e:?}");

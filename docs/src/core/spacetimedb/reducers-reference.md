@@ -50,7 +50,7 @@ The async delivery pipeline transitions ingress records and individual recipient
 | Function | Visibility | Parameters | Description |
 |---|---|---|---|
 | `add_message_topic` | Admin | `name: String, email_address: String, description: String, visibility: TopicVisibility` | Creates new message topic (mailing list). |
-| `update_message_topic` | Admin / Topic Moderator | `topic_id: u64, name: String, description: String, visibility: Option<TopicVisibility>, default_permission: Option<SubscriptionPermission>, clear_provisioning_lock: Option<bool>` | Updates display metadata, permission, and visibility of an existing topic. |
+| `update_message_topic` | Admin / Topic Moderator | `topic_id: u64, name: String, description: String, visibility: Option<TopicVisibility>, default_permission: Option<SubscriptionPermission>, clear_provisioning_lock: Option<bool>` | Updates display metadata, permission, and visibility of an existing topic. Only admins can set or remove `Moderate` default permission. |
 | `remove_message_topic` | Admin | `topic_id: u64` | Removes message topic and deletes any linked app password. |
 | `clear_topic_provisioning_lock` | Admin / Topic Moderator | `topic_id: u64` | Clears provisioning lock on topic. |
 | `set_topic_categories` | Admin / Topic Moderator | `topic_id: u64, category_names: Vec<String>` | Replaces a topic's category assignments, creating missing `categories` rows as needed. |
@@ -59,10 +59,10 @@ The async delivery pipeline transitions ingress records and individual recipient
 | `provision_all_unprovisioned_topics` **`[Procedure]`** | Admin | _(none)_ | Provisions Stalwart mailboxes and app passwords for all existing topics lacking credentials. |
 | `sync_stalwart_domains` **`[Procedure]`** | Admin/Owner | _(none)_ | Queries Stalwart JMAP REST API (`x:Domain/query`, `x:Domain/get`) and synchronizes domains into the `domains` table. |
 | `add_subscription` | User / Moderator / Admin | `subscriber_account_id: u64, account_email_id: u64, topic_id: u64` | Subscribes account's verified email to a topic (`ManuallySubscribed`). Enforces email verification and private topic access rules. |
-| `admin_add_subscription` | Admin / Topic Moderator | `subscriber_account_id: u64, account_email_id: u64, topic_id: u64, status: SubscriptionStatus` | Adds or updates a subscription with an explicitly chosen status. |
+| `admin_add_subscription` | Admin / Topic Moderator | `subscriber_account_id: u64, account_email_id: u64, topic_id: u64, status: SubscriptionStatus` | Adds or updates a subscription with an explicitly chosen status. Non-admins can only set `ManuallySubscribed` or `ManuallyUnsubscribed`, and cannot modify `RequiredSubscribed` or moderator subscriptions. |
 | `add_and_subscribe_topic` | Admin | `subscriber_account_id: u64, account_email_id: u64, name: String, email_address: String, description: String, visibility: TopicVisibility` | Idempotently creates topic if not present and subscribes the specified account email. |
 | `update_subscription_permission` | Admin / Topic Moderator | `subscription_id: u64, permission: SubscriptionPermission` | Updates subscription permission mode (`Read`, `Write`, or `Moderate`). Only Admins can assign or revoke `Moderate`. |
-| `remove_subscription` | User / Moderator / Admin | `subscription_id: u64` | Unsubscribes account email (`ManuallyUnsubscribed`). Non-admins and non-moderators can only remove their own; moderators can remove subscriptions on their topics. Non-admins cannot remove `RequiredSubscribed`. |
+| `remove_subscription` | User / Moderator / Admin | `subscription_id: u64` | Unsubscribes account email (`ManuallyUnsubscribed`). Non-admins and non-moderators can only remove their own; moderators can remove subscriptions on their topics (except peer moderators and `RequiredSubscribed`). Non-admins cannot remove `RequiredSubscribed`. |
 | `ensure_subscription_unsubscribe_token` | Admin/System | `subscription_id: u64` | Ensures an active unsubscribe token exists for the given subscription, reactivating or generating a new one. |
 | `user_unsubscribe_by_token` | User/Public | `token: String` | Unsubscribes a subscription by its one-click unsubscribe token (`LinkUnsubscribed`). |
 

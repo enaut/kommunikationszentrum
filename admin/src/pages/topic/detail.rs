@@ -6,9 +6,8 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::dioxus::{
     use_reducer_clear_topic_provisioning_lock, use_reducer_update_message_topic, use_subscription,
-    use_table_visible_account_emails, use_table_visible_accounts, use_table_visible_categories,
-    use_table_visible_message_topic_categories, use_table_visible_message_topics,
-    use_table_visible_subscriptions,
+    use_table_visible_categories, use_table_visible_message_topic_categories,
+    use_table_visible_message_topics,
 };
 use crate::module_bindings::{MessageTopic, SubscriptionPermission, TopicVisibility};
 use crate::pages::topic::categories::TopicCategoriesCard;
@@ -16,6 +15,7 @@ use crate::pages::topic::modals::{
     AddSubscriberModal, EditSubscriptionModal, EditSubscriptionTarget,
 };
 use crate::pages::topic::subscribers::TopicSubscribersCard;
+use crate::router::use_is_admin;
 
 /// Form card for editing a topic's name, description, and visibility.
 #[component]
@@ -29,6 +29,8 @@ pub fn TopicDetailsCard(
 ) -> Element {
     let update_topic = use_reducer_update_message_topic();
     let clear_lock = use_reducer_clear_topic_provisioning_lock();
+    let is_admin = use_is_admin();
+    let is_moderate_default = default_permission() == SubscriptionPermission::Moderate;
     let topic_id = topic.id;
     let visibility_value = match visibility() {
         TopicVisibility::Public => "Public",
@@ -37,7 +39,7 @@ pub fn TopicDetailsCard(
     let default_permission_value = match default_permission() {
         SubscriptionPermission::Read => "Read",
         SubscriptionPermission::Write => "Write",
-        SubscriptionPermission::Moderate => "Write",
+        SubscriptionPermission::Moderate => "Moderate",
     };
 
     rsx! {
@@ -115,15 +117,20 @@ pub fn TopicDetailsCard(
                 FormGroup { label: tid!("topic-detail-default-permission"),
                     Select {
                         value: default_permission_value,
+                        disabled: !is_admin && is_moderate_default,
                         onchange: move |e: FormEvent| {
                             match e.value().as_str() {
                                 "Read" => default_permission.set(SubscriptionPermission::Read),
                                 "Write" => default_permission.set(SubscriptionPermission::Write),
+                                "Moderate" if is_admin => default_permission.set(SubscriptionPermission::Moderate),
                                 _ => {}
                             }
                         },
                         option { value: "Read", {tid!("topic-permission-read")} }
                         option { value: "Write", {tid!("topic-permission-write")} }
+                        if is_admin || is_moderate_default {
+                            option { value: "Moderate", {tid!("topic-permission-moderate")} }
+                        }
                     }
                     FormText {
                         {tid!("topic-detail-default-permission-help")}
@@ -180,11 +187,9 @@ pub fn TopicDetailPage(topic_id: u64, on_back: EventHandler<()>) -> Element {
         "SELECT * FROM topic_subscriber_counts",
         "SELECT * FROM visible_account_configs",
         "SELECT * FROM total_accounts",
+        "SELECT * FROM subscriber_search_candidates",
     ]);
     let topics = use_table_visible_message_topics();
-    let subscriptions = use_table_visible_subscriptions();
-    let accounts = use_table_visible_accounts();
-    let account_emails = use_table_visible_account_emails();
     let categories = use_table_visible_categories();
     let topic_categories = use_table_visible_message_topic_categories();
 
@@ -235,31 +240,6 @@ pub fn TopicDetailPage(topic_id: u64, on_back: EventHandler<()>) -> Element {
             }
         };
     };
-
-    let topic_subscriptions: Vec<_> = subscriptions()
-        .into_iter()
-        .filter(|s| s.topic_id == topic_id)
-        .collect();
-
-    let topic_subscribed_email_ids: HashSet<u64> = topic_subscriptions
-        .iter()
-        .filter(|s| crate::pages::is_active_subscription(&s.status))
-        .map(|s| s.account_email_id)
-        .collect();
-
-    let all_account_emails = account_emails();
-    let available_accounts: Vec<_> = accounts()
-        .into_iter()
-        .filter(|a| {
-            let acct_emails: Vec<_> = all_account_emails
-                .iter()
-                .filter(|e| e.account_id == a.id)
-                .collect();
-            acct_emails
-                .iter()
-                .any(|e| e.is_verified && !topic_subscribed_email_ids.contains(&e.id))
-        })
-        .collect();
 
     let assigned_category_ids: HashSet<u64> = topic_categories()
         .into_iter()
@@ -361,13 +341,7 @@ pub fn TopicDetailPage(topic_id: u64, on_back: EventHandler<()>) -> Element {
                 }
             }
 
-            AddSubscriberModal {
-                show: show_add_modal,
-                topic_id,
-                available_accounts,
-                available_emails: account_emails(),
-                subscribed_email_ids: topic_subscribed_email_ids,
-            }
+            AddSubscriberModal { show: show_add_modal, topic_id }
 
             EditSubscriptionModal { show: show_edit_modal, topic_id, target: edit_target }
         }
