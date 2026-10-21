@@ -7,7 +7,7 @@ use dioxus_i18n::tid;
 
 use crate::components::language_switcher::LanguageSwitcher;
 use crate::oauth::UserInfo;
-use crate::router::{ActiveView, use_is_admin};
+use crate::router::{ActiveView, use_can_manage_topics, use_is_admin};
 
 #[component]
 pub fn Navbar(
@@ -17,6 +17,7 @@ pub fn Navbar(
     theme: Signal<Theme>,
 ) -> Element {
     let is_admin = use_is_admin();
+    let can_manage_topics = use_can_manage_topics();
     let collapsed = use_signal(|| true);
     let user_dropdown_open = use_signal(|| false);
     let management_dropdown_open = use_signal(|| false);
@@ -45,13 +46,15 @@ pub fn Navbar(
                         view: ActiveView::Messages,
                         active_view,
                     }
-                    if is_admin {
+                    if can_manage_topics {
                         AppNavLink {
                             label: tid!("navbar-topics"),
                             icon: "tags-fill",
                             view: ActiveView::Topics,
                             active_view,
                         }
+                    }
+                    if is_admin {
                         AppNavLink {
                             label: tid!("navbar-members"),
                             icon: "people-fill",

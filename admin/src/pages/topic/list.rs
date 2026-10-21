@@ -11,6 +11,7 @@ use crate::module_bindings::dioxus::{
     use_table_topic_subscriber_counts, use_table_visible_domains, use_table_visible_message_topics,
 };
 use crate::pages::topic::detail::TopicDetailPage;
+use crate::router::{use_is_admin, use_moderated_topic_ids};
 
 /// Card with form controls to create and provision a new message topic / mailing list.
 #[component]
@@ -206,6 +207,13 @@ pub fn TopicTable(mut selected_topic: Signal<Option<u64>>) -> Element {
     let topics = use_table_visible_message_topics();
     let subscriber_counts = use_table_topic_subscriber_counts();
     let remove_topic = use_reducer_remove_message_topic();
+    let is_admin = use_is_admin();
+    let moderated_topic_ids = use_moderated_topic_ids();
+
+    let displayed_topics: Vec<_> = topics()
+        .into_iter()
+        .filter(|t| is_admin || moderated_topic_ids.contains(&t.id))
+        .collect();
 
     rsx! {
         Card {
@@ -216,11 +224,11 @@ pub fn TopicTable(mut selected_topic: Signal<Option<u64>>) -> Element {
                 h5 { class: "card-title mb-0",
                     Icon { name: "list-ul", class: "me-2" }
                     {tid!("topic-table-title")}
-                    span { class: "badge bg-white text-primary ms-2", "{topics().len()}" }
+                    span { class: "badge bg-white text-primary ms-2", "{displayed_topics.len()}" }
                 }
             },
             body: rsx! {
-                if topics().is_empty() {
+                if displayed_topics.is_empty() {
                     div { class: "p-4 text-muted",
                         Icon { name: "inbox", class: "me-2" }
                         {tid!("topic-table-empty")}
@@ -239,7 +247,7 @@ pub fn TopicTable(mut selected_topic: Signal<Option<u64>>) -> Element {
                             }
                         }
                         tbody {
-                            for top in topics() {
+                            for top in displayed_topics {
                                 {
                                     let top_id = top.id;
                                     let remove = remove_topic.clone();
@@ -289,18 +297,20 @@ pub fn TopicTable(mut selected_topic: Signal<Option<u64>>) -> Element {
                                                     Icon { name: "pencil-square", class: "me-1" }
                                                     {tid!("topic-action-details")}
                                                 }
-                                                Button {
-                                                    color: Color::Danger,
-                                                    size: Size::Sm,
-                                                    onclick: move |evt: MouseEvent| {
-                                                        evt.stop_propagation();
-                                                        info!("Removing topic {top_id}");
-                                                        if let Err(e) = remove(top_id) {
-                                                            error!("remove_message_topic failed: {e:?}");
-                                                        }
-                                                    },
-                                                    Icon { name: "trash", class: "me-1" }
-                                                    {tid!("topic-action-delete")}
+                                                if is_admin {
+                                                    Button {
+                                                        color: Color::Danger,
+                                                        size: Size::Sm,
+                                                        onclick: move |evt: MouseEvent| {
+                                                            evt.stop_propagation();
+                                                            info!("Removing topic {top_id}");
+                                                            if let Err(e) = remove(top_id) {
+                                                                error!("remove_message_topic failed: {e:?}");
+                                                            }
+                                                        },
+                                                        Icon { name: "trash", class: "me-1" }
+                                                        {tid!("topic-action-delete")}
+                                                    }
                                                 }
                                             }
                                         }
@@ -315,7 +325,7 @@ pub fn TopicTable(mut selected_topic: Signal<Option<u64>>) -> Element {
     }
 }
 
-/// Admin-only view: lists all message topics with inline add and delete controls.
+/// Admin & moderator view: lists message topics with inline add (admin only) and delete (admin only) controls.
 #[component]
 pub fn TopicsPage() -> Element {
     use_subscription(&[
@@ -324,6 +334,8 @@ pub fn TopicsPage() -> Element {
         "SELECT * FROM visible_domains",
         "SELECT * FROM topic_subscriber_counts",
     ]);
+
+    let is_admin = use_is_admin();
 
     // When set, the detail/edit page for this topic is shown instead of the list.
     let mut selected_topic: Signal<Option<u64>> = use_signal(|| None);
@@ -342,9 +354,11 @@ pub fn TopicsPage() -> Element {
                     }
                 }
 
-                Row { class: "mb-4",
-                    Col { xs: ColumnSize::Span(12),
-                        AddTopicCard {}
+                if is_admin {
+                    Row { class: "mb-4",
+                        Col { xs: ColumnSize::Span(12),
+                            AddTopicCard {}
+                        }
                     }
                 }
 

@@ -205,8 +205,10 @@ subscriber-save = Speichern
 subscriber-permission-label = Berechtigung
 subscriber-permission-read = Nur Lesen
 subscriber-permission-write = Lesen & Schreiben
+subscriber-permission-moderate = Moderieren
 subscriber-permission-badge-read = Lesen
 subscriber-permission-badge-write = Schreiben
+subscriber-permission-badge-moderate = Moderieren
 
 # Subscription statuses
 subscription-status-manually-subscribed = Manuell abonniert

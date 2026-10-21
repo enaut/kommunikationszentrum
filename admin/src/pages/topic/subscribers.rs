@@ -248,6 +248,7 @@ pub fn TopicSubscribersCard(
                                                 match permission {
                                                     crate::module_bindings::SubscriptionPermission::Read => rsx! { Badge { color: Color::Secondary, {tid!("subscriber-permission-badge-read")} } },
                                                     crate::module_bindings::SubscriptionPermission::Write => rsx! { Badge { color: Color::Primary, {tid!("subscriber-permission-badge-write")} } },
+                                                    crate::module_bindings::SubscriptionPermission::Moderate => rsx! { Badge { color: Color::Warning, {tid!("subscriber-permission-badge-moderate")} } },
                                                 }
                                             }
                                             td { class: "text-end",

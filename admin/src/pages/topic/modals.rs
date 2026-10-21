@@ -16,6 +16,7 @@ use crate::module_bindings::dioxus::{
 };
 use crate::module_bindings::{Account, AccountEmail, SubscriptionPermission, SubscriptionStatus};
 use crate::pages::topic::subscribers::{ALL_STATUSES, parse_status, status_key, status_label};
+use crate::router::use_is_admin;
 
 /// Auto-select threshold: if the filtered list has fewer than this many entries,
 /// the first result is selected automatically.
@@ -385,6 +386,7 @@ pub fn EditSubscriptionModal(
 ) -> Element {
     let admin_add_subscription = use_reducer_admin_add_subscription();
     let update_permission = use_reducer_update_subscription_permission();
+    let is_admin = use_is_admin();
 
     let mut edit_status = use_signal(|| SubscriptionStatus::ManuallySubscribed);
     let mut edit_permission = use_signal(|| SubscriptionPermission::Read);
@@ -455,16 +457,22 @@ pub fn EditSubscriptionModal(
                         value: match edit_permission() {
                             SubscriptionPermission::Read => "read",
                             SubscriptionPermission::Write => "write",
+                            SubscriptionPermission::Moderate => "moderate",
                         },
+                        disabled: !is_admin && edit_permission() == SubscriptionPermission::Moderate,
                         onchange: move |e: FormEvent| {
                             match e.value().as_str() {
                                 "read" => edit_permission.set(SubscriptionPermission::Read),
                                 "write" => edit_permission.set(SubscriptionPermission::Write),
+                                "moderate" => edit_permission.set(SubscriptionPermission::Moderate),
                                 _ => {}
                             }
                         },
                         option { value: "read", {tid!("subscriber-permission-read")} }
                         option { value: "write", {tid!("subscriber-permission-write")} }
+                        if is_admin || edit_permission() == SubscriptionPermission::Moderate {
+                            option { value: "moderate", {tid!("subscriber-permission-moderate")} }
+                        }
                     }
                 }
             },

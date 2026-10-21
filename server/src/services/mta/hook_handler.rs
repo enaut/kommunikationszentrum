@@ -7,7 +7,7 @@ use crate::models::account::{account, account_emails, admin_identities};
 use crate::models::delivery::{SystemMailPending, system_mail_pending};
 use crate::models::mail_message::{MailMessage, mail_message};
 use crate::models::mta::*;
-use crate::models::topic::{SubscriptionPermission, message_topics, subscriptions};
+use crate::models::topic::{message_topics, subscriptions};
 use crate::reducers::delivery::upsert_mail_ingress;
 use crate::services::mta::admission::{SenderEligibility, decide_topic_admission};
 use crate::services::mta::envelope_parser::{
@@ -200,7 +200,7 @@ pub fn handle_data_stage(
                         && s.status.is_active()
                     {
                         subscribed_active = true;
-                        if matches!(s.permission, SubscriptionPermission::Write) {
+                        if s.permission.can_write() {
                             write = true;
                             break;
                         }

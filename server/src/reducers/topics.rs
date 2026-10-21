@@ -1,7 +1,9 @@
 use log::{error, info};
 use spacetimedb::{ReducerContext, Table, Timestamp};
 
-use crate::common::auth::{is_admin_identity, is_admin_user};
+use crate::common::auth::{
+    is_admin_identity, is_admin_or_topic_moderator, is_admin_user, is_topic_moderator,
+};
 use crate::models::account::{Account, account, account_emails};
 use crate::models::domain::domains;
 use crate::models::topic::*;
@@ -70,8 +72,8 @@ pub fn update_message_topic(
     default_permission: Option<SubscriptionPermission>,
     clear_provisioning_lock: Option<bool>,
 ) -> Result<(), String> {
-    if !is_admin_user(ctx) {
-        return Err("Unauthorized: Admin access required".to_string());
+    if !is_admin_or_topic_moderator(ctx, topic_id) {
+        return Err("Unauthorized: Admin or topic moderator access required".to_string());
     }
     let existing = ctx
         .db
@@ -109,8 +111,8 @@ pub fn update_message_topic(
 /// Useful if an earlier provisioning run was interrupted or crashed.
 #[spacetimedb::reducer]
 pub fn clear_topic_provisioning_lock(ctx: &ReducerContext, topic_id: u64) -> Result<(), String> {
-    if !is_admin_user(ctx) {
-        return Err("Unauthorized: Admin access required".to_string());
+    if !is_admin_or_topic_moderator(ctx, topic_id) {
+        return Err("Unauthorized: Admin or topic moderator access required".to_string());
     }
     let mut topic = ctx
         .db
@@ -133,15 +135,15 @@ pub fn clear_topic_provisioning_lock(ctx: &ReducerContext, topic_id: u64) -> Res
 
 /// Replaces the category assignments of a message topic. Missing category names are
 /// created automatically. An empty `category_names` list clears all assignments.
-/// Admin-only; used by the topic detail tag editor.
+/// Admin or topic moderator; used by the topic detail tag editor.
 #[spacetimedb::reducer]
 pub fn set_topic_categories(
     ctx: &ReducerContext,
     topic_id: u64,
     category_names: Vec<String>,
 ) -> Result<(), String> {
-    if !is_admin_user(ctx) {
-        return Err("Unauthorized: Admin access required".to_string());
+    if !is_admin_or_topic_moderator(ctx, topic_id) {
+        return Err("Unauthorized: Admin or topic moderator access required".to_string());
     }
     if ctx.db.message_topics().id().find(&topic_id).is_none() {
         return Err(format!("Message topic {} not found", topic_id));
@@ -296,6 +298,7 @@ pub fn add_subscription(
     topic_id: u64,
 ) -> Result<(), String> {
     let is_admin = is_admin_user(ctx);
+    let is_moderator = is_topic_moderator(ctx, topic_id);
     let is_self = ctx
         .db
         .account()
@@ -304,8 +307,11 @@ pub fn add_subscription(
         .map(|a: Account| a.identity == ctx.sender())
         .unwrap_or(false);
 
-    if !is_admin && !is_self {
-        return Err("Unauthorized: can only subscribe yourself or requires admin".to_string());
+    if !is_admin && !is_self && !is_moderator {
+        return Err(
+            "Unauthorized: can only subscribe yourself or requires admin or topic moderator"
+                .to_string(),
+        );
     }
 
     let email = ctx
@@ -315,7 +321,7 @@ pub fn add_subscription(
         .find(&account_email_id)
         .ok_or_else(|| format!("Account email {} not found", account_email_id))?;
 
-    if !is_admin && !email.is_verified {
+    if !is_admin && !is_moderator && !email.is_verified {
         return Err("Cannot subscribe an unverified email address".to_string());
     }
 
@@ -326,7 +332,7 @@ pub fn add_subscription(
         .find(&topic_id)
         .ok_or("Topic not found")?;
 
-    if !is_admin && topic.visibility != TopicVisibility::Public {
+    if !is_admin && !is_moderator && topic.visibility != TopicVisibility::Public {
         let already_subscribed = ctx
             .db
             .subscriptions()
@@ -349,7 +355,7 @@ pub fn add_subscription(
     Ok(())
 }
 
-/// Admin-only reducer that adds or updates a subscription with an explicitly chosen status.
+/// Admin or topic moderator reducer that adds or updates a subscription with an explicitly chosen status.
 #[spacetimedb::reducer]
 pub fn admin_add_subscription(
     ctx: &ReducerContext,
@@ -358,8 +364,8 @@ pub fn admin_add_subscription(
     topic_id: u64,
     status: SubscriptionStatus,
 ) -> Result<(), String> {
-    if !is_admin_user(ctx) {
-        return Err("Unauthorized: Admin access required".to_string());
+    if !is_admin_or_topic_moderator(ctx, topic_id) {
+        return Err("Unauthorized: Admin or topic moderator access required".to_string());
     }
     do_add_subscription(
         ctx,
@@ -632,10 +638,11 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
         .find(&sub.subscriber_account_id)
         .map(|a| a.identity == ctx.sender())
         .unwrap_or(false);
+    let is_moderator = is_topic_moderator(ctx, sub.topic_id);
 
-    if !is_admin && !is_self {
+    if !is_admin && !is_self && !is_moderator {
         return Err(
-            "Unauthorized: can only remove your own subscriptions or requires admin".to_string(),
+            "Unauthorized: can only remove your own subscriptions or requires admin or topic moderator".to_string(),
         );
     }
 
@@ -662,22 +669,47 @@ pub fn remove_subscription(ctx: &ReducerContext, subscription_id: u64) -> Result
     Ok(())
 }
 
+pub(crate) fn can_update_permission(
+    is_admin: bool,
+    is_moderator: bool,
+    current_permission: SubscriptionPermission,
+    new_permission: SubscriptionPermission,
+) -> Result<(), &'static str> {
+    if !is_admin && !is_moderator {
+        return Err("Unauthorized: Admin or topic moderator access required");
+    }
+
+    // Only global admins can grant or revoke Moderate permission
+    if !is_admin
+        && (new_permission == SubscriptionPermission::Moderate
+            || current_permission == SubscriptionPermission::Moderate)
+    {
+        return Err(
+            "Unauthorized: Only global administrators can assign or revoke moderation rights",
+        );
+    }
+
+    Ok(())
+}
+
 #[spacetimedb::reducer]
 pub fn update_subscription_permission(
     ctx: &ReducerContext,
     subscription_id: u64,
     permission: SubscriptionPermission,
 ) -> Result<(), String> {
-    if !is_admin_user(ctx) {
-        return Err("Unauthorized: Admin access required".to_string());
-    }
-
     let existing = ctx
         .db
         .subscriptions()
         .id()
         .find(&subscription_id)
         .ok_or_else(|| format!("Subscription {} not found", subscription_id))?;
+
+    let is_admin = is_admin_user(ctx);
+    let is_moderator = is_topic_moderator(ctx, existing.topic_id);
+
+    can_update_permission(is_admin, is_moderator, existing.permission, permission)
+        .map_err(|e| e.to_string())?;
 
     let updated = Subscription {
         permission,
@@ -911,4 +943,160 @@ pub fn provision_all_unprovisioned_topics(
         provisioned_count
     );
     Ok(provisioned_count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_admin_permission_updates() {
+        assert!(
+            can_update_permission(
+                true,
+                false,
+                SubscriptionPermission::Read,
+                SubscriptionPermission::Write
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_permission(
+                true,
+                false,
+                SubscriptionPermission::Write,
+                SubscriptionPermission::Read
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_permission(
+                true,
+                false,
+                SubscriptionPermission::Read,
+                SubscriptionPermission::Moderate
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_permission(
+                true,
+                false,
+                SubscriptionPermission::Write,
+                SubscriptionPermission::Moderate
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_permission(
+                true,
+                false,
+                SubscriptionPermission::Moderate,
+                SubscriptionPermission::Write
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_permission(
+                true,
+                false,
+                SubscriptionPermission::Moderate,
+                SubscriptionPermission::Read
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_moderator_permission_updates() {
+        assert!(
+            can_update_permission(
+                false,
+                true,
+                SubscriptionPermission::Read,
+                SubscriptionPermission::Write
+            )
+            .is_ok()
+        );
+        assert!(
+            can_update_permission(
+                false,
+                true,
+                SubscriptionPermission::Write,
+                SubscriptionPermission::Read
+            )
+            .is_ok()
+        );
+
+        // Moderator cannot grant Moderate
+        assert!(
+            can_update_permission(
+                false,
+                true,
+                SubscriptionPermission::Read,
+                SubscriptionPermission::Moderate
+            )
+            .is_err()
+        );
+        assert!(
+            can_update_permission(
+                false,
+                true,
+                SubscriptionPermission::Write,
+                SubscriptionPermission::Moderate
+            )
+            .is_err()
+        );
+
+        // Moderator cannot revoke Moderate
+        assert!(
+            can_update_permission(
+                false,
+                true,
+                SubscriptionPermission::Moderate,
+                SubscriptionPermission::Write
+            )
+            .is_err()
+        );
+        assert!(
+            can_update_permission(
+                false,
+                true,
+                SubscriptionPermission::Moderate,
+                SubscriptionPermission::Read
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test_non_moderator_permission_updates() {
+        assert!(
+            can_update_permission(
+                false,
+                false,
+                SubscriptionPermission::Read,
+                SubscriptionPermission::Write
+            )
+            .is_err()
+        );
+        assert!(
+            can_update_permission(
+                false,
+                false,
+                SubscriptionPermission::Write,
+                SubscriptionPermission::Read
+            )
+            .is_err()
+        );
+        assert!(
+            can_update_permission(
+                false,
+                false,
+                SubscriptionPermission::Read,
+                SubscriptionPermission::Moderate
+            )
+            .is_err()
+        );
+    }
 }

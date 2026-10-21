@@ -37,6 +37,7 @@ pub fn TopicDetailsCard(
     let default_permission_value = match default_permission() {
         SubscriptionPermission::Read => "Read",
         SubscriptionPermission::Write => "Write",
+        SubscriptionPermission::Moderate => "Write",
     };
 
     rsx! {

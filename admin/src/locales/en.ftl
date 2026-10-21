@@ -203,8 +203,10 @@ subscriber-save = Save
 subscriber-permission-label = Permission
 subscriber-permission-read = Read-Only
 subscriber-permission-write = Read & Write
+subscriber-permission-moderate = Moderate
 subscriber-permission-badge-read = Read
 subscriber-permission-badge-write = Write
+subscriber-permission-badge-moderate = Moderate
 
 # Subscription statuses
 subscription-status-manually-subscribed = Manually subscribed

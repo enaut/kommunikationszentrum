@@ -1,4 +1,4 @@
-use crate::common::auth::is_admin_user;
+use crate::common::auth::{is_admin_user, is_any_topic_moderator, is_topic_moderator};
 use crate::models::account::*;
 use crate::models::domain::*;
 use crate::models::mail_message::*;
@@ -36,7 +36,7 @@ pub fn get_account_config(ctx: &ViewContext) -> AccountConfig {
 }
 
 pub fn get_paginated_account_ids(ctx: &ViewContext) -> Vec<u64> {
-    if !is_admin_user(ctx) {
+    if !is_admin_user(ctx) && !is_any_topic_moderator(ctx) {
         return vec![];
     }
     let config = get_account_config(ctx);
@@ -165,9 +165,9 @@ pub fn context_accounts(ctx: &ViewContext) -> Vec<Account> {
         account_ids.insert(id);
     }
 
-    if is_admin {
-        let config = get_account_config(ctx);
-        if let Some(topic_id) = config.viewing_topic_id {
+    let config = get_account_config(ctx);
+    if let Some(topic_id) = config.viewing_topic_id {
+        if is_admin || is_topic_moderator(ctx, topic_id) {
             for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
                 account_ids.insert(sub.subscriber_account_id);
             }
@@ -185,9 +185,9 @@ pub fn context_accounts(ctx: &ViewContext) -> Vec<Account> {
 #[spacetimedb::view(accessor = visible_accounts, public)]
 pub fn visible_accounts(ctx: &ViewContext) -> Vec<Account> {
     let sender = ctx.sender();
-    let is_admin = is_admin_user(ctx);
+    let is_admin_or_mod = is_admin_user(ctx) || is_any_topic_moderator(ctx);
 
-    if is_admin {
+    if is_admin_or_mod {
         let ids = get_paginated_account_ids(ctx);
         ids.into_iter()
             .filter_map(|id| ctx.db.account().id().find(&id))
@@ -230,17 +230,29 @@ pub fn visible_account_emails(ctx: &ViewContext) -> Vec<AccountEmail> {
 
 #[spacetimedb::view(accessor = visible_subscriptions, public)]
 pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
+    let is_admin = is_admin_user(ctx);
     let accounts = all_visible_accounts(ctx);
-    accounts
-        .into_iter()
-        .flat_map(|acc| {
-            ctx.db
-                .subscriptions()
-                .subscriber_account_id()
-                .filter(&acc.id)
-                .collect::<Vec<_>>()
-        })
-        .collect()
+    let my_account_id = ctx
+        .db
+        .account()
+        .identity()
+        .find(&ctx.sender())
+        .map(|a| a.id);
+
+    let mut subs = Vec::new();
+    for acc in accounts {
+        for sub in ctx
+            .db
+            .subscriptions()
+            .subscriber_account_id()
+            .filter(&acc.id)
+        {
+            if is_admin || Some(acc.id) == my_account_id || is_topic_moderator(ctx, sub.topic_id) {
+                subs.push(sub);
+            }
+        }
+    }
+    subs
 }
 
 #[spacetimedb::view(accessor = visible_message_topics, public)]

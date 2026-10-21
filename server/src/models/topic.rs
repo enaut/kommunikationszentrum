@@ -13,6 +13,7 @@ pub enum SubscriptionPermission {
     #[default]
     Read,
     Write,
+    Moderate,
 }
 
 impl SubscriptionPermission {
@@ -20,10 +21,19 @@ impl SubscriptionPermission {
         match value.trim().to_ascii_lowercase().as_str() {
             "read" => Ok(Self::Read),
             "write" => Ok(Self::Write),
+            "moderate" => Ok(Self::Moderate),
             _ => Err(format!(
-                "Invalid subscription permission '{value}'; expected 'read' or 'write'"
+                "Invalid subscription permission '{value}'; expected 'read', 'write', or 'moderate'"
             )),
         }
+    }
+
+    pub fn can_write(&self) -> bool {
+        matches!(self, Self::Write | Self::Moderate)
+    }
+
+    pub fn is_moderator(&self) -> bool {
+        matches!(self, Self::Moderate)
     }
 }
 
@@ -218,9 +228,25 @@ mod tests {
             SubscriptionPermission::parse("WRITE").unwrap(),
             SubscriptionPermission::Write
         );
+        assert_eq!(
+            SubscriptionPermission::parse("moderate").unwrap(),
+            SubscriptionPermission::Moderate
+        );
+        assert_eq!(
+            SubscriptionPermission::parse("Moderate").unwrap(),
+            SubscriptionPermission::Moderate
+        );
         assert!(SubscriptionPermission::parse("invalid").is_err());
         assert!(SubscriptionPermission::parse("writ").is_err());
         assert!(SubscriptionPermission::parse("").is_err());
+
+        assert!(!SubscriptionPermission::Read.can_write());
+        assert!(SubscriptionPermission::Write.can_write());
+        assert!(SubscriptionPermission::Moderate.can_write());
+
+        assert!(!SubscriptionPermission::Read.is_moderator());
+        assert!(!SubscriptionPermission::Write.is_moderator());
+        assert!(SubscriptionPermission::Moderate.is_moderator());
     }
 
     #[test]
