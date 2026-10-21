@@ -7,7 +7,7 @@ use crate::i18n::use_i18n;
 use crate::module_bindings::dioxus::{
     ConnectionState, use_connection_state, use_reducer_remove_account_email,
     use_reducer_set_theme_and_lang, use_reducer_user_request_email_verification, use_subscription,
-    use_table_visible_account_emails, use_table_visible_accounts,
+    use_table_context_accounts, use_table_visible_account_emails, use_table_visible_accounts,
 };
 use crate::module_bindings::{EmailSource, LanguagePreference, ThemePreference};
 use crate::oauth::UserInfo;
@@ -17,12 +17,14 @@ use crate::router::use_is_admin;
 pub fn ProfilePage(user_info: UserInfo, theme: Signal<Theme>) -> Element {
     use_subscription(&[
         "SELECT * FROM visible_accounts",
+        "SELECT * FROM context_accounts",
         "SELECT * FROM visible_account_emails",
         "SELECT * FROM visible_account_configs",
         "SELECT * FROM visible_admin_identities",
     ]);
 
     let accounts = use_table_visible_accounts();
+    let context_accounts = use_table_context_accounts();
     let account_emails = use_table_visible_account_emails();
     let is_admin = use_is_admin();
     let conn_state = use_connection_state();
@@ -40,9 +42,14 @@ pub fn ProfilePage(user_info: UserInfo, theme: Signal<Theme>) -> Element {
     let current_lang = i18n.language();
     let current_lang_code = current_lang.language.as_str().to_string();
 
-    let my_account = accounts()
+    let my_account = context_accounts()
         .into_iter()
-        .find(|a| a.external_id == user_info.subject_id);
+        .find(|a| a.external_id == user_info.subject_id)
+        .or_else(|| {
+            accounts()
+                .into_iter()
+                .find(|a| a.external_id == user_info.subject_id)
+        });
     let account_id = my_account.as_ref().map(|a| a.id).unwrap_or(0);
     let my_primary_email_id = my_account.as_ref().map(|a| a.primary_email_id).unwrap_or(0);
     let my_emails: Vec<_> = account_emails()

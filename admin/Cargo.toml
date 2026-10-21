@@ -58,6 +58,6 @@ mobile = ["dioxus/mobile"]
 
 [build-dependencies]
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.8"
+toml = "1.1"
 fluent-bundle = "0.16"
 unic-langid = { version = "0.9", features = ["macros"] }

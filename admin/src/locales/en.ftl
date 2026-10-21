@@ -27,6 +27,7 @@ app-connection-loading = Connecting to SpacetimeDB…
 app-connection-lost = Connection to SpacetimeDB is disconnected or failed.
 app-connection-error-desc = Could not connect to SpacetimeDB.
 app-registration-failed = Registration failed: { $error }
+app-session-expired = Session expired or invalid token. Please log in again.
 
 # General UI
 general-filter = Filter:

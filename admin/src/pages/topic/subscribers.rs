@@ -7,7 +7,7 @@ use dioxus_i18n::tid;
 
 use crate::module_bindings::SubscriptionStatus;
 use crate::module_bindings::dioxus::{
-    use_reducer_remove_subscription, use_reducer_update_account_config,
+    use_reducer_remove_subscription, use_reducer_update_account_config, use_table_context_accounts,
     use_table_topic_subscriber_counts, use_table_visible_account_emails,
     use_table_visible_accounts, use_table_visible_subscriptions,
 };
@@ -120,6 +120,7 @@ pub fn TopicSubscribersCard(
 
     let subscriptions = use_table_visible_subscriptions();
     let accounts = use_table_visible_accounts();
+    let context_accounts = use_table_context_accounts();
     let account_emails = use_table_visible_account_emails();
     let remove_subscription = use_reducer_remove_subscription();
 
@@ -129,13 +130,19 @@ pub fn TopicSubscribersCard(
         .collect();
 
     let all_accounts = accounts();
+    let all_context_accounts = context_accounts();
     let all_emails = account_emails();
     let subscriber_rows: Vec<_> = topic_subscriptions
         .iter()
         .map(|sub| {
-            let account = all_accounts
+            let account = all_context_accounts
                 .iter()
                 .find(|a| a.id == sub.subscriber_account_id)
+                .or_else(|| {
+                    all_accounts
+                        .iter()
+                        .find(|a| a.id == sub.subscriber_account_id)
+                })
                 .cloned();
             let email = all_emails
                 .iter()

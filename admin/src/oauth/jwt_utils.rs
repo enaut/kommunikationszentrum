@@ -52,6 +52,54 @@ pub fn decode_jwt(token: &str) -> Result<DecodedJwt, String> {
     })
 }
 
+/// Returns current unix timestamp in seconds.
+pub fn current_unix_timestamp() -> u64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        (js_sys::Date::new_0().get_time() / 1000.0) as u64
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+}
+
+/// Extract numeric `exp` claim from JWT claims value.
+pub fn get_jwt_exp(claims: &serde_json::Value) -> Option<u64> {
+    let exp_val = claims.get("exp")?;
+    exp_val
+        .as_u64()
+        .or_else(|| {
+            exp_val
+                .as_i64()
+                .and_then(|i| if i >= 0 { Some(i as u64) } else { None })
+        })
+        .or_else(|| {
+            exp_val
+                .as_f64()
+                .and_then(|f| if f >= 0.0 { Some(f as u64) } else { None })
+        })
+}
+
+/// Returns whether a decoded JWT is unexpired with leeway in seconds.
+/// If `exp` claim is absent, returns `true`.
+pub fn is_jwt_unexpired_at(claims: &serde_json::Value, now: u64, leeway_secs: u64) -> bool {
+    if let Some(exp) = get_jwt_exp(claims) {
+        exp > now.saturating_add(leeway_secs)
+    } else {
+        true
+    }
+}
+
+/// Returns whether a decoded JWT is unexpired using the current time and a leeway.
+#[allow(dead_code)]
+pub fn is_jwt_unexpired(claims: &serde_json::Value, leeway_secs: u64) -> bool {
+    is_jwt_unexpired_at(claims, current_unix_timestamp(), leeway_secs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +124,32 @@ mod tests {
         assert!(decode_jwt("not.enough.parts.really").is_err());
         assert!(decode_jwt("only_one_part").is_err());
         assert!(decode_jwt("two.parts").is_err());
+    }
+
+    #[test]
+    fn test_jwt_exp_checking() {
+        let claims = serde_json::json!({
+            "exp": 1700000000u64,
+        });
+        assert_eq!(get_jwt_exp(&claims), Some(1700000000));
+        assert!(is_jwt_unexpired_at(&claims, 1699999900, 30));
+        // Exactly at exp - 30 -> boundary test
+        assert!(!is_jwt_unexpired_at(&claims, 1699999970, 30));
+        // Already expired
+        assert!(!is_jwt_unexpired_at(&claims, 1700000001, 30));
+
+        // Floating point exp
+        let claims_float = serde_json::json!({
+            "exp": 1700000000.0,
+        });
+        assert_eq!(get_jwt_exp(&claims_float), Some(1700000000));
+        assert!(is_jwt_unexpired_at(&claims_float, 1699999900, 30));
+
+        // Missing exp -> considered unexpired
+        let claims_no_exp = serde_json::json!({
+            "sub": "user123",
+        });
+        assert_eq!(get_jwt_exp(&claims_no_exp), None);
+        assert!(is_jwt_unexpired_at(&claims_no_exp, 2000000000, 30));
     }
 }
