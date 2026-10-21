@@ -293,7 +293,7 @@ fn AuthenticatedApp(
                     )
                     .await;
                     if let Some(next_token) = u_info.spacetimedb_token() {
-                        if next_token != active {
+                        if *current_token.peek() == active && next_token != active {
                             info!("Proactively switching to unexpired SpacetimeDB token");
                             current_token.set(next_token);
                         }
