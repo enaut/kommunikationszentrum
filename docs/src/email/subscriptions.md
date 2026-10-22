@@ -80,23 +80,24 @@ pub struct AccountEmail {
 
 ---
 
-## Permissions: Read vs. Write
+## Permissions: Read vs. Write vs. Moderate
 
 Every subscription has an associated `SubscriptionPermission`:
 
 - **`SubscriptionPermission::Read`** (Default): The subscriber receives all emails distributed by the topic mailing list, but is not authorized to post to the list unless they are an administrator.
 - **`SubscriptionPermission::Write`**: The subscriber receives all topic emails **and** is authorized to send emails to the topic address via SMTP through the MTA hook.
+- **`SubscriptionPermission::Moderate`**: The subscriber receives all topic emails, is authorized to send emails to the topic address, and has moderation privileges over that specific topic (viewing the topic in the admin app, modifying topic metadata/categories, and managing topic subscribers).
 
-Administrators can adjust a subscription's permission at any time using the `update_subscription_permission` reducer.
+Administrators can adjust a subscription's permission at any time using the `update_subscription_permission` reducer, including promoting users to `Moderate` or demoting them. Topic moderators can also update other subscribers between `Read` and `Write`, but cannot grant or revoke `Moderate` status.
 
 ---
 
 ## Subscription Validation & Security Rules
 
-When a user or admin calls `add_subscription`:
-1. **Ownership**: Non-admin callers can only manage subscriptions for their own account (`subscriber_account_id`).
-2. **Email Verification**: Non-admin callers cannot subscribe an unverified email address (`email.is_verified == true` required).
-3. **Topic Visibility**: Non-admin callers can self-subscribe only to `TopicVisibility::Public` topics. Private topics require an existing subscription or admin intervention.
+When a user, moderator, or admin calls `add_subscription`:
+1. **Ownership**: Non-admin and non-moderator callers can only manage subscriptions for their own account (`subscriber_account_id`). Topic moderators can add subscribers to the topics they moderate.
+2. **Email Verification**: Non-admin and non-moderator callers cannot subscribe an unverified email address (`email.is_verified == true` required).
+3. **Topic Visibility**: Regular non-admin callers can self-subscribe only to `TopicVisibility::Public` topics. Private topics require an existing subscription or admin/moderator intervention.
 4. **Account Scoping**: The specified `account_email_id` must belong to `subscriber_account_id`.
 
 ---

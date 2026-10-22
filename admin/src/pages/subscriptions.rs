@@ -131,8 +131,8 @@ pub fn SubscriptionsPage(user_info: UserInfo, active_view: Signal<ActiveView>) -
                 }
                 Col { md: ColumnSize::Auto, class: "mt-2 mt-md-0",
                     div { class: "d-flex justify-content-between align-items-center gap-3 p-2 px-3 bg-light rounded border",
-                        span { class: "text-muted small",
-                            Icon { name: "envelope-plus", class: "me-2 text-primary" }
+                        span { class: "text-muted small d-flex align-items-center",
+                            Icon { name: "envelope-plus", class: "me-2 fs-3 lh-1" }
                             {tid!("subscriptions-manage-emails-hint")}
                         }
                         Button {

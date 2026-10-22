@@ -4,6 +4,7 @@ use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
+use crate::i18n::format_timestamp;
 use crate::module_bindings::dioxus::{
     use_reducer_update_account_config, use_subscription, use_table_topic_message_counts,
     use_table_visible_account_configs, use_table_visible_mail_messages,
@@ -426,7 +427,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                             let sender = msg.from_header();
                                             let top_email = msg.topic_email();
                                             let date_str =
-                                                msg.received_at().to_string();
+                                                format_timestamp(msg.received_at());
                                             let badge_color = topic_badge_color(msg.topic_id());
                                             rsx! {
                                                 ListGroupItem {
@@ -493,7 +494,7 @@ pub fn MessagesPage(user_info: UserInfo) -> Element {
                                                 "{msg.subject()}"
                                             }
                                         }
-                                        small { class: "text-muted ms-auto", {msg.received_at().to_string()} }
+                                        small { class: "text-muted ms-auto", {format_timestamp(msg.received_at())} }
                                     }
                                 },
                                 body: rsx! {

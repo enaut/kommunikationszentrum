@@ -44,6 +44,7 @@ pub struct TableSignals {
     pub sender_subscriptions: SyncSignal<Vec<Subscription>>,
     pub sender_system_mail_pending: SyncSignal<Vec<SystemMailPending>>,
     pub sender_topic_app_passwords: SyncSignal<Vec<TopicAppPassword>>,
+    pub subscriber_search_candidates: SyncSignal<Vec<SubscriberCandidate>>,
     pub topic_message_counts: SyncSignal<Vec<TopicMessageCount>>,
     pub topic_subscriber_counts: SyncSignal<Vec<TopicSubscriberCount>>,
     pub total_accounts: SyncSignal<Vec<CountRow>>,
@@ -258,6 +259,7 @@ pub fn use_spacetimedb_context_provider(
         sender_subscriptions: use_signal_sync(Vec::new),
         sender_system_mail_pending: use_signal_sync(Vec::new),
         sender_topic_app_passwords: use_signal_sync(Vec::new),
+        subscriber_search_candidates: use_signal_sync(Vec::new),
         topic_message_counts: use_signal_sync(Vec::new),
         topic_subscriber_counts: use_signal_sync(Vec::new),
         total_accounts: use_signal_sync(Vec::new),
@@ -1019,6 +1021,32 @@ pub fn use_spacetimedb_context_provider(
                                     .sender_topic_app_passwords
                                     .set(updated);
                             });
+                        // Populate initial rows for subscriber_search_candidates
+                        let current: Vec<SubscriberCandidate> =
+                            conn.db.subscriber_search_candidates().iter().collect();
+                        table_signals_on_connect
+                            .subscriber_search_candidates
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .subscriber_search_candidates()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<SubscriberCandidate> =
+                                    ctx.db.subscriber_search_candidates().iter().collect();
+                                table_signals_on_connect
+                                    .subscriber_search_candidates
+                                    .set(updated);
+                            });
+                        conn.db
+                            .subscriber_search_candidates()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<SubscriberCandidate> =
+                                    ctx.db.subscriber_search_candidates().iter().collect();
+                                table_signals_on_connect
+                                    .subscriber_search_candidates
+                                    .set(updated);
+                            });
                         // Populate initial rows for topic_message_counts
                         let current: Vec<TopicMessageCount> =
                             conn.db.topic_message_counts().iter().collect();
@@ -1726,6 +1754,13 @@ pub fn use_table_sender_system_mail_pending() -> SyncSignal<Vec<SystemMailPendin
 pub fn use_table_sender_topic_app_passwords() -> SyncSignal<Vec<TopicAppPassword>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.sender_topic_app_passwords
+}
+
+/// Get a reactive signal containing all rows of the `subscriber_search_candidates` table.
+#[must_use]
+pub fn use_table_subscriber_search_candidates() -> SyncSignal<Vec<SubscriberCandidate>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.subscriber_search_candidates
 }
 
 /// Get a reactive signal containing all rows of the `topic_message_counts` table.

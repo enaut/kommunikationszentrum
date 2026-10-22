@@ -44,11 +44,14 @@ Within each topic's detail view, administrators manage subscribers and permissio
   - Subscription Status (`AutomaticallySubscribed`, `ManuallySubscribed`, `RequiredSubscribed`, etc.)
   - Permission Level (`Read` vs `Write`)
 - **Permission Management**:
-  - Admins can toggle permissions between `Read` (receive list broadcasts only) and `Write` (authorized to post to the list via MTA).
+  - Admins can toggle permissions between `Read` (receive list broadcasts only), `Write` (authorized to post to the list via MTA), and `Moderate`.
+  - Topic moderators can toggle permissions between `Read` and `Write`, but cannot grant or revoke `Moderate`.
   - Toggling invokes the `update_subscription_permission` reducer.
 - **Adding Subscribers**:
-  - The **+ Abonnent hinzufügen** modal provides a search filter across member names, numbers, and emails.
+  - The **+ Abonnent hinzufügen** modal provides a member search filter.
+  - Topic moderators query candidates via `subscriber_search_candidates` (requiring at least 5 query characters for non-admin moderators), returning only the candidate name, account ID, and verified email address to preserve member privacy.
   - **Smart Filtering**: The member selector only shows members who have at least one verified email not yet subscribed to the topic.
-  - Admins can select an explicit initial status (`SubscriptionStatus`) and permission via `admin_add_subscription`.
+  - Admins can select an explicit initial status (`SubscriptionStatus`) and permission via `admin_add_subscription`. Topic moderators are restricted to `ManuallySubscribed` or `ManuallyUnsubscribed`.
 - **Removing Subscribers**:
   - Admins can deactivate any subscription, invoking `remove_subscription` (which transitions the subscription to `ManuallyUnsubscribed` and deactivates the associated one-click unsubscribe token).
+  - Topic moderators can deactivate subscriptions on their assigned topics, but cannot remove peer moderators or `RequiredSubscribed` subscriptions.

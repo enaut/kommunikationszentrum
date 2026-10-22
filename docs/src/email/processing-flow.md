@@ -43,7 +43,7 @@ The email processing flow in the Kommunikationszentrum follows a multi-stage val
   - Oversize check: Evaluated before authorization. If `message_size > 2,000,000` bytes (2 MB), the disposition is `Rejected(Oversize)`.
   - Sender resolution: Checks the `From` header address, falling back to envelope sender. Accounts associated with this address in `account_emails` must be active (`is_active == true`) and the email verified (`is_verified == true`).
   - **Admin Bypass**: If any matching account holds an admin identity in `admin_identities`, posting authorization is granted (`Accepted`).
-  - **Member Admission**: Otherwise, the sender must have an active subscription with `SubscriptionPermission::Write` for that exact email address on the topic (`Accepted`).
+  - **Member Admission**: Otherwise, the sender must have an active subscription with `SubscriptionPermission::Write` or `SubscriptionPermission::Moderate` for that exact email address on the topic (`Accepted`).
   - If admission fails, one of the 4 rejection reasons is assigned:
     1. `TopicRejectionReason::NotRegistered`: Sender email is unknown, unverified, or associated with an inactive account.
     2. `TopicRejectionReason::NotSubscribed`: Sender has an active account, but no active subscription to this topic on that address.

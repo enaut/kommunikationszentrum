@@ -11,6 +11,8 @@ pub enum SubscriptionPermission {
     Read,
 
     Write,
+
+    Moderate,
 }
 
 impl __sdk::InModule for SubscriptionPermission {

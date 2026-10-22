@@ -39,6 +39,7 @@ general-none = –
 general-cancel = Cancel
 general-unknown = Unknown
 pagination-page = Page { $page }
+datetime-format = %Y-%m-%d %H:%M:%S
 
 # Members
 members-page-title = Members
@@ -167,6 +168,7 @@ topic-detail-default-permission = Default Permission
 topic-detail-default-permission-help = Default permission for new subscribers. "Read": receive emails only. "Write": send and receive emails.
 topic-permission-read = Read (receive only)
 topic-permission-write = Write (send & receive)
+topic-permission-moderate = Moderate (Manage topic)
 topic-detail-save = Save
 topic-detail-saved = Changes saved.
 topic-detail-save-error = Save failed: { $error }
@@ -189,6 +191,7 @@ subscriber-add-all-claimed = All members are already subscribed.
 subscriber-member-label = Member
 subscriber-member-id = Member #{ $id }
 subscriber-search-placeholder = Filter by name or email …
+subscriber-search-min-chars = Please enter at least 5 characters
 subscriber-status-label = Status
 subscriber-cancel = Cancel
 subscriber-member-not-found = Member not found.
@@ -203,8 +206,10 @@ subscriber-save = Save
 subscriber-permission-label = Permission
 subscriber-permission-read = Read-Only
 subscriber-permission-write = Read & Write
+subscriber-permission-moderate = Moderate
 subscriber-permission-badge-read = Read
 subscriber-permission-badge-write = Write
+subscriber-permission-badge-moderate = Moderate
 
 # Subscription statuses
 subscription-status-manually-subscribed = Manually subscribed
@@ -346,6 +351,7 @@ status-delivery-events-id = ID
 status-delivery-events-delivery-id = Delivery ID
 status-delivery-events-type = Type
 status-delivery-events-attempt = Attempt
+status-delivery-events-occurred-at = Time
 status-delivery-events-details = Details
 status-pending-title = mail_delivery_pending
 status-pending-empty = No open deliveries.

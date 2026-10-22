@@ -100,6 +100,8 @@ pub mod set_stalwart_config_reducer;
 pub mod set_theme_and_lang_reducer;
 pub mod set_topic_categories_reducer;
 pub mod stalwart_config_type;
+pub mod subscriber_candidate_type;
+pub mod subscriber_search_candidates_table;
 pub mod subscription_permission_type;
 pub mod subscription_status_type;
 pub mod subscription_type;
@@ -232,6 +234,8 @@ pub use set_stalwart_config_reducer::set_stalwart_config;
 pub use set_theme_and_lang_reducer::set_theme_and_lang;
 pub use set_topic_categories_reducer::set_topic_categories;
 pub use stalwart_config_type::StalwartConfig;
+pub use subscriber_candidate_type::SubscriberCandidate;
+pub use subscriber_search_candidates_table::*;
 pub use subscription_permission_type::SubscriptionPermission;
 pub use subscription_status_type::SubscriptionStatus;
 pub use subscription_type::Subscription;
@@ -940,6 +944,7 @@ pub struct DbUpdate {
     sender_subscriptions: __sdk::TableUpdate<Subscription>,
     sender_system_mail_pending: __sdk::TableUpdate<SystemMailPending>,
     sender_topic_app_passwords: __sdk::TableUpdate<TopicAppPassword>,
+    subscriber_search_candidates: __sdk::TableUpdate<SubscriberCandidate>,
     topic_message_counts: __sdk::TableUpdate<TopicMessageCount>,
     topic_subscriber_counts: __sdk::TableUpdate<TopicSubscriberCount>,
     total_accounts: __sdk::TableUpdate<CountRow>,
@@ -1044,6 +1049,9 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 ),
                 "sender_topic_app_passwords" => db_update.sender_topic_app_passwords.append(
                     sender_topic_app_passwords_table::parse_table_update(table_update)?,
+                ),
+                "subscriber_search_candidates" => db_update.subscriber_search_candidates.append(
+                    subscriber_search_candidates_table::parse_table_update(table_update)?,
                 ),
                 "topic_message_counts" => db_update.topic_message_counts.append(
                     topic_message_counts_table::parse_table_update(table_update)?,
@@ -1238,6 +1246,10 @@ impl __sdk::DbUpdate for DbUpdate {
                 &self.sender_topic_app_passwords,
             )
             .with_updates_by_pk(|row| &row.id);
+        diff.subscriber_search_candidates = cache.apply_diff_to_table::<SubscriberCandidate>(
+            "subscriber_search_candidates",
+            &self.subscriber_search_candidates,
+        );
         diff.topic_message_counts = cache.apply_diff_to_table::<TopicMessageCount>(
             "topic_message_counts",
             &self.topic_message_counts,
@@ -1378,6 +1390,9 @@ impl __sdk::DbUpdate for DbUpdate {
                 "sender_topic_app_passwords" => db_update
                     .sender_topic_app_passwords
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "subscriber_search_candidates" => db_update
+                    .subscriber_search_candidates
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "topic_message_counts" => db_update
                     .topic_message_counts
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
@@ -1508,6 +1523,9 @@ impl __sdk::DbUpdate for DbUpdate {
                 "sender_topic_app_passwords" => db_update
                     .sender_topic_app_passwords
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "subscriber_search_candidates" => db_update
+                    .subscriber_search_candidates
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "topic_message_counts" => db_update
                     .topic_message_counts
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -1596,6 +1614,7 @@ pub struct AppliedDiff<'r> {
     sender_subscriptions: __sdk::TableAppliedDiff<'r, Subscription>,
     sender_system_mail_pending: __sdk::TableAppliedDiff<'r, SystemMailPending>,
     sender_topic_app_passwords: __sdk::TableAppliedDiff<'r, TopicAppPassword>,
+    subscriber_search_candidates: __sdk::TableAppliedDiff<'r, SubscriberCandidate>,
     topic_message_counts: __sdk::TableAppliedDiff<'r, TopicMessageCount>,
     topic_subscriber_counts: __sdk::TableAppliedDiff<'r, TopicSubscriberCount>,
     total_accounts: __sdk::TableAppliedDiff<'r, CountRow>,
@@ -1738,6 +1757,11 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<TopicAppPassword>(
             "sender_topic_app_passwords",
             &self.sender_topic_app_passwords,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<SubscriberCandidate>(
+            "subscriber_search_candidates",
+            &self.subscriber_search_candidates,
             event,
         );
         callbacks.invoke_table_row_callbacks::<TopicMessageCount>(
@@ -2503,6 +2527,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         sender_subscriptions_table::register_table(client_cache);
         sender_system_mail_pending_table::register_table(client_cache);
         sender_topic_app_passwords_table::register_table(client_cache);
+        subscriber_search_candidates_table::register_table(client_cache);
         topic_message_counts_table::register_table(client_cache);
         topic_subscriber_counts_table::register_table(client_cache);
         total_accounts_table::register_table(client_cache);
@@ -2544,6 +2569,7 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "sender_subscriptions",
         "sender_system_mail_pending",
         "sender_topic_app_passwords",
+        "subscriber_search_candidates",
         "topic_message_counts",
         "topic_subscriber_counts",
         "total_accounts",

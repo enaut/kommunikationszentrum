@@ -40,6 +40,7 @@ pub enum SubscriptionPermission {
     #[default]
     Read,
     Write,
+    Moderate,
 }
 
 /// The core mailing list entity.

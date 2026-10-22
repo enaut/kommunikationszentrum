@@ -39,6 +39,7 @@ general-none = –
 general-cancel = Abbrechen
 general-unknown = Unbekannt
 pagination-page = Seite { $page }
+datetime-format = %d.%m.%y %H:%M:%S
 
 # Members
 members-page-title = Mitglieder
@@ -169,6 +170,7 @@ topic-detail-default-permission = Standardberechtigung
 topic-detail-default-permission-help = Standardberechtigung für neue Abonnenten. „Lesen“: nur E-Mails empfangen. „Schreiben“: an die Mailingliste senden und empfangen.
 topic-permission-read = Lesen (nur Empfang)
 topic-permission-write = Schreiben (Senden & Empfang)
+topic-permission-moderate = Moderieren (Thema verwalten)
 topic-detail-save = Speichern
 topic-detail-saved = Änderungen gespeichert.
 topic-detail-save-error = Fehler beim Speichern: { $error }
@@ -191,6 +193,7 @@ subscriber-add-all-claimed = Alle Mitglieder sind bereits abonniert.
 subscriber-member-label = Mitglied
 subscriber-member-id = Mitglied #{ $id }
 subscriber-search-placeholder = Name oder E-Mail filtern …
+subscriber-search-min-chars = Bitte mindestens 5 Zeichen eingeben
 subscriber-status-label = Status
 subscriber-cancel = Abbrechen
 subscriber-member-not-found = Mitglied nicht gefunden.
@@ -205,8 +208,10 @@ subscriber-save = Speichern
 subscriber-permission-label = Berechtigung
 subscriber-permission-read = Nur Lesen
 subscriber-permission-write = Lesen & Schreiben
+subscriber-permission-moderate = Moderieren
 subscriber-permission-badge-read = Lesen
 subscriber-permission-badge-write = Schreiben
+subscriber-permission-badge-moderate = Moderieren
 
 # Subscription statuses
 subscription-status-manually-subscribed = Manuell abonniert
@@ -348,6 +353,7 @@ status-delivery-events-id = ID
 status-delivery-events-delivery-id = Delivery ID
 status-delivery-events-type = Typ
 status-delivery-events-attempt = Versuch
+status-delivery-events-occurred-at = Zeitpunkt
 status-delivery-events-details = Details
 status-pending-title = mail_delivery_pending
 status-pending-empty = Keine offenen Deliveries.
