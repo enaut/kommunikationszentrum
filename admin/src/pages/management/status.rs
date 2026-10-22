@@ -2,6 +2,7 @@ use ::dioxus::{logger::tracing::error, prelude::*};
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 
+use crate::i18n::format_timestamp;
 use crate::module_bindings::dioxus::{
     ConnectionState, use_connection_error, use_connection_state, use_subscription,
     use_table_sender_mail_delivery_claimed, use_table_sender_mail_delivery_done,
@@ -201,9 +202,9 @@ fn MailIngressCard() -> Element {
                                             let sender = msg.map(|m| m.sender_email.as_str()).unwrap_or("–");
                                             let worker = ingress.claim.instance_id.as_deref().unwrap_or("–");
                                             let time_str = if ingress.completed_at != spacetimedb_sdk::Timestamp::UNIX_EPOCH {
-                                                ingress.completed_at.to_string()
+                                                format_timestamp(ingress.completed_at)
                                             } else {
-                                                ingress.claim.updated_at.to_string()
+                                                format_timestamp(ingress.claim.updated_at)
                                             };
                                             let (status_class, status_label) = match ingress.claim.status {
                                                 DeliveryStatus::Pending => ("badge bg-secondary", tid!("status-ingress-status-pending")),
@@ -295,7 +296,7 @@ fn MailIngressCard() -> Element {
                     other => ("badge bg-dark text-white", format!("{other:?}")),
                 };
                 let completed_str = if target.completed_at != spacetimedb_sdk::Timestamp::UNIX_EPOCH {
-                    target.completed_at.to_string()
+                    format_timestamp(target.completed_at)
                 } else {
                     "–".to_string()
                 };
@@ -346,7 +347,7 @@ fn MailIngressCard() -> Element {
                             }
                             div { class: "mb-3",
                                 strong { "{tid!(\"status-last-updated\")}: " }
-                                span { class: "text-muted ms-2", "{target.claim.updated_at}" }
+                                span { class: "text-muted ms-2", "{format_timestamp(target.claim.updated_at)}" }
                             }
                             if completed_str != "–" {
                                 div { class: "mb-3",
@@ -517,10 +518,10 @@ fn TemporaryFailedCard() -> Element {
                                                         small { class: "text-muted", "{recipient}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{failed.next_attempt_at}" }
+                                                        small { class: "text-muted", "{format_timestamp(failed.next_attempt_at)}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{failed.last_updated}" }
+                                                        small { class: "text-muted", "{format_timestamp(failed.last_updated)}" }
                                                     }
                                                     td {
                                                         div { class: "small text-break", "{failed.last_error}" }
@@ -605,6 +606,7 @@ fn DeliveryEventsCard() -> Element {
                                         th { {tid!("status-delivery-events-delivery-id")} }
                                         th { {tid!("status-delivery-events-type")} }
                                         th { {tid!("status-delivery-events-attempt")} }
+                                        th { {tid!("status-delivery-events-occurred-at")} }
                                         th { {tid!("status-delivery-events-details")} }
                                     }
                                 }
@@ -622,6 +624,9 @@ fn DeliveryEventsCard() -> Element {
                                             }
                                             td {
                                                 small { class: "text-muted", "{event.attempt_no}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted", "{format_timestamp(event.occurred_at)}" }
                                             }
                                             td {
                                                 div { class: "small text-break", "{event.details}" }
@@ -708,7 +713,7 @@ fn PendingCard() -> Element {
                                                         small { class: "text-muted", "{row.ingress_id}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{row.last_updated}" }
+                                                        small { class: "text-muted", "{format_timestamp(row.last_updated)}" }
                                                     }
                                                     td { class: "text-end",
                                                         if let Some(msg) = msg_item {
@@ -808,13 +813,13 @@ fn ClaimedCard() -> Element {
                                                         small { class: "text-muted", "{row.worker}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{row.lease_expires_at}" }
+                                                        small { class: "text-muted", "{format_timestamp(row.lease_expires_at)}" }
                                                     }
                                                     td {
                                                         small { class: "text-muted", "{recipient}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{row.last_updated}" }
+                                                        small { class: "text-muted", "{format_timestamp(row.last_updated)}" }
                                                     }
                                                     td { class: "text-end",
                                                         if let Some(msg) = msg_item {
@@ -934,7 +939,7 @@ fn DoneCard() -> Element {
                                                         small { class: "text-break text-muted", "{reason}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{row.last_updated}" }
+                                                        small { class: "text-muted", "{format_timestamp(row.last_updated)}" }
                                                     }
                                                     td { class: "text-end",
                                                         if let Some(msg) = msg_item {
@@ -1025,7 +1030,7 @@ fn SystemMailCard() -> Element {
                                             let worker = mail.instance_id.as_deref().unwrap_or("–");
                                             let claimed_at_str = mail
                                                 .claimed_at
-                                                .map(|ts| ts.to_string())
+                                                .map(format_timestamp)
                                                 .unwrap_or_else(|| "–".to_string());
                                             let mail_clone = mail.clone();
                                             rsx! {
@@ -1130,7 +1135,7 @@ fn SystemMailCard() -> Element {
                             strong { "{tid!(\"status-system-mail-worker\")}: " }
                             span { class: "badge bg-info text-white ms-2 me-2", "{worker}" }
                             if let Some(claimed_at) = target.claimed_at {
-                                span { class: "text-muted small", "({claimed_at})" }
+                                span { class: "text-muted small", "({format_timestamp(claimed_at)})" }
                             }
                         }
                     }

@@ -6,6 +6,7 @@ use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 
+use crate::i18n::format_timestamp;
 use crate::module_bindings::dioxus::{
     ConnectionState, use_connection_state, use_procedure_sync_stalwart_domains,
     use_reducer_create_webhook_token, use_reducer_register_admin_identity,
@@ -583,7 +584,7 @@ fn StalwartConfigCard() -> Element {
                             if let Some(ref config) = current_config {
                                 span { class: "text-muted small",
                                     Icon { name: "clock-history", class: "me-1" }
-                                    {tid!("management-config-stalwart-last-updated", time: config.updated_at.to_string())}
+                                    {tid!("management-config-stalwart-last-updated", time: format_timestamp(config.updated_at))}
                                 }
                             }
                         }
@@ -740,7 +741,7 @@ fn MailRetentionConfigCard() -> Element {
                             if let Some(ref config) = current_config {
                                 span { class: "text-muted small",
                                     Icon { name: "clock-history", class: "me-1" }
-                                    {tid!("management-config-retention-last-updated", time: config.updated_at.to_string())}
+                                    {tid!("management-config-retention-last-updated", time: format_timestamp(config.updated_at))}
                                 }
                             }
                         }

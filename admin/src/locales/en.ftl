@@ -39,6 +39,7 @@ general-none = –
 general-cancel = Cancel
 general-unknown = Unknown
 pagination-page = Page { $page }
+datetime-format = %Y-%m-%d %H:%M:%S
 
 # Members
 members-page-title = Members
@@ -350,6 +351,7 @@ status-delivery-events-id = ID
 status-delivery-events-delivery-id = Delivery ID
 status-delivery-events-type = Type
 status-delivery-events-attempt = Attempt
+status-delivery-events-occurred-at = Time
 status-delivery-events-details = Details
 status-pending-title = mail_delivery_pending
 status-pending-empty = No open deliveries.

@@ -120,3 +120,14 @@ pub fn preference_to_langid(
         crate::module_bindings::LanguagePreference::De => langid!("de-DE"),
     }
 }
+
+pub fn format_timestamp(ts: spacetimedb_sdk::Timestamp) -> String {
+    let fmt = dioxus_i18n::tid!("datetime-format");
+    match ts.to_chrono_date_time() {
+        Ok(utc_dt) => utc_dt
+            .with_timezone(&chrono::Local)
+            .format(&fmt)
+            .to_string(),
+        Err(_) => ts.to_string(),
+    }
+}
