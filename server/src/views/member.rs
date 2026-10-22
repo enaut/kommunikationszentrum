@@ -1,4 +1,4 @@
-use crate::common::auth::{is_admin_user, is_any_topic_moderator, is_topic_moderator};
+use crate::common::auth::{is_admin_user, is_topic_moderator};
 use crate::models::account::*;
 use crate::models::domain::*;
 use crate::models::mail_message::*;
