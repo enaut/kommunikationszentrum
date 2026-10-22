@@ -49,6 +49,7 @@ pub fn use_current_account_id() -> Option<u64> {
 /// Returns the topic IDs for which the currently connected user has an active
 /// subscription with `Moderate` permissions.
 pub fn use_moderated_topic_ids() -> Vec<u64> {
+    use_subscription(&["SELECT * FROM visible_subscriptions"]);
     let subscriptions = use_table_visible_subscriptions();
     let my_account_id = use_current_account_id();
     if let Some(acc_id) = my_account_id {

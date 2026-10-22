@@ -279,13 +279,7 @@ pub(crate) fn do_add_subscription(
         if !force && status.is_automatic() && !existing.status.is_automatic() {
             return Ok(existing);
         }
-        let permission = if topic.default_permission == SubscriptionPermission::Write
-            && existing.permission == SubscriptionPermission::Read
-        {
-            SubscriptionPermission::Write
-        } else {
-            existing.permission
-        };
+        let permission = existing.permission;
         let updated = Subscription {
             account_email_id,
             subscribed_at: timestamp,

@@ -408,10 +408,16 @@ pub fn EditSubscriptionModal(
         .map(|t| t.status == SubscriptionStatus::RequiredSubscribed)
         .unwrap_or(false);
 
-    let edit_status_options = if is_admin {
-        ALL_STATUSES
+    let edit_status_options: Vec<SubscriptionStatus> = if is_admin {
+        ALL_STATUSES.to_vec()
     } else {
-        MODERATOR_STATUSES
+        let mut opts = MODERATOR_STATUSES.to_vec();
+        if let Some(t) = target_val.as_ref() {
+            if !opts.contains(&t.status) {
+                opts.insert(0, t.status.clone());
+            }
+        }
+        opts
     };
 
     rsx! {
@@ -447,7 +453,7 @@ pub fn EditSubscriptionModal(
                                 edit_status.set(s);
                             }
                         },
-                        for s in edit_status_options {
+                        for s in &edit_status_options {
                             option {
                                 key: "{status_key(s)}",
                                 value: "{status_key(s)}",
@@ -503,7 +509,7 @@ pub fn EditSubscriptionModal(
                         } else {
                             Ok(())
                         };
-                        let res2 = if permission != t.permission {
+                        let res2 = if res1.is_ok() && permission != t.permission {
                             update_permission(t.subscription_id, permission)
                         } else {
                             Ok(())
