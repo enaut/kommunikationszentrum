@@ -463,7 +463,7 @@ pub fn EditSubscriptionModal(
                             SubscriptionPermission::Write => "write",
                             SubscriptionPermission::Moderate => "moderate",
                         },
-                        disabled: !is_admin,
+                        disabled: !is_admin && is_target_moderator,
                         onchange: move |e: FormEvent| {
                             match e.value().as_str() {
                                 "read" => edit_permission.set(SubscriptionPermission::Read),
@@ -488,7 +488,7 @@ pub fn EditSubscriptionModal(
                 }
                 Button {
                     color: Color::Primary,
-                    disabled: !is_admin && (is_target_moderator || is_target_required),
+                    disabled: !is_admin && is_target_moderator,
                     onclick: move |_| {
                         let Some(t) = target() else { return };
                         let status = edit_status();
