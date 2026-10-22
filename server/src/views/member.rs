@@ -213,13 +213,13 @@ pub struct SubscriberCandidate {
 #[spacetimedb::view(accessor = subscriber_search_candidates, public)]
 pub fn subscriber_search_candidates(ctx: &ViewContext) -> Vec<SubscriberCandidate> {
     let is_admin = is_admin_user(ctx);
-    let is_mod = is_any_topic_moderator(ctx);
-
-    if !is_admin && !is_mod {
+    let config = get_account_config(ctx);
+    let Some(topic_id) = config.viewing_topic_id else {
+        return vec![];
+    };
+    if !is_admin && !is_topic_moderator(ctx, topic_id) {
         return vec![];
     }
-
-    let config = get_account_config(ctx);
     let query = match config.member_search_query {
         Some(ref q) => q.trim(),
         None => return vec![],
@@ -238,11 +238,9 @@ pub fn subscriber_search_candidates(ctx: &ViewContext) -> Vec<SubscriberCandidat
 
     // If viewing a specific topic, find emails with active subscriptions so we can exclude them
     let mut active_subscribed_email_ids = std::collections::HashSet::new();
-    if let Some(topic_id) = config.viewing_topic_id {
-        for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
-            if sub.status.is_active() {
-                active_subscribed_email_ids.insert(sub.account_email_id);
-            }
+    for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
+        if sub.status.is_active() {
+            active_subscribed_email_ids.insert(sub.account_email_id);
         }
     }
 
