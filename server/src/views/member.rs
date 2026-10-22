@@ -169,7 +169,9 @@ pub fn context_accounts(ctx: &ViewContext) -> Vec<Account> {
     if let Some(topic_id) = config.viewing_topic_id {
         if is_admin || is_topic_moderator(ctx, topic_id) {
             for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
-                account_ids.insert(sub.subscriber_account_id);
+                if is_admin || sub.status.is_active() {
+                    account_ids.insert(sub.subscriber_account_id);
+                }
             }
         }
     }
@@ -301,17 +303,55 @@ fn all_visible_accounts(ctx: &ViewContext) -> Vec<Account> {
 
 #[spacetimedb::view(accessor = visible_account_emails, public)]
 pub fn visible_account_emails(ctx: &ViewContext) -> Vec<AccountEmail> {
-    let accounts = all_visible_accounts(ctx);
-    accounts
-        .into_iter()
-        .flat_map(|acc| {
-            ctx.db
-                .account_emails()
-                .account_id()
-                .filter(&acc.id)
-                .collect::<Vec<_>>()
-        })
-        .collect()
+    let is_admin = is_admin_user(ctx);
+    let my_account_id = ctx
+        .db
+        .account()
+        .identity()
+        .find(&ctx.sender())
+        .map(|a| a.id);
+
+    if is_admin {
+        let accounts = all_visible_accounts(ctx);
+        return accounts
+            .into_iter()
+            .flat_map(|acc| {
+                ctx.db
+                    .account_emails()
+                    .account_id()
+                    .filter(&acc.id)
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+    }
+
+    let mut emails = Vec::new();
+    let mut seen_email_ids = std::collections::HashSet::new();
+
+    // 1. Current user: full access to all own emails
+    if let Some(my_id) = my_account_id {
+        for email in ctx.db.account_emails().account_id().filter(&my_id) {
+            if seen_email_ids.insert(email.id) {
+                emails.push(email);
+            }
+        }
+    }
+
+    // 2. Topic moderator: restrict to email IDs referenced by active subscriptions on the viewed topic
+    let config = get_account_config(ctx);
+    if let Some(topic_id) = config.viewing_topic_id {
+        if is_topic_moderator(ctx, topic_id) {
+            for sub in ctx.db.subscriptions().topic_id().filter(&topic_id) {
+                if sub.status.is_active() && seen_email_ids.insert(sub.account_email_id) {
+                    if let Some(email) = ctx.db.account_emails().id().find(&sub.account_email_id) {
+                        emails.push(email);
+                    }
+                }
+            }
+        }
+    }
+
+    emails
 }
 
 #[spacetimedb::view(accessor = visible_subscriptions, public)]
@@ -333,7 +373,9 @@ pub fn visible_subscriptions(ctx: &ViewContext) -> Vec<Subscription> {
             .subscriber_account_id()
             .filter(&acc.id)
         {
-            if is_admin || Some(acc.id) == my_account_id || is_topic_moderator(ctx, sub.topic_id) {
+            let is_mine = Some(acc.id) == my_account_id;
+            let is_mod_on_topic = is_topic_moderator(ctx, sub.topic_id);
+            if is_admin || is_mine || (is_mod_on_topic && sub.status.is_active()) {
                 subs.push(sub);
             }
         }
