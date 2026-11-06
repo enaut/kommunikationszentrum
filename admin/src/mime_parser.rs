@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 use base64::Engine as _;
-use mail_parser::{MessageParser, MimeHeaders, PartType};
+use mail_parser::{HeaderForm, MessageParser, PartKind};
 use regex::Regex;
 
 /// Decode a header value (e.g. Subject, From, CC) that may contain RFC 2047 encoded words.
@@ -32,9 +32,13 @@ pub fn decode_header_value(header_name: &str, raw_value: &str) -> String {
                         }
                     }
                 }
-                msg.header(header_name)
-                    .and_then(|header| header.as_text())
-                    .map(str::to_string)
+                msg.headers().get(header_name).and_then(|header| {
+                    header
+                        .parse_as(HeaderForm::Text)
+                        .value()
+                        .as_text()
+                        .map(str::to_owned)
+                })
             })
             .unwrap_or_else(|| raw_value.to_string())
     };
@@ -87,17 +91,19 @@ pub fn redact_raw_body(body_raw: &str, headers_raw: &str) -> String {
     };
 
     let mut found_token = false;
+    let mut seen = std::collections::HashSet::new();
     let mut decoded_parts = Vec::new();
-    for id in msg.text_body.iter().chain(msg.html_body.iter()) {
-        let Some(part) = msg.parts.get(*id as usize) else {
+    for part in msg.text_body().chain(msg.html_body()) {
+        if !seen.insert(part.id()) {
             continue;
+        }
+        let text = match part.kind() {
+            PartKind::Text | PartKind::Html => part.text(),
+            _ => None,
         };
-        let text = match &part.body {
-            PartType::Text(text) | PartType::Html(text) => text.as_ref(),
-            _ => continue,
-        };
-        let redacted = redact_unsubscribe_tokens(text);
-        if redacted != text {
+        let Some(text) = text else { continue };
+        let redacted = redact_unsubscribe_tokens(&text);
+        if redacted != text.as_ref() {
             found_token = true;
         }
         decoded_parts.push(redacted);
@@ -134,12 +140,10 @@ pub fn render_markdown_to_html(md: &str) -> String {
 }
 
 fn html_body_part(msg: &mail_parser::Message<'_>) -> Option<String> {
-    msg.html_body
-        .iter()
-        .find_map(|id| match &msg.parts.get(*id as usize)?.body {
-            PartType::Html(html) => Some(html.to_string()),
-            _ => None,
-        })
+    msg.html_body()
+        .find(|part| matches!(part.kind(), PartKind::Html))
+        .and_then(|part| part.text())
+        .map(String::from)
 }
 
 /// Decode the preferred MIME body: HTML when available, otherwise plain text.
@@ -251,7 +255,7 @@ fn inline_cid_images(msg: &mail_parser::Message<'_>) -> HashMap<String, String> 
         if !content_type.ctype().eq_ignore_ascii_case("image") {
             continue;
         }
-        if !matches!(&part.body, PartType::Binary(_) | PartType::InlineBinary(_)) {
+        if !matches!(part.kind(), PartKind::Binary | PartKind::InlineBinary) {
             continue;
         }
 
@@ -270,7 +274,7 @@ fn inline_cid_images(msg: &mail_parser::Message<'_>) -> HashMap<String, String> 
         let media_type = format!("image/{}", subtype.to_ascii_lowercase());
         let data_url = format!(
             "data:{media_type};base64,{}",
-            base64::engine::general_purpose::STANDARD.encode(part.contents())
+            base64::engine::general_purpose::STANDARD.encode(part.decoded())
         );
         images.entry(content_id).or_insert(data_url);
     }
@@ -461,6 +465,14 @@ mod tests {
         assert!(!rendered.contains("missing-image"));
         assert!(!rendered.contains("not-an-image"));
         assert!(!rendered.contains("remote.example"));
+    }
+
+    #[test]
+    fn arbitrary_encoded_header_values_are_decoded_as_text() {
+        assert_eq!(
+            decode_header_value("X-Comment", "=?UTF-8?Q?caf=C3=A9?="),
+            "café"
+        );
     }
 
     #[test]

@@ -11,7 +11,8 @@ pub fn is_admin_user(ctx: &(impl CtxDbRead + CtxWithSender)) -> bool {
     is_admin_identity(ctx, ctx.sender())
 }
 
-/// True if the provided identity is the module identity or an active, non-deleted admin.
+/// True for the module identity, a registered account-less service identity, or an active,
+/// non-deleted account identity that is registered as an admin.
 ///
 /// Generic over [`CtxDbRead`] so it can be shared by reducers, views, and
 /// procedure/HTTP transactions (`ReducerContext`, `ViewContext`, `TxContext`, …).
@@ -23,14 +24,45 @@ pub fn is_admin_identity(ctx: &impl CtxDbRead, who: Identity) -> bool {
         return true;
     }
     let db = ctx.db_read_only();
-    let is_active_user = db
+    let account_status = db
         .account()
         .identity()
         .find(&who)
-        .is_some_and(|account| account.is_active && !account.is_deleted_from_idp);
-    let res = is_active_user && db.admin_identities().identity().find(&who).is_some();
+        .map(|account| (account.is_active, account.is_deleted_from_idp));
+    let has_admin_entry = db.admin_identities().identity().find(&who).is_some();
+    let res = is_registered_admin_authorized(has_admin_entry, account_status);
     info!("is_admin_identity: caller is admin identity: {}", res);
     res
+}
+
+fn is_registered_admin_authorized(
+    has_admin_entry: bool,
+    account_status: Option<(bool, bool)>,
+) -> bool {
+    has_admin_entry && account_status.is_none_or(|(is_active, is_deleted)| is_active && !is_deleted)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_registered_admin_authorized;
+
+    #[test]
+    fn registered_service_identity_without_account_is_authorized() {
+        assert!(is_registered_admin_authorized(true, None));
+    }
+
+    #[test]
+    fn account_linked_admin_must_be_active_and_not_deleted() {
+        assert!(is_registered_admin_authorized(true, Some((true, false))));
+        assert!(!is_registered_admin_authorized(true, Some((false, false))));
+        assert!(!is_registered_admin_authorized(true, Some((true, true))));
+    }
+
+    #[test]
+    fn identity_without_admin_entry_is_not_authorized() {
+        assert!(!is_registered_admin_authorized(false, None));
+        assert!(!is_registered_admin_authorized(false, Some((true, false))));
+    }
 }
 
 /// Check if the caller identity has active moderation rights on the given topic.

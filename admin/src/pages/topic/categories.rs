@@ -78,11 +78,11 @@ pub fn CategoryCheckRow(
                     },
                     oninput: move |e| rename_draft.set(e.value()),
                     onkeydown: move |e| {
-                        if e.key() == Key::Escape {
+                        if e.key() == Key::Named(NamedKey::Escape) {
                             renaming_category_id.set(None);
                             return;
                         }
-                        if e.key() != Key::Enter {
+                        if e.key() != Key::Named(NamedKey::Enter){
                             return;
                         }
                         let new_name = rename_draft.read().trim().to_string();
@@ -238,7 +238,7 @@ pub fn TopicCategoriesCard(
                                 value: "{new_category_name}",
                                 oninput: move |e: FormEvent| new_category_name.set(e.value()),
                                 onkeydown: move |e: KeyboardEvent| {
-                                    if e.key() == Key::Enter {
+                                    if e.key() == Key::Named(NamedKey::Enter){
                                         let name = new_category_name.read().trim().to_string();
                                         if name.is_empty() {
                                             return;

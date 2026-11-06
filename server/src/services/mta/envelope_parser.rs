@@ -1,4 +1,4 @@
-use mail_parser::MessageParser;
+use mail_parser::{HeaderForm, MessageParser};
 use stalwart_mta_hook_types::Request as MtaHookRequest;
 
 /// Decode an RFC 2047 header value using mail_parser.
@@ -24,9 +24,9 @@ pub fn decode_rfc2047_header(header_name: &str, raw_value: &str) -> String {
                 }
             }
         }
-        if let Some(hdr) = msg.header(header_name) {
-            if let Some(val) = hdr.as_text() {
-                return val.to_string();
+        if let Some(header) = msg.headers().get(header_name) {
+            if let Some(value) = header.parse_as(HeaderForm::Text).value().as_text() {
+                return value.to_string();
             }
         }
     }
@@ -158,6 +158,14 @@ mod tests {
         });
 
         serde_json::from_value(json).expect("valid MtaHookRequest")
+    }
+
+    #[test]
+    fn test_decode_rfc2047_unstructured_header() {
+        assert_eq!(
+            decode_rfc2047_header("X-Comment", "=?UTF-8?Q?caf=C3=A9?="),
+            "café"
+        );
     }
 
     #[test]

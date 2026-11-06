@@ -260,7 +260,6 @@ async fn connect_to_spacetimedb(
         })
         .build()?;
 
-    let token_for_subscribe = connection_token.clone();
     let tx_for_subscribe = tx.clone();
     let connected_tx_for_applied = connected_tx.clone();
 
@@ -282,7 +281,6 @@ async fn connect_to_spacetimedb(
     subscribe_to_spacetime_tables(
         &connection,
         identity,
-        token_for_subscribe,
         tx_for_subscribe,
         connected_tx_for_applied,
     );
@@ -302,12 +300,9 @@ async fn connect_to_spacetimedb(
 fn subscribe_to_spacetime_tables(
     connection: &DbConnection,
     identity: spacetimedb_sdk::Identity,
-    connection_token: Arc<std::sync::Mutex<Option<String>>>,
     tx: tokio::sync::mpsc::UnboundedSender<Event>,
     connected_tx: Arc<std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
 ) {
-    let token = connection_token.lock().unwrap().clone().unwrap();
-
     connection
         .subscription_builder()
         .on_applied(move |ctx| {
@@ -321,8 +316,8 @@ fn subscribe_to_spacetime_tables(
 
             if !has_admin_permissions {
                 let msg = format!(
-                    "Sender identity does not have the required admin permissions.\nAdd this identity ({:?}) to admin_identities via the admin interface and add the token ({}) to the .env/.env.webhook-proxy and restart the sender.",
-                    identity, token
+                    "Sender identity does not have the required admin permissions.\nAdd this identity ({:?}) to admin_identities via the admin interface, ensure SPACETIMEDB_TOKEN is set for this identity, and restart the sender.",
+                    identity
                 );
                 error!("{}", msg);
                 let _ = tx.send(Event::FatalError(msg));
