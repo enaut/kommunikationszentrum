@@ -26,6 +26,7 @@ const JMAP_CORE: &str = "urn:ietf:params:jmap:core";
 const JMAP_MAIL: &str = "urn:ietf:params:jmap:mail";
 const JMAP_SUBMISSION: &str = "urn:ietf:params:jmap:submission";
 const DELIVERY_HEADER: &str = "X-SolaWi-Delivery-ID";
+const OUTBOX_MAILBOX_NAME: &str = "Kommunikationszentrum JMAP delivery outbox";
 
 const HTTP_TIMEOUT_MICROS: i64 = 30_000_000;
 
@@ -276,6 +277,21 @@ fn resolve_identity(
         .ok_or_else(|| DispatchError::permanent(format!("No authorized JMAP identity for {from}")))
 }
 
+fn outbox_query_args(account_id: &str) -> Value {
+    json!({
+        "accountId": account_id,
+        "filter": { "name": OUTBOX_MAILBOX_NAME, "parentId": null },
+        "limit": 1
+    })
+}
+
+fn outbox_create_args(account_id: &str) -> Value {
+    json!({
+        "accountId": account_id,
+        "create": { "outbox": { "name": OUTBOX_MAILBOX_NAME, "isSubscribed": false } }
+    })
+}
+
 fn resolve_outbox(
     ctx: &mut ProcedureContext,
     session: &JmapSession,
@@ -285,11 +301,7 @@ fn resolve_outbox(
         session,
         JMAP_MAIL,
         "Mailbox/query",
-        json!({
-            "accountId": session.account_id,
-            "filter": { "role": "outbox" },
-            "limit": 1
-        }),
+        outbox_query_args(&session.account_id),
         "outbox-query",
     )?;
     let ids = result_for(&query, "Mailbox/query", "outbox-query")?
@@ -305,10 +317,7 @@ fn resolve_outbox(
         session,
         JMAP_MAIL,
         "Mailbox/set",
-        json!({
-            "accountId": session.account_id,
-            "create": { "outbox": { "name": "Kommunikationszentrum outbox", "role": "outbox", "isSubscribed": false } }
-        }),
+        outbox_create_args(&session.account_id),
         "outbox-create",
     )?;
     result_for(&created, "Mailbox/set", "outbox-create")?
@@ -798,12 +807,18 @@ fn result_for<'a>(
         .and_then(Value::as_array)
         .ok_or_else(|| DispatchError::retry("JMAP response is missing methodResponses"))?;
     for call in calls {
-        if call.get(0).and_then(Value::as_str) == Some(method)
-            && call.get(2).and_then(Value::as_str) == Some(call_id)
-        {
-            return call
-                .get(1)
-                .ok_or_else(|| DispatchError::retry("JMAP method result is missing"));
+        if call.get(2).and_then(Value::as_str) != Some(call_id) {
+            continue;
+        }
+        let response_method = call.get(0).and_then(Value::as_str);
+        let result = call
+            .get(1)
+            .ok_or_else(|| DispatchError::retry("JMAP method result is missing"))?;
+        if response_method == Some(method) {
+            return Ok(result);
+        }
+        if response_method == Some("error") {
+            return Err(parse_method_error(method, result));
         }
     }
     Err(DispatchError::retry(format!(
@@ -812,7 +827,13 @@ fn result_for<'a>(
 }
 
 fn jmap_method_error(response: &Value, method: &str, call_id: &str) -> DispatchError {
-    let result = result_for(response, method, call_id).unwrap_or(&Value::Null);
+    match result_for(response, method, call_id) {
+        Ok(result) => parse_method_error(method, result),
+        Err(error) => error,
+    }
+}
+
+fn parse_method_error(method: &str, result: &Value) -> DispatchError {
     let error_type = result
         .get("type")
         .and_then(Value::as_str)
@@ -828,6 +849,49 @@ fn jmap_method_error(response: &Value, method: &str, call_id: &str) -> DispatchE
     DispatchError {
         message: format!("{method} failed ({error_type}): {detail}"),
         permanent,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn outbox_mailbox_uses_a_roleless_jmap_mailbox() {
+        let query = outbox_query_args("account");
+        let create = outbox_create_args("account");
+
+        assert_eq!(
+            query.pointer("/filter/name").and_then(Value::as_str),
+            Some(OUTBOX_MAILBOX_NAME)
+        );
+        assert_eq!(query.pointer("/filter/parentId"), Some(&Value::Null));
+        assert_eq!(
+            create
+                .pointer("/create/outbox/name")
+                .and_then(Value::as_str),
+            Some(OUTBOX_MAILBOX_NAME)
+        );
+        assert!(create.pointer("/create/outbox/role").is_none());
+    }
+
+    #[test]
+    fn result_for_reports_jmap_method_errors() {
+        let response = json!({
+            "methodResponses": [[
+                "error",
+                { "type": "invalidArguments", "description": "Unsupported filter" },
+                "outbox-query"
+            ]]
+        });
+
+        let error = result_for(&response, "Mailbox/query", "outbox-query").unwrap_err();
+
+        assert_eq!(
+            error.message,
+            "Mailbox/query failed (invalidArguments): Unsupported filter"
+        );
+        assert!(error.permanent);
     }
 }
 

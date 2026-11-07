@@ -17,6 +17,7 @@ module_name = "kommunikation"
 [mail]
 jmap_dispatch_enabled = false
 system_jmap_username = ""
+# Real password or better and app password for the system JMAP account (used for sending emails)
 system_jmap_password = ""
 
 [server]
