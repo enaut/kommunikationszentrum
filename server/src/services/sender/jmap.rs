@@ -216,32 +216,52 @@ fn discover_session(
         .and_then(Value::as_str)
         .ok_or_else(|| DispatchError::permanent("JMAP session response has no uploadUrl"))?
         .to_string();
-    let account_id = response
-        .pointer("/primaryAccounts/urn:ietf:params:jmap:mail")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            response
-                .get("accounts")
-                .and_then(Value::as_object)
-                .and_then(|accounts| {
-                    accounts
-                        .iter()
-                        .find(|(_, account)| {
-                            account
-                                .pointer("/accountCapabilities/urn:ietf:params:jmap:mail")
-                                .is_some()
-                        })
-                        .map(|(id, _)| id.as_str())
-                })
-        })
-        .ok_or_else(|| DispatchError::permanent("JMAP session has no mail account"))?
-        .to_string();
+    let account_id = session_account_id(&response).ok_or_else(|| {
+        DispatchError::permanent("JMAP session has no mail or submission account")
+    })?;
     Ok(JmapSession {
         api_url,
         upload_url,
         account_id,
         auth,
     })
+}
+
+fn session_account_id(response: &Value) -> Option<String> {
+    let accounts = response.get("accounts").and_then(Value::as_object);
+    response
+        .pointer("/primaryAccounts/urn:ietf:params:jmap:mail")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            accounts.and_then(|accounts| {
+                accounts
+                    .iter()
+                    .find(|(_, account)| {
+                        account
+                            .pointer("/accountCapabilities/urn:ietf:params:jmap:mail")
+                            .is_some()
+                    })
+                    .map(|(id, _)| id.as_str())
+            })
+        })
+        .or_else(|| {
+            response
+                .pointer("/primaryAccounts/urn:ietf:params:jmap:submission")
+                .and_then(Value::as_str)
+        })
+        .or_else(|| {
+            accounts.and_then(|accounts| {
+                accounts
+                    .iter()
+                    .find(|(_, account)| {
+                        account
+                            .pointer("/accountCapabilities/urn:ietf:params:jmap:submission")
+                            .is_some()
+                    })
+                    .map(|(id, _)| id.as_str())
+            })
+        })
+        .map(ToString::to_string)
 }
 
 fn resolve_identity(
@@ -855,6 +875,40 @@ fn parse_method_error(method: &str, result: &Value) -> DispatchError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn session_account_id_falls_back_to_primary_submission_account() {
+        let session = json!({
+            "accounts": {
+                "l": {
+                    "accountCapabilities": {
+                        "urn:ietf:params:jmap:submission": {}
+                    }
+                }
+            },
+            "primaryAccounts": {
+                "urn:ietf:params:jmap:submission": "l"
+            }
+        });
+
+        assert_eq!(session_account_id(&session).as_deref(), Some("l"));
+    }
+
+    #[test]
+    fn session_account_id_prefers_primary_mail_account() {
+        let session = json!({
+            "accounts": {
+                "mail": { "accountCapabilities": { "urn:ietf:params:jmap:mail": {} } },
+                "submission": { "accountCapabilities": { "urn:ietf:params:jmap:submission": {} } }
+            },
+            "primaryAccounts": {
+                "urn:ietf:params:jmap:mail": "mail",
+                "urn:ietf:params:jmap:submission": "submission"
+            }
+        });
+
+        assert_eq!(session_account_id(&session).as_deref(), Some("mail"));
+    }
 
     #[test]
     fn outbox_mailbox_uses_a_roleless_jmap_mailbox() {
