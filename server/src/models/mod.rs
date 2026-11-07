@@ -4,4 +4,5 @@ pub mod delivery;
 pub mod domain;
 pub mod mail_message;
 pub mod mta;
+pub mod sender;
 pub mod topic;

@@ -10,6 +10,7 @@ use crate::models::{
         expire_stale_delivery_claims_schedule, requeue_temporary_failed_mails_schedule,
     },
     mta::{PurgeRejectedMailsSchedule, purge_rejected_mails_schedule},
+    sender::{JmapMailDispatchSchedule, jmap_mail_dispatch_schedule},
 };
 use crate::services::mta::purge::DEFAULT_REJECTED_RETENTION_DAYS;
 
@@ -87,6 +88,24 @@ pub fn init(ctx: &ReducerContext) {
                 scheduled_at: ScheduleAt::Interval(Duration::from_secs(3600).into()),
             });
         log::info!("Seeded purge_rejected_mails schedule");
+    }
+
+    if ctx
+        .db
+        .jmap_mail_dispatch_schedule()
+        .scheduled_id()
+        .find(&0)
+        .is_none()
+    {
+        ctx.db
+            .jmap_mail_dispatch_schedule()
+            .insert(JmapMailDispatchSchedule {
+                scheduled_id: 0,
+                scheduled_at: ScheduleAt::Interval(Duration::from_secs(10).into()),
+            });
+        log::info!(
+            "Seeded native JMAP mail dispatch schedule (disabled until JMAP_DISPATCH_ENABLED=true)"
+        );
     }
 
     if ctx.db.mail_retention_config().id().find(&0).is_none() {

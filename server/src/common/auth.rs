@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, trace};
 use spacetimedb::{CtxDbRead, CtxWithSender, Identity};
 
 use crate::models::account::{account__view, admin_identities__view};
@@ -20,7 +20,7 @@ pub fn is_admin_identity(ctx: &impl CtxDbRead, who: Identity) -> bool {
     // Same host call as `ReducerContext::database_identity()` — available outside reducers.
     let module_identity = Identity::from_byte_array(spacetimedb::sys::identity());
     if who == module_identity {
-        info!("is_admin_identity: caller is module identity");
+        trace!("is_admin_identity: caller is module identity");
         return true;
     }
     let db = ctx.db_read_only();
@@ -31,7 +31,7 @@ pub fn is_admin_identity(ctx: &impl CtxDbRead, who: Identity) -> bool {
         .map(|account| (account.is_active, account.is_deleted_from_idp));
     let has_admin_entry = db.admin_identities().identity().find(&who).is_some();
     let res = is_registered_admin_authorized(has_admin_entry, account_status);
-    info!("is_admin_identity: caller is admin identity: {}", res);
+    trace!("is_admin_identity: caller is admin identity: {}", res);
     res
 }
 

@@ -48,6 +48,10 @@ pub mod fail_mail_delivery_reducer;
 pub mod fail_mail_ingress_reducer;
 pub mod increment_mail_ingress_delivery_count_reducer;
 pub mod increment_mail_ingress_failed_delivery_count_reducer;
+pub mod jmap_delivery_state_type;
+pub mod jmap_mail_delivery_event_type;
+pub mod jmap_mail_delivery_type;
+pub mod jmap_mail_dispatch_schedule_type;
 pub mod language_preference_type;
 pub mod mail_delivery_claimed_type;
 pub mod mail_delivery_done_type;
@@ -64,6 +68,7 @@ pub mod message_disposition_filter_type;
 pub mod message_disposition_type;
 pub mod message_topic_category_type;
 pub mod message_topic_type;
+pub mod migrate_pending_legacy_deliveries_procedure;
 pub mod provision_all_unprovisioned_topics_procedure;
 pub mod provision_message_topic_procedure;
 pub mod purge_rejected_mails_schedule_table;
@@ -78,11 +83,14 @@ pub mod remove_subscription_reducer;
 pub mod rename_category_reducer;
 pub mod requeue_temporary_failed_mails_schedule_table;
 pub mod requeue_temporary_failed_mails_schedule_type;
+pub mod retry_failed_jmap_delivery_reducer;
 pub mod retry_mail_ingress_reducer;
 pub mod revoke_webhook_token_reducer;
 pub mod schedule_mail_delivery_retry_reducer;
 pub mod sender_account_emails_table;
 pub mod sender_accounts_table;
+pub mod sender_jmap_mail_deliveries_table;
+pub mod sender_jmap_mail_delivery_events_table;
 pub mod sender_mail_delivery_claimed_table;
 pub mod sender_mail_delivery_done_table;
 pub mod sender_mail_delivery_events_table;
@@ -182,6 +190,10 @@ pub use fail_mail_delivery_reducer::fail_mail_delivery;
 pub use fail_mail_ingress_reducer::fail_mail_ingress;
 pub use increment_mail_ingress_delivery_count_reducer::increment_mail_ingress_delivery_count;
 pub use increment_mail_ingress_failed_delivery_count_reducer::increment_mail_ingress_failed_delivery_count;
+pub use jmap_delivery_state_type::JmapDeliveryState;
+pub use jmap_mail_delivery_event_type::JmapMailDeliveryEvent;
+pub use jmap_mail_delivery_type::JmapMailDelivery;
+pub use jmap_mail_dispatch_schedule_type::JmapMailDispatchSchedule;
 pub use language_preference_type::LanguagePreference;
 pub use mail_delivery_claimed_type::MailDeliveryClaimed;
 pub use mail_delivery_done_type::MailDeliveryDone;
@@ -198,6 +210,7 @@ pub use message_disposition_filter_type::MessageDispositionFilter;
 pub use message_disposition_type::MessageDisposition;
 pub use message_topic_category_type::MessageTopicCategory;
 pub use message_topic_type::MessageTopic;
+pub use migrate_pending_legacy_deliveries_procedure::migrate_pending_legacy_deliveries;
 pub use provision_all_unprovisioned_topics_procedure::provision_all_unprovisioned_topics;
 pub use provision_message_topic_procedure::provision_message_topic;
 pub use purge_rejected_mails_schedule_table::*;
@@ -212,11 +225,14 @@ pub use remove_subscription_reducer::remove_subscription;
 pub use rename_category_reducer::rename_category;
 pub use requeue_temporary_failed_mails_schedule_table::*;
 pub use requeue_temporary_failed_mails_schedule_type::RequeueTemporaryFailedMailsSchedule;
+pub use retry_failed_jmap_delivery_reducer::retry_failed_jmap_delivery;
 pub use retry_mail_ingress_reducer::retry_mail_ingress;
 pub use revoke_webhook_token_reducer::revoke_webhook_token;
 pub use schedule_mail_delivery_retry_reducer::schedule_mail_delivery_retry;
 pub use sender_account_emails_table::*;
 pub use sender_accounts_table::*;
+pub use sender_jmap_mail_deliveries_table::*;
+pub use sender_jmap_mail_delivery_events_table::*;
 pub use sender_mail_delivery_claimed_table::*;
 pub use sender_mail_delivery_done_table::*;
 pub use sender_mail_delivery_events_table::*;
@@ -409,6 +425,9 @@ pub enum Reducer {
         category_id: u64,
         new_name: String,
     },
+    RetryFailedJmapDelivery {
+        delivery_id: String,
+    },
     RetryMailIngress {
         ingress_id: String,
         instance_id: String,
@@ -529,6 +548,7 @@ impl __sdk::Reducer for Reducer {
             Reducer::RemoveMessageTopic { .. } => "remove_message_topic",
             Reducer::RemoveSubscription { .. } => "remove_subscription",
             Reducer::RenameCategory { .. } => "rename_category",
+            Reducer::RetryFailedJmapDelivery { .. } => "retry_failed_jmap_delivery",
             Reducer::RetryMailIngress { .. } => "retry_mail_ingress",
             Reducer::RevokeWebhookToken { .. } => "revoke_webhook_token",
             Reducer::ScheduleMailDeliveryRetry { .. } => "schedule_mail_delivery_retry",
@@ -773,6 +793,11 @@ impl __sdk::Reducer for Reducer {
                 category_id: category_id.clone(),
                 new_name: new_name.clone(),
 }),
+            Reducer::RetryFailedJmapDelivery{
+                delivery_id,
+}             => __sats::bsatn::to_vec(&retry_failed_jmap_delivery_reducer::RetryFailedJmapDeliveryArgs {
+                delivery_id: delivery_id.clone(),
+}),
             Reducer::RetryMailIngress{
                 ingress_id,
                 instance_id,
@@ -932,6 +957,8 @@ pub struct DbUpdate {
         __sdk::TableUpdate<RequeueTemporaryFailedMailsSchedule>,
     sender_account_emails: __sdk::TableUpdate<AccountEmail>,
     sender_accounts: __sdk::TableUpdate<Account>,
+    sender_jmap_mail_deliveries: __sdk::TableUpdate<JmapMailDelivery>,
+    sender_jmap_mail_delivery_events: __sdk::TableUpdate<JmapMailDeliveryEvent>,
     sender_mail_delivery_claimed: __sdk::TableUpdate<MailDeliveryClaimed>,
     sender_mail_delivery_done: __sdk::TableUpdate<MailDeliveryDone>,
     sender_mail_delivery_events: __sdk::TableUpdate<MailDeliveryEvent>,
@@ -1010,6 +1037,14 @@ impl TryFrom<__ws::v2::TransactionUpdate> for DbUpdate {
                 "sender_accounts" => db_update
                     .sender_accounts
                     .append(sender_accounts_table::parse_table_update(table_update)?),
+                "sender_jmap_mail_deliveries" => db_update.sender_jmap_mail_deliveries.append(
+                    sender_jmap_mail_deliveries_table::parse_table_update(table_update)?,
+                ),
+                "sender_jmap_mail_delivery_events" => {
+                    db_update.sender_jmap_mail_delivery_events.append(
+                        sender_jmap_mail_delivery_events_table::parse_table_update(table_update)?,
+                    )
+                }
                 "sender_mail_delivery_claimed" => db_update.sender_mail_delivery_claimed.append(
                     sender_mail_delivery_claimed_table::parse_table_update(table_update)?,
                 ),
@@ -1183,6 +1218,18 @@ impl __sdk::DbUpdate for DbUpdate {
         diff.sender_accounts = cache
             .apply_diff_to_table::<Account>("sender_accounts", &self.sender_accounts)
             .with_updates_by_pk(|row| &row.id);
+        diff.sender_jmap_mail_deliveries = cache
+            .apply_diff_to_table::<JmapMailDelivery>(
+                "sender_jmap_mail_deliveries",
+                &self.sender_jmap_mail_deliveries,
+            )
+            .with_updates_by_pk(|row| &row.delivery_id);
+        diff.sender_jmap_mail_delivery_events = cache
+            .apply_diff_to_table::<JmapMailDeliveryEvent>(
+                "sender_jmap_mail_delivery_events",
+                &self.sender_jmap_mail_delivery_events,
+            )
+            .with_updates_by_pk(|row| &row.id);
         diff.sender_mail_delivery_claimed = cache
             .apply_diff_to_table::<MailDeliveryClaimed>(
                 "sender_mail_delivery_claimed",
@@ -1354,6 +1401,12 @@ impl __sdk::DbUpdate for DbUpdate {
                 "sender_accounts" => db_update
                     .sender_accounts
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_jmap_mail_deliveries" => db_update
+                    .sender_jmap_mail_deliveries
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
+                "sender_jmap_mail_delivery_events" => db_update
+                    .sender_jmap_mail_delivery_events
+                    .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
                 "sender_mail_delivery_claimed" => db_update
                     .sender_mail_delivery_claimed
                     .append(__sdk::parse_row_list_as_inserts(table_rows.rows)?),
@@ -1487,6 +1540,12 @@ impl __sdk::DbUpdate for DbUpdate {
                 "sender_accounts" => db_update
                     .sender_accounts
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_jmap_mail_deliveries" => db_update
+                    .sender_jmap_mail_deliveries
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
+                "sender_jmap_mail_delivery_events" => db_update
+                    .sender_jmap_mail_delivery_events
+                    .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
                 "sender_mail_delivery_claimed" => db_update
                     .sender_mail_delivery_claimed
                     .append(__sdk::parse_row_list_as_deletes(table_rows.rows)?),
@@ -1602,6 +1661,8 @@ pub struct AppliedDiff<'r> {
         __sdk::TableAppliedDiff<'r, RequeueTemporaryFailedMailsSchedule>,
     sender_account_emails: __sdk::TableAppliedDiff<'r, AccountEmail>,
     sender_accounts: __sdk::TableAppliedDiff<'r, Account>,
+    sender_jmap_mail_deliveries: __sdk::TableAppliedDiff<'r, JmapMailDelivery>,
+    sender_jmap_mail_delivery_events: __sdk::TableAppliedDiff<'r, JmapMailDeliveryEvent>,
     sender_mail_delivery_claimed: __sdk::TableAppliedDiff<'r, MailDeliveryClaimed>,
     sender_mail_delivery_done: __sdk::TableAppliedDiff<'r, MailDeliveryDone>,
     sender_mail_delivery_events: __sdk::TableAppliedDiff<'r, MailDeliveryEvent>,
@@ -1697,6 +1758,16 @@ impl<'r> __sdk::AppliedDiff<'r> for AppliedDiff<'r> {
         callbacks.invoke_table_row_callbacks::<Account>(
             "sender_accounts",
             &self.sender_accounts,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<JmapMailDelivery>(
+            "sender_jmap_mail_deliveries",
+            &self.sender_jmap_mail_deliveries,
+            event,
+        );
+        callbacks.invoke_table_row_callbacks::<JmapMailDeliveryEvent>(
+            "sender_jmap_mail_delivery_events",
+            &self.sender_jmap_mail_delivery_events,
             event,
         );
         callbacks.invoke_table_row_callbacks::<MailDeliveryClaimed>(
@@ -2515,6 +2586,8 @@ impl __sdk::SpacetimeModule for RemoteModule {
         requeue_temporary_failed_mails_schedule_table::register_table(client_cache);
         sender_account_emails_table::register_table(client_cache);
         sender_accounts_table::register_table(client_cache);
+        sender_jmap_mail_deliveries_table::register_table(client_cache);
+        sender_jmap_mail_delivery_events_table::register_table(client_cache);
         sender_mail_delivery_claimed_table::register_table(client_cache);
         sender_mail_delivery_done_table::register_table(client_cache);
         sender_mail_delivery_events_table::register_table(client_cache);
@@ -2557,6 +2630,8 @@ impl __sdk::SpacetimeModule for RemoteModule {
         "requeue_temporary_failed_mails_schedule",
         "sender_account_emails",
         "sender_accounts",
+        "sender_jmap_mail_deliveries",
+        "sender_jmap_mail_delivery_events",
         "sender_mail_delivery_claimed",
         "sender_mail_delivery_done",
         "sender_mail_delivery_events",

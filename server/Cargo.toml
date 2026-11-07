@@ -18,6 +18,9 @@ blake3 = "1"
 hex = "0.4"
 urlencoding = "2.1"
 mail-parser = "1.0.1"
+mail-builder = { path = "vendor/mail-builder", default-features = false }
+base64 = "0.23"
+regex = "1"
 
 [build-dependencies]
 serde = { version = "1.0", features = ["derive"] }

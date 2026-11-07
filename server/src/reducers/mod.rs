@@ -3,6 +3,7 @@ pub mod config;
 pub mod delivery;
 pub mod domain;
 pub mod mta;
+pub mod sender;
 pub mod topics;
 
 pub use account::*;

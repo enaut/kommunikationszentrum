@@ -3,6 +3,7 @@ use crate::models::account::*;
 use crate::models::config::*;
 use crate::models::delivery::*;
 use crate::models::mail_message::*;
+use crate::models::sender::*;
 use crate::models::topic::*;
 use log::info;
 use spacetimedb::{Query, ViewContext};
@@ -17,6 +18,20 @@ pub fn admin_stalwart_config(ctx: &ViewContext) -> impl Query<StalwartConfig> {
 pub fn admin_mail_retention_config(ctx: &ViewContext) -> impl Query<MailRetentionConfig> {
     let is_admin = is_admin_user(ctx);
     ctx.from.mail_retention_config().r#filter(move |_| is_admin)
+}
+
+#[spacetimedb::view(accessor = sender_jmap_mail_deliveries, public)]
+pub fn sender_jmap_mail_deliveries(ctx: &ViewContext) -> impl Query<JmapMailDelivery> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from.jmap_mail_deliveries().r#filter(move |_| is_admin)
+}
+
+#[spacetimedb::view(accessor = sender_jmap_mail_delivery_events, public)]
+pub fn sender_jmap_mail_delivery_events(ctx: &ViewContext) -> impl Query<JmapMailDeliveryEvent> {
+    let is_admin = is_admin_user(ctx);
+    ctx.from
+        .jmap_mail_delivery_events()
+        .r#filter(move |_| is_admin)
 }
 
 #[spacetimedb::view(accessor = sender_mail_ingress, public)]

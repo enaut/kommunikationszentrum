@@ -32,6 +32,8 @@ pub struct TableSignals {
         SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>>,
     pub sender_account_emails: SyncSignal<Vec<AccountEmail>>,
     pub sender_accounts: SyncSignal<Vec<Account>>,
+    pub sender_jmap_mail_deliveries: SyncSignal<Vec<JmapMailDelivery>>,
+    pub sender_jmap_mail_delivery_events: SyncSignal<Vec<JmapMailDeliveryEvent>>,
     pub sender_mail_delivery_claimed: SyncSignal<Vec<MailDeliveryClaimed>>,
     pub sender_mail_delivery_done: SyncSignal<Vec<MailDeliveryDone>>,
     pub sender_mail_delivery_events: SyncSignal<Vec<MailDeliveryEvent>>,
@@ -247,6 +249,8 @@ pub fn use_spacetimedb_context_provider(
         requeue_temporary_failed_mails_schedule: use_signal_sync(Vec::new),
         sender_account_emails: use_signal_sync(Vec::new),
         sender_accounts: use_signal_sync(Vec::new),
+        sender_jmap_mail_deliveries: use_signal_sync(Vec::new),
+        sender_jmap_mail_delivery_events: use_signal_sync(Vec::new),
         sender_mail_delivery_claimed: use_signal_sync(Vec::new),
         sender_mail_delivery_done: use_signal_sync(Vec::new),
         sender_mail_delivery_events: use_signal_sync(Vec::new),
@@ -637,6 +641,76 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
                             table_signals_on_connect.sender_accounts.set(updated);
                         });
+                        // Populate initial rows for sender_jmap_mail_deliveries
+                        let current: Vec<JmapMailDelivery> =
+                            conn.db.sender_jmap_mail_deliveries().iter().collect();
+                        table_signals_on_connect
+                            .sender_jmap_mail_deliveries
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .sender_jmap_mail_deliveries()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<JmapMailDelivery> =
+                                    ctx.db.sender_jmap_mail_deliveries().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_deliveries
+                                    .set(updated);
+                            });
+                        conn.db
+                            .sender_jmap_mail_deliveries()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<JmapMailDelivery> =
+                                    ctx.db.sender_jmap_mail_deliveries().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_deliveries
+                                    .set(updated);
+                            });
+                        conn.db
+                            .sender_jmap_mail_deliveries()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<JmapMailDelivery> =
+                                    ctx.db.sender_jmap_mail_deliveries().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_deliveries
+                                    .set(updated);
+                            });
+                        // Populate initial rows for sender_jmap_mail_delivery_events
+                        let current: Vec<JmapMailDeliveryEvent> =
+                            conn.db.sender_jmap_mail_delivery_events().iter().collect();
+                        table_signals_on_connect
+                            .sender_jmap_mail_delivery_events
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .sender_jmap_mail_delivery_events()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<JmapMailDeliveryEvent> =
+                                    ctx.db.sender_jmap_mail_delivery_events().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_delivery_events
+                                    .set(updated);
+                            });
+                        conn.db.sender_jmap_mail_delivery_events().on_update(
+                            move |ctx, _old, _new| {
+                                let updated: Vec<JmapMailDeliveryEvent> =
+                                    ctx.db.sender_jmap_mail_delivery_events().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_delivery_events
+                                    .set(updated);
+                            },
+                        );
+                        conn.db
+                            .sender_jmap_mail_delivery_events()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<JmapMailDeliveryEvent> =
+                                    ctx.db.sender_jmap_mail_delivery_events().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_delivery_events
+                                    .set(updated);
+                            });
                         // Populate initial rows for sender_mail_delivery_claimed
                         let current: Vec<MailDeliveryClaimed> =
                             conn.db.sender_mail_delivery_claimed().iter().collect();
@@ -1669,6 +1743,20 @@ pub fn use_table_sender_account_emails() -> SyncSignal<Vec<AccountEmail>> {
 pub fn use_table_sender_accounts() -> SyncSignal<Vec<Account>> {
     let ctx = use_spacetimedb_context();
     ctx.tables.sender_accounts
+}
+
+/// Get a reactive signal containing all rows of the `sender_jmap_mail_deliveries` table.
+#[must_use]
+pub fn use_table_sender_jmap_mail_deliveries() -> SyncSignal<Vec<JmapMailDelivery>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_jmap_mail_deliveries
+}
+
+/// Get a reactive signal containing all rows of the `sender_jmap_mail_delivery_events` table.
+#[must_use]
+pub fn use_table_sender_jmap_mail_delivery_events() -> SyncSignal<Vec<JmapMailDeliveryEvent>> {
+    let ctx = use_spacetimedb_context();
+    ctx.tables.sender_jmap_mail_delivery_events
 }
 
 /// Get a reactive signal containing all rows of the `sender_mail_delivery_claimed` table.
@@ -4802,6 +4890,98 @@ pub fn use_reducer_rename_category_async()
     }
 }
 
+/// Get a callback to invoke the `retry_failed_jmap_delivery` reducer.
+#[must_use]
+pub fn use_reducer_retry_failed_jmap_delivery()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+    let conn_signal = use_connection();
+
+    move |delivery_id: String| {
+        if let Some(conn) = conn_signal().as_ref() {
+            conn.reducers.retry_failed_jmap_delivery(delivery_id)
+        } else {
+            Err(spacetimedb_sdk::Error::Disconnected)
+        }
+    }
+}
+
+/// Invoke the `retry_failed_jmap_delivery` reducer and get a reactive signal for its completion status.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
+/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
+/// on failure once the server notifies completion.
+#[must_use]
+pub fn use_reducer_retry_failed_jmap_delivery_then() -> (
+    impl Fn(String) + Clone + 'static,
+    SyncSignal<Option<Result<(), String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
+
+    let invoke = move |delivery_id: String| {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) =
+                conn.reducers
+                    .retry_failed_jmap_delivery_then(delivery_id, move |_ctx, res| {
+                        let _ = tx.send(res);
+                    })
+            {
+                result.set(Some(Err(e.to_string())));
+                return;
+            }
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    let flattened = match res {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(module_err)) => Err(module_err),
+                        Err(sdk_err) => Err(sdk_err.to_string()),
+                    };
+                    result.set(Some(flattened));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `retry_failed_jmap_delivery` reducer asynchronously and await its completion.
+///
+/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
+#[must_use]
+pub fn use_reducer_retry_failed_jmap_delivery_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
++ 'static {
+    let conn_signal = use_connection();
+
+    move |delivery_id: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            if let Err(e) = conn.reducers.retry_failed_jmap_delivery_then(delivery_id, move |_ctx, res| {
+                let _ = tx.send(res);
+            }) {
+                return Err(e.to_string());
+            }
+            match rx.await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(err))) => Err(err),
+                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
+
 /// Get a callback to invoke the `retry_mail_ingress` reducer.
 #[must_use]
 pub fn use_reducer_retry_mail_ingress()
@@ -6547,6 +6727,70 @@ pub fn use_reducer_user_verify_email_async()
 }
 
 // --- Procedure hooks ---
+
+/// Invoke the `migrate_pending_legacy_deliveries` procedure and get a reactive signal for its result.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the procedure call to the server.
+/// The `result` signal is updated to `Some(Ok(value))` on success or `Some(Err(message))`
+/// on failure once the server responds.
+#[must_use]
+pub fn use_procedure_migrate_pending_legacy_deliveries() -> (
+    impl Fn() + Clone + 'static,
+    SyncSignal<Option<Result<Result<u32, String>, String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<Result<u32, String>, String>>> =
+        use_signal_sync(|| None);
+
+    let invoke = move || {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            conn.procedures
+                .migrate_pending_legacy_deliveries_then(move |_ctx, res| {
+                    let _ = tx.send(res);
+                });
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    result.set(Some(res.map_err(|e| e.to_string())));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `migrate_pending_legacy_deliveries` procedure asynchronously.
+///
+/// Returns a closure that can be called to invoke the procedure and `await` the response directly.
+#[must_use]
+pub fn use_procedure_migrate_pending_legacy_deliveries_async()
+-> impl Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>>
++ Clone
++ 'static {
+    let conn_signal = use_connection();
+
+    move || -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            conn.procedures.migrate_pending_legacy_deliveries_then(move |_ctx, res| {
+                let _ = tx.send(res);
+            });
+            match rx.await {
+                Ok(res) => res.map_err(|e| e.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
 
 /// Invoke the `provision_all_unprovisioned_topics` procedure and get a reactive signal for its result.
 ///
