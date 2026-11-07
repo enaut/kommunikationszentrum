@@ -1,5 +1,10 @@
 # Sender Daemon — Developer Guide
 
+> [!WARNING]
+> **The `sender` daemon is retained during migration.** A SpacetimeDB-native scheduled pipeline using Stalwart JMAP is implemented in the server module, but dispatch is disabled by default and live JMAP/scheduler behavior is unverified. Do not let both paths process the shared queues. See [SpacetimeDB-Native Sender](../core/sender/spacetimedb-jmap.md) and the [implementation plan](../../plans/sender-spacetimedb-jmap.md).
+>
+> Do not generate or maintain `sender/src/module_bindings/`. Once the migration completes, the entire `sender/` directory will be deleted.
+
 This guide covers how to develop, extend, and test the sender daemon.
 
 ---

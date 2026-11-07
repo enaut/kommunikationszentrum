@@ -1,8 +1,16 @@
-# Sender Daemon Overview
+# Sender Overview
 
-The `sender` crate is the **outbound mail delivery daemon** for the Kommunikationszentrum.
+> [!WARNING]
+> **The `sender` daemon is retained during migration and is planned for retirement only after verification.** See [SpacetimeDB-Native Sender](./spacetimedb-jmap.md) and [`plans/sender-spacetimedb-jmap.md`](../../../../plans/sender-spacetimedb-jmap.md) for the replacement status. The content below describes the daemon path.
+
+The `sender` crate is the **current outbound mail delivery daemon** for the Kommunikationszentrum.
 It is a native Rust binary running on the Tokio async runtime that connects to SpacetimeDB,
 monitors the delivery pipeline tables, and dispatches outgoing emails over SMTP.
+
+A SpacetimeDB-native JMAP replacement now exists in the `server` module, but remains disabled by
+default and has not been verified against a live Stalwart deployment. Keep the daemon and the native
+pipeline from processing queues concurrently. See [SpacetimeDB-Native Sender](./spacetimedb-jmap.md)
+for the implementation status and rollout constraints.
 
 ## System Architecture
 
@@ -10,7 +18,7 @@ monitors the delivery pipeline tables, and dispatches outgoing emails over SMTP.
 {{#include sender-architecture.d2}}
 ```
 
-## Purpose & Responsibilities
+## Purpose & Responsibilities (current daemon)
 
 1. **Ingress Fan-Out** — Expands each inbound `MailIngress` record into individual per-subscriber deliveries and enqueues them into `mail_delivery_pending`, storing full RFC 5322 payloads in `mail_delivery_messages`.
 2. **Transactional System Mail Dispatch** — Claims pending system emails (`sender_system_mail_pending`) such as user email verification tokens and dispatches them via dedicated system SMTP credentials with atomic distributed leasing.
@@ -21,7 +29,7 @@ monitors the delivery pipeline tables, and dispatches outgoing emails over SMTP.
 
 The sender daemon is the only component in the system that performs **external outbound network calls** (to the SMTP relay). Everything else is driven by SpacetimeDB's reactive WebSocket subscription model.
 
-## Technology Stack
+## Technology Stack (current daemon)
 
 | Concern | Technology | Notes |
 |---|---|---|
@@ -31,25 +39,6 @@ The sender daemon is the only component in the system that performs **external o
 | Tracing & Logs | `opentelemetry` + OTLP | Bridge to Grafana Alloy / Loki / Tempo |
 | Hashing | `blake3` | Deterministic W3C traceparent derivation from queue IDs |
 | Log Filtering | `tracing-subscriber` | Configurable via `RUST_LOG` |
-
-## Key Design Principles
-
-### Reactive Event Loop with Safety Tick
-SpacetimeDB pushes incremental table updates over a WebSocket connection. Subscription callbacks (`on_insert`, `on_update`, `on_delete`) send `Event::Wakeup` across an asynchronous channel (`tokio::sync::mpsc::unbounded_channel`) that wakes the work loop immediately when actionable work exists. A 15-second fallback poll timer in `tokio::select!` ensures the loop recovers smoothly if a network blip ever delays an event.
-
-### Dedicated Connection Pump Thread
-The SpacetimeDB connection I/O is spawned onto a dedicated background OS thread (`connection.run_threaded()`), ensuring incoming frames, subscription callbacks, and table cache updates are processed immediately even when the Tokio runtime is heavily loaded.
-
-### Fail-Fast Admin Identity Verification
-On startup, once the initial database subscription snapshot is applied, the sender checks its own identity against `visible_admin_identities`. If the identity is not an authorized administrator, the sender logs clear remediation instructions and emits `Event::FatalError`, terminating cleanly rather than repeatedly failing claim reducers at runtime.
-
-### Atomic Claim & Lease Protocol
-Work is distributed safely across instances using atomic server-side reducers:
-- `claim_next_mail_ingress` grants a 10-minute lease on `MailIngress` (`claim_owner = Identity`, `instance_id = UUID`).
-- `claim_system_mail` grants a 5-minute lease on `system_mail_pending` (`instance_id = UUID`, `claimed_at = Timestamp`).
-- `claim_next_mail_delivery` grants a 5-minute lease moving a row from `mail_delivery_pending` to `mail_delivery_claimed`.
-- Transient SMTP failures are moved to `mail_delivery_temporary_failed` with a 5-minute retry delay.
-- Expired leases are automatically recycled by the 60-second server scheduler (`expire_stale_delivery_claims`) or lease timeouts.
 
 ## Source File Map
 
@@ -65,3 +54,7 @@ sender/src/
     ├── *_table.rs      Table accessor traits (iter, find, on_insert, on_update, etc.)
     └── *_reducer.rs    Reducer call stubs
 ```
+
+> [!NOTE]
+> The entire `sender/` crate — including `module_bindings/` — will be removed when the
+> SpacetimeDB-native replacement is deployed. Do not add new functionality here.

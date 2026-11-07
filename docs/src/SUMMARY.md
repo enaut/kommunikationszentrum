@@ -30,6 +30,7 @@
       - [API Endpoints](./core/spacetimedb/http-handlers/api-endpoints.md)
 
   - [Sender Daemon](./core/sender/overview.md)
+    - [SpacetimeDB-Native Sender](./core/sender/spacetimedb-jmap.md)
     - [Configuration](./core/sender/configuration.md)
     - [Control Flow](./core/sender/control-flow.md)
     - [Usage Guide](./core/sender/usage.md)

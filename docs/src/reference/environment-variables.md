@@ -32,6 +32,9 @@ These variables control profile selection when building the `admin` frontend or 
 
 ## Runtime Database Configuration (Sender Daemon)
 
+> [!WARNING]
+> The `sender` daemon is being retired. The variables in this section and the SMTP section below apply only to the current daemon. They will be superseded by SpacetimeDB env secrets in the replacement pipeline. See [`plans/sender-spacetimedb-jmap.md`](../../../plans/sender-spacetimedb-jmap.md).
+
 The `sender` background daemon connects to SpacetimeDB to process outbound email queues and record delivery events.
 
 ### `SPACETIMEDB_URI`
@@ -148,6 +151,46 @@ SpacetimeDB integrates with the Stalwart mailserver's JMAP API for automated top
 - **Used by**: `server`
 - **Description**: Stalwart administrative API key secret (created in Stalwart Admin UI under **Management → API Keys**).
 - **Format**: Secret token string (e.g. `API_...`)
+
+---
+
+## SpacetimeDB Module Environment Secrets (Replacement Pipeline)
+
+The SpacetimeDB-native sender declares its server-side values with `#[spacetimedb::env]`. They are read by module code and are not exposed through table subscriptions. Export the desired shell variables, then run `spacetime publish kommunikation --env-only`. In this CLI, `--env` selects a configuration profile; it is not the environment key/value option.
+
+> [!IMPORTANT]
+> Native dispatch is disabled unless `JMAP_DISPATCH_ENABLED=true`. Do not enable it while the legacy sender is processing the shared queues. `SYSTEM_JMAP_USERNAME` and `SYSTEM_JMAP_PASSWORD` replace the daemon's `SMTP_SYSTEM_USERNAME` and `SMTP_SYSTEM_PASSWORD` only after the migration is verified; the daemon still uses its own process environment.
+
+### `SYSTEM_JMAP_USERNAME`
+- **Used by**: `server` module (JMAP-native sender pipeline)
+- **Description**: Email address / JMAP account username for the system sending account (used for transactional emails such as email verification tokens).
+- **Set via**: Export `SYSTEM_JMAP_USERNAME`, then run `spacetime publish kommunikation --env-only`.
+
+### `SYSTEM_JMAP_PASSWORD`
+- **Used by**: `server` module (JMAP-native sender pipeline)
+- **Description**: App password for the system JMAP account. Created in Stalwart Admin UI under **Management → App Passwords**.
+- **Set via**: Export `SYSTEM_JMAP_PASSWORD`, then run `spacetime publish kommunikation --env-only`. Use a secure prompt or secret manager rather than putting the password in shell history.
+- **Security**: Never commit to version control. Rotate by re-running `--env-only` publish.
+
+### `JMAP_DISPATCH_ENABLED`
+- **Default**: unset (dispatch disabled)
+- **Used by**: `server` module (JMAP-native sender pipeline)
+- **Description**: Set to `true` to let the scheduled procedure enqueue and dispatch native JMAP deliveries. Keep unset/false while the legacy sender is active; both paths use shared queues.
+- **Set via**: Export `JMAP_DISPATCH_ENABLED=true`, then run `spacetime publish kommunikation --env-only`.
+
+### `MESSAGE_ID_DOMAIN`
+- **Default**: `localhost`
+- **Used by**: `server` module (JMAP-native sender pipeline)
+- **Description**: Domain used when deriving message IDs and the system sender address.
+
+### `MAIL_UNSUBSCRIBE_BASE_URL`
+- **Default**: Relative unsubscribe URL (`/?unsubscribe_token=...`)
+- **Used by**: `server` module (JMAP-native sender pipeline)
+- **Description**: Base URL used to construct the mailing-list `List-Unsubscribe` header.
+
+### `JMAP_SUBMISSION_UNKNOWN_MIN_WAIT`
+- **Status**: Planned; not read by the current module implementation.
+- **Description**: Intended minimum wait in seconds before retrying an uncertain submission. The current dispatcher instead applies its built-in exponential retry delay.
 
 ---
 

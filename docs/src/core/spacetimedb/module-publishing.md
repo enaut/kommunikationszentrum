@@ -32,16 +32,58 @@ Regenerate bindings after schema or reducer changes:
 
 ```bash
 spacetimedb-cli generate --lang dioxus -p server -o admin/src/module_bindings/
-spacetimedb-cli generate --lang rust -p server -o sender/src/module_bindings/
 ```
 
-This uses a custom `spacetimedb-cli` and cannot be run by AI agents.
+The command compiles the module and generates client bindings from its schema. In the current checkout it writes the new JMAP binding files but exits with `could not extract schema` / `EOF while parsing a value`; verify the generated files and resolve this extraction failure before relying on future regeneration. The separate module build command succeeds; no database publish is performed by binding generation.
+
+> [!NOTE]
+> The `sender/src/module_bindings/` target is no longer generated once the `sender` daemon is retired. Remove it and the `sender` crate together (Phase 7 of the JMAP migration plan).
 
 ## SpacetimeDB Server
 
 ```bash
 spacetime start   # localhost:3000
 ```
+
+## Managing Module Environment Secrets
+
+SpacetimeDB v2.12+ supports typed environment secrets declared in the module via `#[spacetimedb::env]`. Secrets are set at publish time and persist across subsequent publishes. They are readable by module code via `ctx.env` but are never exposed to clients.
+
+### Set or rotate values without redeploying the binary
+
+The CLI's `--env` option selects a configuration profile; it does not accept a `KEY=VALUE` pair. Supply module environment values as shell environment variables, then run `--env-only`. This Bash example prompts for the password without echoing it or putting it in the command history:
+
+```bash
+read -r -p 'System JMAP username: ' SYSTEM_JMAP_USERNAME
+read -r -s -p 'System JMAP app password: ' SYSTEM_JMAP_PASSWORD
+printf '\n'
+export SYSTEM_JMAP_USERNAME SYSTEM_JMAP_PASSWORD
+export MESSAGE_ID_DOMAIN='example.org'
+export MAIL_UNSUBSCRIBE_BASE_URL='https://spacetimedb.example.org/v1/database/kommunikation/route/mailing-list/unsubscribe'
+export JMAP_DISPATCH_ENABLED='false'
+
+spacetime publish kommunikation --env-only
+
+unset SYSTEM_JMAP_USERNAME SYSTEM_JMAP_PASSWORD MESSAGE_ID_DOMAIN MAIL_UNSUBSCRIBE_BASE_URL JMAP_DISPATCH_ENABLED
+```
+
+The CLI preserves existing values unless `--replace-env` is used. Do not use `--replace-env` for this update unless you intend to delete every unspecified key. `--env <profile>` can still be added to select a config profile.
+
+### List declared environment keys
+
+```bash
+spacetime env list kommunikation
+```
+
+### Read the current value of a key
+
+```bash
+spacetime env get kommunikation JMAP_DISPATCH_ENABLED
+```
+
+`spacetime env list` and `spacetime env get` display values. Do not share their output if it contains secrets; do not read back a password just to verify it.
+
+---
 
 ## Status and Debugging
 

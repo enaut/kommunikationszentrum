@@ -1,6 +1,9 @@
 # Configuration
 
-All sender daemon configuration is loaded at startup from **environment variables**. There are no runtime config files.
+> [!WARNING]
+> **The `sender` daemon is still required during migration.** The SpacetimeDB-native JMAP pipeline is implemented but disabled by default and has not passed live Stalwart verification. Do not enable both senders against the shared queues. See [SpacetimeDB-Native Sender](./spacetimedb-jmap.md) for current status and rollout constraints.
+
+All legacy sender daemon configuration is loaded at startup from **environment variables**. There are no runtime config files. The native pipeline uses SpacetimeDB module environment values and the stored Stalwart JMAP URL instead; it is not controlled by the daemon's process environment. Its dispatch gate defaults off. See the [environment variable reference](../../reference/environment-variables.md) for the module values.
 
 ## Configuration Flow Map
 
