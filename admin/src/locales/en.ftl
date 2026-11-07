@@ -338,6 +338,7 @@ status-jmap-details = Details
 status-jmap-events-limited = Showing the latest 100 events.
 status-jmap-event-email-id = JMAP Email: { $id }
 status-jmap-event-submission-id = JMAP Submission: { $id }
+status-jmap-event-worker-label = Worker
 status-jmap-event-worker = Worker: { $worker }
 
 # Email verification

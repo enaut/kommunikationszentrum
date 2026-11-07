@@ -707,7 +707,7 @@ fn DeliveryEventsCard(rows: Vec<JmapMailDeliveryEvent>) -> Element {
                                         th { {tid!("status-jmap-event-type")} }
                                         th { {tid!("status-jmap-attempts")} }
                                         th { {tid!("status-jmap-event-time")} }
-                                        th { {tid!("status-jmap-event-worker")} }
+                                        th { {tid!("status-jmap-event-worker-label")} }
                                         th { {tid!("status-jmap-details")} }
                                     }
                                 }
