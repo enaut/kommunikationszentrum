@@ -3,9 +3,9 @@ use spacetimedb::{Identity, ReducerContext, Table};
 
 use crate::common::auth::{is_admin_identity, is_admin_user};
 use crate::models::account::*;
-use crate::models::topic::{subscription_unsubscribe_tokens, subscriptions};
-
 use crate::models::delivery::*;
+use crate::models::topic::{subscription_unsubscribe_tokens, subscriptions};
+use crate::services::sender::EnvAccess;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct SyncedEmail {
@@ -138,13 +138,16 @@ pub fn extract_bool_from_claims(val: Option<&serde_json::Value>) -> bool {
     }
 }
 
-fn validate_token_issuer(claims: &serde_json::Value) -> Result<(), String> {
+fn validate_token_issuer(
+    claims: &serde_json::Value,
+    configured_issuer: &str,
+) -> Result<(), String> {
     let issuer = claims
         .get("iss")
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| "JWT is missing a string issuer claim".to_string())?;
 
-    if issuer != OIDC_ISSUER_URL {
+    if issuer != configured_issuer {
         return Err("JWT issuer does not match the configured OIDC issuer".into());
     }
 
@@ -203,7 +206,12 @@ pub fn register_self(
 
     let claims: serde_json::Value = serde_json::from_str(jwt.raw_payload())
         .map_err(|e| format!("Invalid JWT payload: {}", e))?;
-    validate_token_issuer(&claims)?;
+    let configured_issuer = ctx
+        .env
+        .OIDC_ISSUER_URL()
+        .filter(|issuer| !issuer.trim().is_empty())
+        .unwrap_or_else(|| OIDC_ISSUER_URL.to_string());
+    validate_token_issuer(&claims, &configured_issuer)?;
 
     let token_email = extract_email_from_claims(&claims);
 
@@ -434,8 +442,12 @@ pub(crate) fn do_sync_user(
                         .to_string()
                 })?;
 
-                let issuer_url = OIDC_ISSUER_URL;
-                let identity_of_user = Identity::from_claims(issuer_url, &data.external_id);
+                let issuer_url = ctx
+                    .env
+                    .OIDC_ISSUER_URL()
+                    .filter(|issuer| !issuer.trim().is_empty())
+                    .unwrap_or_else(|| OIDC_ISSUER_URL.to_string());
+                let identity_of_user = Identity::from_claims(&issuer_url, &data.external_id);
 
                 // Look up existing account by external_id
                 let existing_account = ctx.db.account().external_id().find(&data.external_id);
@@ -1579,15 +1591,22 @@ mod tests {
             "iss": OIDC_ISSUER_URL,
             "sub": "42"
         });
-        assert!(validate_token_issuer(&expected_issuer).is_ok());
+        assert!(validate_token_issuer(&expected_issuer, OIDC_ISSUER_URL).is_ok());
 
         let other_issuer_same_subject = serde_json::json!({
             "iss": "https://other-issuer.example",
             "sub": "42"
         });
-        assert!(validate_token_issuer(&other_issuer_same_subject).is_err());
-        assert!(validate_token_issuer(&serde_json::json!({ "sub": "42" })).is_err());
-        assert!(validate_token_issuer(&serde_json::json!({ "iss": 42 })).is_err());
+        assert!(validate_token_issuer(&other_issuer_same_subject, OIDC_ISSUER_URL).is_err());
+        assert!(
+            validate_token_issuer(&serde_json::json!({ "sub": "42" }), OIDC_ISSUER_URL).is_err()
+        );
+        assert!(validate_token_issuer(&serde_json::json!({ "iss": 42 }), OIDC_ISSUER_URL).is_err());
+
+        let runtime_issuer = "https://auth.example.org/o";
+        let runtime_token = serde_json::json!({ "iss": runtime_issuer, "sub": "42" });
+        assert!(validate_token_issuer(&runtime_token, runtime_issuer).is_ok());
+        assert!(validate_token_issuer(&runtime_token, OIDC_ISSUER_URL).is_err());
     }
 
     #[test]

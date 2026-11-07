@@ -49,7 +49,7 @@
   },
   {
     "label": "Publish spacetime module",
-    "command": "sh -lc '. .env/.env.oidc && spacetime publish -p server kommunikation'",
+    "command": "sh -lc '. .env/.env.oidc && APP_PROFILE=\"${APP_PROFILE:-example}\" python3 scripts/publish_spacetime.py'",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,

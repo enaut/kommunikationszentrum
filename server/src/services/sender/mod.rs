@@ -7,13 +7,11 @@ use spacetimedb::{ProcedureContext, Table, TimeDuration, Timestamp};
 
 use crate::models::{
     account::{account, account_emails},
-    delivery::{
-        MailDeliveryEvent, MailIngress, SystemMailPending, mail_delivery_events, mail_ingress,
-        system_mail_pending,
-    },
+    delivery::{MailIngress, SystemMailPending, mail_ingress, system_mail_pending},
     mail_message::mail_message,
     sender::{
-        JmapDeliveryState, JmapMailDelivery, jmap_mail_deliveries, jmap_mail_delivery_events,
+        JmapDeliveryState, JmapMailDelivery, JmapMailDeliveryEvent, jmap_mail_deliveries,
+        jmap_mail_delivery_events,
     },
     topic::{
         MessageTopic, SubscriptionUnsubscribeToken, message_topics,
@@ -24,6 +22,7 @@ use crate::models::{
 #[spacetimedb::env]
 pub struct Env {
     pub JMAP_DISPATCH_ENABLED: Option<String>,
+    pub OIDC_ISSUER_URL: Option<String>,
     pub SYSTEM_JMAP_USERNAME: Option<String>,
     pub SYSTEM_JMAP_PASSWORD: Option<String>,
     pub MESSAGE_ID_DOMAIN: Option<String>,
@@ -45,7 +44,14 @@ pub fn dispatch_jmap_mail(
     ctx: &mut ProcedureContext,
     _scheduled: crate::models::sender::JmapMailDispatchSchedule,
 ) -> Result<u32, String> {
+    log::info!(
+        "dispatch_jmap_mail tick: sender={:?}, db_id={:?}, enabled={:?}",
+        ctx.sender(),
+        ctx.database_identity(),
+        ctx.env.JMAP_DISPATCH_ENABLED()
+    );
     if ctx.sender() != ctx.database_identity() {
+        log::warn!("dispatch_jmap_mail: unauthorized sender {:?}", ctx.sender());
         return Err("This procedure can only be invoked by its SpacetimeDB schedule".to_string());
     }
     if !ctx
@@ -53,12 +59,22 @@ pub fn dispatch_jmap_mail(
         .JMAP_DISPATCH_ENABLED()
         .is_some_and(|value| value.eq_ignore_ascii_case("true"))
     {
+        log::info!("dispatch_jmap_mail: dispatch disabled");
         return Ok(0);
     }
 
-    enqueue_system_mail(ctx)?;
-    fan_out_one_ingress(ctx)?;
+    if let Err(e) = enqueue_system_mail(ctx) {
+        log::error!("enqueue_system_mail failed: {e}");
+        return Err(e);
+    }
+    if let Err(e) = fan_out_one_ingress(ctx) {
+        log::error!("fan_out_one_ingress failed: {e}");
+        return Err(e);
+    }
     let claimed = claim_due_deliveries(ctx, DISPATCH_BATCH_SIZE)?;
+    if !claimed.is_empty() {
+        log::info!("dispatch_jmap_mail: claimed {} deliveries", claimed.len());
+    }
     let mut processed = 0;
     for (delivery, claim_token) in claimed {
         if let Err(error) = jmap::dispatch_one(ctx, &delivery, &claim_token) {
@@ -134,8 +150,9 @@ fn enqueue_system_mail(ctx: &mut ProcedureContext) -> Result<(), String> {
                 created_at: now,
                 updated_at: now,
             });
-            tx.db.jmap_mail_delivery_events().insert(
-                crate::models::sender::JmapMailDeliveryEvent {
+            tx.db
+                .jmap_mail_delivery_events()
+                .insert(JmapMailDeliveryEvent {
                     id: 0,
                     delivery_id: id.clone(),
                     occurred_at: now,
@@ -145,8 +162,7 @@ fn enqueue_system_mail(ctx: &mut ProcedureContext) -> Result<(), String> {
                     jmap_submission_id: None,
                     details: "System mail queued for native JMAP submission".to_string(),
                     worker_identity: Some(owner),
-                },
-            );
+                });
         });
     }
     Ok(())
@@ -185,8 +201,10 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
         Some(ingress)
     });
     let Some(ingress) = ingress else {
+        log::debug!("fan_out_one_ingress: no claimable ingress rows found");
         return Ok(());
     };
+    log::info!("fan_out_one_ingress: claimed ingress {}", ingress.id);
 
     let source = ctx.with_tx(|tx| {
         let message = tx.db.mail_message().id().find(&ingress.mail_message_id)?;
@@ -225,6 +243,10 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
         Some((message, topic, recipients))
     });
     let Some((message, topic, recipients)) = source else {
+        log::error!(
+            "fan_out_one_ingress: missing canonical message or topic for ingress {}",
+            ingress.id
+        );
         fail_ingress(
             ctx,
             &ingress,
@@ -233,6 +255,12 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
         )?;
         return Ok(());
     };
+    log::info!(
+        "fan_out_one_ingress: ingress {} has {} recipients (topic {})",
+        ingress.id,
+        recipients.len(),
+        topic.name
+    );
 
     if message.message_size > 0 && message.body_raw.is_empty() {
         fail_ingress(
@@ -381,18 +409,19 @@ fn upsert_delivery(
             created_at: now,
             updated_at: now,
         });
-        tx.db.mail_delivery_events().insert(MailDeliveryEvent {
-            id: 0,
-            delivery_id: id.clone(),
-            occurred_at: now,
-            event_type: "jmap_queued".to_string(),
-            attempt_no: 0,
-            smtp_status_code: None,
-            smtp_response: None,
-            error_kind: None,
-            details: "Delivery queued for native JMAP submission".to_string(),
-            worker_identity: Some(caller),
-        });
+        tx.db
+            .jmap_mail_delivery_events()
+            .insert(JmapMailDeliveryEvent {
+                id: 0,
+                delivery_id: id.clone(),
+                occurred_at: now,
+                event_type: "jmap_queued".to_string(),
+                attempt_no: 0,
+                jmap_email_id: None,
+                jmap_submission_id: None,
+                details: "Delivery queued for native JMAP submission".to_string(),
+                worker_identity: Some(caller),
+            });
     });
     Ok(())
 }
@@ -531,7 +560,7 @@ fn record_failure(
         };
         tx.db
             .jmap_mail_delivery_events()
-            .insert(crate::models::sender::JmapMailDeliveryEvent {
+            .insert(JmapMailDeliveryEvent {
                 id: 0,
                 delivery_id: id.clone(),
                 occurred_at: now,

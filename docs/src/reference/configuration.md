@@ -26,7 +26,7 @@ Both `admin/build.rs` and `server/build.rs` resolve the profile configuration us
 | Variable | Description | Default |
 |---|---|---|
 | `APP_PROFILE` | Name of the profile directory in `profiles/` (e.g. `my-org`) | `"example"` |
-| `APP_CONFIG_PATH` | Explicit path to a profile directory or profile TOML file (relative to manifest or absolute) | _(none)_ |
+| `APP_CONFIG_PATH` | Explicit path to a profile directory or profile TOML file (relative to the component manifest directory or absolute) | _(none)_ |
 
 If neither variable is specified, the build system defaults to `profiles/example`.
 
@@ -44,7 +44,10 @@ APP_PROFILE=my-org dx serve -p admin
 
 ```bash
 # Publish module to SpacetimeDB
-APP_PROFILE=my-org spacetime publish -p server kommunikation
+APP_PROFILE=my-org python3 scripts/publish_spacetime.py
+
+# Publish to a remote SpacetimeDB server when needed
+APP_PROFILE=my-org python3 scripts/publish_spacetime.py --server https://spacetime.example.org
 
 # Or run cargo tests with a profile
 APP_PROFILE=my-org cargo test -p spacetime-module
@@ -60,8 +63,9 @@ Specifies SpacetimeDB connection settings for the admin web application.
 
 | Field | Type | Default | Used by | Description |
 |---|---|---|---|---|
-| `uri` | String | `"http://localhost:3000"` | `admin` | HTTP / WebSocket URL of the SpacetimeDB instance. |
-| `module_name` | String | `"kommunikation"` | `admin` | Database / module name published on SpacetimeDB. |
+| `uri` | String | `"http://localhost:3000"` | `admin`, publish wrapper | HTTP / WebSocket URL of the SpacetimeDB instance; the publish wrapper sets it as `MAIL_UNSUBSCRIBE_BASE_URL`. |
+| `module_name` | String | `"kommunikation"` | `admin`, publish wrapper | Database / module name published on SpacetimeDB. |
+
 
 Example:
 
@@ -69,7 +73,27 @@ Example:
 [spacetimedb]
 uri = "https://spacetime.example.org"
 module_name = "kommunikation"
+
+[mail]
+jmap_dispatch_enabled = false
+system_jmap_username = ""
+system_jmap_password = ""
+
+# The wrapper derives MESSAGE_ID_DOMAIN from [server].frontend_base_url
+# and MAIL_UNSUBSCRIBE_BASE_URL from [spacetimedb].uri.
 ```
+
+---
+
+### `[mail]`
+
+Provides the module's JMAP dispatch switch and system-mail credentials. The publish wrapper exports these values as `JMAP_DISPATCH_ENABLED`, `SYSTEM_JMAP_USERNAME`, and `SYSTEM_JMAP_PASSWORD`. The username and password are strings and may be empty when JMAP dispatch is disabled. Keep production credentials in a gitignored custom profile.
+
+| Field | Type | Default | Used by | Description |
+|---|---|---|---|---|
+| `jmap_dispatch_enabled` | Boolean | `false` | publish wrapper | Exported as the lowercase string `true` or `false`. |
+| `system_jmap_username` | String | `""` | publish wrapper | Exported as `SYSTEM_JMAP_USERNAME`. |
+| `system_jmap_password` | String | `""` | publish wrapper | Exported as `SYSTEM_JMAP_PASSWORD`. |
 
 ---
 
@@ -79,7 +103,7 @@ Defines backend-specific endpoints for the SpacetimeDB server module.
 
 | Field | Type | Default | Used by | Description |
 |---|---|---|---|---|
-| `frontend_base_url` | String | Fallback to `[oauth].redirect_uri` (without `/callback`), or `"http://127.0.0.1:8080"` | `server` | Base URL of the admin web frontend. Used to construct self-service email verification links and unsubscribe links. |
+| `frontend_base_url` | String | Fallback to `[oauth].redirect_uri` (without `/callback`), or `"http://127.0.0.1:8080"` | `server`, publish wrapper | Base URL of the admin web frontend. The wrapper sets `MESSAGE_ID_DOMAIN` to this URL's hostname. |
 
 Example:
 
@@ -92,11 +116,11 @@ frontend_base_url = "https://admin.example.org"
 
 ### `[oauth]`
 
-Configures OpenID Connect (OIDC) authentication. Sourced by both `admin` and `server` to guarantee identity and issuer alignment.
+Configures OpenID Connect (OIDC) authentication. The admin build and profile-aware publish wrapper use the same issuer to keep identity validation aligned.
 
 | Field | Type | Default | Used by | Description |
 |---|---|---|---|---|
-| `issuer_url` | String | `"http://127.0.0.1:8000/o"` | `admin`, `server` | OIDC discovery base URL (where `/.well-known/openid-configuration` resides). In the server module, `register_self` enforces that the JWT `iss` claim exactly matches this URL, and user-sync derives account identities from it. |
+| `issuer_url` | String | `"http://127.0.0.1:8000/o"` | `admin`, publish wrapper | OIDC discovery base URL (where `/.well-known/openid-configuration` resides). The wrapper exports it as `OIDC_ISSUER_URL`; the server validates JWT `iss` against that value and uses it when deriving synced user identities. |
 | `client_id` | String | `"admin-app"` | `admin` | OAuth client ID registered with the OIDC provider. |
 | `redirect_uri` | String | `"http://127.0.0.1:8080/callback"` | `admin`, `server` (fallback) | Callback URL for the OAuth authorization code flow. |
 | `scope` | String | `"openid profile email"` | `admin` | Space-separated list of OAuth scopes requested during authorization. |

@@ -236,7 +236,7 @@ Clients **must** subscribe to views (e.g. `visible_accounts`), not raw table nam
 either have a client visibility filter that limits rows, or are not declared `public`.
 
 ### Configuration Profiles & Stalwart Configuration
-Frontend URLs, OIDC issuer URLs, and localized brand names are compiled into the server module at build time from the selected profile in `profiles/` via `server/build.rs`. See [Configuration Profiles](../reference/configuration.md).
+Frontend URLs and localized brand names are compiled into the server module at build time from the selected profile in `profiles/` via `server/build.rs`. The profile-aware publish wrapper also exports all six module environment values from that profile, including the OIDC issuer. See [Configuration Profiles](../reference/configuration.md) and [Module Publishing](../core/spacetimedb/module-publishing.md).
 Stalwart credentials (`STALWART_JMAP_URL` and `STALWART_ADMIN_TOKEN`) can be set dynamically at runtime via the `set_stalwart_config` reducer (stored in the `stalwart_config` database table) or passed as runtime environment variables fallback (`std::env::var`).
 
 ### Subscription Check in DATA Stage

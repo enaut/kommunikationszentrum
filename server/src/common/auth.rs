@@ -1,4 +1,4 @@
-use log::{info, trace};
+use log::trace;
 use spacetimedb::{CtxDbRead, CtxWithSender, Identity};
 
 use crate::models::account::{account__view, admin_identities__view};
