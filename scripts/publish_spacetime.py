@@ -74,7 +74,10 @@ def profile_environment(profile: dict) -> tuple[str, dict[str, str]]:
             mail, "system_jmap_password", allow_empty=True
         ),
         "MESSAGE_ID_DOMAIN": frontend_host,
-        "MAIL_UNSUBSCRIBE_BASE_URL": spacetimedb_uri,
+        "MAIL_UNSUBSCRIBE_BASE_URL": (
+            f"{spacetimedb_uri.rstrip('/')}/v1/database/{module_name}"
+            "/route/mailing-list/unsubscribe"
+        ),
     }
     return module_name, values
 
