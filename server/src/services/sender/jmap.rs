@@ -844,7 +844,14 @@ fn result_for<'a>(
 
 fn jmap_method_error(response: &Value, method: &str, call_id: &str) -> DispatchError {
     match result_for(response, method, call_id) {
-        Ok(result) => parse_method_error(method, result),
+        Ok(result) => {
+            let item_error = match method {
+                "Email/import" => result.pointer("/notCreated/delivery"),
+                "EmailSubmission/set" => result.pointer("/notCreated/submission"),
+                _ => None,
+            };
+            parse_method_error(method, item_error.unwrap_or(result))
+        }
         Err(error) => error,
     }
 }
@@ -923,6 +930,72 @@ mod tests {
             Some(OUTBOX_MAILBOX_NAME)
         );
         assert!(create.pointer("/create/outbox/role").is_none());
+    }
+
+    #[test]
+    fn email_import_server_fail_is_retryable() {
+        let response = json!({
+            "methodResponses": [[
+                "Email/import",
+                { "notCreated": { "delivery": {
+                    "type": "serverFail",
+                    "description": "Temporary import failure"
+                } } },
+                "email-import"
+            ]]
+        });
+
+        let error = jmap_method_error(&response, "Email/import", "email-import");
+
+        assert_eq!(
+            error.message,
+            "Email/import failed (serverFail): Temporary import failure"
+        );
+        assert!(!error.permanent);
+    }
+
+    #[test]
+    fn submission_rate_limit_is_retryable() {
+        let response = json!({
+            "methodResponses": [[
+                "EmailSubmission/set",
+                { "notCreated": { "submission": {
+                    "type": "rateLimit",
+                    "description": "Too many requests"
+                } } },
+                "submission"
+            ]]
+        });
+
+        let error = jmap_method_error(&response, "EmailSubmission/set", "submission");
+
+        assert_eq!(
+            error.message,
+            "EmailSubmission/set failed (rateLimit): Too many requests"
+        );
+        assert!(!error.permanent);
+    }
+
+    #[test]
+    fn submission_invalid_arguments_remain_permanent() {
+        let response = json!({
+            "methodResponses": [[
+                "EmailSubmission/set",
+                { "notCreated": { "submission": {
+                    "type": "invalidArguments",
+                    "description": "Invalid envelope"
+                } } },
+                "submission"
+            ]]
+        });
+
+        let error = jmap_method_error(&response, "EmailSubmission/set", "submission");
+
+        assert_eq!(
+            error.message,
+            "EmailSubmission/set failed (invalidArguments): Invalid envelope"
+        );
+        assert!(error.permanent);
     }
 
     #[test]
