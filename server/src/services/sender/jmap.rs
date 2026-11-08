@@ -15,8 +15,8 @@ use crate::models::{
     delivery::{mail_delivery_message, system_mail_pending},
     mail_message::mail_message,
     sender::{
-        JmapDeliveryState, JmapMailDelivery, JmapMailDeliveryEvent, jmap_mail_deliveries,
-        jmap_mail_delivery_events,
+        JmapDeliveryActor, JmapDeliveryState, JmapMailDelivery, JmapMailDeliveryEvent,
+        jmap_mail_deliveries, jmap_mail_delivery_events,
     },
     topic::{MessageTopic, message_topics, subscription_unsubscribe_tokens, topic_app_passwords},
 };
@@ -651,7 +651,6 @@ fn persist_imported(
         Some(email_id.clone()),
         None,
     )?;
-    let owner = ctx.sender();
     let id = delivery.delivery_id.clone();
     let token = claim_token.to_string();
     let now = ctx.timestamp;
@@ -667,7 +666,7 @@ fn persist_imported(
                 jmap_email_id: Some(email_id.clone()),
                 jmap_submission_id: None,
                 details: "Email imported to the account outbox".to_string(),
-                worker_identity: Some(owner),
+                actor: JmapDeliveryActor::Scheduled,
             });
         let _ = token;
     });
@@ -684,13 +683,12 @@ fn set_state(
 ) -> Result<(), DispatchError> {
     let id = delivery.delivery_id.clone();
     let token = claim_token.to_string();
-    let owner = ctx.sender();
     let now = ctx.timestamp;
     let updated = ctx.with_tx(|tx| {
         let Some(mut row) = tx.db.jmap_mail_deliveries().delivery_id().find(&id) else {
             return false;
         };
-        if row.claim_owner != Some(owner) || row.claim_token.as_deref() != Some(token.as_str()) {
+        if row.claim_token.as_deref() != Some(token.as_str()) {
             return false;
         }
         row.state = state;
@@ -722,20 +720,18 @@ fn mark_sent(
 ) -> Result<(), DispatchError> {
     let id = delivery.delivery_id.clone();
     let token = claim_token.to_string();
-    let owner = ctx.sender();
     let now = ctx.timestamp;
     let submission = submission_id.map(ToString::to_string);
     let sent = ctx.with_tx(|tx| {
         let Some(mut row) = tx.db.jmap_mail_deliveries().delivery_id().find(&id) else {
             return false;
         };
-        if row.claim_owner != Some(owner) || row.claim_token.as_deref() != Some(token.as_str()) {
+        if row.claim_token.as_deref() != Some(token.as_str()) {
             return false;
         }
         row.state = JmapDeliveryState::Sent;
         row.jmap_email_id = Some(email_id.to_string());
         row.jmap_submission_id = submission.clone().or(row.jmap_submission_id);
-        row.claim_owner = None;
         row.claim_token = None;
         row.claim_expires_at = Timestamp::UNIX_EPOCH;
         row.last_error = None;
@@ -755,7 +751,7 @@ fn mark_sent(
                 jmap_email_id: Some(email_id.to_string()),
                 jmap_submission_id: row.jmap_submission_id.clone(),
                 details: "Stalwart accepted the JMAP submission".to_string(),
-                worker_identity: Some(owner),
+                actor: JmapDeliveryActor::Scheduled,
             });
         if let Some(system_id) = row.system_mail_id {
             tx.db.system_mail_pending().id().delete(&system_id);

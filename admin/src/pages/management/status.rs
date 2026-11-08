@@ -656,10 +656,8 @@ fn DeliveryDetailModal(
                                             {tid!("status-jmap-event-submission-id", id : submission_id)}
                                         }
                                     }
-                                    if let Some(worker) = event.worker_identity {
-                                        div { class: "small text-muted text-break",
-                                            {tid!("status-jmap-event-worker", worker : worker.to_string())}
-                                        }
+                                    div { class: "small text-muted text-break",
+                                        {tid!("status-jmap-event-actor", actor : event.actor.to_string())}
                                     }
                                 }
                             }
@@ -707,7 +705,7 @@ fn DeliveryEventsCard(rows: Vec<JmapMailDeliveryEvent>) -> Element {
                                         th { {tid!("status-jmap-event-type")} }
                                         th { {tid!("status-jmap-attempts")} }
                                         th { {tid!("status-jmap-event-time")} }
-                                        th { {tid!("status-jmap-event-worker-label")} }
+                                        th { {tid!("status-jmap-event-actor-label")} }
                                         th { {tid!("status-jmap-details")} }
                                     }
                                 }
@@ -728,12 +726,7 @@ fn DeliveryEventsCard(rows: Vec<JmapMailDeliveryEvent>) -> Element {
                                             }
                                             td {
                                                 small { class: "text-muted text-break",
-                                                    {
-                                                        event
-                                                            .worker_identity
-                                                            .map(|identity| identity.to_string())
-                                                            .unwrap_or_else(|| "–".to_string())
-                                                    }
+                                                    {event.actor.to_string()}
                                                 }
                                             }
                                             td {

@@ -4,6 +4,8 @@
 #![allow(unused, clippy::all)]
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 
+use super::jmap_delivery_actor_type::JmapDeliveryActor;
+
 #[derive(__lib::ser::Serialize, __lib::de::Deserialize, Clone, PartialEq, Debug)]
 #[sats(crate = __lib)]
 pub struct JmapMailDeliveryEvent {
@@ -15,7 +17,7 @@ pub struct JmapMailDeliveryEvent {
     pub jmap_email_id: Option<String>,
     pub jmap_submission_id: Option<String>,
     pub details: String,
-    pub worker_identity: Option<__sdk::Identity>,
+    pub actor: JmapDeliveryActor,
 }
 
 impl __sdk::InModule for JmapMailDeliveryEvent {
@@ -34,8 +36,7 @@ pub struct JmapMailDeliveryEventCols {
     pub jmap_email_id: __sdk::__query_builder::Col<JmapMailDeliveryEvent, Option<String>>,
     pub jmap_submission_id: __sdk::__query_builder::Col<JmapMailDeliveryEvent, Option<String>>,
     pub details: __sdk::__query_builder::Col<JmapMailDeliveryEvent, String>,
-    pub worker_identity:
-        __sdk::__query_builder::Col<JmapMailDeliveryEvent, Option<__sdk::Identity>>,
+    pub actor: __sdk::__query_builder::Col<JmapMailDeliveryEvent, JmapDeliveryActor>,
 }
 
 impl __sdk::__query_builder::HasCols for JmapMailDeliveryEvent {
@@ -50,7 +51,7 @@ impl __sdk::__query_builder::HasCols for JmapMailDeliveryEvent {
             jmap_email_id: __sdk::__query_builder::Col::new(table_name, "jmap_email_id"),
             jmap_submission_id: __sdk::__query_builder::Col::new(table_name, "jmap_submission_id"),
             details: __sdk::__query_builder::Col::new(table_name, "details"),
-            worker_identity: __sdk::__query_builder::Col::new(table_name, "worker_identity"),
+            actor: __sdk::__query_builder::Col::new(table_name, "actor"),
         }
     }
 }

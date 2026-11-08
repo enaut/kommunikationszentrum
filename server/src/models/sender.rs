@@ -1,4 +1,4 @@
-use spacetimedb::{Identity, ScheduleAt, SpacetimeType, Timestamp};
+use spacetimedb::{ScheduleAt, SpacetimeType, Timestamp};
 
 use crate::services::sender::dispatch_jmap_mail;
 
@@ -11,6 +11,13 @@ pub enum JmapDeliveryState {
     SubmissionUnknown,
     Sent,
     Failed,
+}
+
+/// Who triggered a delivery lifecycle outcome.
+#[derive(SpacetimeType, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JmapDeliveryActor {
+    Scheduled,
+    Admin,
 }
 
 /// Durable per-recipient JMAP work. The canonical inbound content remains in `MailMessage`.
@@ -35,7 +42,6 @@ pub struct JmapMailDelivery {
     #[index(btree)]
     pub next_attempt_at: Timestamp,
     pub attempt_count: u32,
-    pub claim_owner: Option<Identity>,
     pub claim_token: Option<String>,
     pub claim_expires_at: Timestamp,
     pub jmap_email_id: Option<String>,
@@ -60,7 +66,7 @@ pub struct JmapMailDeliveryEvent {
     pub jmap_email_id: Option<String>,
     pub jmap_submission_id: Option<String>,
     pub details: String,
-    pub worker_identity: Option<Identity>,
+    pub actor: JmapDeliveryActor,
 }
 
 #[derive(Clone)]

@@ -10,8 +10,8 @@ use crate::models::{
     delivery::{MailIngress, SystemMailPending, mail_ingress, system_mail_pending},
     mail_message::mail_message,
     sender::{
-        JmapDeliveryState, JmapMailDelivery, JmapMailDeliveryEvent, jmap_mail_deliveries,
-        jmap_mail_delivery_events,
+        JmapDeliveryActor, JmapDeliveryState, JmapMailDelivery, JmapMailDeliveryEvent,
+        jmap_mail_deliveries, jmap_mail_delivery_events,
     },
     topic::{
         MessageTopic, SubscriptionUnsubscribeToken, message_topics,
@@ -109,7 +109,6 @@ fn enqueue_system_mail(ctx: &mut ProcedureContext) -> Result<(), String> {
     };
     let pending: Vec<SystemMailPending> =
         ctx.with_tx(|tx| tx.db.system_mail_pending().iter().collect());
-    let owner = ctx.sender();
     let now = ctx.timestamp;
 
     for mail in pending {
@@ -141,7 +140,6 @@ fn enqueue_system_mail(ctx: &mut ProcedureContext) -> Result<(), String> {
                 state: JmapDeliveryState::Pending,
                 next_attempt_at: now,
                 attempt_count: 0,
-                claim_owner: None,
                 claim_token: None,
                 claim_expires_at: Timestamp::UNIX_EPOCH,
                 jmap_email_id: None,
@@ -161,7 +159,7 @@ fn enqueue_system_mail(ctx: &mut ProcedureContext) -> Result<(), String> {
                     jmap_email_id: None,
                     jmap_submission_id: None,
                     details: "System mail queued for native JMAP submission".to_string(),
-                    worker_identity: Some(owner),
+                    actor: JmapDeliveryActor::Scheduled,
                 });
         });
     }
@@ -169,7 +167,6 @@ fn enqueue_system_mail(ctx: &mut ProcedureContext) -> Result<(), String> {
 }
 
 fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
-    let claim_token = uuid_token(ctx)?;
     let caller = ctx.sender();
     let now = ctx.timestamp;
     let ingress = ctx.with_tx(|tx| {
@@ -193,7 +190,6 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
         };
         ingress.claim.status = crate::common::delivery_types::DeliveryStatus::Processing;
         ingress.claim.claim_owner = Some(caller);
-        ingress.claim.instance_id = Some(claim_token.clone());
         ingress.claim.claim_expires_at = now + TimeDuration::from_micros(CLAIM_LEASE_MICROS);
         ingress.claim.attempt_count = ingress.claim.attempt_count.saturating_add(1);
         ingress.claim.updated_at = now;
@@ -247,12 +243,7 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
             "fan_out_one_ingress: missing canonical message or topic for ingress {}",
             ingress.id
         );
-        fail_ingress(
-            ctx,
-            &ingress,
-            &claim_token,
-            "Missing canonical message or topic",
-        )?;
+        fail_ingress(ctx, &ingress, "Missing canonical message or topic")?;
         return Ok(());
     };
     log::info!(
@@ -266,7 +257,6 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
         fail_ingress(
             ctx,
             &ingress,
-            &claim_token,
             "Canonical message body is unavailable (message exceeded storage limit)",
         )?;
         return Ok(());
@@ -280,7 +270,7 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
         }
         recipient.email = normalized_email;
 
-        upsert_unsubscribe_token(ctx, &ingress, &claim_token, &recipient)?;
+        upsert_unsubscribe_token(ctx, &ingress, &recipient)?;
         upsert_delivery(ctx, &ingress, &message, &topic, &recipient)?;
     }
 
@@ -288,9 +278,7 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
         let Some(mut current) = tx.db.mail_ingress().id().find(&ingress.id) else {
             return;
         };
-        if current.claim.claim_owner != Some(caller)
-            || current.claim.instance_id.as_deref() != Some(claim_token.as_str())
-        {
+        if current.claim.claim_owner != Some(caller) {
             return;
         }
         current.claim.status = crate::common::delivery_types::DeliveryStatus::Completed;
@@ -308,7 +296,6 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
 fn upsert_unsubscribe_token(
     ctx: &mut ProcedureContext,
     ingress: &MailIngress,
-    claim_token: &str,
     recipient: &EligibleRecipient,
 ) -> Result<(), String> {
     let generated = format!("sub-{}-{}", recipient.subscription_id, uuid_token(ctx)?);
@@ -316,10 +303,7 @@ fn upsert_unsubscribe_token(
     let now = ctx.timestamp;
     ctx.with_tx(|tx| {
         let current_ingress = tx.db.mail_ingress().id().find(&ingress.id);
-        if !current_ingress.is_some_and(|row| {
-            row.claim.claim_owner == Some(owner)
-                && row.claim.instance_id.as_deref() == Some(claim_token)
-        }) {
+        if !current_ingress.is_some_and(|row| row.claim.claim_owner == Some(owner)) {
             return;
         }
         if let Some(mut existing) = tx
@@ -371,9 +355,7 @@ fn upsert_delivery(
         let Some(current) = tx.db.mail_ingress().id().find(&ingress.id) else {
             return;
         };
-        if current.claim.claim_owner != Some(caller)
-            || current.claim.instance_id.as_deref() != ingress.claim.instance_id.as_deref()
-        {
+        if current.claim.claim_owner != Some(caller) {
             return;
         }
         if tx
@@ -400,7 +382,6 @@ fn upsert_delivery(
             state: JmapDeliveryState::Pending,
             next_attempt_at: now,
             attempt_count: 0,
-            claim_owner: None,
             claim_token: None,
             claim_expires_at: Timestamp::UNIX_EPOCH,
             jmap_email_id: None,
@@ -420,7 +401,7 @@ fn upsert_delivery(
                 jmap_email_id: None,
                 jmap_submission_id: None,
                 details: "Delivery queued for native JMAP submission".to_string(),
-                worker_identity: Some(caller),
+                actor: JmapDeliveryActor::Scheduled,
             });
     });
     Ok(())
@@ -431,7 +412,6 @@ fn claim_due_deliveries(
     limit: usize,
 ) -> Result<Vec<(JmapMailDelivery, String)>, String> {
     let now = ctx.timestamp;
-    let owner = ctx.sender();
     let batch_token = uuid_token(ctx)?;
     Ok(ctx.with_tx(|tx| {
         let mut candidates: Vec<JmapMailDelivery> = tx
@@ -461,7 +441,6 @@ fn claim_due_deliveries(
             .collect();
         let mut claimed = Vec::with_capacity(selected.len());
         for mut row in selected {
-            row.claim_owner = Some(owner);
             row.claim_token = Some(batch_token.clone());
             row.claim_expires_at = now + TimeDuration::from_micros(CLAIM_LEASE_MICROS);
             row.attempt_count = row.attempt_count.saturating_add(1);
@@ -482,19 +461,15 @@ fn claim_due_deliveries(
 fn fail_ingress(
     ctx: &mut ProcedureContext,
     ingress: &MailIngress,
-    claim_token: &str,
     error: &str,
 ) -> Result<(), String> {
     let caller = ctx.sender();
     let id = ingress.id.clone();
-    let token = claim_token.to_string();
     let detail = error.to_string();
     let now = ctx.timestamp;
     ctx.with_tx(|tx| {
         if let Some(mut current) = tx.db.mail_ingress().id().find(&id) {
-            if current.claim.claim_owner == Some(caller)
-                && current.claim.instance_id.as_deref() == Some(token.as_str())
-            {
+            if current.claim.claim_owner == Some(caller) {
                 current.claim.status = crate::common::delivery_types::DeliveryStatus::Failed;
                 current.claim.last_error = Some(detail.clone());
                 current.claim.claim_owner = None;
@@ -524,18 +499,14 @@ fn record_failure(
     let now = ctx.timestamp;
     let id = delivery.delivery_id.clone();
     let token = claim_token.to_string();
-    let owner = ctx.sender();
     ctx.with_tx(|tx| {
         let Some(mut current) = tx.db.jmap_mail_deliveries().delivery_id().find(&id) else {
             return;
         };
-        if current.claim_owner != Some(owner)
-            || current.claim_token.as_deref() != Some(token.as_str())
-        {
+        if current.claim_token.as_deref() != Some(token.as_str()) {
             return;
         }
         current.last_error = Some(error.message.chars().take(500).collect());
-        current.claim_owner = None;
         current.claim_token = None;
         current.claim_expires_at = Timestamp::UNIX_EPOCH;
         current.updated_at = now;
@@ -569,7 +540,7 @@ fn record_failure(
                 jmap_email_id: current.jmap_email_id.clone(),
                 jmap_submission_id: current.jmap_submission_id.clone(),
                 details: error.message.chars().take(500).collect(),
-                worker_identity: Some(owner),
+                actor: JmapDeliveryActor::Scheduled,
             });
         tx.db.jmap_mail_deliveries().delivery_id().update(current);
     });

@@ -10,8 +10,8 @@ use crate::{
         },
         mail_message::mail_message,
         sender::{
-            JmapDeliveryState, JmapMailDelivery, JmapMailDeliveryEvent, jmap_mail_deliveries,
-            jmap_mail_delivery_events,
+            JmapDeliveryActor, JmapDeliveryState, JmapMailDelivery, JmapMailDeliveryEvent,
+            jmap_mail_deliveries, jmap_mail_delivery_events,
         },
     },
 };
@@ -133,10 +133,9 @@ pub fn migrate_pending_legacy_deliveries(ctx: &mut ProcedureContext) -> Result<u
                     subject,
                     body_text: String::new(),
                     state: JmapDeliveryState::Pending,
+                    claim_token: None,
                     next_attempt_at,
                     attempt_count,
-                    claim_owner: None,
-                    claim_token: None,
                     claim_expires_at: Timestamp::UNIX_EPOCH,
                     jmap_email_id: None,
                     jmap_submission_id: None,
@@ -155,7 +154,7 @@ pub fn migrate_pending_legacy_deliveries(ctx: &mut ProcedureContext) -> Result<u
                         jmap_email_id: None,
                         jmap_submission_id: None,
                         details: "Unclaimed legacy delivery migrated to native JMAP".to_string(),
-                        worker_identity: Some(caller),
+                        actor: JmapDeliveryActor::Admin,
                     });
             }
             if temporary {
@@ -199,7 +198,6 @@ pub fn retry_failed_jmap_delivery(ctx: &ReducerContext, delivery_id: String) -> 
         JmapDeliveryState::Pending
     };
     delivery.next_attempt_at = ctx.timestamp;
-    delivery.claim_owner = None;
     delivery.claim_token = None;
     delivery.claim_expires_at = Timestamp::UNIX_EPOCH;
     delivery.last_error = None;
@@ -219,7 +217,7 @@ pub fn retry_failed_jmap_delivery(ctx: &ReducerContext, delivery_id: String) -> 
             jmap_email_id: delivery.jmap_email_id,
             jmap_submission_id: delivery.jmap_submission_id,
             details: "Delivery manually requeued by an administrator".to_string(),
-            worker_identity: Some(ctx.sender()),
+            actor: JmapDeliveryActor::Admin,
         });
     Ok(())
 }
