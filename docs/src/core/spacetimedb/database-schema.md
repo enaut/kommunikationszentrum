@@ -1,47 +1,31 @@
 # Database Schema
 
-The SpacetimeDB module for Kommunikationszentrum is the canonical state for user identity, topic subscriptions, category tags, domain metadata, MTA delivery records, Stalwart JMAP configuration, and the outbound delivery pipeline. The schema is intentionally private to the module; client access is restricted to scoped public views.
+The SpacetimeDB module is the canonical store for identity, topic subscriptions, categories, domain metadata, MTA records, Stalwart configuration, and mail delivery state. Client access is restricted to public views.
 
-## Full Entity-Relationship Schema
-
-The module stores identity, topics, categories, Stalwart configuration, and delivery state in private tables, while admin/member/sender visibility is enforced by scoped public views such as `visible_accounts`, `visible_message_topics`, `visible_categories`, `visible_message_topic_categories`, `visible_domains`, `admin_stalwart_config`, and `sender_mail_delivery_messages`.
+### Entity relationship schema
 
 ```d2
 {{#include database-schema-er.d2}}
 ```
 
----
+### Delivery state
 
-## Delivery Pipeline Architecture
+Accepted inbound messages are stored as canonical `mail_message` records with `mail_ingress` rows. The scheduled JMAP pipeline expands ingress into durable per-recipient `jmap_mail_deliveries` and records lifecycle events in `jmap_mail_delivery_events`. The dispatcher uploads, imports, and submits each recipient message through Stalwart JMAP; state is retained for retries and administrator status reporting.
 
-The delivery pipeline separates inbound message ingestion from outbound SMTP work and isolates delivery payloads:
-1. An inbound email targeting topics creates a canonical `mail_message` row and per-topic `received_message` rows. For accepted topics, a corresponding `mail_ingress` fan-out job is enqueued. (Rejected topics record their rejection disposition and queue rejection notices without creating ingress jobs).
-2. The sender worker claims the ingress job and prepares outbound messages: each recipient receives an immutable `mail_delivery_message` row containing the rendered RFC 5322 payload, and a tracking row in `mail_delivery_pending`.
-3. Workers claim pending items (`mail_delivery_claimed`) under short leases.
-4. Sent, failed, bounced, or cancelled items terminate in `mail_delivery_done` with a `DeliveryFinalState`. Transient SMTP errors transition to `mail_delivery_temporary_failed`, where the scheduled `requeue_temporary_failed_mails` reducer moves them back to `mail_delivery_pending` once their `next_attempt_at` expires.
+The legacy SMTP queue tables remain in the schema for migration and reconciliation. `migrate_pending_legacy_deliveries` migrates unclaimed pending and temporary-failure rows. Claimed legacy rows require outcome reconciliation before they can safely be retried. See [Outbound Delivery](../outbound-delivery.md).
 
 ```d2
 {{#include database-schema-delivery-pipeline.d2}}
 ```
 
----
+### Subscription lifecycle and visibility
 
-## Subscription Lifecycle & Unsubscribe Flow
-
-Subscriptions carry the current member state across automatic Django syncs and explicit user or admin actions. The status model tracks automatic subscriptions, required assignments, manual actions, and one-click unsubscribe actions.
+Subscriptions track synchronized assignments, member choices, and one-click unsubscribe actions.
 
 ```d2
 {{#include database-schema-subscription-lifecycle.d2}}
 ```
 
-> **Sync protection rule:** Django owns `RequiredSubscribed` assignments and may add or remove them as membership data changes. The sync path will not overwrite `ManuallySubscribed`, `ManuallyUnsubscribed`, or `LinkUnsubscribed` states, and a member cannot remove a required subscription through a list-unsubscribe link.
+Django owns `RequiredSubscribed` assignments. Synchronization does not overwrite manual or link-unsubscribe states, and a member cannot remove a required subscription through a list-unsubscribe link.
 
----
-
-## Client Visibility Views
-
-SpacetimeDB tables remain module-private. Public views enforce caller-specific visibility for members, admins, and the sender worker.
-
-```d2
-{{#include database-schema-client-views.d2}}
-```
+Tables remain private. Public views expose caller-specific member and administrator data; only administrators can read JMAP delivery and event status. See the [client visibility diagram](./database-schema-client-views.d2).

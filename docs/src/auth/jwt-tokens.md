@@ -73,7 +73,7 @@ pub fn authenticated_operation(ctx: &ReducerContext) -> Result<(), String> {
 }
 ```
 
-The module's `register_self` reducer requires the authenticated JWT's `iss` claim to exactly equal the compile-time `OIDC_ISSUER_URL`. Missing or different issuers are rejected before the reducer looks up or updates an account. The same configured issuer is used by `sync_user` to compute synced account identities:
+The module's `register_self` reducer requires the authenticated JWT's `iss` claim to exactly equal `OIDC_ISSUER_URL` from the published SpacetimeDB module environment. Missing or different issuers are rejected before the reducer looks up or updates an account. The same configured issuer is used by `sync_user` to compute synced account identities:
 
 ```rust
 let identity = Identity::from_claims(OIDC_ISSUER_URL, &data.external_id);
@@ -81,7 +81,7 @@ let identity = Identity::from_claims(OIDC_ISSUER_URL, &data.external_id);
 
 The account's `external_id` is the OIDC `sub`. For a token from the configured issuer, the sender identity and synced account identity therefore derive from the same `(iss, sub)` pair. When an account is found by `external_id`, `register_self` also requires its stored identity to match the sender; it does not rebind the account to a different identity. A mismatch indicates stale or inconsistent account identity data and must be resolved explicitly.
 
-`OIDC_ISSUER_URL` is resolved from the configuration profile (`[oauth].issuer_url`) and compiled into the server module via `server/build.rs`. Using the same profile (`APP_PROFILE=<profile>`) when building the admin frontend and server module guarantees that both components agree on the exact trusted issuer. A token from another issuer may still connect to SpacetimeDB, but it cannot register or update an account through `register_self`. See [Configuration Profiles](../reference/configuration.md#oauth).
+`OIDC_ISSUER_URL` is read from `[oauth].issuer_url` in the selected profile. The profile-aware publish wrapper copies it into the module's SpacetimeDB environment, while the admin build reads the same profile for OIDC discovery. Use the same profile for both components. A token from another issuer may still connect to SpacetimeDB, but it cannot register or update an account through `register_self`. See [Module Publishing](../core/spacetimedb/module-publishing.md) and [Configuration Profiles](../reference/configuration.md#oauth).
 
 ### Email Claims and Primary Email Handling
 

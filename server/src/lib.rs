@@ -5,11 +5,8 @@ use spacetimedb::{ReducerContext, ScheduleAt, Table};
 use crate::models::{
     account::{AdminIdentity, admin_identities},
     config::{MailRetentionConfig, mail_retention_config},
-    delivery::{
-        ExpireStaleDeliveryClaimsSchedule, RequeueTemporaryFailedMailsSchedule,
-        expire_stale_delivery_claims_schedule, requeue_temporary_failed_mails_schedule,
-    },
     mta::{PurgeRejectedMailsSchedule, purge_rejected_mails_schedule},
+    sender::{JmapMailDispatchSchedule, jmap_mail_dispatch_schedule},
 };
 use crate::services::mta::purge::DEFAULT_REJECTED_RETENTION_DAYS;
 
@@ -40,39 +37,6 @@ pub fn init(ctx: &ReducerContext) {
         log::info!("Seeded sender identity as admin: {:?}", sender_identity);
     }
 
-    // Seed the schedule for expire_stale_delivery_claims if it doesn't exist
-    if ctx
-        .db
-        .expire_stale_delivery_claims_schedule()
-        .scheduled_id()
-        .find(&0)
-        .is_none()
-    {
-        ctx.db
-            .expire_stale_delivery_claims_schedule()
-            .insert(ExpireStaleDeliveryClaimsSchedule {
-                scheduled_id: 0,
-                scheduled_at: ScheduleAt::Interval(Duration::from_secs(60).into()),
-            });
-        log::info!("Seeded expire_stale_delivery_claims schedule");
-    }
-
-    if ctx
-        .db
-        .requeue_temporary_failed_mails_schedule()
-        .scheduled_id()
-        .find(&0)
-        .is_none()
-    {
-        ctx.db.requeue_temporary_failed_mails_schedule().insert(
-            RequeueTemporaryFailedMailsSchedule {
-                scheduled_id: 0,
-                scheduled_at: ScheduleAt::Interval(Duration::from_secs(10).into()),
-            },
-        );
-        log::info!("Seeded requeue_temporary_failed_mails schedule");
-    }
-
     if ctx
         .db
         .purge_rejected_mails_schedule()
@@ -87,6 +51,24 @@ pub fn init(ctx: &ReducerContext) {
                 scheduled_at: ScheduleAt::Interval(Duration::from_secs(3600).into()),
             });
         log::info!("Seeded purge_rejected_mails schedule");
+    }
+
+    if ctx
+        .db
+        .jmap_mail_dispatch_schedule()
+        .scheduled_id()
+        .find(&0)
+        .is_none()
+    {
+        ctx.db
+            .jmap_mail_dispatch_schedule()
+            .insert(JmapMailDispatchSchedule {
+                scheduled_id: 0,
+                scheduled_at: ScheduleAt::Interval(Duration::from_secs(10).into()),
+            });
+        log::info!(
+            "Seeded native JMAP mail dispatch schedule (disabled until JMAP_DISPATCH_ENABLED=true)"
+        );
     }
 
     if ctx.db.mail_retention_config().id().find(&0).is_none() {

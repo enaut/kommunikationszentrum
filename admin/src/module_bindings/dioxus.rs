@@ -26,24 +26,9 @@ pub struct TableSignals {
     pub admin_mail_retention_config: SyncSignal<Vec<MailRetentionConfig>>,
     pub admin_stalwart_config: SyncSignal<Vec<StalwartConfig>>,
     pub context_accounts: SyncSignal<Vec<Account>>,
-    pub expire_stale_delivery_claims_schedule: SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>>,
     pub purge_rejected_mails_schedule: SyncSignal<Vec<PurgeRejectedMailsSchedule>>,
-    pub requeue_temporary_failed_mails_schedule:
-        SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>>,
-    pub sender_account_emails: SyncSignal<Vec<AccountEmail>>,
-    pub sender_accounts: SyncSignal<Vec<Account>>,
-    pub sender_mail_delivery_claimed: SyncSignal<Vec<MailDeliveryClaimed>>,
-    pub sender_mail_delivery_done: SyncSignal<Vec<MailDeliveryDone>>,
-    pub sender_mail_delivery_events: SyncSignal<Vec<MailDeliveryEvent>>,
-    pub sender_mail_delivery_messages: SyncSignal<Vec<MailDeliveryMessage>>,
-    pub sender_mail_delivery_pending: SyncSignal<Vec<MailDeliveryPending>>,
-    pub sender_mail_delivery_temporary_failed: SyncSignal<Vec<MailDeliveryTemporaryFailed>>,
-    pub sender_mail_ingress: SyncSignal<Vec<MailIngress>>,
-    pub sender_mail_messages: SyncSignal<Vec<MailMessage>>,
-    pub sender_message_topics: SyncSignal<Vec<MessageTopic>>,
-    pub sender_subscriptions: SyncSignal<Vec<Subscription>>,
-    pub sender_system_mail_pending: SyncSignal<Vec<SystemMailPending>>,
-    pub sender_topic_app_passwords: SyncSignal<Vec<TopicAppPassword>>,
+    pub sender_jmap_mail_deliveries: SyncSignal<Vec<JmapMailDelivery>>,
+    pub sender_jmap_mail_delivery_events: SyncSignal<Vec<JmapMailDeliveryEvent>>,
     pub subscriber_search_candidates: SyncSignal<Vec<SubscriberCandidate>>,
     pub topic_message_counts: SyncSignal<Vec<TopicMessageCount>>,
     pub topic_subscriber_counts: SyncSignal<Vec<TopicSubscriberCount>>,
@@ -242,23 +227,9 @@ pub fn use_spacetimedb_context_provider(
         admin_mail_retention_config: use_signal_sync(Vec::new),
         admin_stalwart_config: use_signal_sync(Vec::new),
         context_accounts: use_signal_sync(Vec::new),
-        expire_stale_delivery_claims_schedule: use_signal_sync(Vec::new),
         purge_rejected_mails_schedule: use_signal_sync(Vec::new),
-        requeue_temporary_failed_mails_schedule: use_signal_sync(Vec::new),
-        sender_account_emails: use_signal_sync(Vec::new),
-        sender_accounts: use_signal_sync(Vec::new),
-        sender_mail_delivery_claimed: use_signal_sync(Vec::new),
-        sender_mail_delivery_done: use_signal_sync(Vec::new),
-        sender_mail_delivery_events: use_signal_sync(Vec::new),
-        sender_mail_delivery_messages: use_signal_sync(Vec::new),
-        sender_mail_delivery_pending: use_signal_sync(Vec::new),
-        sender_mail_delivery_temporary_failed: use_signal_sync(Vec::new),
-        sender_mail_ingress: use_signal_sync(Vec::new),
-        sender_mail_messages: use_signal_sync(Vec::new),
-        sender_message_topics: use_signal_sync(Vec::new),
-        sender_subscriptions: use_signal_sync(Vec::new),
-        sender_system_mail_pending: use_signal_sync(Vec::new),
-        sender_topic_app_passwords: use_signal_sync(Vec::new),
+        sender_jmap_mail_deliveries: use_signal_sync(Vec::new),
+        sender_jmap_mail_delivery_events: use_signal_sync(Vec::new),
         subscriber_search_candidates: use_signal_sync(Vec::new),
         topic_message_counts: use_signal_sync(Vec::new),
         topic_subscriber_counts: use_signal_sync(Vec::new),
@@ -468,53 +439,6 @@ pub fn use_spacetimedb_context_provider(
                             let updated: Vec<Account> = ctx.db.context_accounts().iter().collect();
                             table_signals_on_connect.context_accounts.set(updated);
                         });
-                        // Populate initial rows for expire_stale_delivery_claims_schedule
-                        let current: Vec<ExpireStaleDeliveryClaimsSchedule> = conn
-                            .db
-                            .expire_stale_delivery_claims_schedule()
-                            .iter()
-                            .collect();
-                        table_signals_on_connect
-                            .expire_stale_delivery_claims_schedule
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.expire_stale_delivery_claims_schedule().on_insert(
-                            move |ctx, _row| {
-                                let updated: Vec<ExpireStaleDeliveryClaimsSchedule> = ctx
-                                    .db
-                                    .expire_stale_delivery_claims_schedule()
-                                    .iter()
-                                    .collect();
-                                table_signals_on_connect
-                                    .expire_stale_delivery_claims_schedule
-                                    .set(updated);
-                            },
-                        );
-                        conn.db.expire_stale_delivery_claims_schedule().on_update(
-                            move |ctx, _old, _new| {
-                                let updated: Vec<ExpireStaleDeliveryClaimsSchedule> = ctx
-                                    .db
-                                    .expire_stale_delivery_claims_schedule()
-                                    .iter()
-                                    .collect();
-                                table_signals_on_connect
-                                    .expire_stale_delivery_claims_schedule
-                                    .set(updated);
-                            },
-                        );
-                        conn.db.expire_stale_delivery_claims_schedule().on_delete(
-                            move |ctx, _row| {
-                                let updated: Vec<ExpireStaleDeliveryClaimsSchedule> = ctx
-                                    .db
-                                    .expire_stale_delivery_claims_schedule()
-                                    .iter()
-                                    .collect();
-                                table_signals_on_connect
-                                    .expire_stale_delivery_claims_schedule
-                                    .set(updated);
-                            },
-                        );
                         // Populate initial rows for purge_rejected_mails_schedule
                         let current: Vec<PurgeRejectedMailsSchedule> =
                             conn.db.purge_rejected_mails_schedule().iter().collect();
@@ -550,475 +474,74 @@ pub fn use_spacetimedb_context_provider(
                                     .purge_rejected_mails_schedule
                                     .set(updated);
                             });
-                        // Populate initial rows for requeue_temporary_failed_mails_schedule
-                        let current: Vec<RequeueTemporaryFailedMailsSchedule> = conn
-                            .db
-                            .requeue_temporary_failed_mails_schedule()
-                            .iter()
-                            .collect();
+                        // Populate initial rows for sender_jmap_mail_deliveries
+                        let current: Vec<JmapMailDelivery> =
+                            conn.db.sender_jmap_mail_deliveries().iter().collect();
                         table_signals_on_connect
-                            .requeue_temporary_failed_mails_schedule
+                            .sender_jmap_mail_deliveries
                             .set(current);
 
                         // Keep signal in sync on changes
-                        conn.db.requeue_temporary_failed_mails_schedule().on_insert(
-                            move |ctx, _row| {
-                                let updated: Vec<RequeueTemporaryFailedMailsSchedule> = ctx
-                                    .db
-                                    .requeue_temporary_failed_mails_schedule()
-                                    .iter()
-                                    .collect();
+                        conn.db
+                            .sender_jmap_mail_deliveries()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<JmapMailDelivery> =
+                                    ctx.db.sender_jmap_mail_deliveries().iter().collect();
                                 table_signals_on_connect
-                                    .requeue_temporary_failed_mails_schedule
+                                    .sender_jmap_mail_deliveries
                                     .set(updated);
-                            },
-                        );
-                        conn.db.requeue_temporary_failed_mails_schedule().on_update(
+                            });
+                        conn.db
+                            .sender_jmap_mail_deliveries()
+                            .on_update(move |ctx, _old, _new| {
+                                let updated: Vec<JmapMailDelivery> =
+                                    ctx.db.sender_jmap_mail_deliveries().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_deliveries
+                                    .set(updated);
+                            });
+                        conn.db
+                            .sender_jmap_mail_deliveries()
+                            .on_delete(move |ctx, _row| {
+                                let updated: Vec<JmapMailDelivery> =
+                                    ctx.db.sender_jmap_mail_deliveries().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_deliveries
+                                    .set(updated);
+                            });
+                        // Populate initial rows for sender_jmap_mail_delivery_events
+                        let current: Vec<JmapMailDeliveryEvent> =
+                            conn.db.sender_jmap_mail_delivery_events().iter().collect();
+                        table_signals_on_connect
+                            .sender_jmap_mail_delivery_events
+                            .set(current);
+
+                        // Keep signal in sync on changes
+                        conn.db
+                            .sender_jmap_mail_delivery_events()
+                            .on_insert(move |ctx, _row| {
+                                let updated: Vec<JmapMailDeliveryEvent> =
+                                    ctx.db.sender_jmap_mail_delivery_events().iter().collect();
+                                table_signals_on_connect
+                                    .sender_jmap_mail_delivery_events
+                                    .set(updated);
+                            });
+                        conn.db.sender_jmap_mail_delivery_events().on_update(
                             move |ctx, _old, _new| {
-                                let updated: Vec<RequeueTemporaryFailedMailsSchedule> = ctx
-                                    .db
-                                    .requeue_temporary_failed_mails_schedule()
-                                    .iter()
-                                    .collect();
+                                let updated: Vec<JmapMailDeliveryEvent> =
+                                    ctx.db.sender_jmap_mail_delivery_events().iter().collect();
                                 table_signals_on_connect
-                                    .requeue_temporary_failed_mails_schedule
-                                    .set(updated);
-                            },
-                        );
-                        conn.db.requeue_temporary_failed_mails_schedule().on_delete(
-                            move |ctx, _row| {
-                                let updated: Vec<RequeueTemporaryFailedMailsSchedule> = ctx
-                                    .db
-                                    .requeue_temporary_failed_mails_schedule()
-                                    .iter()
-                                    .collect();
-                                table_signals_on_connect
-                                    .requeue_temporary_failed_mails_schedule
-                                    .set(updated);
-                            },
-                        );
-                        // Populate initial rows for sender_account_emails
-                        let current: Vec<AccountEmail> =
-                            conn.db.sender_account_emails().iter().collect();
-                        table_signals_on_connect.sender_account_emails.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.sender_account_emails().on_insert(move |ctx, _row| {
-                            let updated: Vec<AccountEmail> =
-                                ctx.db.sender_account_emails().iter().collect();
-                            table_signals_on_connect.sender_account_emails.set(updated);
-                        });
-                        conn.db
-                            .sender_account_emails()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<AccountEmail> =
-                                    ctx.db.sender_account_emails().iter().collect();
-                                table_signals_on_connect.sender_account_emails.set(updated);
-                            });
-                        conn.db.sender_account_emails().on_delete(move |ctx, _row| {
-                            let updated: Vec<AccountEmail> =
-                                ctx.db.sender_account_emails().iter().collect();
-                            table_signals_on_connect.sender_account_emails.set(updated);
-                        });
-                        // Populate initial rows for sender_accounts
-                        let current: Vec<Account> = conn.db.sender_accounts().iter().collect();
-                        table_signals_on_connect.sender_accounts.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.sender_accounts().on_insert(move |ctx, _row| {
-                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
-                            table_signals_on_connect.sender_accounts.set(updated);
-                        });
-                        conn.db.sender_accounts().on_update(move |ctx, _old, _new| {
-                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
-                            table_signals_on_connect.sender_accounts.set(updated);
-                        });
-                        conn.db.sender_accounts().on_delete(move |ctx, _row| {
-                            let updated: Vec<Account> = ctx.db.sender_accounts().iter().collect();
-                            table_signals_on_connect.sender_accounts.set(updated);
-                        });
-                        // Populate initial rows for sender_mail_delivery_claimed
-                        let current: Vec<MailDeliveryClaimed> =
-                            conn.db.sender_mail_delivery_claimed().iter().collect();
-                        table_signals_on_connect
-                            .sender_mail_delivery_claimed
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db
-                            .sender_mail_delivery_claimed()
-                            .on_insert(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryClaimed> =
-                                    ctx.db.sender_mail_delivery_claimed().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_claimed
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_mail_delivery_claimed()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<MailDeliveryClaimed> =
-                                    ctx.db.sender_mail_delivery_claimed().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_claimed
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_mail_delivery_claimed()
-                            .on_delete(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryClaimed> =
-                                    ctx.db.sender_mail_delivery_claimed().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_claimed
-                                    .set(updated);
-                            });
-                        // Populate initial rows for sender_mail_delivery_done
-                        let current: Vec<MailDeliveryDone> =
-                            conn.db.sender_mail_delivery_done().iter().collect();
-                        table_signals_on_connect
-                            .sender_mail_delivery_done
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db
-                            .sender_mail_delivery_done()
-                            .on_insert(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryDone> =
-                                    ctx.db.sender_mail_delivery_done().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_done
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_mail_delivery_done()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<MailDeliveryDone> =
-                                    ctx.db.sender_mail_delivery_done().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_done
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_mail_delivery_done()
-                            .on_delete(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryDone> =
-                                    ctx.db.sender_mail_delivery_done().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_done
-                                    .set(updated);
-                            });
-                        // Populate initial rows for sender_mail_delivery_events
-                        let current: Vec<MailDeliveryEvent> =
-                            conn.db.sender_mail_delivery_events().iter().collect();
-                        table_signals_on_connect
-                            .sender_mail_delivery_events
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db
-                            .sender_mail_delivery_events()
-                            .on_insert(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryEvent> =
-                                    ctx.db.sender_mail_delivery_events().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_events
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_mail_delivery_events()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<MailDeliveryEvent> =
-                                    ctx.db.sender_mail_delivery_events().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_events
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_mail_delivery_events()
-                            .on_delete(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryEvent> =
-                                    ctx.db.sender_mail_delivery_events().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_events
-                                    .set(updated);
-                            });
-                        // Populate initial rows for sender_mail_delivery_messages
-                        let current: Vec<MailDeliveryMessage> =
-                            conn.db.sender_mail_delivery_messages().iter().collect();
-                        table_signals_on_connect
-                            .sender_mail_delivery_messages
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db
-                            .sender_mail_delivery_messages()
-                            .on_insert(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryMessage> =
-                                    ctx.db.sender_mail_delivery_messages().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_messages
-                                    .set(updated);
-                            });
-                        conn.db.sender_mail_delivery_messages().on_update(
-                            move |ctx, _old, _new| {
-                                let updated: Vec<MailDeliveryMessage> =
-                                    ctx.db.sender_mail_delivery_messages().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_messages
+                                    .sender_jmap_mail_delivery_events
                                     .set(updated);
                             },
                         );
                         conn.db
-                            .sender_mail_delivery_messages()
+                            .sender_jmap_mail_delivery_events()
                             .on_delete(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryMessage> =
-                                    ctx.db.sender_mail_delivery_messages().iter().collect();
+                                let updated: Vec<JmapMailDeliveryEvent> =
+                                    ctx.db.sender_jmap_mail_delivery_events().iter().collect();
                                 table_signals_on_connect
-                                    .sender_mail_delivery_messages
-                                    .set(updated);
-                            });
-                        // Populate initial rows for sender_mail_delivery_pending
-                        let current: Vec<MailDeliveryPending> =
-                            conn.db.sender_mail_delivery_pending().iter().collect();
-                        table_signals_on_connect
-                            .sender_mail_delivery_pending
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db
-                            .sender_mail_delivery_pending()
-                            .on_insert(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryPending> =
-                                    ctx.db.sender_mail_delivery_pending().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_pending
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_mail_delivery_pending()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<MailDeliveryPending> =
-                                    ctx.db.sender_mail_delivery_pending().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_pending
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_mail_delivery_pending()
-                            .on_delete(move |ctx, _row| {
-                                let updated: Vec<MailDeliveryPending> =
-                                    ctx.db.sender_mail_delivery_pending().iter().collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_pending
-                                    .set(updated);
-                            });
-                        // Populate initial rows for sender_mail_delivery_temporary_failed
-                        let current: Vec<MailDeliveryTemporaryFailed> = conn
-                            .db
-                            .sender_mail_delivery_temporary_failed()
-                            .iter()
-                            .collect();
-                        table_signals_on_connect
-                            .sender_mail_delivery_temporary_failed
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.sender_mail_delivery_temporary_failed().on_insert(
-                            move |ctx, _row| {
-                                let updated: Vec<MailDeliveryTemporaryFailed> = ctx
-                                    .db
-                                    .sender_mail_delivery_temporary_failed()
-                                    .iter()
-                                    .collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_temporary_failed
-                                    .set(updated);
-                            },
-                        );
-                        conn.db.sender_mail_delivery_temporary_failed().on_update(
-                            move |ctx, _old, _new| {
-                                let updated: Vec<MailDeliveryTemporaryFailed> = ctx
-                                    .db
-                                    .sender_mail_delivery_temporary_failed()
-                                    .iter()
-                                    .collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_temporary_failed
-                                    .set(updated);
-                            },
-                        );
-                        conn.db.sender_mail_delivery_temporary_failed().on_delete(
-                            move |ctx, _row| {
-                                let updated: Vec<MailDeliveryTemporaryFailed> = ctx
-                                    .db
-                                    .sender_mail_delivery_temporary_failed()
-                                    .iter()
-                                    .collect();
-                                table_signals_on_connect
-                                    .sender_mail_delivery_temporary_failed
-                                    .set(updated);
-                            },
-                        );
-                        // Populate initial rows for sender_mail_ingress
-                        let current: Vec<MailIngress> =
-                            conn.db.sender_mail_ingress().iter().collect();
-                        table_signals_on_connect.sender_mail_ingress.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.sender_mail_ingress().on_insert(move |ctx, _row| {
-                            let updated: Vec<MailIngress> =
-                                ctx.db.sender_mail_ingress().iter().collect();
-                            table_signals_on_connect.sender_mail_ingress.set(updated);
-                        });
-                        conn.db
-                            .sender_mail_ingress()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<MailIngress> =
-                                    ctx.db.sender_mail_ingress().iter().collect();
-                                table_signals_on_connect.sender_mail_ingress.set(updated);
-                            });
-                        conn.db.sender_mail_ingress().on_delete(move |ctx, _row| {
-                            let updated: Vec<MailIngress> =
-                                ctx.db.sender_mail_ingress().iter().collect();
-                            table_signals_on_connect.sender_mail_ingress.set(updated);
-                        });
-                        // Populate initial rows for sender_mail_messages
-                        let current: Vec<MailMessage> =
-                            conn.db.sender_mail_messages().iter().collect();
-                        table_signals_on_connect.sender_mail_messages.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.sender_mail_messages().on_insert(move |ctx, _row| {
-                            let updated: Vec<MailMessage> =
-                                ctx.db.sender_mail_messages().iter().collect();
-                            table_signals_on_connect.sender_mail_messages.set(updated);
-                        });
-                        conn.db
-                            .sender_mail_messages()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<MailMessage> =
-                                    ctx.db.sender_mail_messages().iter().collect();
-                                table_signals_on_connect.sender_mail_messages.set(updated);
-                            });
-                        conn.db.sender_mail_messages().on_delete(move |ctx, _row| {
-                            let updated: Vec<MailMessage> =
-                                ctx.db.sender_mail_messages().iter().collect();
-                            table_signals_on_connect.sender_mail_messages.set(updated);
-                        });
-                        // Populate initial rows for sender_message_topics
-                        let current: Vec<MessageTopic> =
-                            conn.db.sender_message_topics().iter().collect();
-                        table_signals_on_connect.sender_message_topics.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.sender_message_topics().on_insert(move |ctx, _row| {
-                            let updated: Vec<MessageTopic> =
-                                ctx.db.sender_message_topics().iter().collect();
-                            table_signals_on_connect.sender_message_topics.set(updated);
-                        });
-                        conn.db
-                            .sender_message_topics()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<MessageTopic> =
-                                    ctx.db.sender_message_topics().iter().collect();
-                                table_signals_on_connect.sender_message_topics.set(updated);
-                            });
-                        conn.db.sender_message_topics().on_delete(move |ctx, _row| {
-                            let updated: Vec<MessageTopic> =
-                                ctx.db.sender_message_topics().iter().collect();
-                            table_signals_on_connect.sender_message_topics.set(updated);
-                        });
-                        // Populate initial rows for sender_subscriptions
-                        let current: Vec<Subscription> =
-                            conn.db.sender_subscriptions().iter().collect();
-                        table_signals_on_connect.sender_subscriptions.set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db.sender_subscriptions().on_insert(move |ctx, _row| {
-                            let updated: Vec<Subscription> =
-                                ctx.db.sender_subscriptions().iter().collect();
-                            table_signals_on_connect.sender_subscriptions.set(updated);
-                        });
-                        conn.db
-                            .sender_subscriptions()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<Subscription> =
-                                    ctx.db.sender_subscriptions().iter().collect();
-                                table_signals_on_connect.sender_subscriptions.set(updated);
-                            });
-                        conn.db.sender_subscriptions().on_delete(move |ctx, _row| {
-                            let updated: Vec<Subscription> =
-                                ctx.db.sender_subscriptions().iter().collect();
-                            table_signals_on_connect.sender_subscriptions.set(updated);
-                        });
-                        // Populate initial rows for sender_system_mail_pending
-                        let current: Vec<SystemMailPending> =
-                            conn.db.sender_system_mail_pending().iter().collect();
-                        table_signals_on_connect
-                            .sender_system_mail_pending
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db
-                            .sender_system_mail_pending()
-                            .on_insert(move |ctx, _row| {
-                                let updated: Vec<SystemMailPending> =
-                                    ctx.db.sender_system_mail_pending().iter().collect();
-                                table_signals_on_connect
-                                    .sender_system_mail_pending
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_system_mail_pending()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<SystemMailPending> =
-                                    ctx.db.sender_system_mail_pending().iter().collect();
-                                table_signals_on_connect
-                                    .sender_system_mail_pending
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_system_mail_pending()
-                            .on_delete(move |ctx, _row| {
-                                let updated: Vec<SystemMailPending> =
-                                    ctx.db.sender_system_mail_pending().iter().collect();
-                                table_signals_on_connect
-                                    .sender_system_mail_pending
-                                    .set(updated);
-                            });
-                        // Populate initial rows for sender_topic_app_passwords
-                        let current: Vec<TopicAppPassword> =
-                            conn.db.sender_topic_app_passwords().iter().collect();
-                        table_signals_on_connect
-                            .sender_topic_app_passwords
-                            .set(current);
-
-                        // Keep signal in sync on changes
-                        conn.db
-                            .sender_topic_app_passwords()
-                            .on_insert(move |ctx, _row| {
-                                let updated: Vec<TopicAppPassword> =
-                                    ctx.db.sender_topic_app_passwords().iter().collect();
-                                table_signals_on_connect
-                                    .sender_topic_app_passwords
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_topic_app_passwords()
-                            .on_update(move |ctx, _old, _new| {
-                                let updated: Vec<TopicAppPassword> =
-                                    ctx.db.sender_topic_app_passwords().iter().collect();
-                                table_signals_on_connect
-                                    .sender_topic_app_passwords
-                                    .set(updated);
-                            });
-                        conn.db
-                            .sender_topic_app_passwords()
-                            .on_delete(move |ctx, _row| {
-                                let updated: Vec<TopicAppPassword> =
-                                    ctx.db.sender_topic_app_passwords().iter().collect();
-                                table_signals_on_connect
-                                    .sender_topic_app_passwords
+                                    .sender_jmap_mail_delivery_events
                                     .set(updated);
                             });
                         // Populate initial rows for subscriber_search_candidates
@@ -1634,14 +1157,6 @@ pub fn use_table_context_accounts() -> SyncSignal<Vec<Account>> {
     ctx.tables.context_accounts
 }
 
-/// Get a reactive signal containing all rows of the `expire_stale_delivery_claims_schedule` table.
-#[must_use]
-pub fn use_table_expire_stale_delivery_claims_schedule()
--> SyncSignal<Vec<ExpireStaleDeliveryClaimsSchedule>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.expire_stale_delivery_claims_schedule
-}
-
 /// Get a reactive signal containing all rows of the `purge_rejected_mails_schedule` table.
 #[must_use]
 pub fn use_table_purge_rejected_mails_schedule() -> SyncSignal<Vec<PurgeRejectedMailsSchedule>> {
@@ -1649,111 +1164,18 @@ pub fn use_table_purge_rejected_mails_schedule() -> SyncSignal<Vec<PurgeRejected
     ctx.tables.purge_rejected_mails_schedule
 }
 
-/// Get a reactive signal containing all rows of the `requeue_temporary_failed_mails_schedule` table.
+/// Get a reactive signal containing all rows of the `sender_jmap_mail_deliveries` table.
 #[must_use]
-pub fn use_table_requeue_temporary_failed_mails_schedule()
--> SyncSignal<Vec<RequeueTemporaryFailedMailsSchedule>> {
+pub fn use_table_sender_jmap_mail_deliveries() -> SyncSignal<Vec<JmapMailDelivery>> {
     let ctx = use_spacetimedb_context();
-    ctx.tables.requeue_temporary_failed_mails_schedule
+    ctx.tables.sender_jmap_mail_deliveries
 }
 
-/// Get a reactive signal containing all rows of the `sender_account_emails` table.
+/// Get a reactive signal containing all rows of the `sender_jmap_mail_delivery_events` table.
 #[must_use]
-pub fn use_table_sender_account_emails() -> SyncSignal<Vec<AccountEmail>> {
+pub fn use_table_sender_jmap_mail_delivery_events() -> SyncSignal<Vec<JmapMailDeliveryEvent>> {
     let ctx = use_spacetimedb_context();
-    ctx.tables.sender_account_emails
-}
-
-/// Get a reactive signal containing all rows of the `sender_accounts` table.
-#[must_use]
-pub fn use_table_sender_accounts() -> SyncSignal<Vec<Account>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_accounts
-}
-
-/// Get a reactive signal containing all rows of the `sender_mail_delivery_claimed` table.
-#[must_use]
-pub fn use_table_sender_mail_delivery_claimed() -> SyncSignal<Vec<MailDeliveryClaimed>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_mail_delivery_claimed
-}
-
-/// Get a reactive signal containing all rows of the `sender_mail_delivery_done` table.
-#[must_use]
-pub fn use_table_sender_mail_delivery_done() -> SyncSignal<Vec<MailDeliveryDone>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_mail_delivery_done
-}
-
-/// Get a reactive signal containing all rows of the `sender_mail_delivery_events` table.
-#[must_use]
-pub fn use_table_sender_mail_delivery_events() -> SyncSignal<Vec<MailDeliveryEvent>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_mail_delivery_events
-}
-
-/// Get a reactive signal containing all rows of the `sender_mail_delivery_messages` table.
-#[must_use]
-pub fn use_table_sender_mail_delivery_messages() -> SyncSignal<Vec<MailDeliveryMessage>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_mail_delivery_messages
-}
-
-/// Get a reactive signal containing all rows of the `sender_mail_delivery_pending` table.
-#[must_use]
-pub fn use_table_sender_mail_delivery_pending() -> SyncSignal<Vec<MailDeliveryPending>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_mail_delivery_pending
-}
-
-/// Get a reactive signal containing all rows of the `sender_mail_delivery_temporary_failed` table.
-#[must_use]
-pub fn use_table_sender_mail_delivery_temporary_failed()
--> SyncSignal<Vec<MailDeliveryTemporaryFailed>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_mail_delivery_temporary_failed
-}
-
-/// Get a reactive signal containing all rows of the `sender_mail_ingress` table.
-#[must_use]
-pub fn use_table_sender_mail_ingress() -> SyncSignal<Vec<MailIngress>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_mail_ingress
-}
-
-/// Get a reactive signal containing all rows of the `sender_mail_messages` table.
-#[must_use]
-pub fn use_table_sender_mail_messages() -> SyncSignal<Vec<MailMessage>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_mail_messages
-}
-
-/// Get a reactive signal containing all rows of the `sender_message_topics` table.
-#[must_use]
-pub fn use_table_sender_message_topics() -> SyncSignal<Vec<MessageTopic>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_message_topics
-}
-
-/// Get a reactive signal containing all rows of the `sender_subscriptions` table.
-#[must_use]
-pub fn use_table_sender_subscriptions() -> SyncSignal<Vec<Subscription>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_subscriptions
-}
-
-/// Get a reactive signal containing all rows of the `sender_system_mail_pending` table.
-#[must_use]
-pub fn use_table_sender_system_mail_pending() -> SyncSignal<Vec<SystemMailPending>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_system_mail_pending
-}
-
-/// Get a reactive signal containing all rows of the `sender_topic_app_passwords` table.
-#[must_use]
-pub fn use_table_sender_topic_app_passwords() -> SyncSignal<Vec<TopicAppPassword>> {
-    let ctx = use_spacetimedb_context();
-    ctx.tables.sender_topic_app_passwords
+    ctx.tables.sender_jmap_mail_delivery_events
 }
 
 /// Get a reactive signal containing all rows of the `subscriber_search_candidates` table.
@@ -2450,379 +1872,6 @@ pub fn use_reducer_admin_add_subscription_async() -> impl Fn(
     }
 }
 
-/// Get a callback to invoke the `cancel_mail_delivery_retry` reducer.
-#[must_use]
-pub fn use_reducer_cancel_mail_delivery_retry()
--> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |delivery_id: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.cancel_mail_delivery_retry(delivery_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `cancel_mail_delivery_retry` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_cancel_mail_delivery_retry_then() -> (
-    impl Fn(String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |delivery_id: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) =
-                conn.reducers
-                    .cancel_mail_delivery_retry_then(delivery_id, move |_ctx, res| {
-                        let _ = tx.send(res);
-                    })
-            {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `cancel_mail_delivery_retry` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_cancel_mail_delivery_retry_async()
--> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |delivery_id: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.cancel_mail_delivery_retry_then(delivery_id, move |_ctx, res| {
-                let _ = tx.send(res);
-            }) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `claim_next_mail_delivery` reducer.
-#[must_use]
-pub fn use_reducer_claim_next_mail_delivery()
--> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |instance_id: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.claim_next_mail_delivery(instance_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `claim_next_mail_delivery` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_claim_next_mail_delivery_then() -> (
-    impl Fn(String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |instance_id: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) =
-                conn.reducers
-                    .claim_next_mail_delivery_then(instance_id, move |_ctx, res| {
-                        let _ = tx.send(res);
-                    })
-            {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `claim_next_mail_delivery` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_claim_next_mail_delivery_async()
--> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |instance_id: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.claim_next_mail_delivery_then(instance_id, move |_ctx, res| {
-                let _ = tx.send(res);
-            }) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `claim_next_mail_ingress` reducer.
-#[must_use]
-pub fn use_reducer_claim_next_mail_ingress()
--> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |instance_id: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.claim_next_mail_ingress(instance_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `claim_next_mail_ingress` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_claim_next_mail_ingress_then() -> (
-    impl Fn(String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |instance_id: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) =
-                conn.reducers
-                    .claim_next_mail_ingress_then(instance_id, move |_ctx, res| {
-                        let _ = tx.send(res);
-                    })
-            {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `claim_next_mail_ingress` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_claim_next_mail_ingress_async()
--> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |instance_id: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.claim_next_mail_ingress_then(instance_id, move |_ctx, res| {
-                let _ = tx.send(res);
-            }) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `claim_system_mail` reducer.
-#[must_use]
-pub fn use_reducer_claim_system_mail()
--> impl Fn(u64, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |mail_id: u64, instance_id: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.claim_system_mail(mail_id, instance_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `claim_system_mail` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_claim_system_mail_then() -> (
-    impl Fn(u64, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |mail_id: u64, instance_id: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) =
-                conn.reducers
-                    .claim_system_mail_then(mail_id, instance_id, move |_ctx, res| {
-                        let _ = tx.send(res);
-                    })
-            {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `claim_system_mail` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_claim_system_mail_async()
--> impl Fn(u64, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |mail_id: u64,
-          instance_id: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) =
-                conn.reducers
-                    .claim_system_mail_then(mail_id, instance_id, move |_ctx, res| {
-                        let _ = tx.send(res);
-                    })
-            {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
 /// Get a callback to invoke the `clear_topic_provisioning_lock` reducer.
 #[must_use]
 pub fn use_reducer_clear_topic_provisioning_lock()
@@ -2903,200 +1952,6 @@ pub fn use_reducer_clear_topic_provisioning_lock_async()
             if let Err(e) = conn.reducers.clear_topic_provisioning_lock_then(topic_id, move |_ctx, res| {
                 let _ = tx.send(res);
             }) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `complete_mail_ingress` reducer.
-#[must_use]
-pub fn use_reducer_complete_mail_ingress()
--> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String, instance_id: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.complete_mail_ingress(ingress_id, instance_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `complete_mail_ingress` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_complete_mail_ingress_then() -> (
-    impl Fn(String, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |ingress_id: String, instance_id: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.complete_mail_ingress_then(
-                ingress_id,
-                instance_id,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `complete_mail_ingress` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_complete_mail_ingress_async()
--> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String,
-          instance_id: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.complete_mail_ingress_then(
-                ingress_id,
-                instance_id,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `complete_system_mail` reducer.
-#[must_use]
-pub fn use_reducer_complete_system_mail()
--> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |mail_id: u64| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.complete_system_mail(mail_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `complete_system_mail` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_complete_system_mail_then() -> (
-    impl Fn(u64) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |mail_id: u64| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn
-                .reducers
-                .complete_system_mail_then(mail_id, move |_ctx, res| {
-                    let _ = tx.send(res);
-                })
-            {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `complete_system_mail` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_complete_system_mail_async()
--> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |mail_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn
-                .reducers
-                .complete_system_mail_then(mail_id, move |_ctx, res| {
-                    let _ = tx.send(res);
-                })
-            {
                 return Err(e.to_string());
             }
             match rx.await {
@@ -3216,150 +2071,6 @@ pub fn use_reducer_create_webhook_token_async() -> impl Fn(
     }
 }
 
-/// Get a callback to invoke the `enqueue_mail_delivery` reducer.
-#[must_use]
-pub fn use_reducer_enqueue_mail_delivery()
--> impl Fn(String, u64, String, Option<u64>, String, String, String) -> spacetimedb_sdk::Result<()>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String,
-          subscription_id: u64,
-          recipient_email: String,
-          recipient_account_id: Option<u64>,
-          from_header: String,
-          reply_to: String,
-          raw_message: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.enqueue_mail_delivery(
-                ingress_id,
-                subscription_id,
-                recipient_email,
-                recipient_account_id,
-                from_header,
-                reply_to,
-                raw_message,
-            )
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `enqueue_mail_delivery` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_enqueue_mail_delivery_then() -> (
-    impl Fn(String, u64, String, Option<u64>, String, String, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |ingress_id: String,
-                       subscription_id: u64,
-                       recipient_email: String,
-                       recipient_account_id: Option<u64>,
-                       from_header: String,
-                       reply_to: String,
-                       raw_message: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.enqueue_mail_delivery_then(
-                ingress_id,
-                subscription_id,
-                recipient_email,
-                recipient_account_id,
-                from_header,
-                reply_to,
-                raw_message,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `enqueue_mail_delivery` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_enqueue_mail_delivery_async() -> impl Fn(
-    String,
-    u64,
-    String,
-    Option<u64>,
-    String,
-    String,
-    String,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<(), String>>>,
-> + Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String,
-          subscription_id: u64,
-          recipient_email: String,
-          recipient_account_id: Option<u64>,
-          from_header: String,
-          reply_to: String,
-          raw_message: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.enqueue_mail_delivery_then(
-                ingress_id,
-                subscription_id,
-                recipient_email,
-                recipient_account_id,
-                from_header,
-                reply_to,
-                raw_message,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
 /// Get a callback to invoke the `ensure_subscription_unsubscribe_token` reducer.
 #[must_use]
 pub fn use_reducer_ensure_subscription_unsubscribe_token()
@@ -3441,698 +2152,6 @@ pub fn use_reducer_ensure_subscription_unsubscribe_token_async()
             if let Err(e) = conn.reducers.ensure_subscription_unsubscribe_token_then(subscription_id, move |_ctx, res| {
                 let _ = tx.send(res);
             }) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `fail_mail_delivery` reducer.
-#[must_use]
-pub fn use_reducer_fail_mail_delivery()
--> impl Fn(String, String, Option<u16>, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static
-{
-    let conn_signal = use_connection();
-
-    move |delivery_id: String,
-          instance_id: String,
-          smtp_status_code: Option<u16>,
-          smtp_response: String,
-          error_kind: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.fail_mail_delivery(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                error_kind,
-            )
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `fail_mail_delivery` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_fail_mail_delivery_then() -> (
-    impl Fn(String, String, Option<u16>, String, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |delivery_id: String,
-                       instance_id: String,
-                       smtp_status_code: Option<u16>,
-                       smtp_response: String,
-                       error_kind: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.fail_mail_delivery_then(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                error_kind,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `fail_mail_delivery` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_fail_mail_delivery_async() -> impl Fn(
-    String,
-    String,
-    Option<u16>,
-    String,
-    String,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<(), String>>>,
-> + Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |delivery_id: String,
-          instance_id: String,
-          smtp_status_code: Option<u16>,
-          smtp_response: String,
-          error_kind: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.fail_mail_delivery_then(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                error_kind,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `fail_mail_ingress` reducer.
-#[must_use]
-pub fn use_reducer_fail_mail_ingress()
--> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String, instance_id: String, error: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers
-                .fail_mail_ingress(ingress_id, instance_id, error)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `fail_mail_ingress` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_fail_mail_ingress_then() -> (
-    impl Fn(String, String, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |ingress_id: String, instance_id: String, error: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.fail_mail_ingress_then(
-                ingress_id,
-                instance_id,
-                error,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `fail_mail_ingress` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_fail_mail_ingress_async() -> impl Fn(
-    String,
-    String,
-    String,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<(), String>>>,
-> + Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String,
-          instance_id: String,
-          error: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.fail_mail_ingress_then(
-                ingress_id,
-                instance_id,
-                error,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `increment_mail_ingress_delivery_count` reducer.
-#[must_use]
-pub fn use_reducer_increment_mail_ingress_delivery_count()
--> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String, instance_id: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers
-                .increment_mail_ingress_delivery_count(ingress_id, instance_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `increment_mail_ingress_delivery_count` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_increment_mail_ingress_delivery_count_then() -> (
-    impl Fn(String, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |ingress_id: String, instance_id: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.increment_mail_ingress_delivery_count_then(
-                ingress_id,
-                instance_id,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `increment_mail_ingress_delivery_count` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_increment_mail_ingress_delivery_count_async()
--> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String,
-          instance_id: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.increment_mail_ingress_delivery_count_then(
-                ingress_id,
-                instance_id,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `increment_mail_ingress_failed_delivery_count` reducer.
-#[must_use]
-pub fn use_reducer_increment_mail_ingress_failed_delivery_count()
--> impl Fn(String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String, instance_id: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers
-                .increment_mail_ingress_failed_delivery_count(ingress_id, instance_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `increment_mail_ingress_failed_delivery_count` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_increment_mail_ingress_failed_delivery_count_then() -> (
-    impl Fn(String, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |ingress_id: String, instance_id: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn
-                .reducers
-                .increment_mail_ingress_failed_delivery_count_then(
-                    ingress_id,
-                    instance_id,
-                    move |_ctx, res| {
-                        let _ = tx.send(res);
-                    },
-                )
-            {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `increment_mail_ingress_failed_delivery_count` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_increment_mail_ingress_failed_delivery_count_async()
--> impl Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |ingress_id: String,
-          instance_id: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn
-                .reducers
-                .increment_mail_ingress_failed_delivery_count_then(
-                    ingress_id,
-                    instance_id,
-                    move |_ctx, res| {
-                        let _ = tx.send(res);
-                    },
-                )
-            {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `mark_mail_delivery_bounced` reducer.
-#[must_use]
-pub fn use_reducer_mark_mail_delivery_bounced()
--> impl Fn(String, String, Option<u16>, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static
-{
-    let conn_signal = use_connection();
-
-    move |delivery_id: String,
-          instance_id: String,
-          smtp_status_code: Option<u16>,
-          smtp_response: String,
-          error_kind: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.mark_mail_delivery_bounced(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                error_kind,
-            )
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `mark_mail_delivery_bounced` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_mark_mail_delivery_bounced_then() -> (
-    impl Fn(String, String, Option<u16>, String, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |delivery_id: String,
-                       instance_id: String,
-                       smtp_status_code: Option<u16>,
-                       smtp_response: String,
-                       error_kind: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.mark_mail_delivery_bounced_then(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                error_kind,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `mark_mail_delivery_bounced` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_mark_mail_delivery_bounced_async() -> impl Fn(
-    String,
-    String,
-    Option<u16>,
-    String,
-    String,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<(), String>>>,
-> + Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |delivery_id: String,
-          instance_id: String,
-          smtp_status_code: Option<u16>,
-          smtp_response: String,
-          error_kind: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.mark_mail_delivery_bounced_then(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                error_kind,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `mark_mail_delivery_sent` reducer.
-#[must_use]
-pub fn use_reducer_mark_mail_delivery_sent()
--> impl Fn(String, String, Option<u16>, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |delivery_id: String,
-          instance_id: String,
-          smtp_status_code: Option<u16>,
-          smtp_response: String| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.mark_mail_delivery_sent(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-            )
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `mark_mail_delivery_sent` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_mark_mail_delivery_sent_then() -> (
-    impl Fn(String, String, Option<u16>, String) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |delivery_id: String,
-                       instance_id: String,
-                       smtp_status_code: Option<u16>,
-                       smtp_response: String| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.mark_mail_delivery_sent_then(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `mark_mail_delivery_sent` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_mark_mail_delivery_sent_async() -> impl Fn(
-    String,
-    String,
-    Option<u16>,
-    String,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<(), String>>>,
-> + Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |delivery_id: String,
-          instance_id: String,
-          smtp_status_code: Option<u16>,
-          smtp_response: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.mark_mail_delivery_sent_then(
-                delivery_id,
-                instance_id,
-                smtp_status_code,
-                smtp_response,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
                 return Err(e.to_string());
             }
             match rx.await {
@@ -4319,101 +2338,6 @@ pub fn use_reducer_register_self_async()
             if let Err(e) = conn
                 .reducers
                 .register_self_then(external_id, name, move |_ctx, res| {
-                    let _ = tx.send(res);
-                })
-            {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `release_system_mail` reducer.
-#[must_use]
-pub fn use_reducer_release_system_mail()
--> impl Fn(u64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |mail_id: u64| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.release_system_mail(mail_id)
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `release_system_mail` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_release_system_mail_then() -> (
-    impl Fn(u64) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke = move |mail_id: u64| {
-        let mut result = result;
-        result.set(None);
-        if let Some(conn) = conn_signal().as_ref() {
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn
-                .reducers
-                .release_system_mail_then(mail_id, move |_ctx, res| {
-                    let _ = tx.send(res);
-                })
-            {
-                result.set(Some(Err(e.to_string())));
-                return;
-            }
-            spawn(async move {
-                if let Ok(res) = rx.await {
-                    let flattened = match res {
-                        Ok(Ok(())) => Ok(()),
-                        Ok(Err(module_err)) => Err(module_err),
-                        Err(sdk_err) => Err(sdk_err.to_string()),
-                    };
-                    result.set(Some(flattened));
-                }
-            });
-        } else {
-            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-        }
-    };
-
-    (invoke, result)
-}
-
-/// Invoke the `release_system_mail` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_release_system_mail_async()
--> impl Fn(u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
-+ Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |mail_id: u64| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn
-                .reducers
-                .release_system_mail_then(mail_id, move |_ctx, res| {
                     let _ = tx.send(res);
                 })
             {
@@ -4802,48 +2726,45 @@ pub fn use_reducer_rename_category_async()
     }
 }
 
-/// Get a callback to invoke the `retry_mail_ingress` reducer.
+/// Get a callback to invoke the `retry_failed_jmap_delivery` reducer.
 #[must_use]
-pub fn use_reducer_retry_mail_ingress()
--> impl Fn(String, String, String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
+pub fn use_reducer_retry_failed_jmap_delivery()
+-> impl Fn(String) -> spacetimedb_sdk::Result<()> + Clone + 'static {
     let conn_signal = use_connection();
 
-    move |ingress_id: String, instance_id: String, error: String| {
+    move |delivery_id: String| {
         if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers
-                .retry_mail_ingress(ingress_id, instance_id, error)
+            conn.reducers.retry_failed_jmap_delivery(delivery_id)
         } else {
             Err(spacetimedb_sdk::Error::Disconnected)
         }
     }
 }
 
-/// Invoke the `retry_mail_ingress` reducer and get a reactive signal for its completion status.
+/// Invoke the `retry_failed_jmap_delivery` reducer and get a reactive signal for its completion status.
 ///
 /// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
 /// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
 /// on failure once the server notifies completion.
 #[must_use]
-pub fn use_reducer_retry_mail_ingress_then() -> (
-    impl Fn(String, String, String) + Clone + 'static,
+pub fn use_reducer_retry_failed_jmap_delivery_then() -> (
+    impl Fn(String) + Clone + 'static,
     SyncSignal<Option<Result<(), String>>>,
 ) {
     let conn_signal = use_connection();
     let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
 
-    let invoke = move |ingress_id: String, instance_id: String, error: String| {
+    let invoke = move |delivery_id: String| {
         let mut result = result;
         result.set(None);
         if let Some(conn) = conn_signal().as_ref() {
             let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.retry_mail_ingress_then(
-                ingress_id,
-                instance_id,
-                error,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
+            if let Err(e) =
+                conn.reducers
+                    .retry_failed_jmap_delivery_then(delivery_id, move |_ctx, res| {
+                        let _ = tx.send(res);
+                    })
+            {
                 result.set(Some(Err(e.to_string())));
                 return;
             }
@@ -4865,38 +2786,26 @@ pub fn use_reducer_retry_mail_ingress_then() -> (
     (invoke, result)
 }
 
-/// Invoke the `retry_mail_ingress` reducer asynchronously and await its completion.
+/// Invoke the `retry_failed_jmap_delivery` reducer asynchronously and await its completion.
 ///
 /// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
 #[must_use]
-pub fn use_reducer_retry_mail_ingress_async() -> impl Fn(
-    String,
-    String,
-    String,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<(), String>>>,
-> + Clone
+pub fn use_reducer_retry_failed_jmap_delivery_async()
+-> impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>
++ Clone
 + 'static {
     let conn_signal = use_connection();
 
-    move |ingress_id: String,
-          instance_id: String,
-          error: String|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
+    move |delivery_id: String| -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
         let conn = conn_signal();
         Box::pin(async move {
             let Some(conn) = conn.as_ref() else {
                 return Err("Disconnected from SpacetimeDB".to_string());
             };
             let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.retry_mail_ingress_then(
-                ingress_id,
-                instance_id,
-                error,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
+            if let Err(e) = conn.reducers.retry_failed_jmap_delivery_then(delivery_id, move |_ctx, res| {
+                let _ = tx.send(res);
+            }) {
                 return Err(e.to_string());
             }
             match rx.await {
@@ -4989,122 +2898,6 @@ pub fn use_reducer_revoke_webhook_token_async()
             if let Err(e) = conn.reducers.revoke_webhook_token_then(token_hash, move |_ctx, res| {
                 let _ = tx.send(res);
             }) {
-                return Err(e.to_string());
-            }
-            match rx.await {
-                Ok(Ok(Ok(()))) => Ok(()),
-                Ok(Ok(Err(err))) => Err(err),
-                Ok(Err(sdk_err)) => Err(sdk_err.to_string()),
-                Err(_) => Err("Request cancelled".to_string()),
-            }
-        })
-    }
-}
-
-/// Get a callback to invoke the `schedule_mail_delivery_retry` reducer.
-#[must_use]
-pub fn use_reducer_schedule_mail_delivery_retry()
--> impl Fn(String, String, String, i64) -> spacetimedb_sdk::Result<()> + Clone + 'static {
-    let conn_signal = use_connection();
-
-    move |delivery_id: String, instance_id: String, error_msg: String, delay_micros: i64| {
-        if let Some(conn) = conn_signal().as_ref() {
-            conn.reducers.schedule_mail_delivery_retry(
-                delivery_id,
-                instance_id,
-                error_msg,
-                delay_micros,
-            )
-        } else {
-            Err(spacetimedb_sdk::Error::Disconnected)
-        }
-    }
-}
-
-/// Invoke the `schedule_mail_delivery_retry` reducer and get a reactive signal for its completion status.
-///
-/// Returns `(invoke, result)`. Calling `invoke(...)` sends the reducer invocation to the server.
-/// The `result` signal is updated to `Some(Ok(()))` on success or `Some(Err(message))`
-/// on failure once the server notifies completion.
-#[must_use]
-pub fn use_reducer_schedule_mail_delivery_retry_then() -> (
-    impl Fn(String, String, String, i64) + Clone + 'static,
-    SyncSignal<Option<Result<(), String>>>,
-) {
-    let conn_signal = use_connection();
-    let mut result: SyncSignal<Option<Result<(), String>>> = use_signal_sync(|| None);
-
-    let invoke =
-        move |delivery_id: String, instance_id: String, error_msg: String, delay_micros: i64| {
-            let mut result = result;
-            result.set(None);
-            if let Some(conn) = conn_signal().as_ref() {
-                let (tx, rx) = oneshot::channel();
-                if let Err(e) = conn.reducers.schedule_mail_delivery_retry_then(
-                    delivery_id,
-                    instance_id,
-                    error_msg,
-                    delay_micros,
-                    move |_ctx, res| {
-                        let _ = tx.send(res);
-                    },
-                ) {
-                    result.set(Some(Err(e.to_string())));
-                    return;
-                }
-                spawn(async move {
-                    if let Ok(res) = rx.await {
-                        let flattened = match res {
-                            Ok(Ok(())) => Ok(()),
-                            Ok(Err(module_err)) => Err(module_err),
-                            Err(sdk_err) => Err(sdk_err.to_string()),
-                        };
-                        result.set(Some(flattened));
-                    }
-                });
-            } else {
-                result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
-            }
-        };
-
-    (invoke, result)
-}
-
-/// Invoke the `schedule_mail_delivery_retry` reducer asynchronously and await its completion.
-///
-/// Returns a closure that can be called to invoke the reducer and `await` its completion directly.
-#[must_use]
-pub fn use_reducer_schedule_mail_delivery_retry_async() -> impl Fn(
-    String,
-    String,
-    String,
-    i64,
-) -> std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<(), String>>>,
-> + Clone
-+ 'static {
-    let conn_signal = use_connection();
-
-    move |delivery_id: String,
-          instance_id: String,
-          error_msg: String,
-          delay_micros: i64|
-          -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>> {
-        let conn = conn_signal();
-        Box::pin(async move {
-            let Some(conn) = conn.as_ref() else {
-                return Err("Disconnected from SpacetimeDB".to_string());
-            };
-            let (tx, rx) = oneshot::channel();
-            if let Err(e) = conn.reducers.schedule_mail_delivery_retry_then(
-                delivery_id,
-                instance_id,
-                error_msg,
-                delay_micros,
-                move |_ctx, res| {
-                    let _ = tx.send(res);
-                },
-            ) {
                 return Err(e.to_string());
             }
             match rx.await {
@@ -6547,6 +4340,70 @@ pub fn use_reducer_user_verify_email_async()
 }
 
 // --- Procedure hooks ---
+
+/// Invoke the `migrate_pending_legacy_deliveries` procedure and get a reactive signal for its result.
+///
+/// Returns `(invoke, result)`. Calling `invoke(...)` sends the procedure call to the server.
+/// The `result` signal is updated to `Some(Ok(value))` on success or `Some(Err(message))`
+/// on failure once the server responds.
+#[must_use]
+pub fn use_procedure_migrate_pending_legacy_deliveries() -> (
+    impl Fn() + Clone + 'static,
+    SyncSignal<Option<Result<Result<u32, String>, String>>>,
+) {
+    let conn_signal = use_connection();
+    let mut result: SyncSignal<Option<Result<Result<u32, String>, String>>> =
+        use_signal_sync(|| None);
+
+    let invoke = move || {
+        let mut result = result;
+        result.set(None);
+        if let Some(conn) = conn_signal().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            conn.procedures
+                .migrate_pending_legacy_deliveries_then(move |_ctx, res| {
+                    let _ = tx.send(res);
+                });
+            spawn(async move {
+                if let Ok(res) = rx.await {
+                    result.set(Some(res.map_err(|e| e.to_string())));
+                }
+            });
+        } else {
+            result.set(Some(Err("Disconnected from SpacetimeDB".to_string())));
+        }
+    };
+
+    (invoke, result)
+}
+
+/// Invoke the `migrate_pending_legacy_deliveries` procedure asynchronously.
+///
+/// Returns a closure that can be called to invoke the procedure and `await` the response directly.
+#[must_use]
+pub fn use_procedure_migrate_pending_legacy_deliveries_async()
+-> impl Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>>
++ Clone
++ 'static {
+    let conn_signal = use_connection();
+
+    move || -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Result<u32, String>, String>>>> {
+        let conn = conn_signal();
+        Box::pin(async move {
+            let Some(conn) = conn.as_ref() else {
+                return Err("Disconnected from SpacetimeDB".to_string());
+            };
+            let (tx, rx) = oneshot::channel();
+            conn.procedures.migrate_pending_legacy_deliveries_then(move |_ctx, res| {
+                let _ = tx.send(res);
+            });
+            match rx.await {
+                Ok(res) => res.map_err(|e| e.to_string()),
+                Err(_) => Err("Request cancelled".to_string()),
+            }
+        })
+    }
+}
 
 /// Invoke the `provision_all_unprovisioned_topics` procedure and get a reactive signal for its result.
 ///

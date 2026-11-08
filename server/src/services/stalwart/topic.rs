@@ -60,6 +60,22 @@ pub fn jmap_method_result_by_name<'a>(
     ))
 }
 
+fn topic_app_password_permissions() -> serde_json::Value {
+    serde_json::json!({
+        "authenticate": true,
+        "jmapEmailGet": true,
+        "jmapIdentityGet": true,
+        "jmapMailboxQuery": true,
+        "jmapMailboxCreate": true,
+        "jmapEmailQuery": true,
+        "jmapBlobUpload": true,
+        "jmapEmailImport": true,
+        "jmapEmailSubmissionCreate": true,
+        "jmapEmailSubmissionQuery": true,
+        "jmapEmailDestroy": true
+    })
+}
+
 pub fn provision_stalwart_app_password(
     ctx: &mut impl StalwartContext,
     account_id: &str,
@@ -80,10 +96,7 @@ pub fn provision_stalwart_app_password(
                             "description": description,
                             "permissions": {
                                 "@type": "Replace",
-                                "permissions": {
-                                    "emailSend": true,
-                                    "authenticate": true
-                                }
+                                "permissions": topic_app_password_permissions()
                             },
                             "allowedIps": {}
                         }
@@ -378,4 +391,29 @@ pub fn provision_stalwart_topic_mailbox(
     }
 
     provision_res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn topic_app_password_grants_only_permissions_used_by_native_jmap_delivery() {
+        assert_eq!(
+            topic_app_password_permissions(),
+            serde_json::json!({
+                "authenticate": true,
+                "jmapEmailGet": true,
+                "jmapIdentityGet": true,
+                "jmapMailboxQuery": true,
+                "jmapMailboxCreate": true,
+                "jmapEmailQuery": true,
+                "jmapBlobUpload": true,
+                "jmapEmailImport": true,
+                "jmapEmailSubmissionCreate": true,
+                "jmapEmailSubmissionQuery": true,
+                "jmapEmailDestroy": true
+            })
+        );
+    }
 }

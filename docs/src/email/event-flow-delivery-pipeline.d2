@@ -1,34 +1,19 @@
 direction: down
 
-pending: "MailIngress\n(state: pending)" { style.fill: lightyellow }
-claim_i: "sender daemon calls\nclaim_next_mail_ingress" { style.fill: lightblue }
-proc: "MailIngress\n(state: processing)" { style.fill: lightblue }
+pending: "Accepted MailIngress" { style.fill: lightyellow }
+schedule: "SpacetimeDB scheduled dispatcher" { style.fill: lightblue }
+fanout: "Module fan-out\n• resolve eligible subscriptions\n• compose recipient-specific messages" { style.fill: lightblue }
+delivery: "jmap_mail_deliveries\n(durable per-recipient state)" { style.fill: lightyellow }
+jmap: "Stalwart JMAP\nupload → import → submit" { style.fill: lightgray }
+sent: "Sent\nwith audit event" { style.fill: lightgreen }
+retry: "Retryable / uncertain\nwith backoff" { style.fill: lightyellow }
+failed: "Permanent failure\nvisible to admins" { style.fill: lightcoral }
 
-fanout: "Daemon fans out:\n• Query active subscriptions\n• For each subscriber:\n  enqueue_mail_delivery" { style.fill: lightblue }
-complete: "complete_mail_ingress\n→ state: completed" { style.fill: lightgreen }
-
-queued: "mail_delivery_pending\n(Active outbound queue)" { style.fill: lightyellow }
-
-claim_d: "sender daemon calls\nclaim_next_mail_delivery" { style.fill: lightblue }
-sending: "mail_delivery_claimed\n(Active 5-minute lease)" { style.fill: lightblue }
-
-smtp: "Daemon submits\nSMTP over TLS" { style.fill: lightgray }
-
-sent: "mark_mail_delivery_sent\n→ mail_delivery_done ('sent')" { style.fill: lightgreen }
-retry: "schedule_mail_delivery_retry\n→ mail_delivery_temporary_failed" { style.fill: lightyellow }
-fail: "fail_mail_delivery\n→ mail_delivery_done ('failed')" { style.fill: lightcoral }
-
-pending -> claim_i: "reactive wake"
-claim_i -> proc
-proc -> fanout
-fanout -> complete: "all deliveries enqueued"
-fanout -> queued: "enqueue_mail_delivery()"
-queued -> claim_d: "reactive wake"
-claim_d -> sending
-sending -> smtp
-
-smtp -> sent: "2xx success"
-smtp -> retry: "4xx / transient (5 min backoff)"
-smtp -> fail: "5xx / pre-smtp failure"
-
-retry -> queued: "requeue_temporary_failed_mails (every 10s)" { style.stroke-dash: 5 }
+pending -> schedule
+schedule -> fanout
+fanout -> delivery
+ delivery -> jmap
+jmap -> sent: "success"
+jmap -> retry: "transient or uncertain"
+jmap -> failed: "permanent error"
+retry -> schedule: "next scheduled attempt" { style.stroke-dash: 5 }

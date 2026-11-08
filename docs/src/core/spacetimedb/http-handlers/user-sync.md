@@ -111,4 +111,4 @@ When an account is deleted from the external system:
 
 ## Retry Behaviour
 
-If a sync request fails due to temporary network or server errors, the Django sender code queues the payload for retry. See `mitgliederverwaltung/signals.py` for the retry queue implementation.
+If a sync request fails due to temporary network or server errors, the Django synchronization client queues the payload for retry. See `mitgliederverwaltung/signals.py` for the retry queue implementation.

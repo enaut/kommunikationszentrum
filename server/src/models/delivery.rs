@@ -1,11 +1,8 @@
-use spacetimedb::{Identity, ScheduleAt, Timestamp};
+use spacetimedb::{Identity, Timestamp};
 
-use crate::{
-    common::delivery_types::{ClaimState, DeliveryFinalState},
-    reducers::{expire_stale_delivery_claims, requeue_temporary_failed_mails},
-};
+use crate::common::delivery_types::{ClaimState, DeliveryFinalState};
 
-/// One row per inbound message fan-out job.
+/// Accepted inbound message state consumed by the native JMAP dispatcher.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = mail_ingress)]
 pub struct MailIngress {
@@ -24,7 +21,7 @@ pub struct MailIngress {
     pub completed_at: Timestamp,
 }
 
-/// Canonical outbound email message payload for a specific recipient.
+/// Legacy per-recipient SMTP payload retained for pending-delivery migration.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = mail_delivery_message)]
 pub struct MailDeliveryMessage {
@@ -46,7 +43,7 @@ pub struct MailDeliveryMessage {
     pub raw_message: String,
 }
 
-/// Work items available for the sender worker to claim.
+/// Legacy pending SMTP work retained for migration to the JMAP queue.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = mail_delivery_pending)]
 pub struct MailDeliveryPending {
@@ -59,7 +56,7 @@ pub struct MailDeliveryPending {
     pub last_updated: Timestamp,
 }
 
-/// Temporary retry queue for transient SMTP failures.
+/// Legacy SMTP retry rows retained for migration to the JMAP queue.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = mail_delivery_temporary_failed)]
 pub struct MailDeliveryTemporaryFailed {
@@ -76,7 +73,7 @@ pub struct MailDeliveryTemporaryFailed {
     pub last_updated: Timestamp,
 }
 
-/// Work items currently held by a worker (lease active).
+/// Legacy claimed SMTP work retained for delivery-outcome reconciliation.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = mail_delivery_claimed)]
 pub struct MailDeliveryClaimed {
@@ -93,7 +90,7 @@ pub struct MailDeliveryClaimed {
     pub last_updated: Timestamp,
 }
 
-/// Terminal rows — sent, failed, or bounced. Immutable after insert.
+/// Legacy terminal SMTP delivery records retained as historical state.
 #[derive(Clone)]
 #[spacetimedb::table(accessor = mail_delivery_done)]
 pub struct MailDeliveryDone {
@@ -108,34 +105,6 @@ pub struct MailDeliveryDone {
     pub smtp_response: Option<String>,
     pub finalized_at: Timestamp,
     pub last_updated: Timestamp,
-}
-
-/// Schedule table for the `expire_stale_delivery_claims` reducer.
-#[derive(Clone)]
-#[spacetimedb::table(
-    accessor = expire_stale_delivery_claims_schedule,
-    public,
-    scheduled(expire_stale_delivery_claims)
-)]
-pub struct ExpireStaleDeliveryClaimsSchedule {
-    #[primary_key]
-    #[auto_inc]
-    pub scheduled_id: u64,
-    pub scheduled_at: ScheduleAt,
-}
-
-/// Schedule table for the `requeue_temporary_failed_mails` reducer.
-#[derive(Clone)]
-#[spacetimedb::table(
-    accessor = requeue_temporary_failed_mails_schedule,
-    public,
-    scheduled(requeue_temporary_failed_mails)
-)]
-pub struct RequeueTemporaryFailedMailsSchedule {
-    #[primary_key]
-    #[auto_inc]
-    pub scheduled_id: u64,
-    pub scheduled_at: ScheduleAt,
 }
 
 // Private: internal delivery audit log. Not exposed to any client view.

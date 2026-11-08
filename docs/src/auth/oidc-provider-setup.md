@@ -14,7 +14,7 @@ Kommunikationszentrum can use a standard-compliant OpenID Connect (OIDC) provide
 
 ## Configuring SpacetimeDB & Admin
 
-Configure the `[oauth]` section in your organization profile (e.g. `profiles/my-org.toml`). The selected profile is compiled into both the admin web interface and the server module at build time, ensuring that the module's `register_self` validation matches the frontend discovery issuer.
+Configure the `[oauth]` section in your organization profile (e.g. `profiles/my-org/profile.toml`). The admin reads the issuer from the selected profile at build time. Publish the server through `scripts/publish_spacetime.py` so the same profile's issuer is installed as the module's `OIDC_ISSUER_URL` environment value used by `register_self`.
 
 For full schema details and options, see [Configuration Profiles — OAuth](../reference/configuration.md#oauth).
 

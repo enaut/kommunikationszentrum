@@ -1,25 +1,57 @@
-use ::dioxus::{logger::tracing::error, prelude::*};
+use ::dioxus::prelude::*;
 use dioxus_bootstrap_css::prelude::*;
 use dioxus_i18n::tid;
+use std::collections::BTreeMap;
 
 use crate::i18n::format_timestamp;
 use crate::module_bindings::dioxus::{
-    ConnectionState, use_connection_error, use_connection_state, use_subscription,
-    use_table_sender_mail_delivery_claimed, use_table_sender_mail_delivery_done,
-    use_table_sender_mail_delivery_events, use_table_sender_mail_delivery_messages,
-    use_table_sender_mail_delivery_pending, use_table_sender_mail_delivery_temporary_failed,
-    use_table_sender_mail_ingress, use_table_sender_mail_messages,
-    use_table_sender_system_mail_pending,
+    ConnectionState, use_connection_error, use_connection_state,
+    use_reducer_retry_failed_jmap_delivery_then, use_subscription,
+    use_table_sender_jmap_mail_deliveries, use_table_sender_jmap_mail_delivery_events,
 };
-use crate::module_bindings::{
-    DeliveryFinalState, DeliveryStatus, MailDeliveryMessage, SystemMailPending,
-};
+use crate::module_bindings::{JmapDeliveryState, JmapMailDelivery, JmapMailDeliveryEvent};
 use crate::oauth::UserInfo;
 
 #[component]
 pub fn ManagementStatusPage(user_info: UserInfo) -> Element {
+    use_subscription(&[
+        "SELECT * FROM sender_jmap_mail_deliveries",
+        "SELECT * FROM sender_jmap_mail_delivery_events",
+        "SELECT * FROM visible_admin_identities",
+    ]);
+    let deliveries = use_table_sender_jmap_mail_deliveries();
+    let events = use_table_sender_jmap_mail_delivery_events();
+    let (retry_delivery, retry_result) = use_reducer_retry_failed_jmap_delivery_then();
+    let mut retrying_delivery = use_signal(|| None::<String>);
+
+    use_effect(move || {
+        if retry_result().is_some() {
+            retrying_delivery.set(None);
+        }
+    });
+
+    let delivery_rows = deliveries();
+    let event_rows = events();
+    let counts = DeliveryCounts::from_rows(&delivery_rows);
+
+    let mut ingress_groups: BTreeMap<String, Vec<JmapMailDelivery>> = BTreeMap::new();
+    for delivery in delivery_rows.iter() {
+        if let Some(ingress_id) = delivery.ingress_id.as_ref() {
+            ingress_groups
+                .entry(ingress_id.clone())
+                .or_default()
+                .push(delivery.clone());
+        }
+    }
+
+    let mut sorted_deliveries = delivery_rows.clone();
+    sorted_deliveries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    let mut sorted_events = event_rows.clone();
+    sorted_events.sort_by(|a, b| b.occurred_at.cmp(&a.occurred_at));
+    let visible_events: Vec<_> = sorted_events.into_iter().take(100).collect();
+
     rsx! {
-        Container { fluid: true, class: "mt-4",
+        Container { fluid: true, class: "mt-4 mb-5",
             Row { class: "mb-3",
                 Col {
                     h2 { class: "mb-0",
@@ -28,39 +60,113 @@ pub fn ManagementStatusPage(user_info: UserInfo) -> Element {
                     }
                 }
             }
-            ConnectionStatusCard { user_info: user_info.clone() }
+            ConnectionStatusCard { user_info }
 
-            Row { class: "mt-4 mb-2",
+            Row { class: "mt-4 mb-3",
                 Col {
                     h4 { class: "text-secondary d-flex align-items-center mb-0",
-                        Icon { name: "envelope-paper", class: "me-2" }
-                        {tid!("status-section-system-mails")}
+                        Icon { name: "send-check", class: "me-2" }
+                        {tid!("status-jmap-title")}
                     }
                 }
             }
-            SystemMailCard {}
+            Row { class: "g-3 mb-4",
+                SummaryCard {
+                    label: tid!("status-jmap-queued"),
+                    count: counts.queued,
+                    color: Color::Secondary,
+                    icon: "hourglass-split",
+                }
+                SummaryCard {
+                    label: tid!("status-jmap-importing"),
+                    count: counts.importing,
+                    color: Color::Info,
+                    icon: "cloud-arrow-up",
+                }
+                SummaryCard {
+                    label: tid!("status-jmap-submitting"),
+                    count: counts.submitting,
+                    color: Color::Warning,
+                    icon: "arrow-repeat",
+                }
+                SummaryCard {
+                    label: tid!("status-jmap-sent"),
+                    count: counts.sent,
+                    color: Color::Success,
+                    icon: "check-circle",
+                }
+                SummaryCard {
+                    label: tid!("status-jmap-retrying"),
+                    count: counts.retrying,
+                    color: Color::Primary,
+                    icon: "clock-history",
+                }
+                SummaryCard {
+                    label: tid!("status-jmap-failed"),
+                    count: counts.failed,
+                    color: Color::Danger,
+                    icon: "exclamation-octagon",
+                }
+            }
 
-            Row { class: "mt-5 mb-2",
-                Col {
-                    h4 { class: "text-secondary d-flex align-items-center mb-0",
-                        Icon { name: "send", class: "me-2" }
-                        {tid!("status-section-fanout-mails")}
+            if let Some(result) = retry_result() {
+                {
+                    match result {
+                        Ok(()) => rsx! {
+                            Alert { color: Color::Success, class: "mb-3", {tid!("status-jmap-retry-success")} }
+                        },
+                        Err(message) => rsx! {
+                            Alert { color: Color::Danger, class: "mb-3", {tid!("status-jmap-retry-error", error : message)} }
+                        },
                     }
                 }
             }
-            MailIngressCard {}
-            TemporaryFailedCard {}
-            DeliveryEventsCard {}
-            PendingCard {}
-            ClaimedCard {}
-            DoneCard {}
+
+            IngressProgressCard { groups: ingress_groups }
+            DeliveriesCard {
+                rows: sorted_deliveries,
+                events: event_rows.clone(),
+                retry_delivery: Callback::new(move |delivery_id| retry_delivery(delivery_id)),
+                retrying_delivery,
+            }
+            DeliveryEventsCard { rows: visible_events }
         }
+    }
+}
+
+#[derive(Default)]
+struct DeliveryCounts {
+    queued: usize,
+    importing: usize,
+    submitting: usize,
+    sent: usize,
+    retrying: usize,
+    failed: usize,
+}
+
+impl DeliveryCounts {
+    fn from_rows(rows: &[JmapMailDelivery]) -> Self {
+        let mut counts = Self::default();
+        for row in rows {
+            match row.state {
+                JmapDeliveryState::Pending if row.attempt_count == 0 => counts.queued += 1,
+                JmapDeliveryState::Pending => counts.retrying += 1,
+                JmapDeliveryState::Importing | JmapDeliveryState::Imported => {
+                    counts.importing += 1;
+                }
+                JmapDeliveryState::Submitting | JmapDeliveryState::SubmissionUnknown => {
+                    counts.submitting += 1;
+                }
+                JmapDeliveryState::Sent => counts.sent += 1,
+                JmapDeliveryState::Failed => counts.failed += 1,
+            }
+        }
+        counts
     }
 }
 
 #[component]
 fn ConnectionStatusCard(user_info: UserInfo) -> Element {
-    use_subscription(&["SELECT * FROM visible_admin_identities"]);
     let state = use_connection_state();
     let conn_error = use_connection_error();
     let (alert_color, icon_name, status_text): (Color, &'static str, String) = match state() {
@@ -108,7 +214,7 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
                                     p { class: "h5 mb-0", "{status_text}" }
                                     if let Some(err) = conn_error() {
                                         div { class: "text-danger mt-1 small",
-                                            {tid!("status-connection-error-details", error: err)}
+                                            {tid!("status-connection-error-details", error : err)}
                                         }
                                     }
                                 }
@@ -120,7 +226,7 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
                                 }
                             }
                             Col { md: ColumnSize::Span(4),
-                                div { class: "border-end",
+                                div {
                                     h6 { class: "text-muted mb-1", {tid!("status-email")} }
                                     p { class: "h5 mb-0",
                                         if let Some(email) = &user_info.email {
@@ -140,40 +246,53 @@ fn ConnectionStatusCard(user_info: UserInfo) -> Element {
 }
 
 #[component]
-fn MailIngressCard() -> Element {
-    use_subscription(&[
-        "SELECT * FROM sender_mail_ingress",
-        "SELECT * FROM sender_mail_messages",
-    ]);
-    let ingress_list = use_table_sender_mail_ingress();
-    let mail_messages = use_table_sender_mail_messages();
+fn SummaryCard(label: String, count: usize, color: Color, icon: &'static str) -> Element {
+    rsx! {
+        Col {
+            xs: ColumnSize::Span(6),
+            md: ColumnSize::Span(4),
+            xl: ColumnSize::Span(2),
+            Card {
+                class: "shadow-sm h-100 border-{color}",
+                body: rsx! {
+                    div { class: "d-flex align-items-center justify-content-between gap-2",
+                        div {
+                            div { class: "text-muted small", "{label}" }
+                            div { class: "fs-3 fw-semibold", "{count}" }
+                        }
+                        Icon { name: icon, class: "text-primary fs-3" }
+                    }
+                },
+            }
+        }
+    }
+}
 
-    let mut show_detail_modal = use_signal(|| false);
-    let mut selected_ingress_id = use_signal(|| None::<String>);
-
-    let mut rows = ingress_list();
-    rows.sort_by(|a, b| b.claim.updated_at.cmp(&a.claim.updated_at));
-    let msg_list = mail_messages();
+#[component]
+fn IngressProgressCard(groups: BTreeMap<String, Vec<JmapMailDelivery>>) -> Element {
+    let mut rows: Vec<_> = groups.into_iter().collect();
+    rows.sort_by(|(_, a), (_, b)| {
+        let a_updated = a.iter().map(|d| d.updated_at).max();
+        let b_updated = b.iter().map(|d| d.updated_at).max();
+        b_updated.cmp(&a_updated)
+    });
 
     rsx! {
-        Row { class: "mt-2",
+        Row { class: "mb-4",
             Col { xs: ColumnSize::Span(12),
                 Card {
                     class: "shadow-sm",
-                    header_class: "bg-primary text-white",
+                    header_class: "d-flex justify-content-between align-items-center",
                     header: rsx! {
                         h5 { class: "card-title mb-0",
-                            Icon { name: "inbox-fill", class: "me-2" }
-                            {tid!("status-ingress-title")}
-                            span { class: "badge bg-white text-primary ms-2", "{rows.len()}" }
+                            Icon { name: "inboxes-fill", class: "me-2" }
+                            {tid!("status-jmap-ingress-title")}
                         }
+                        span { class: "badge bg-secondary", "{rows.len()}" }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0",
-                                Icon { name: "inbox", class: "me-2" }
-                                {tid!("status-ingress-empty")}
-                            }
+                            p { class: "text-muted mb-0", {tid!("status-jmap-ingress-empty")} }
                         } else {
                             Table {
                                 hover: true,
@@ -182,85 +301,190 @@ fn MailIngressCard() -> Element {
                                 class: "mb-0 align-middle",
                                 thead { class: "table-light",
                                     tr {
-                                        th { {tid!("status-ingress-id")} }
-                                        th { {tid!("status-ingress-status")} }
-                                        th { {tid!("status-ingress-topic")} }
-                                        th { {tid!("status-ingress-subject")} }
-                                        th { {tid!("status-ingress-sender")} }
-                                        th { {tid!("status-ingress-progress")} }
-                                        th { {tid!("status-ingress-worker")} }
-                                        th { {tid!("status-ingress-time")} }
-                                        th { class: "text-end", {tid!("status-ingress-actions")} }
+                                        th { {tid!("status-jmap-ingress-id")} }
+                                        th { {tid!("status-jmap-subject")} }
+                                        th { {tid!("status-jmap-topic")} }
+                                        th { {tid!("status-jmap-progress")} }
+                                        th { {tid!("status-last-updated")} }
                                     }
                                 }
                                 tbody {
-                                    for ingress in &rows {
+                                    for (ingress_id, deliveries) in rows {
                                         {
-                                            let ingress_id = ingress.id.clone();
-                                            let msg = msg_list.iter().find(|m| m.id == ingress.mail_message_id);
-                                            let subject = msg.map(|m| m.subject.as_str()).unwrap_or("–");
-                                            let sender = msg.map(|m| m.sender_email.as_str()).unwrap_or("–");
-                                            let worker = ingress.claim.instance_id.as_deref().unwrap_or("–");
-                                            let time_str = if ingress.completed_at != spacetimedb_sdk::Timestamp::UNIX_EPOCH {
-                                                format_timestamp(ingress.completed_at)
-                                            } else {
-                                                format_timestamp(ingress.claim.updated_at)
-                                            };
-                                            let (status_class, status_label) = match ingress.claim.status {
-                                                DeliveryStatus::Pending => ("badge bg-secondary", tid!("status-ingress-status-pending")),
-                                                DeliveryStatus::Processing => ("badge bg-info text-white", tid!("status-ingress-status-processing")),
-                                                DeliveryStatus::Completed => ("badge bg-success", tid!("status-ingress-status-completed")),
-                                                DeliveryStatus::RetryScheduled => ("badge bg-warning text-dark", tid!("status-ingress-status-retry-scheduled")),
-                                                DeliveryStatus::Failed => ("badge bg-danger", tid!("status-ingress-status-failed")),
-                                                other => ("badge bg-dark text-white", format!("{other:?}")),
-                                            };
+                                            let first = deliveries.first();
+                                            let subject = first.map(|d| d.subject.as_str()).unwrap_or("–");
+                                            let topic = first
+                                                .and_then(|d| d.topic_id)
+                                                .map(|id| id.to_string())
+                                                .unwrap_or_else(|| "–".to_string());
+                                            let sent = deliveries
+                                                .iter()
+                                                .filter(|d| d.state == JmapDeliveryState::Sent)
+                                                .count();
+                                            let failed = deliveries
+                                                .iter()
+                                                .filter(|d| d.state == JmapDeliveryState::Failed)
+                                                .count();
+                                            let total = deliveries.len();
+                                            let latest = deliveries.iter().map(|d| d.updated_at).max();
+                                            let updated = latest.map(format_timestamp).unwrap_or_else(|| "–".to_string());
+                                            let progress_percent = if total > 0 { sent * 100 / total } else { 0 };
                                             rsx! {
                                                 tr {
                                                     td {
-                                                        code { class: "small text-break", "{ingress.id}" }
-                                                    }
-                                                    td {
-                                                        span { class: "{status_class}", "{status_label}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{ingress.topic_email}" }
+                                                        code { class: "small text-break", "{ingress_id}" }
                                                     }
                                                     td {
                                                         div { class: "small text-break", "{subject}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{sender}" }
+                                                        small { class: "text-muted", "{topic}" }
                                                     }
                                                     td {
-                                                        span { class: "badge bg-light text-dark border",
-                                                            "{ingress.delivery_count} / {ingress.recipient_count}"
-                                                        }
-                                                        if ingress.failed_delivery_count > 0 {
-                                                            span { class: "badge bg-danger ms-1",
-                                                                {tid!("status-ingress-err", count: ingress.failed_delivery_count)}
+                                                        div { class: "d-flex align-items-center gap-2",
+                                                            div {
+                                                                class: "progress flex-grow-1",
+                                                                style: "min-width: 90px; height: 0.75rem;",
+                                                                div {
+                                                                    class: "progress-bar bg-success",
+                                                                    role: "progressbar",
+                                                                    style: "width: {progress_percent}%",
+                                                                    "aria-valuenow": "{progress_percent}",
+                                                                    "aria-valuemin": "0",
+                                                                    "aria-valuemax": "100",
+                                                                }
+                                                            }
+                                                            small { class: "text-nowrap", "{sent} / {total}" }
+                                                            if failed > 0 {
+                                                                Badge { color: Color::Danger, {tid!("status-jmap-failed-count", count : failed)} }
                                                             }
                                                         }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{worker}" }
+                                                        small { class: "text-muted text-nowrap", "{updated}" }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn DeliveriesCard(
+    rows: Vec<JmapMailDelivery>,
+    events: Vec<JmapMailDeliveryEvent>,
+    retry_delivery: Callback<String>,
+    retrying_delivery: Signal<Option<String>>,
+) -> Element {
+    let mut selected_delivery = use_signal(|| None::<String>);
+    let mut show_detail = use_signal(|| false);
+
+    rsx! {
+        Row { class: "mb-4",
+            Col { xs: ColumnSize::Span(12),
+                Card {
+                    class: "shadow-sm",
+                    header_class: "d-flex justify-content-between align-items-center",
+                    header: rsx! {
+                        h5 { class: "card-title mb-0",
+                            Icon { name: "envelope-paper-fill", class: "me-2" }
+                            {tid!("status-jmap-deliveries-title")}
+                        }
+                        span { class: "badge bg-secondary", "{rows.len()}" }
+                    },
+                    body: rsx! {
+                        if rows.is_empty() {
+                            p { class: "text-muted mb-0", {tid!("status-jmap-deliveries-empty")} }
+                        } else {
+                            Table {
+                                hover: true,
+                                size: Size::Sm,
+                                responsive: true,
+                                class: "mb-0 align-middle",
+                                thead { class: "table-light",
+                                    tr {
+                                        th { {tid!("status-jmap-delivery-id")} }
+                                        th { {tid!("status-jmap-state")} }
+                                        th { {tid!("status-jmap-recipient")} }
+                                        th { {tid!("status-jmap-subject")} }
+                                        th { {tid!("status-jmap-attempts")} }
+                                        th { {tid!("status-last-updated")} }
+                                        th { class: "text-end", {tid!("status-jmap-actions")} }
+                                    }
+                                }
+                                tbody {
+                                    for delivery in &rows {
+                                        {
+                                            let id = delivery.delivery_id.clone();
+                                            let id_for_detail = id.clone();
+                                            let id_for_retry = id.clone();
+                                            let retry = retry_delivery.clone();
+                                            let retry_in_progress = retrying_delivery().is_some();
+                                            let is_retrying = retrying_delivery().as_deref() == Some(id.as_str());
+                                            let (color, label) = state_label(delivery.state);
+                                            let ingress = delivery.ingress_id.as_deref().unwrap_or("–");
+                                            rsx! {
+                                                tr {
+                                                    td {
+                                                        code { class: "small text-break", "{delivery.delivery_id}" }
                                                     }
                                                     td {
-                                                        small { class: "text-muted", "{time_str}" }
+                                                        Badge { color, "{label}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{delivery.recipient_email}" }
+                                                    }
+                                                    td {
+                                                        div { class: "small text-break", "{delivery.subject}" }
+                                                        if delivery.ingress_id.is_some() {
+                                                            small { class: "text-muted", {tid!("status-jmap-ingress-prefix", id : ingress)} }
+                                                        } else {
+                                                            small { class: "text-muted", {tid!("status-jmap-system-mail")} }
+                                                        }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted", "{delivery.attempt_count}" }
+                                                    }
+                                                    td {
+                                                        small { class: "text-muted text-nowrap", "{format_timestamp(delivery.updated_at)}" }
                                                     }
                                                     td { class: "text-end",
-                                                        {
-                                                            let id_for_click = ingress_id.clone();
-                                                            rsx! {
+                                                        div { class: "d-inline-flex gap-1 justify-content-end",
+                                                            Button {
+                                                                color: Color::Secondary,
+                                                                outline: true,
+                                                                size: Size::Sm,
+                                                                onclick: move |_| {
+                                                                    selected_delivery.set(Some(id_for_detail.clone()));
+                                                                    show_detail.set(true);
+                                                                },
+                                                                Icon { name: "eye", class: "me-1" }
+                                                                {tid!("status-jmap-view")}
+                                                            }
+                                                            if delivery.state == JmapDeliveryState::Failed {
                                                                 Button {
-                                                                    color: Color::Secondary,
+                                                                    color: Color::Warning,
                                                                     outline: true,
                                                                     size: Size::Sm,
+                                                                    disabled: retry_in_progress,
                                                                     onclick: move |_| {
-                                                                        selected_ingress_id.set(Some(id_for_click.clone()));
-                                                                        show_detail_modal.set(true);
+                                                                        retrying_delivery.set(Some(id_for_retry.clone()));
+                                                                        retry.call(id_for_retry.clone());
                                                                     },
-                                                                    Icon { name: "eye", class: "me-1" }
-                                                                    {tid!("status-ingress-view")}
+                                                                    if is_retrying {
+                                                                        Spinner { color: Color::Warning, class: "me-1" }
+                                                                    } else {
+                                                                        Icon { name: "arrow-clockwise", class: "me-1" }
+                                                                    }
+                                                                    {tid!("status-jmap-retry")}
                                                                 }
                                                             }
                                                         }
@@ -276,167 +500,173 @@ fn MailIngressCard() -> Element {
                 }
             }
         }
-        {
-            let target_opt = selected_ingress_id().and_then(|id| rows.iter().find(|r| r.id == id).cloned());
-            if show_detail_modal() && selected_ingress_id().is_some() && target_opt.is_none() {
-                show_detail_modal.set(false);
-                selected_ingress_id.set(None);
-            }
-            if let Some(target) = target_opt {
-                let msg = msg_list.iter().find(|m| m.id == target.mail_message_id);
-                let subject = msg.map(|m| m.subject.as_str()).unwrap_or("–");
-                let sender = msg.map(|m| m.sender_email.as_str()).unwrap_or("–");
-                let body_raw = msg.map(|m| m.body_raw.as_str()).unwrap_or("–");
-                let (status_class, status_label) = match target.claim.status {
-                    DeliveryStatus::Pending => ("badge bg-secondary", tid!("status-ingress-status-pending")),
-                    DeliveryStatus::Processing => ("badge bg-info text-white", tid!("status-ingress-status-processing")),
-                    DeliveryStatus::Completed => ("badge bg-success", tid!("status-ingress-status-completed")),
-                    DeliveryStatus::RetryScheduled => ("badge bg-warning text-dark", tid!("status-ingress-status-retry-scheduled")),
-                    DeliveryStatus::Failed => ("badge bg-danger", tid!("status-ingress-status-failed")),
-                    other => ("badge bg-dark text-white", format!("{other:?}")),
-                };
-                let completed_str = if target.completed_at != spacetimedb_sdk::Timestamp::UNIX_EPOCH {
-                    format_timestamp(target.completed_at)
-                } else {
-                    "–".to_string()
-                };
-                rsx! {
-                    Modal {
-                        show: show_detail_modal,
-                        title: tid!("status-ingress-detail-title"),
-                        body: rsx! {
-                            div { class: "mb-3",
-                                strong { "{tid!(\"status-ingress-id\")}: " }
-                                code { "{target.id}" }
-                            }
-                            div { class: "mb-3",
-                                strong { "{tid!(\"status-ingress-status\")}: " }
-                                span { class: "{status_class} ms-2", "{status_label}" }
-                                span { class: "ms-2 small text-muted",
-                                    if target.failed_delivery_count > 0 {
-                                        {tid!("status-ingress-enqueued-failed",
-                                            delivered: target.delivery_count,
-                                            total: target.recipient_count,
-                                            failed: target.failed_delivery_count
-                                        )}
-                                    } else {
-                                        {tid!("status-ingress-enqueued",
-                                            delivered: target.delivery_count,
-                                            total: target.recipient_count
-                                        )}
-                                    }
-                                }
-                            }
-                            div { class: "mb-3",
-                                strong { "{tid!(\"status-ingress-topic\")}: " }
-                                span { class: "text-muted ms-2", "{target.topic_email}" }
-                            }
-                            div { class: "mb-3",
-                                strong { "{tid!(\"status-ingress-sender\")}: " }
-                                span { class: "text-muted ms-2", "{sender}" }
-                            }
-                            div { class: "mb-3",
-                                strong { "{tid!(\"status-ingress-subject\")}: " }
-                                span { class: "text-muted ms-2", "{subject}" }
-                            }
-                            if let Some(worker) = target.claim.instance_id.as_deref() {
-                                div { class: "mb-3",
-                                    strong { "{tid!(\"status-ingress-worker\")}: " }
-                                    span { class: "badge bg-info text-white ms-2", "{worker}" }
-                                }
-                            }
-                            div { class: "mb-3",
-                                strong { "{tid!(\"status-last-updated\")}: " }
-                                span { class: "text-muted ms-2", "{format_timestamp(target.claim.updated_at)}" }
-                            }
-                            if completed_str != "–" {
-                                div { class: "mb-3",
-                                    strong { "{tid!(\"status-ingress-status-completed\")}: " }
-                                    span { class: "text-muted ms-2", "{completed_str}" }
-                                }
-                            }
-                            if let Some(err) = target.claim.last_error.as_deref() {
-                                div { class: "alert alert-danger py-2 px-3 small text-break mt-2",
-                                    "{err}"
-                                }
-                            }
-                            div { class: "mb-0",
-                                strong { "{tid!(\"status-ingress-body\")}:" }
-                                pre {
-                                    class: "bg-light p-3 rounded mt-2 text-break border",
-                                    style: "white-space: pre-wrap; font-size: 0.875rem; max-height: 400px; overflow-y: auto;",
-                                    "{body_raw}"
-                                }
-                            }
-                        },
-                        footer: rsx! {
-                            Button {
-                                color: Color::Secondary,
-                                onclick: move |_| {
-                                    show_detail_modal.set(false);
-                                    selected_ingress_id.set(None);
-                                },
-                                {tid!("status-ingress-close")}
-                            }
-                        }
-                    }
-                }
-            } else {
-                rsx! {}
-            }
+        DeliveryDetailModal {
+            delivery: selected_delivery()
+                .and_then(|id| rows.iter().find(|row| row.delivery_id == id).cloned()),
+            events,
+            show: show_detail,
         }
     }
 }
 
 #[component]
 fn DeliveryDetailModal(
+    delivery: Option<JmapMailDelivery>,
+    events: Vec<JmapMailDeliveryEvent>,
     show: Signal<bool>,
-    message: Signal<Option<MailDeliveryMessage>>,
 ) -> Element {
-    if let Some(target) = message() {
+    if let Some(delivery) = delivery {
+        let mut delivery_events: Vec<_> = events
+            .into_iter()
+            .filter(|event| event.delivery_id == delivery.delivery_id)
+            .collect();
+        delivery_events.sort_by(|a, b| b.occurred_at.cmp(&a.occurred_at));
+        let (color, label) = state_label(delivery.state);
         rsx! {
             Modal {
                 show,
-                title: tid!("status-delivery-detail-title"),
+                title: tid!("status-jmap-detail-title"),
                 body: rsx! {
                     div { class: "mb-3",
-                        strong { "{tid!(\"status-temporary-failed-delivery-id\")}: " }
-                        code { "{target.delivery_id}" }
+                        strong {
+                            {tid!("status-jmap-delivery-id")}
+                            ": "
+                        }
+                        code { class: "text-break", "{delivery.delivery_id}" }
                     }
                     div { class: "mb-3",
-                        strong { "{tid!(\"status-pending-ingress\")}: " }
-                        code { "{target.ingress_id}" }
+                        strong {
+                            {tid!("status-jmap-state")}
+                            ": "
+                        }
+                        Badge { color, "{label}" }
                     }
                     div { class: "mb-3",
-                        strong { "{tid!(\"status-temporary-failed-recipient\")}: " }
-                        span { class: "text-muted ms-2", "{target.recipient_email}" }
+                        strong {
+                            {tid!("status-jmap-recipient")}
+                            ": "
+                        }
+                        span { class: "text-muted ms-2", "{delivery.recipient_email}" }
                     }
                     div { class: "mb-3",
-                        strong { "{tid!(\"status-delivery-from\")}: " }
-                        span { class: "text-muted ms-2", "{target.from_header}" }
+                        strong {
+                            {tid!("status-jmap-subject")}
+                            ": "
+                        }
+                        span { class: "text-muted ms-2", "{delivery.subject}" }
                     }
-                    if !target.reply_to.is_empty() {
+                    if let Some(ingress_id) = &delivery.ingress_id {
                         div { class: "mb-3",
-                            strong { "{tid!(\"status-delivery-reply-to\")}: " }
-                            span { class: "text-muted ms-2", "{target.reply_to}" }
+                            strong {
+                                {tid!("status-jmap-ingress-id")}
+                                ": "
+                            }
+                            code { class: "ms-2", "{ingress_id}" }
                         }
                     }
-                    div { class: "mb-0",
-                        strong { "{tid!(\"status-delivery-raw-message\")}:" }
-                        pre {
-                            class: "bg-light p-3 rounded mt-2 text-break border",
-                            style: "white-space: pre-wrap; font-size: 0.875rem; max-height: 400px; overflow-y: auto;",
-                            "{target.raw_message}"
+                    if let Some(system_mail_id) = delivery.system_mail_id {
+                        div { class: "mb-3",
+                            strong {
+                                {tid!("status-jmap-system-mail-id")}
+                                ": "
+                            }
+                            code { class: "ms-2", "{system_mail_id}" }
+                        }
+                    }
+                    div { class: "mb-3",
+                        strong {
+                            {tid!("status-jmap-topic")}
+                            ": "
+                        }
+                        span { class: "text-muted ms-2",
+                            {delivery.topic_id.map(|id| id.to_string()).unwrap_or_else(|| "–".to_string())}
+                        }
+                    }
+                    div { class: "mb-3",
+                        strong {
+                            {tid!("status-jmap-attempts")}
+                            ": "
+                        }
+                        span { class: "text-muted ms-2", "{delivery.attempt_count}" }
+                    }
+                    div { class: "mb-3",
+                        strong {
+                            {tid!("status-jmap-next-attempt")}
+                            ": "
+                        }
+                        span { class: "text-muted ms-2", "{format_timestamp(delivery.next_attempt_at)}" }
+                    }
+                    if let Some(email_id) = &delivery.jmap_email_id {
+                        div { class: "mb-3",
+                            strong {
+                                {tid!("status-jmap-email-id")}
+                                ": "
+                            }
+                            code { class: "ms-2 text-break", "{email_id}" }
+                        }
+                    }
+                    if let Some(submission_id) = &delivery.jmap_submission_id {
+                        div { class: "mb-3",
+                            strong {
+                                {tid!("status-jmap-submission-id")}
+                                ": "
+                            }
+                            code { class: "ms-2 text-break", "{submission_id}" }
+                        }
+                    }
+                    if let Some(error_message) = &delivery.last_error {
+                        div { class: "alert alert-danger py-2 px-3 small text-break", "{error_message}" }
+                    }
+                    div { class: "small text-muted mb-3",
+                        strong {
+                            {tid!("status-jmap-created")}
+                            ": "
+                        }
+                        "{format_timestamp(delivery.created_at)} · "
+                        strong {
+                            {tid!("status-last-updated")}
+                            ": "
+                        }
+                        "{format_timestamp(delivery.updated_at)}"
+                    }
+                    h6 { class: "mt-4", {tid!("status-jmap-events-title")} }
+                    if delivery_events.is_empty() {
+                        p { class: "text-muted small", {tid!("status-jmap-events-empty")} }
+                    } else {
+                        div { class: "list-group list-group-flush",
+                            for event in delivery_events {
+                                div { class: "list-group-item px-0 py-2",
+                                    div { class: "d-flex justify-content-between gap-2",
+                                        strong { class: "small", "{event.event_type}" }
+                                        small { class: "text-muted text-nowrap", "{format_timestamp(event.occurred_at)}" }
+                                    }
+                                    div { class: "small text-muted",
+                                        {tid!("status-jmap-attempt-number", attempt : event.attempt_no)}
+                                    }
+                                    if !event.details.is_empty() {
+                                        div { class: "small text-break mt-1", "{event.details}" }
+                                    }
+                                    if let Some(email_id) = event.jmap_email_id {
+                                        div { class: "small text-muted text-break",
+                                            {tid!("status-jmap-event-email-id", id : email_id)}
+                                        }
+                                    }
+                                    if let Some(submission_id) = event.jmap_submission_id {
+                                        div { class: "small text-muted text-break",
+                                            {tid!("status-jmap-event-submission-id", id : submission_id)}
+                                        }
+                                    }
+                                    div { class: "small text-muted text-break",
+                                        {tid!("status-jmap-event-actor", actor : format!("{:?}", event.actor))}
+                                    }
+                                }
+                            }
                         }
                     }
                 },
                 footer: rsx! {
-                    Button {
-                        color: Color::Secondary,
-                        onclick: move |_| show.set(false),
-                        {tid!("status-delivery-close")}
-                    }
-                }
+                    Button { color: Color::Secondary, onclick: move |_| show.set(false), {tid!("general-cancel")} }
+                },
             }
         }
     } else {
@@ -445,41 +675,24 @@ fn DeliveryDetailModal(
 }
 
 #[component]
-fn TemporaryFailedCard() -> Element {
-    use_subscription(&[
-        "SELECT * FROM sender_mail_delivery_temporary_failed",
-        "SELECT * FROM sender_mail_delivery_messages",
-    ]);
-    let temporary_failed = use_table_sender_mail_delivery_temporary_failed();
-    let messages = use_table_sender_mail_delivery_messages();
-    let cancel_retry = crate::module_bindings::dioxus::use_reducer_cancel_mail_delivery_retry();
-
-    let mut show_detail_modal = use_signal(|| false);
-    let mut selected_msg = use_signal(|| None::<MailDeliveryMessage>);
-
-    let mut rows = temporary_failed();
-    rows.sort_by(|a, b| a.delivery_id.cmp(&b.delivery_id));
-    let msg_list = messages();
-
+fn DeliveryEventsCard(rows: Vec<JmapMailDeliveryEvent>) -> Element {
+    let rows_limited = rows.len() == 100;
     rsx! {
-        Row { class: "mt-4",
+        Row { class: "mb-4",
             Col { xs: ColumnSize::Span(12),
                 Card {
                     class: "shadow-sm",
-                    header_class: "bg-warning text-dark",
+                    header_class: "d-flex justify-content-between align-items-center",
                     header: rsx! {
                         h5 { class: "card-title mb-0",
-                            Icon { name: "clock-history", class: "me-2" }
-                            {tid!("status-temporary-failed-title")}
-                            span { class: "badge bg-dark text-white ms-2", "{rows.len()}" }
+                            Icon { name: "journal-text", class: "me-2" }
+                            {tid!("status-jmap-events-title")}
                         }
+                        span { class: "badge bg-secondary", "{rows.len()}" }
                     },
                     body: rsx! {
                         if rows.is_empty() {
-                            p { class: "text-muted mb-0",
-                                Icon { name: "inbox", class: "me-2" }
-                                {tid!("status-temporary-failed-empty")}
-                            }
+                            p { class: "text-muted mb-0", {tid!("status-jmap-events-empty")} }
                         } else {
                             Table {
                                 hover: true,
@@ -488,145 +701,33 @@ fn TemporaryFailedCard() -> Element {
                                 class: "mb-0 align-middle",
                                 thead { class: "table-light",
                                     tr {
-                                        th { {tid!("status-temporary-failed-delivery-id")} }
-                                        th { {tid!("status-temporary-failed-recipient")} }
-                                        th { {tid!("status-temporary-failed-retry-at")} }
-                                        th { {tid!("status-last-updated")} }
-                                        th { {tid!("status-temporary-failed-reason")} }
-                                        th { class: "text-end", {tid!("status-temporary-failed-action")} }
-                                    }
-                                }
-                                tbody {
-                                    for failed in rows {
-                                        {
-                                            let delivery_id = failed.delivery_id.clone();
-                                            let cancel = cancel_retry.clone();
-                                            let msg_item = msg_list
-                                                .iter()
-                                                .find(|m| m.delivery_id == failed.delivery_id)
-                                                .cloned();
-                                            let recipient = msg_item
-                                                .as_ref()
-                                                .map(|m| m.recipient_email.as_str())
-                                                .unwrap_or("–");
-                                            rsx! {
-                                                tr {
-                                                    td {
-                                                        code { class: "small text-break", "{failed.delivery_id}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{recipient}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{format_timestamp(failed.next_attempt_at)}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{format_timestamp(failed.last_updated)}" }
-                                                    }
-                                                    td {
-                                                        div { class: "small text-break", "{failed.last_error}" }
-                                                    }
-                                                    td { class: "text-end",
-                                                        div { class: "d-inline-flex gap-1 justify-content-end",
-                                                            if let Some(msg) = msg_item {
-                                                                Button {
-                                                                    color: Color::Secondary,
-                                                                    outline: true,
-                                                                    size: Size::Sm,
-                                                                    onclick: move |_| {
-                                                                        selected_msg.set(Some(msg.clone()));
-                                                                        show_detail_modal.set(true);
-                                                                    },
-                                                                    Icon { name: "eye", class: "me-1" }
-                                                                    {tid!("status-delivery-action-view")}
-                                                                }
-                                                            }
-                                                            Button {
-                                                                color: Color::Warning,
-                                                                outline: true,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    if let Err(e) = cancel(delivery_id.clone()) {
-                                                                        error!("cancel_mail_delivery_retry failed: {e:?}");
-                                                                    }
-                                                                },
-                                                                Icon { name: "x-circle", class: "me-1" }
-                                                                {tid!("status-temporary-failed-cancel")}
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                }
-            }
-        }
-        DeliveryDetailModal { show: show_detail_modal, message: selected_msg }
-    }
-}
-
-#[component]
-fn DeliveryEventsCard() -> Element {
-    use_subscription(&["SELECT * FROM sender_mail_delivery_events"]);
-    let delivery_events = use_table_sender_mail_delivery_events();
-
-    let mut rows = delivery_events();
-    rows.sort_by(|a, b| a.id.cmp(&b.id));
-
-    rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-dark text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "journal-text", class: "me-2" }
-                            {tid!("status-delivery-events-title")}
-                            span { class: "badge bg-white text-dark ms-2", "{rows.len()}" }
-                        }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0", {tid!("status-delivery-events-empty")} }
-                        } else {
-                            Table {
-                                hover: true,
-                                size: Size::Sm,
-                                responsive: true,
-                                class: "mb-0",
-                                thead { class: "table-light",
-                                    tr {
-                                        th { {tid!("status-delivery-events-id")} }
-                                        th { {tid!("status-delivery-events-delivery-id")} }
-                                        th { {tid!("status-delivery-events-type")} }
-                                        th { {tid!("status-delivery-events-attempt")} }
-                                        th { {tid!("status-delivery-events-occurred-at")} }
-                                        th { {tid!("status-delivery-events-details")} }
+                                        th { {tid!("status-jmap-delivery-id")} }
+                                        th { {tid!("status-jmap-event-type")} }
+                                        th { {tid!("status-jmap-attempts")} }
+                                        th { {tid!("status-jmap-event-time")} }
+                                        th { {tid!("status-jmap-event-actor-label")} }
+                                        th { {tid!("status-jmap-details")} }
                                     }
                                 }
                                 tbody {
                                     for event in rows {
                                         tr {
                                             td {
-                                                code { class: "small text-break", "{event.id}" }
-                                            }
-                                            td {
                                                 code { class: "small text-break", "{event.delivery_id}" }
                                             }
                                             td {
-                                                small { class: "text-muted", "{event.event_type}" }
+                                                small { "{event.event_type}" }
                                             }
                                             td {
                                                 small { class: "text-muted", "{event.attempt_no}" }
                                             }
                                             td {
-                                                small { class: "text-muted", "{format_timestamp(event.occurred_at)}" }
+                                                small { class: "text-muted text-nowrap", "{format_timestamp(event.occurred_at)}" }
+                                            }
+                                            td {
+                                                small { class: "text-muted text-break",
+                                                    {format!("{:?}", event.actor)}
+                                                }
                                             }
                                             td {
                                                 div { class: "small text-break", "{event.details}" }
@@ -635,6 +736,9 @@ fn DeliveryEventsCard() -> Element {
                                     }
                                 }
                             }
+                            if rows_limited {
+                                p { class: "text-muted small mt-2 mb-0", {tid!("status-jmap-events-limited")} }
+                            }
                         }
                     },
                 }
@@ -643,519 +747,14 @@ fn DeliveryEventsCard() -> Element {
     }
 }
 
-#[component]
-fn PendingCard() -> Element {
-    use_subscription(&[
-        "SELECT * FROM sender_mail_delivery_pending",
-        "SELECT * FROM sender_mail_delivery_messages",
-    ]);
-    let pending_deliveries = use_table_sender_mail_delivery_pending();
-    let messages = use_table_sender_mail_delivery_messages();
-
-    let mut show_detail_modal = use_signal(|| false);
-    let mut selected_msg = use_signal(|| None::<MailDeliveryMessage>);
-
-    let mut rows = pending_deliveries();
-    rows.sort_by(|a, b| a.delivery_id.cmp(&b.delivery_id));
-    let msg_list = messages();
-
-    rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-secondary text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "hourglass-split", class: "me-2" }
-                            {tid!("status-pending-title")}
-                            span { class: "badge bg-white text-secondary ms-2", "{rows.len()}" }
-                        }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0", {tid!("status-pending-empty")} }
-                        } else {
-                            Table {
-                                hover: true,
-                                size: Size::Sm,
-                                responsive: true,
-                                class: "mb-0 align-middle",
-                                thead { class: "table-light",
-                                    tr {
-                                        th { {tid!("status-pending-id")} }
-                                        th { {tid!("status-pending-recipient")} }
-                                        th { {tid!("status-pending-ingress")} }
-                                        th { {tid!("status-last-updated")} }
-                                        th { class: "text-end", {tid!("status-temporary-failed-action")} }
-                                    }
-                                }
-                                tbody {
-                                    for row in rows {
-                                        {
-                                            let msg_item = msg_list
-                                                .iter()
-                                                .find(|m| m.delivery_id == row.delivery_id)
-                                                .cloned();
-                                            let recipient = msg_item
-                                                .as_ref()
-                                                .map(|m| m.recipient_email.as_str())
-                                                .unwrap_or("–");
-                                            rsx! {
-                                                tr {
-                                                    td {
-                                                        code { class: "small text-break", "{row.delivery_id}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{recipient}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{row.ingress_id}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{format_timestamp(row.last_updated)}" }
-                                                    }
-                                                    td { class: "text-end",
-                                                        if let Some(msg) = msg_item {
-                                                            Button {
-                                                                color: Color::Secondary,
-                                                                outline: true,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    selected_msg.set(Some(msg.clone()));
-                                                                    show_detail_modal.set(true);
-                                                                },
-                                                                Icon { name: "eye", class: "me-1" }
-                                                                {tid!("status-delivery-action-view")}
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                }
-            }
-        }
-        DeliveryDetailModal { show: show_detail_modal, message: selected_msg }
-    }
-}
-
-#[component]
-fn ClaimedCard() -> Element {
-    use_subscription(&[
-        "SELECT * FROM sender_mail_delivery_claimed",
-        "SELECT * FROM sender_mail_delivery_messages",
-    ]);
-    let claimed_deliveries = use_table_sender_mail_delivery_claimed();
-    let messages = use_table_sender_mail_delivery_messages();
-
-    let mut show_detail_modal = use_signal(|| false);
-    let mut selected_msg = use_signal(|| None::<MailDeliveryMessage>);
-
-    let mut rows = claimed_deliveries();
-    rows.sort_by(|a, b| a.delivery_id.cmp(&b.delivery_id));
-    let msg_list = messages();
-
-    rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-info text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "person-workspace", class: "me-2" }
-                            {tid!("status-claimed-title")}
-                            span { class: "badge bg-white text-info ms-2", "{rows.len()}" }
-                        }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0", {tid!("status-claimed-empty")} }
-                        } else {
-                            Table {
-                                hover: true,
-                                size: Size::Sm,
-                                responsive: true,
-                                class: "mb-0 align-middle",
-                                thead { class: "table-light",
-                                    tr {
-                                        th { {tid!("status-claimed-id")} }
-                                        th { {tid!("status-claimed-worker")} }
-                                        th { {tid!("status-claimed-lease")} }
-                                        th { {tid!("status-claimed-recipient")} }
-                                        th { {tid!("status-last-updated")} }
-                                        th { class: "text-end", {tid!("status-temporary-failed-action")} }
-                                    }
-                                }
-                                tbody {
-                                    for row in rows {
-                                        {
-                                            let msg_item = msg_list
-                                                .iter()
-                                                .find(|m| m.delivery_id == row.delivery_id)
-                                                .cloned();
-                                            let recipient = msg_item
-                                                .as_ref()
-                                                .map(|m| m.recipient_email.as_str())
-                                                .unwrap_or("–");
-                                            rsx! {
-                                                tr {
-                                                    td {
-                                                        code { class: "small text-break", "{row.delivery_id}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{row.worker}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{format_timestamp(row.lease_expires_at)}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{recipient}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{format_timestamp(row.last_updated)}" }
-                                                    }
-                                                    td { class: "text-end",
-                                                        if let Some(msg) = msg_item {
-                                                            Button {
-                                                                color: Color::Secondary,
-                                                                outline: true,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    selected_msg.set(Some(msg.clone()));
-                                                                    show_detail_modal.set(true);
-                                                                },
-                                                                Icon { name: "eye", class: "me-1" }
-                                                                {tid!("status-delivery-action-view")}
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                }
-            }
-        }
-        DeliveryDetailModal { show: show_detail_modal, message: selected_msg }
-    }
-}
-
-#[component]
-fn DoneCard() -> Element {
-    use_subscription(&[
-        "SELECT * FROM sender_mail_delivery_done",
-        "SELECT * FROM sender_mail_delivery_messages",
-    ]);
-    let done_deliveries = use_table_sender_mail_delivery_done();
-    let messages = use_table_sender_mail_delivery_messages();
-
-    let mut show_detail_modal = use_signal(|| false);
-    let mut selected_msg = use_signal(|| None::<MailDeliveryMessage>);
-
-    let mut rows = done_deliveries();
-    rows.sort_by(|a, b| a.delivery_id.cmp(&b.delivery_id));
-    let msg_list = messages();
-
-    rsx! {
-        Row { class: "mt-4",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-success text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "check-circle", class: "me-2" }
-                            {tid!("status-done-title")}
-                            span { class: "badge bg-white text-success ms-2", "{rows.len()}" }
-                        }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0", {tid!("status-done-empty")} }
-                        } else {
-                            Table {
-                                hover: true,
-                                size: Size::Sm,
-                                responsive: true,
-                                class: "mb-0 align-middle",
-                                thead { class: "table-light",
-                                    tr {
-                                        th { {tid!("status-done-id")} }
-                                        th { {tid!("status-done-status")} }
-                                        th { {tid!("status-done-recipient")} }
-                                        th { {tid!("status-done-reason")} }
-                                        th { {tid!("status-last-updated")} }
-                                        th { class: "text-end", {tid!("status-temporary-failed-action")} }
-                                    }
-                                }
-                                tbody {
-                                    for row in rows {
-                                        {
-                                            let (status_icon, status_color, status_text) = match row.final_state {
-                                                DeliveryFinalState::Sent => ("check-circle-fill", "text-success", tid!("status-done-sent")),
-                                                DeliveryFinalState::Failed => ("x-circle-fill", "text-danger", tid!("status-done-failed")),
-                                                DeliveryFinalState::Bounced => ("envelope-slash-fill", "text-warning", tid!("status-done-bounced")),
-                                                DeliveryFinalState::Cancelled => ("slash-circle", "text-secondary", tid!("status-done-cancelled")),
-                                            };
-                                            let msg_item = msg_list
-                                                .iter()
-                                                .find(|m| m.delivery_id == row.delivery_id)
-                                                .cloned();
-                                            let recipient = msg_item
-                                                .as_ref()
-                                                .map(|m| m.recipient_email.as_str())
-                                                .unwrap_or("–");
-                                            let reason = if let Some(ref err) = row.last_error {
-                                                err.clone()
-                                            } else {
-                                                tid!("general-none")
-                                            };
-                                            rsx! {
-                                                tr {
-                                                    td {
-                                                        code { class: "small text-break", "{row.delivery_id}" }
-                                                    }
-                                                    td {
-                                                        span { class: "d-inline-flex align-items-center gap-2",
-                                                            Icon { name: status_icon, class: format!("{status_color} fw-bold") }
-                                                            small { class: "text-muted", "{status_text}" }
-                                                        }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{recipient}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-break text-muted", "{reason}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{format_timestamp(row.last_updated)}" }
-                                                    }
-                                                    td { class: "text-end",
-                                                        if let Some(msg) = msg_item {
-                                                            Button {
-                                                                color: Color::Secondary,
-                                                                outline: true,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    selected_msg.set(Some(msg.clone()));
-                                                                    show_detail_modal.set(true);
-                                                                },
-                                                                Icon { name: "eye", class: "me-1" }
-                                                                {tid!("status-delivery-action-view")}
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                }
-            }
-        }
-        DeliveryDetailModal { show: show_detail_modal, message: selected_msg }
-    }
-}
-
-#[component]
-fn SystemMailCard() -> Element {
-    use_subscription(&["SELECT * FROM sender_system_mail_pending"]);
-    let system_mails = use_table_sender_system_mail_pending();
-    let release_mail = crate::module_bindings::dioxus::use_reducer_release_system_mail();
-    let complete_mail = crate::module_bindings::dioxus::use_reducer_complete_system_mail();
-
-    let mut show_detail_modal = use_signal(|| false);
-    let mut selected_mail = use_signal(|| None::<SystemMailPending>);
-
-    let mut rows = system_mails();
-    rows.sort_by(|a, b| a.id.cmp(&b.id));
-
-    rsx! {
-        Row { class: "mt-2",
-            Col { xs: ColumnSize::Span(12),
-                Card {
-                    class: "shadow-sm",
-                    header_class: "bg-primary text-white",
-                    header: rsx! {
-                        h5 { class: "card-title mb-0",
-                            Icon { name: "envelope-fill", class: "me-2" }
-                            {tid!("status-system-mail-title")}
-                            span { class: "badge bg-white text-primary ms-2", "{rows.len()}" }
-                        }
-                    },
-                    body: rsx! {
-                        if rows.is_empty() {
-                            p { class: "text-muted mb-0",
-                                Icon { name: "inbox", class: "me-2" }
-                                {tid!("status-system-mail-empty")}
-                            }
-                        } else {
-                            Table {
-                                hover: true,
-                                size: Size::Sm,
-                                responsive: true,
-                                class: "mb-0 align-middle",
-                                thead { class: "table-light",
-                                    tr {
-                                        th { {tid!("status-system-mail-id")} }
-                                        th { {tid!("status-system-mail-status")} }
-                                        th { {tid!("status-system-mail-recipient")} }
-                                        th { {tid!("status-system-mail-subject")} }
-                                        th { {tid!("status-system-mail-worker")} }
-                                        th { {tid!("status-system-mail-claimed-at")} }
-                                        th { class: "text-end", {tid!("status-system-mail-actions")} }
-                                    }
-                                }
-                                tbody {
-                                    for mail in rows {
-                                        {
-                                            let mail_id = mail.id;
-                                            let release = release_mail.clone();
-                                            let complete = complete_mail.clone();
-                                            let is_claimed = mail.instance_id.is_some();
-                                            let worker = mail.instance_id.as_deref().unwrap_or("–");
-                                            let claimed_at_str = mail
-                                                .claimed_at
-                                                .map(format_timestamp)
-                                                .unwrap_or_else(|| "–".to_string());
-                                            let mail_clone = mail.clone();
-                                            rsx! {
-                                                tr {
-                                                    td {
-                                                        code { class: "small text-break", "#{mail.id}" }
-                                                    }
-                                                    td {
-                                                        if is_claimed {
-                                                            span { class: "badge bg-info text-white",
-                                                                {tid!("status-system-mail-status-claimed")}
-                                                            }
-                                                        } else {
-                                                            span { class: "badge bg-secondary",
-                                                                {tid!("status-system-mail-status-pending")}
-                                                            }
-                                                        }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{mail.recipient}" }
-                                                    }
-                                                    td {
-                                                        div { class: "small text-break", "{mail.subject}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{worker}" }
-                                                    }
-                                                    td {
-                                                        small { class: "text-muted", "{claimed_at_str}" }
-                                                    }
-                                                    td { class: "text-end",
-                                                        div { class: "d-inline-flex gap-1 justify-content-end",
-                                                            Button {
-                                                                color: Color::Secondary,
-                                                                outline: true,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    selected_mail.set(Some(mail_clone.clone()));
-                                                                    show_detail_modal.set(true);
-                                                                },
-                                                                Icon { name: "eye", class: "me-1" }
-                                                                {tid!("status-system-mail-view")}
-                                                            }
-                                                            if is_claimed {
-                                                                Button {
-                                                                    color: Color::Warning,
-                                                                    outline: true,
-                                                                    size: Size::Sm,
-                                                                    onclick: move |_| {
-                                                                        if let Err(e) = release(mail_id) {
-                                                                            error!("release_system_mail failed: {e:?}");
-                                                                        }
-                                                                    },
-                                                                    Icon { name: "arrow-counterclockwise", class: "me-1" }
-                                                                    {tid!("status-system-mail-release")}
-                                                                }
-                                                            }
-                                                            Button {
-                                                                color: Color::Danger,
-                                                                outline: true,
-                                                                size: Size::Sm,
-                                                                onclick: move |_| {
-                                                                    if let Err(e) = complete(mail_id) {
-                                                                        error!("complete_system_mail failed: {e:?}");
-                                                                    }
-                                                                },
-                                                                Icon { name: "x-circle", class: "me-1" }
-                                                                {tid!("status-system-mail-cancel")}
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                }
-            }
-        }
-        if let Some(target) = selected_mail() {
-            Modal {
-                show: show_detail_modal,
-                title: tid!("status-system-mail-detail-title"),
-                body: rsx! {
-                    div { class: "mb-3",
-                        strong { "{tid!(\"status-system-mail-id\")}: " }
-                        code { "#{target.id}" }
-                    }
-                    div { class: "mb-3",
-                        strong { "{tid!(\"status-system-mail-recipient\")}: " }
-                        span { class: "text-muted ms-2", "{target.recipient}" }
-                    }
-                    div { class: "mb-3",
-                        strong { "{tid!(\"status-system-mail-subject\")}: " }
-                        span { class: "text-muted ms-2", "{target.subject}" }
-                    }
-                    if let Some(worker) = target.instance_id.as_deref() {
-                        div { class: "mb-3",
-                            strong { "{tid!(\"status-system-mail-worker\")}: " }
-                            span { class: "badge bg-info text-white ms-2 me-2", "{worker}" }
-                            if let Some(claimed_at) = target.claimed_at {
-                                span { class: "text-muted small", "({format_timestamp(claimed_at)})" }
-                            }
-                        }
-                    }
-                    div { class: "mb-0",
-                        strong { "{tid!(\"status-system-mail-body\")}:" }
-                        pre {
-                            class: "bg-light p-3 rounded mt-2 text-break border",
-                            style: "white-space: pre-wrap; font-size: 0.875rem; max-height: 400px; overflow-y: auto;",
-                            "{target.body_text}"
-                        }
-                    }
-                },
-                footer: rsx! {
-                    Button {
-                        color: Color::Secondary,
-                        onclick: move |_| show_detail_modal.set(false),
-                        {tid!("status-system-mail-close")}
-                    }
-                }
-            }
-        }
+fn state_label(state: JmapDeliveryState) -> (Color, String) {
+    match state {
+        JmapDeliveryState::Pending => (Color::Secondary, tid!("status-jmap-state-queued")),
+        JmapDeliveryState::Importing => (Color::Info, tid!("status-jmap-state-importing")),
+        JmapDeliveryState::Imported => (Color::Info, tid!("status-jmap-state-imported")),
+        JmapDeliveryState::Submitting => (Color::Warning, tid!("status-jmap-state-submitting")),
+        JmapDeliveryState::SubmissionUnknown => (Color::Warning, tid!("status-jmap-state-unknown")),
+        JmapDeliveryState::Sent => (Color::Success, tid!("status-jmap-state-sent")),
+        JmapDeliveryState::Failed => (Color::Danger, tid!("status-jmap-state-failed")),
     }
 }

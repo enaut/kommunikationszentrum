@@ -23,18 +23,7 @@
     "show_command": true,
     "save": "all",
   },
-  {
-    "label": "Start Sender",
-    "command": "sh -lc '. .env/.env.sender && cargo run --package sender'",
-    "cwd": "$ZED_WORKTREE_ROOT",
-    "use_new_terminal": true,
-    "allow_concurrent_runs": false,
-    "reveal": "always",
-    "hide": "never",
-    "show_summary": true,
-    "show_command": true,
-    "save": "all",
-  },
+
   {
     "label": "Serve Docs",
     "command": "mdbook serve docs --port 3022",
@@ -49,7 +38,7 @@
   },
   {
     "label": "Publish spacetime module",
-    "command": "sh -lc '. .env/.env.oidc && spacetime publish -p server kommunikation'",
+    "command": "sh -lc '. .env/.env.oidc && APP_PROFILE=\"${APP_PROFILE:-example}\" python3 scripts/publish_spacetime.py'",
     "cwd": "$ZED_WORKTREE_ROOT",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,

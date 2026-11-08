@@ -54,7 +54,7 @@ The email processing flow in the Kommunikationszentrum follows a multi-stage val
   - **RAM Optimization for Oversize Mails**: If oversize, `body_raw` is stored as an empty string (`""`) in SpacetimeDB to protect RAM, while Stalwart retains the full message body on disk/S3. The Admin UI displays an indicator that the body is only available in Stalwart.
   - A `received_message` row is recorded for each targeted topic with its `disposition` (`Accepted` or `Rejected(reason)`).
   - For accepted topics, a `mail_ingress` record is inserted to trigger background sender fan-out.
-  - For rejected topics, no `mail_ingress` record is created, preventing distribution to subscribers. An explanatory rejection notice from `SMTP_SYSTEM_USER` is queued in `system_mail_pending` (unless the sender is a bounce address `<>`).
+  - For rejected topics, no `mail_ingress` record is created, preventing distribution to subscribers. An explanatory rejection notice is queued in `system_mail_pending` for scheduled JMAP delivery (unless the sender is a bounce address `<>`).
 - **Step 5: Stalwart Hook Response & Subject Modification**:
   - Adds header `X-Processed-By: SpacetimeDB Kommunikationszentrum`.
   - If any topic was rejected, appends ` (rejected from <topic1>, <topic2>)` to the `Subject` header via Stalwart `Modification::change_header(1, "Subject", ...)`.

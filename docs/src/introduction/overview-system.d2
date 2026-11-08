@@ -13,21 +13,12 @@ django: "Django\nsolawispielplatz\nOAuth + sync" {
   style.fill: "#fff3c6"
 }
 
-spacetime: "SpacetimeDB\nmodule + reducers + views" {
+spacetime: "SpacetimeDB\nmodule + reducers + scheduled delivery" {
   style.fill: "#ffd8d8"
 }
 
 stalwart: "Stalwart MTA\nSMTP + JMAP + domains" {
   style.fill: "#eaeaea"
-}
-
-sender: "Sender daemon\nSMTP delivery + retries" {
-  style.fill: "#dfffe9"
-}
-
-relay: "Outbound SMTP\nrelay / recipient" {
-  shape: cloud
-  style.fill: "#f2ebff"
 }
 
 member <-> admin_ui: "subscriptions\nand admin actions"
@@ -36,7 +27,4 @@ admin_ui -> django: "OIDC / OAuth"
 django -> spacetime: "user sync\ntopics\nsubscriptions"
 stalwart -> spacetime: "MTA hooks\nmail ingress"
 stalwart <-> spacetime: "domain sync\nmailbox state"
-spacetime -> sender: "pending deliveries\nfan-out jobs"
-sender -> stalwart: "submission via\ntopic app passwords"
-sender -> relay: "outbound SMTP delivery"
-spacetime -> sender: "retry queue\ntransient failures"
+spacetime -> stalwart: "scheduled JMAP\ndelivery + retry"

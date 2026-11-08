@@ -105,7 +105,7 @@ Allways use `dx` or the vscode task "Start Admin Web UI", Do not use `cargo` com
 
 # Architecture Overview
 
-The Kommunikationszentrum is a distributed email management system for the SoLaWi project that consists of four main components:
+The Kommunikationszentrum is a distributed email management system for the SoLaWi project. Outbound delivery runs in the SpacetimeDB module; there is no separate sender worker.
 
 ## Component Overview
 
@@ -140,6 +140,7 @@ The Kommunikationszentrum is a distributed email management system for the SoLaW
   - Email category management (`message_categories`)
   - Subscription management (`subscriptions`)
   - MTA hook processing and logging
+  - Scheduled JMAP delivery with durable retry state
   - User data storage
   - IP blocking lists (`blocked_ips`)
 

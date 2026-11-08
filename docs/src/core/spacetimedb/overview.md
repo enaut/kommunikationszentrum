@@ -1,47 +1,15 @@
 # SpacetimeDB Server
 
-# SpacetimeDB in the System Architecture
+SpacetimeDB is the core storage and business-logic component. The Rust module contains the database schema, reducers, procedures, scheduled jobs, and HTTP handlers for account synchronization, topic management, inbound mail processing, and outbound delivery.
 
-In this project, **SpacetimeDB** is utilized as the core component for data storage and primary business logic. It replaces the traditional pattern of maintaining a separate backend server and a standalone relational database.
+### Integrations
 
-## What is SpacetimeDB?
+1. **Admin Web UI** connects through the SpacetimeDB client to read scoped views and call reducers.
+2. **Django backend** synchronizes user, topic, category, and subscription data.
+3. **Stalwart MTA** sends inbound mail hook requests and provides domain, mailbox, and JMAP services.
 
-SpacetimeDB is a relational **real-time database** that executes application logic directly inside the database engine. Instead of sending SQL queries from an external server, the server-side code is written in Rust and deployed as a WebAssembly (WASM) module running directly within the database. In our architecture, the SpacetimeDB server (Port 3000) acts as the primary single source of truth for subscriptions and email-routing logic.
+### WebSocket subscriptions
 
-## Pros and Cons in the Project Context
+The Admin UI subscribes to caller-filtered views. Members receive their own account and subscription data plus messages visible to their subscriptions. Administrators receive management views and JMAP delivery and event views used by the status page.
 
-### Pros
-
-* **Maximum Performance & Minimal Lateness:** Because the application code and data live in the same memory space, network roundtrips between a traditional backend and the database are completely eliminated.
-* **No ORM Overhead:** The data structures defined in the Rust code map directly to the database tables. No separate Object-Relational Mapper is required.
-* **Out-of-the-Box Real-Time Sync:** Status changes in the database are automatically pushed via WebSockets to the Admin Web UI (Dioxus), eliminating the need for complex polling mechanisms.
-* **End-to-End Type Safety:** Utilizing Rust for both the server module and the frontend guarantees strict data consistency across the entire application stack.
-
-### Cons & Challenges
-
-* **Increased Synchronization Effort:** Since user management and the OAuth provider are handled by the external Django backend, manual or scripted data synchronization (`sync_users_to_spacetimedb`) is required to keep user records aligned.
-* **Niche Technology:** As a relatively new ecosystem, the community and available tooling are smaller compared to established stacks like PostgreSQL with Node.js or Python. This can make troubleshooting deep edge cases more difficult.
-* **WASM Sandbox Constraints:** Because the server module executes inside a WebAssembly environment, direct access to the underlying operating system or certain standard networking libraries is restricted.
-
-## Integration within the Kommunikationszentrum
-
-The database primarily interacts with four components in the ecosystem:
-1. **Admin Web UI (Dioxus):** Connects directly via the SpacetimeDB client to display and manipulate configurations in real time.
-2. **Django Backend:** Populates SpacetimeDB with relevant user and profile data via management commands.
-3. **Stalwart MTA:** Posts incoming email events to SpacetimeDB for processing and routing.
-4. **Sender Daemon:** Subscribes to SpacetimeDB views to retrieve messages for delivery to users.
-
-
-## 5. WebSocket Subscription Model
-
-The Admin UI and sender daemon connect to SpacetimeDB over WebSocket and subscribe to **views**, not raw tables. SpacetimeDB pushes incremental row updates whenever a subscribed view's result set changes.
-
-```d2
-{{#include event-flow-websocket-subscription.d2}}
-```
-
-**Current view selection by identity:**
-- Admin clients receive access to `visible_accounts`, `visible_admin_identities`, `visible_webhook_tokens`, `admin_stalwart_config`, `visible_domains`, `visible_message_topics`, `visible_topic_app_passwords`, `visible_categories`, `visible_message_topic_categories`, and the `visible_messages` stream (paginated).
-- Regular members receive a filtered `visible_accounts` row, their own `visible_account_configs` (for pagination and UI state), their own `visible_subscriptions`, their visible topic metadata (`visible_message_topics`, `visible_categories`, `visible_message_topic_categories`), and message rows for subscribed topics only (paginated).
-- Pagination and user preferences (like language and theme) are managed via an `AccountConfig` table. The client calls the `update_account_config` reducer, mutating their specific config row, which causes the server to evaluate and push the correct paginated subset of messages and members via the views.
-- The sender daemon connects as an admin identity and subscribes to outbound worker views such as `sender_mail_ingress`, `sender_mail_delivery_messages`, `sender_mail_delivery_pending`, `sender_mail_delivery_claimed`, `sender_mail_delivery_done`, `sender_mail_delivery_events`, `sender_mail_delivery_temporary_failed`, `sender_mail_messages`, `sender_message_topics`, and `sender_topic_app_passwords`.
+Outbound work is scheduled inside the module; no external worker subscribes to queue views. Legacy SMTP queue tables remain private to the module while pending rows are handled by the migration procedure. See [Outbound Delivery](../outbound-delivery.md) for the current queue and rollout details.

@@ -12,36 +12,63 @@ How to build, publish, and manage the SpacetimeDB module.
 
 ## Build and Publish
 
-Build and publish the module, selecting the target profile via `APP_PROFILE` (defaults to `profiles/example.toml` if omitted):
+Publish through the profile-aware wrapper. It reads `profiles/$APP_PROFILE/profile.toml`, uses the profile's module name, and passes `APP_PROFILE` to `spacetime publish` so the module build uses that profile. It sets the profile's OIDC issuer as a SpacetimeDB module environment value. Without `--server`, SpacetimeDB CLI publishes to its local default server; pass `--server <url-or-name>` to publish elsewhere. `APP_PROFILE` defaults to `example`. The wrapper sets all six declared module environment variables from the profile: `OIDC_ISSUER_URL` from `[oauth].issuer_url`; `JMAP_DISPATCH_ENABLED`, `SYSTEM_JMAP_USERNAME`, and `SYSTEM_JMAP_PASSWORD` from `[mail]`; `MESSAGE_ID_DOMAIN` from the hostname in `[server].frontend_base_url`; and `MAIL_UNSUBSCRIBE_BASE_URL` from `[spacetimedb].uri`. Blank mail credentials are exported as empty strings, so the profile is authoritative on each publish. Store production credentials only in an ignored custom profile.
+
+The Zed publish task sources `.env/.env.oidc` to select `APP_PROFILE`; the six module values are then loaded from that profile and replace any matching shell values.
 
 ```bash
-# Standard build and publish
-APP_PROFILE=my-org spacetime build -p server kommunikation
-APP_PROFILE=my-org spacetime publish -p server kommunikation
+APP_PROFILE=my-org python3 scripts/publish_spacetime.py
 ```
 
-Use `-c` with publish to clear the database when the schema changes (deletes all data):
+Pass additional `spacetime publish` options after the wrapper command. For example, use `-c` to clear the database when a schema change requires it (deletes all data):
 
 ```bash
-APP_PROFILE=my-org spacetime publish -p server kommunikation -c
+APP_PROFILE=my-org python3 scripts/publish_spacetime.py -c
 ```
+
+Direct `spacetime publish` still builds the server module, but does not copy `[oauth].issuer_url` from the application profile into the published module environment.
 
 ## Client Bindings
 
 Regenerate bindings after schema or reducer changes:
 
 ```bash
-spacetimedb-cli generate --lang dioxus -p server -o admin/src/module_bindings/
-spacetimedb-cli generate --lang rust -p server -o sender/src/module_bindings/
+spacetimedb-cli generate --lang=dioxus -p server -o admin/src/module_bindings/
 ```
 
-This uses a custom `spacetimedb-cli` and cannot be run by AI agents.
+The command compiles the module and generates client bindings from its schema. Verify the generated files after schema changes; binding generation does not publish to a database.
 
 ## SpacetimeDB Server
 
 ```bash
 spacetime start   # localhost:3000
 ```
+
+## Managing Module Environment Secrets
+
+SpacetimeDB v2.12+ supports typed environment secrets declared in the module via `#[spacetimedb::env]`. Secrets are set at publish time and persist across subsequent publishes. They are readable by module code via `ctx.env` but are never exposed to clients.
+
+### Change profile-backed values
+
+Edit the corresponding fields in the selected `profile.toml`, then publish with `scripts/publish_spacetime.py`. The wrapper supplies all six module values on every publish; blank JMAP credentials are supplied as empty strings and therefore clear previously stored values. The application profile is the source of truth.
+
+Do not use `--env-only` to manage these six values because it bypasses the profile. A direct `spacetime publish --env-only` change can be replaced by the next wrapper publish.
+
+### List declared environment keys
+
+```bash
+spacetime env list kommunikation
+```
+
+### Read the current value of a key
+
+```bash
+spacetime env get kommunikation JMAP_DISPATCH_ENABLED
+```
+
+`spacetime env list` and `spacetime env get` display values. Do not share their output if it contains secrets; do not read back a password just to verify it.
+
+---
 
 ## Status and Debugging
 

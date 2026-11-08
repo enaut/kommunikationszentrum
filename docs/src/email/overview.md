@@ -1,39 +1,19 @@
 # Email System Integration
 
-The email subsystem connects the external Stalwart Mail Transfer Agent (MTA) with the SpacetimeDB core database and the background sender daemon to provide a secure, authenticated, mailing list distribution platform.
+The email system connects Stalwart with the SpacetimeDB module. Stalwart delivers inbound SMTP hook events to the module; the module validates topic messages and stores accepted ingress. A scheduled module procedure fans accepted messages out to subscribers and submits individual messages to Stalwart through JMAP.
 
----
+### Core components
 
-## Core Components
+1. **Stalwart MTA** accepts inbound SMTP, sends hook requests to the module, manages domains and topic mailboxes, and provides the JMAP API used for outbound submission.
+2. **SpacetimeDB module** evaluates admission, records message and ingress state, composes recipient-specific messages, schedules delivery, and tracks retries and outcomes.
+3. **Admin interface** manages topics and subscriptions and exposes delivery status to administrators.
 
-```d2
-{{#include stalwart-architecture.d2}}
-```
+### Chapter contents
 
-1. **Stalwart MTA**:
-   - Accepts inbound SMTP sessions on port 25.
-   - Forwards each SMTP session stage (CONNECT, EHLO, AUTH, MAIL FROM, RCPT TO, DATA) via HTTP webhooks to SpacetimeDB.
-   - Accepts outbound mail submissions from the sender daemon via SMTP on port 465/587 using per-topic credentials.
-   - Manages domain inventory and topic mailboxes via JMAP REST API.
-
-2. **SpacetimeDB Module**:
-   - Evaluates client IPs against `blocked_ips` in the CONNECT stage and enforces mailing-list admission rules during the DATA stage.
-   - Passes non-topic mail through untouched without modifications or database writes.
-   - Seeds accepted topic deliveries into the `mail_ingress` delivery pipeline, records per-topic admission outcomes in `received_message`, and queues rejection notifications for rejected topics.
-
-3. **Sender Daemon**:
-   - Claims pending ingress jobs from SpacetimeDB.
-   - Expands delivery recipients based on active topic subscriptions.
-   - Submits outbound messages back through Stalwart using topic application passwords.
-
----
-
-## Chapter Contents
-
-- [Stalwart MTA Setup](./stalwart-setup.md): Complete setup guide including listener configuration (port 8093), admin API keys, MTA hook setup, and telemetry with screenshots.
-- [MTA Hook Configuration](./mta-hook-config.md): Details on the HTTP webhook contract (`stalwart_mta_hook_types`), error handling, and test scripts.
-- [Email Topics & Categories](./topics.md): Topic definitions, categories, schemas, and address validation.
-- [Subscription System](./subscriptions.md): Member subscriptions, verification flow, and state transitions.
-- [Processing Flow](./processing-flow.md): Step-by-step breakdown of each SMTP stage decision logic.
-- [Trigger Flow](./flow-email-triggers.md): Inbound and outbound delivery sequence diagrams.
-
+- [Stalwart MTA Setup](./stalwart-setup.md): listeners, API keys, MTA hook setup, and telemetry.
+- [MTA Hook Configuration](./mta-hook-config.md): webhook contract, error handling, and test scripts.
+- [Email Topics & Categories](./topics.md): topic definitions, categories, and address validation.
+- [Subscription System](./subscriptions.md): member subscriptions, verification, and state transitions.
+- [Processing Flow](./processing-flow.md): SMTP-stage admission and persistence.
+- [Trigger Flow](./flow-email-triggers.md): inbound processing and scheduled delivery.
+- [Outbound Delivery](../core/outbound-delivery.md): JMAP delivery state, retry handling, and migration notes.

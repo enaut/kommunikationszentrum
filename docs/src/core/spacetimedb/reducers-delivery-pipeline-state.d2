@@ -1,21 +1,16 @@
 direction: right
 
-IngressLifecycle: {
-  pending -> processing: "claim_next_mail_ingress()"
-  processing -> completed: "complete_mail_ingress()"
-  processing -> retry_scheduled: "retry_mail_ingress() [transient]"
-  processing -> failed: "fail_mail_ingress() [terminal]"
-  retry_scheduled -> pending: "next_attempt_at reached"
-  processing -> pending: "expire_stale_delivery_claims() [lease expired]"
-}
-
-DeliveryLifecycle: {
-  pending -> claimed: "claim_next_mail_delivery()"
-  claimed -> sent: "mark_mail_delivery_sent()"
-  claimed -> temporary_failed: "schedule_mail_delivery_retry()"
-  temporary_failed -> pending: "requeue_temporary_failed_mails()"
-  temporary_failed -> cancelled: "cancel_mail_delivery_retry() [admin]"
-  claimed -> failed: "fail_mail_delivery() [permanent]"
-  claimed -> bounced: "mark_mail_delivery_bounced()"
-  claimed -> pending: "expire_stale_delivery_claims() [lease expired]"
+JmapDeliveryLifecycle: {
+  pending -> importing: "scheduled JMAP dispatch"
+  importing -> pending: "retryable import failure"
+  importing -> imported: "Email imported to Stalwart outbox"
+  importing -> failed: "permanent import failure"
+  imported -> submitting: "JMAP submission"
+  submitting -> sent: "submission accepted"
+  submitting -> submission_unknown: "submission outcome uncertain"
+  submitting -> failed: "permanent submission failure"
+  submission_unknown -> sent: "reconciliation finds accepted submission"
+  submission_unknown -> submitting: "reconciliation finds no accepted submission"
+  failed -> pending: "admin retry without imported Email ID"
+  failed -> submission_unknown: "admin retry with imported Email ID"
 }

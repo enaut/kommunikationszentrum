@@ -113,7 +113,7 @@ sudo install -m 755 target/release/nextcloud-sync /usr/local/bin/nextcloud-sync
 
 ### 2. System User & Configuration Directory
 
-Create the dedicated system user and group (if not already created for the `sender` daemon):
+Create the dedicated system user and group if they do not already exist:
 
 ```bash
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin --user-group kommunikationszentrum 2>/dev/null || true

@@ -193,92 +193,20 @@ direction: right
   }
 }
 
-"Sender Worker Views": {
+"JMAP Delivery Views": {
   style.fill: "#fef3c7"
 
-  sender_mail_messages: |md
-    ### sender_mail_messages
-    * Admin-only raw message bodies and headers.
+  sender_jmap_mail_deliveries: |md
+    ### sender_jmap_mail_deliveries
+    * Administrator-filtered JMAP delivery state for the status page.
   | {
     shape: rectangle
     style.fill: "#f3e5f5"
   }
 
-  sender_mail_ingress: |md
-    ### sender_mail_ingress
-    * Admin-only ingress queue for the sender daemon.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_mail_delivery_messages: |md
-    ### sender_mail_delivery_messages
-    * Admin-only outbound per-recipient message bodies & envelopes.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_mail_delivery_pending: |md
-    ### sender_mail_delivery_pending
-    * Current outbound work queue.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_mail_delivery_claimed: |md
-    ### sender_mail_delivery_claimed
-    * Active lease-bound work.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_mail_delivery_done: |md
-    ### sender_mail_delivery_done
-    * Terminal delivery audit rows.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_mail_delivery_events: |md
-    ### sender_mail_delivery_events
-    * Immutable attempt and SMTP logs.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_mail_delivery_temporary_failed: |md
-    ### sender_mail_delivery_temporary_failed
-    * Retry queue for transient SMTP failures.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_system_mail_pending: |md
-    ### sender_system_mail_pending
-    * Admin-only queue for pending verification & system emails.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_message_topics: |md
-    ### sender_message_topics
-    * Admin-only view of topics for routing & Stalwart account mapping.
-  | {
-    shape: rectangle
-    style.fill: "#f3e5f5"
-  }
-
-  sender_topic_app_passwords: |md
-    ### sender_topic_app_passwords
-    * Admin-only managed topic SMTP credentials.
+  sender_jmap_mail_delivery_events: |md
+    ### sender_jmap_mail_delivery_events
+    * Administrator-filtered JMAP delivery events.
   | {
     shape: rectangle
     style.fill: "#f3e5f5"
@@ -304,15 +232,6 @@ direction: right
 "Private Tables".account -> "Member / Admin Views".total_accounts
 "Private Tables".received_message -> "Member / Admin Views".topic_message_counts
 "Private Tables".subscriptions -> "Member / Admin Views".topic_subscriber_counts
-"Private Tables".mail_message -> "Sender Worker Views".sender_mail_messages
-"Private Tables".mail_ingress -> "Sender Worker Views".sender_mail_ingress
-"Private Tables".mail_delivery_message -> "Sender Worker Views".sender_mail_delivery_messages
-"Private Tables".mail_delivery_pending -> "Sender Worker Views".sender_mail_delivery_pending
-"Private Tables".mail_delivery_claimed -> "Sender Worker Views".sender_mail_delivery_claimed
-"Private Tables".mail_delivery_done -> "Sender Worker Views".sender_mail_delivery_done
-"Private Tables".mail_delivery_events -> "Sender Worker Views".sender_mail_delivery_events
-"Private Tables".mail_delivery_temporary_failed -> "Sender Worker Views".sender_mail_delivery_temporary_failed
-"Private Tables".system_mail_pending -> "Sender Worker Views".sender_system_mail_pending
-"Private Tables".message_topics -> "Sender Worker Views".sender_message_topics
-"Private Tables".topic_app_passwords -> "Sender Worker Views".sender_topic_app_passwords
+"Private Tables".jmap_mail_deliveries -> "JMAP Delivery Views".sender_jmap_mail_deliveries
+"Private Tables".jmap_mail_delivery_events -> "JMAP Delivery Views".sender_jmap_mail_delivery_events
 
