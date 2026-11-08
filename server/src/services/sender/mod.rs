@@ -178,6 +178,7 @@ fn fan_out_one_ingress(ctx: &mut ProcedureContext) -> Result<(), String> {
                 matches!(
                     row.claim.status,
                     crate::common::delivery_types::DeliveryStatus::Pending
+                        | crate::common::delivery_types::DeliveryStatus::Processing
                         | crate::common::delivery_types::DeliveryStatus::RetryScheduled
                 ) && row.claim.next_attempt_at <= now
                     && (row.claim.claim_owner.is_none() || row.claim.claim_expires_at <= now)
