@@ -28,8 +28,9 @@ pub(super) fn compose_mail(
     }
     let (mime_headers, mime_body) = prepare_mime_entity(headers_raw, body_raw)?;
     let subject = list_subject(topic_name, subject);
+    let from_name = safe_header(topic_name).trim().to_string();
     let mut builder = MessageBuilder::new()
-        .from(from)
+        .from((from_name, from.to_string()))
         .to(recipient)
         .reply_to(from)
         .subject(subject)
@@ -417,6 +418,29 @@ mod tests {
         assert!(String::from_utf8_lossy(&composed).contains("X-SolaWi-Delivery-ID: delivery-1"));
         assert!(parsed.attachments().next().is_some());
         assert!(!String::from_utf8_lossy(&composed).contains(token));
+    }
+
+    #[test]
+    fn sets_topic_name_as_from_display_name() {
+        let composed = compose_mail(
+            "schuhlemitmachen@uhle.cloud",
+            "member@example.org",
+            "SchUhleMitmachen",
+            "Subject",
+            "<id@example.org>",
+            "delivery-1",
+            "",
+            "[]",
+            "Hello\r\n",
+            None,
+            1_700_000_000,
+        )
+        .unwrap();
+        let parsed = MessageParser::default().parse(&composed).unwrap();
+        let from = parsed.from().unwrap().first().unwrap();
+
+        assert_eq!(from.name(), Some("SchUhleMitmachen"));
+        assert_eq!(from.address(), Some("schuhlemitmachen@uhle.cloud"));
     }
 
     #[test]
