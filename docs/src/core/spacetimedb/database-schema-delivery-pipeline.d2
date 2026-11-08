@@ -8,78 +8,48 @@ MTA: {
 MailMessage: {
   shape: page
   label: "mail_message [Private]"
-  purpose: "Canonical inbound message"
+  purpose: "Canonical inbound content"
 }
 
 Ingress: {
   shape: class
   label: "mail_ingress [Private]"
   state: "pending | processing | retry_scheduled | completed | failed"
-  lease: "claim_owner, instance_id, claim_expires_at"
 }
 
 FanOut: {
   shape: diamond
-  label: "Fan-out engine\n(sender daemon)"
+  label: "Scheduled SpacetimeDB procedure\nrecipient fan-out"
 }
 
-DeliveryMessage: {
-  shape: page
-  label: "mail_delivery_message [Private]"
-  purpose: "RFC 5322 payload per recipient"
-}
-
-Pending: {
+Delivery: {
   shape: class
-  label: "mail_delivery_pending [Private]"
-  key: "outbound queue item"
-}
-
-TemporaryRetry: {
-  shape: queue
-  label: "mail_delivery_temporary_failed [Private]"
-  backoff: "next_attempt_at + last_error"
-}
-
-Claimed: {
-  shape: class
-  label: "mail_delivery_claimed [Private]"
-  lease: "worker + instance_id + lease_expires_at"
-}
-
-Done: {
-  shape: class
-  label: "mail_delivery_done [Private]"
-  state: "sent | failed | bounced | cancelled"
+  label: "jmap_mail_deliveries [Private]"
+  state: "pending | importing | imported | submitting | submission_unknown | sent | failed"
+  fields: "recipient, claim, retry, JMAP IDs"
 }
 
 Events: {
   shape: page
-  label: "mail_delivery_events [Private]"
-  audit: "attempts + SMTP response"
+  label: "jmap_mail_delivery_events [Private]"
+  audit: "JMAP lifecycle outcomes"
 }
 
-ExpireSchedule: {
-  shape: cylinder
-  label: "expire_stale_delivery_claims_schedule"
+StalwartJMAP: {
+  shape: cloud
+  label: "Stalwart JMAP API"
 }
 
-RetrySchedule: {
-  shape: cylinder
-  label: "requeue_temporary_failed_mails_schedule"
+Legacy: {
+  shape: class
+  label: "Legacy SMTP queue [Private]"
+  purpose: "Migration and reconciliation only"
 }
 
 MTA -> MailMessage: "mail hook"
-MailMessage -> Ingress: "upsert_mail_ingress()"
-Ingress -> FanOut: "claim_next_mail_ingress()"
-FanOut -> DeliveryMessage: "store payload"
-FanOut -> Pending: "enqueue_mail_delivery()"
-Pending -> Claimed: "claim_next_mail_delivery()"
-Claimed -> Done: "sent / failed / bounced"
-Claimed -> TemporaryRetry: "schedule_mail_delivery_retry()" { style.stroke: "#f97316" }
-TemporaryRetry -> Pending: "requeue_temporary_failed_mails()" { style.stroke: "#f97316"; style.stroke-dash: 5 }
-TemporaryRetry -> Done: "cancel_mail_delivery_retry()" { style.stroke: "#ef4444"; style.stroke-dash: 5 }
-Claimed -> Events: "log SMTP outcome"
-ExpireSchedule -> Claimed: "lease recovery" { style.stroke-dash: 5 }
-ExpireSchedule -> Ingress: "lease recovery" { style.stroke-dash: 5 }
-RetrySchedule -> TemporaryRetry: "retry sweep" { style.stroke-dash: 5 }
+MailMessage -> Ingress: "accepted topic message"
+Ingress -> FanOut: "scheduled dispatch"
+FanOut -> Delivery: "one row per recipient"
+Delivery -> StalwartJMAP: "upload, import, submit"
+Delivery -> Events: "audit events"
+Legacy -> Delivery: "migrate unclaimed pending rows"

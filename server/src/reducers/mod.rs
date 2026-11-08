@@ -8,7 +8,7 @@ pub mod topics;
 
 pub use account::*;
 pub use config::*;
-pub use delivery::*;
+
 pub use domain::*;
 pub use mta::*;
 pub use topics::*;

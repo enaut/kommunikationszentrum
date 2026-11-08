@@ -45,7 +45,7 @@ By default, Stalwart may listen for HTTP on port 8080. In this environment, the 
 | `https` | HTTP | `[::]:443` | Yes | Secure web admin and JMAP endpoint. |
 | `smtp` | SMTP | `[::]:25` | No | Inbound SMTP mail from external MTAs. |
 | `submission` | SMTP | `[::]:587` | No | Mail submission by authorized clients (STARTTLS). |
-| `submissions` | SMTP | `[::]:465` | Yes | Implicit TLS submission used by the sender daemon. |
+| `submissions` | SMTP | `[::]:465` | Yes | Implicit TLS submission listener for authorized SMTP clients. The native delivery pipeline uses Stalwart JMAP. |
 | `imaps` | IMAP4 | `[::]:993` | Yes | Secure IMAP mailbox access. |
 | `pop3s` | POP3 | `[::]:995` | Yes | Secure POP3 mailbox access. |
 | `sieve` | ManageSieve | `[::]:4190` | No | Sieve script management. |

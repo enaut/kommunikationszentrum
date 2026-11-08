@@ -77,35 +77,17 @@ MTA hook processing is handled via HTTP handlers (`POST /mta-hook`), documented 
 | `set_mail_retention_config` | Admin | `rejected_retention_days: u32` | Updates the retention period (in days, default 30) before rejected messages are permanently purged. |
 | `purge_rejected_mails` | Scheduled / Internal | `_timer: PurgeRejectedMailsSchedule` | Scheduled reducer running every 24 hours to purge rejected `received_message` rows older than the retention cutoff and any orphaned `mail_message` records. |
 
-### System Mail Reducers
+### Native JMAP Delivery
 
-System transactional emails (such as email verification requests) are queued in `system_mail_pending` and dispatched by the sender daemon using distributed leases.
-
-| Function | Visibility | Parameters | Description |
-|---|---|---|---|
-| `claim_system_mail` | Sender Daemon / Admin | `mail_id: u64, instance_id: String` | Claims an unowned pending system email under a 5-minute worker lease. |
-| `release_system_mail` | Sender Daemon / Admin | `mail_id: u64` | Releases worker claim on a system email upon transient delivery failure. |
-| `complete_system_mail` | Sender Daemon / Admin | `mail_id: u64` | Deletes a successfully dispatched system email from `system_mail_pending`. |
-
-### Delivery Pipeline Reducers
+System notifications and accepted mailing-list messages are dispatched by the scheduled procedure `dispatch_jmap_mail`. It is gated by `JMAP_DISPATCH_ENABLED` and performs JMAP I/O outside reducer transactions. Delivery and event state is stored in the native JMAP tables and exposed to administrators through scoped views.
 
 | Function | Visibility | Parameters | Description |
 |---|---|---|---|
-| `claim_next_mail_ingress` | Sender Daemon | `instance_id: String` | Claims the next runnable ingress fan-out job by lease and retry time. |
-| `increment_mail_ingress_delivery_count` | Sender Daemon | `ingress_id: String, instance_id: String` | Increments the per-ingress success counter after enqueuing deliveries. |
-| `increment_mail_ingress_failed_delivery_count` | Sender Daemon | `ingress_id: String, instance_id: String` | Tracks per-ingress failures while preparing deliveries. |
-| `complete_mail_ingress` | Sender Daemon | `ingress_id: String, instance_id: String` | Marks the ingress fan-out job complete. |
-| `retry_mail_ingress` | Sender Daemon | `ingress_id: String, instance_id: String, error: String` | Re-schedules ingress fan-out retry with exponential backoff. |
-| `fail_mail_ingress` | Sender Daemon | `ingress_id: String, instance_id: String, error: String` | Marks ingress as terminally failed. |
-| `enqueue_mail_delivery` | Sender Daemon | `ingress_id: String, subscription_id: u64, recipient_email: String, recipient_account_id: Option<u64>, from_header: String, reply_to: String, raw_message: String` | Inserts immutable `MailDeliveryMessage` row and queues recipient delivery in `mail_delivery_pending`. |
-| `claim_next_mail_delivery` | Sender Daemon | `instance_id: String` | Claims the next ready delivery from `mail_delivery_pending` and moves it to `mail_delivery_claimed` under worker lease. |
-| `mark_mail_delivery_sent` | Sender Daemon | `delivery_id: String, instance_id: String, smtp_status_code: Option<u16>, smtp_response: String` | Deletes claim, logs event, and records terminal state in `mail_delivery_done` (`final_state: Sent`). |
-| `schedule_mail_delivery_retry` | Sender Daemon | `delivery_id: String, instance_id: String, error_msg: String, delay_micros: i64` | Deletes claim, logs event, bumps `attempt_count`, and moves record to `mail_delivery_temporary_failed` with `next_attempt_at`. |
-| `requeue_temporary_failed_mails` | System (Scheduled) | `_scheduled: RequeueTemporaryFailedMailsSchedule` | Moves expired temporary failure rows back to `mail_delivery_pending`. |
-| `cancel_mail_delivery_retry` | Admin | `delivery_id: String` | Removes a delivery from `mail_delivery_temporary_failed` and records cancellation in `mail_delivery_done` (`final_state: Cancelled`). |
-| `fail_mail_delivery` | Sender Daemon | `delivery_id: String, instance_id: String, smtp_status_code: Option<u16>, smtp_response: String, error_kind: String` | Deletes claim, logs event, and records terminal failure in `mail_delivery_done` (`final_state: Failed`). |
-| `mark_mail_delivery_bounced` | Sender Daemon | `delivery_id: String, instance_id: String, smtp_status_code: Option<u16>, smtp_response: String, error_kind: String` | Deletes claim, logs event, and records bounce in `mail_delivery_done` (`final_state: Bounced`). |
-| `expire_stale_delivery_claims` | System (Scheduled) | `_scheduled: ExpireStaleDeliveryClaimsSchedule` | Reclaims expired worker leases for stalled ingress jobs and stalled delivery claims, returning them to pending. |
+| `dispatch_jmap_mail` | Scheduled / Internal | Scheduled row | Imports queued system mail, fans out accepted ingress, and dispatches due JMAP deliveries when enabled. |
+| `retry_failed_jmap_delivery` | Admin | `delivery_id: String` | Requeues a permanently failed JMAP delivery after an administrator addresses its cause. |
+| `migrate_pending_legacy_deliveries` | Admin procedure | none | Moves unclaimed legacy pending and temporary-failure rows into the JMAP queue. Claimed legacy rows are left for explicit reconciliation. |
+
+Legacy SMTP queue tables remain private for migration and reconciliation. The `migrate_pending_legacy_deliveries` procedure moves eligible pending rows into the JMAP queue; claimed rows require explicit outcome reconciliation.
 
 ---
 

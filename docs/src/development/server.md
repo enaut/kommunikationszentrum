@@ -140,35 +140,9 @@ Clients subscribe to the view name (e.g. `visible_accounts`), not the raw table 
 
 ## Delivery Pipeline — Developer Notes
 
-The two-phase delivery pipeline (`mail_ingress` → `mail_deliveries`) is designed for
-**at-least-once delivery** with an external sender daemon:
+Outbound delivery is owned by the scheduled JMAP pipeline in `server/src/services/sender/`. `mail_ingress` records accepted inbound messages; the scheduled dispatcher fans them out into durable per-recipient JMAP rows and records delivery events. Reducers perform state transitions, and JMAP HTTP requests run through the SpacetimeDB procedure API outside transactions.
 
-### Claim Protocol
-
-The claim/complete loop is intentionally simple:
-
-```
-daemon:  call claim_next_mail_ingress()
-         ← SpacetimeDB subscription push: ingress row with claim_owner == own identity
-         fan out to deliveries via enqueue_mail_delivery()
-         call complete_mail_ingress(ingress_id, delivery_count, failed_count)
-```
-
-The lease expiry (`claim_expires_at`) prevents stale claims from blocking progress if the
-daemon crashes. Any daemon instance can re-claim after the lease expires.
-
-### Idempotency
-
-- `upsert_mail_ingress` checks for an existing `id` before inserting.
-- `upsert_mail_delivery` will not overwrite a terminal delivery (`sent`, `failed`, `bounced`).
-- Retry state transitions are guarded by claim owner checks to prevent concurrent updates.
-
-### Adding a New Delivery State
-
-1. Add a `pub const MAIL_DELIVERY_<STATE>: &str = "<state>";` constant in `delivery.rs`.
-2. Update `claimable_delivery()` if the new state is claimable.
-3. Add the corresponding reducer.
-4. Update the sender daemon to handle the new state.
+Legacy SMTP queue tables and the `migrate_pending_legacy_deliveries` procedure remain for migration and reconciliation. Keep legacy rows intact until they are migrated or reconciled; do not reset production data as part of routine schema publication.
 
 ---
 

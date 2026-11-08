@@ -9,6 +9,7 @@ use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 #[derive(Copy, Eq, Hash)]
 pub enum JmapDeliveryActor {
     Scheduled,
+
     Admin,
 }
 
@@ -16,7 +17,7 @@ impl __sdk::InModule for JmapDeliveryActor {
     type Module = super::RemoteModule;
 }
 
-// NOTE: hand-maintained until `spacetime generate --lang dioxus` is available again.
+// Custom formatting is intentionally maintained alongside the generated binding.
 impl std::fmt::Display for JmapDeliveryActor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

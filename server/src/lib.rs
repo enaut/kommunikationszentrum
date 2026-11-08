@@ -5,10 +5,6 @@ use spacetimedb::{ReducerContext, ScheduleAt, Table};
 use crate::models::{
     account::{AdminIdentity, admin_identities},
     config::{MailRetentionConfig, mail_retention_config},
-    delivery::{
-        ExpireStaleDeliveryClaimsSchedule, RequeueTemporaryFailedMailsSchedule,
-        expire_stale_delivery_claims_schedule, requeue_temporary_failed_mails_schedule,
-    },
     mta::{PurgeRejectedMailsSchedule, purge_rejected_mails_schedule},
     sender::{JmapMailDispatchSchedule, jmap_mail_dispatch_schedule},
 };
@@ -39,39 +35,6 @@ pub fn init(ctx: &ReducerContext) {
             identity: sender_identity,
         });
         log::info!("Seeded sender identity as admin: {:?}", sender_identity);
-    }
-
-    // Seed the schedule for expire_stale_delivery_claims if it doesn't exist
-    if ctx
-        .db
-        .expire_stale_delivery_claims_schedule()
-        .scheduled_id()
-        .find(&0)
-        .is_none()
-    {
-        ctx.db
-            .expire_stale_delivery_claims_schedule()
-            .insert(ExpireStaleDeliveryClaimsSchedule {
-                scheduled_id: 0,
-                scheduled_at: ScheduleAt::Interval(Duration::from_secs(60).into()),
-            });
-        log::info!("Seeded expire_stale_delivery_claims schedule");
-    }
-
-    if ctx
-        .db
-        .requeue_temporary_failed_mails_schedule()
-        .scheduled_id()
-        .find(&0)
-        .is_none()
-    {
-        ctx.db.requeue_temporary_failed_mails_schedule().insert(
-            RequeueTemporaryFailedMailsSchedule {
-                scheduled_id: 0,
-                scheduled_at: ScheduleAt::Interval(Duration::from_secs(10).into()),
-            },
-        );
-        log::info!("Seeded requeue_temporary_failed_mails schedule");
     }
 
     if ctx

@@ -29,11 +29,7 @@
       - [User Synchronization](./core/spacetimedb/http-handlers/user-sync.md)
       - [API Endpoints](./core/spacetimedb/http-handlers/api-endpoints.md)
 
-  - [Sender Daemon](./core/sender/overview.md)
-    - [SpacetimeDB-Native Sender](./core/sender/spacetimedb-jmap.md)
-    - [Configuration](./core/sender/configuration.md)
-    - [Control Flow](./core/sender/control-flow.md)
-    - [Usage Guide](./core/sender/usage.md)
+  - [Outbound Delivery](./core/outbound-delivery.md)
 
   - [Admin Interface](./core/admin/overview.md)
     - [User Guide](./core/admin/user-guide.md)
@@ -63,7 +59,7 @@
   - [Testing](./development/testing.md)
   - [Debugging](./development/debugging.md)
   - [Server Module](./development/server.md)
-  - [Sender Daemon](./development/sender.md)
+
 
 - [Operations](./operations/overview.md)
   - [Deployment]()

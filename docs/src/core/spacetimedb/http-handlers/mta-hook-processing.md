@@ -49,8 +49,8 @@ The `data` handler runs inside `ctx.with_tx(...)` to ensure atomic state updates
 4. **Persistence & RAM Optimization**:
    - Inserts a canonical `MailMessage` row. For oversized messages, `body_raw` is stored as an empty string (`""`) to conserve SpacetimeDB RAM, while Stalwart retains the complete payload on disk/S3.
    - Records a `ReceivedMessage` entry for each target topic with its admission `disposition` (`Accepted` or `Rejected(reason)`).
-   - If accepted: Enqueues a `MailIngress` fan-out record for background processing by the sender daemon.
-   - If rejected: Queues an automated explanatory notice in `SystemMailPending` from `SMTP_SYSTEM_USER` to the sender (unless the sender is `<>`).
+   - If accepted: Enqueues a `MailIngress` record for the scheduled in-module JMAP delivery pipeline.
+   - If rejected: Queues an automated explanatory notice in `SystemMailPending` for scheduled JMAP delivery (unless the sender is `<>`).
 
 5. **Stalwart Hook Response Modifications**:
    - Adds header `X-Processed-By: SpacetimeDB Kommunikationszentrum`.

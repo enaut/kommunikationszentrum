@@ -8,10 +8,6 @@ external: "External Systems" {
   stalwart: "Stalwart MTA\nSMTP + JMAP + domains" {
     style.fill: "#eaeaea"
   }
-  relay: "Outbound SMTP relay" {
-    shape: cloud
-    style.fill: "#f2ebff"
-  }
 }
 
 core: "Kommunikationszentrum" {
@@ -19,16 +15,9 @@ core: "Kommunikationszentrum" {
   admin: "Admin UI\nDioxus" {
     style.fill: "#dfeeff"
   }
-  db: "SpacetimeDB\nDB + reducers + HTTP" {
+  db: "SpacetimeDB\nDB + reducers + scheduled JMAP delivery" {
     style.fill: "#ffd8d8"
   }
-  sender: "Sender daemon\ndelivery + retry queue" {
-    style.fill: "#dfffe9"
-  }
-}
-
-retry: "Temporary failure queue" {
-  style.fill: "#ffe8c6"
 }
 
 domains: "Domain registry\ntopic app passwords" {
@@ -50,24 +39,9 @@ external.stalwart -> core.db: "MTA hooks\ndomain sync" {
 external.stalwart <-> core.db: "mailbox inventory\nmailbox credentials" {
   style.stroke: "#8b5cf6"
 }
-core.db -> core.sender: "delivery fan-out" {
+core.db -> external.stalwart: "scheduled JMAP\nmessage submission" {
   style.stroke: "#10b981"
 }
-core.db -> retry: "transient SMTP failures" {
-  style.stroke: "#f97316"
-}
-retry -> core.sender: "requeue" {
-  style.stroke: "#f97316"
-}
-core.sender -> external.stalwart: "submission via list SMTP auth" {
-  style.stroke: "#14b8a6"
-}
-core.sender -> external.relay: "final SMTP delivery" {
-  style.stroke: "#7c3aed"
-}
 core.db -> domains: "topic and domain state" {
-  style.stroke: "#a855f7"
-}
-domains -> core.sender: "per-list credentials" {
   style.stroke: "#a855f7"
 }

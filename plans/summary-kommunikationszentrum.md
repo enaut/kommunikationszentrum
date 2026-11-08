@@ -158,7 +158,7 @@ Posting Permission: The sender must either be an admin OR have an active subscri
 If authorized, the message is stored in MailMessage and ReceivedMessage, and a fan-out job is enqueued in MailIngress.
 Outbound Fan-Out & Message Assembly (sender):
 
-The sender daemon claims MailIngress jobs under a lease.
+The scheduled SpacetimeDB JMAP dispatcher processes MailIngress jobs and persists per-recipient delivery state.
 For each active subscriber of the category:
 Prepares an RFC 5322 message using lettre.
 Rewrites the Subject to prepend [ListName]: (preserving and standardizing Re: and Fwd: tags).

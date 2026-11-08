@@ -322,19 +322,7 @@ direction: down
     claimed_at: "Option<Timestamp>"
   }
 
-  expire_stale_delivery_claims_schedule: {
-    shape: sql_table
-    label: "expire_stale_delivery_claims_schedule [Public]"
-    scheduled_id: "u64" {constraint: [primary_key; INC]}
-    scheduled_at: "ScheduleAt"
-  }
 
-  requeue_temporary_failed_mails_schedule: {
-    shape: sql_table
-    label: "requeue_temporary_failed_mails_schedule [Public]"
-    scheduled_id: "u64" {constraint: [primary_key; INC]}
-    scheduled_at: "ScheduleAt"
-  }
 }
 
 claim_state: {

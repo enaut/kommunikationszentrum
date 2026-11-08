@@ -1,8 +1,7 @@
 use crate::common::auth::is_admin_user;
 use crate::models::account::*;
 use crate::models::config::*;
-use crate::models::delivery::*;
-use crate::models::mail_message::*;
+
 use crate::models::sender::*;
 use crate::models::topic::*;
 use log::info;
@@ -32,58 +31,6 @@ pub fn sender_jmap_mail_delivery_events(ctx: &ViewContext) -> impl Query<JmapMai
     ctx.from
         .jmap_mail_delivery_events()
         .r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_mail_ingress, public)]
-pub fn sender_mail_ingress(ctx: &ViewContext) -> impl Query<MailIngress> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.mail_ingress().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_mail_delivery_messages, public)]
-pub fn sender_mail_delivery_messages(ctx: &ViewContext) -> impl Query<MailDeliveryMessage> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.mail_delivery_message().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_mail_delivery_pending, public)]
-pub fn sender_mail_delivery_pending(ctx: &ViewContext) -> impl Query<MailDeliveryPending> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.mail_delivery_pending().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_mail_delivery_claimed, public)]
-pub fn sender_mail_delivery_claimed(ctx: &ViewContext) -> impl Query<MailDeliveryClaimed> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.mail_delivery_claimed().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_mail_delivery_done, public)]
-pub fn sender_mail_delivery_done(ctx: &ViewContext) -> impl Query<MailDeliveryDone> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.mail_delivery_done().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_mail_delivery_events, public)]
-pub fn sender_mail_delivery_events(ctx: &ViewContext) -> impl Query<MailDeliveryEvent> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.mail_delivery_events().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_mail_delivery_temporary_failed, public)]
-pub fn sender_mail_delivery_temporary_failed(
-    ctx: &ViewContext,
-) -> impl Query<MailDeliveryTemporaryFailed> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from
-        .mail_delivery_temporary_failed()
-        .r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_mail_messages, public)]
-pub fn sender_mail_messages(ctx: &ViewContext) -> impl Query<MailMessage> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.mail_message().r#filter(move |_| is_admin)
 }
 
 #[spacetimedb::view(accessor = active_subscriptions, public)]
@@ -147,40 +94,4 @@ pub fn visible_webhook_tokens(ctx: &ViewContext) -> impl Query<WebhookToken> {
 pub fn visible_topic_app_passwords(ctx: &ViewContext) -> impl Query<TopicAppPassword> {
     let is_admin = is_admin_user(ctx);
     ctx.from.topic_app_passwords().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_system_mail_pending, public)]
-pub fn sender_system_mail_pending(ctx: &ViewContext) -> impl Query<SystemMailPending> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.system_mail_pending().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_account_emails, public)]
-pub fn sender_account_emails(ctx: &ViewContext) -> impl Query<AccountEmail> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.account_emails().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_subscriptions, public)]
-pub fn sender_subscriptions(ctx: &ViewContext) -> impl Query<Subscription> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.subscriptions().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_message_topics, public)]
-pub fn sender_message_topics(ctx: &ViewContext) -> impl Query<MessageTopic> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.message_topics().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_topic_app_passwords, public)]
-pub fn sender_topic_app_passwords(ctx: &ViewContext) -> impl Query<TopicAppPassword> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.topic_app_passwords().r#filter(move |_| is_admin)
-}
-
-#[spacetimedb::view(accessor = sender_accounts, public)]
-pub fn sender_accounts(ctx: &ViewContext) -> impl Query<Account> {
-    let is_admin = is_admin_user(ctx);
-    ctx.from.account().r#filter(move |_| is_admin)
 }

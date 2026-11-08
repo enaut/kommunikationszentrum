@@ -2,6 +2,7 @@
 // WILL NOT BE SAVED. MODIFY TABLES IN YOUR MODULE SOURCE CODE INSTEAD.
 
 #![allow(unused, clippy::all)]
+use super::jmap_delivery_actor_type::JmapDeliveryActor;
 use super::jmap_mail_delivery_event_type::JmapMailDeliveryEvent;
 use spacetimedb_sdk::__codegen::{self as __sdk, __lib, __sats, __ws};
 

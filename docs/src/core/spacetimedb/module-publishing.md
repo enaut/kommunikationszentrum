@@ -33,13 +33,10 @@ Direct `spacetime publish` still builds the server module, but does not copy `[o
 Regenerate bindings after schema or reducer changes:
 
 ```bash
-spacetimedb-cli generate --lang dioxus -p server -o admin/src/module_bindings/
+spacetimedb-cli generate --lang=dioxus -p server -o admin/src/module_bindings/
 ```
 
-The command compiles the module and generates client bindings from its schema. In the current checkout it writes the new JMAP binding files but exits with `could not extract schema` / `EOF while parsing a value`; verify the generated files and resolve this extraction failure before relying on future regeneration. The separate module build command succeeds; no database publish is performed by binding generation.
-
-> [!NOTE]
-> The `sender/src/module_bindings/` target is no longer generated once the `sender` daemon is retired. Remove it and the `sender` crate together (Phase 7 of the JMAP migration plan).
+The command compiles the module and generates client bindings from its schema. Verify the generated files after schema changes; binding generation does not publish to a database.
 
 ## SpacetimeDB Server
 

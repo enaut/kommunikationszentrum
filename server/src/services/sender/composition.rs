@@ -72,6 +72,9 @@ pub(super) fn compose_mail(
         .map(|(headers, _)| headers)
         .ok_or_else(|| "mail-builder omitted the RFC 5322 header/body separator".to_string())?;
     let mut output = strip_generated_mime_headers(generated_headers);
+    if !output.is_empty() {
+        output.push_str("\r\n");
+    }
     for line in mime_headers.split("\r\n").filter(|line| !line.is_empty()) {
         output.push_str(line);
         output.push_str("\r\n");
@@ -154,14 +157,14 @@ fn prepare_mime_entity(headers_raw: &str, body_raw: &str) -> Result<(String, Vec
             if lower_name == "mime-version" {
                 has_mime_version = true;
             }
-            entity.push_str(&safe_header(&name));
+            entity.push_str(&safe_header(name.trim()));
             entity.push_str(": ");
             let value = if lower_name == "content-type" {
                 value
             } else {
                 clean_unsubscribe_content(&value)
             };
-            entity.push_str(&safe_header(&value));
+            entity.push_str(&safe_header(value.trim()));
             entity.push_str("\r\n");
         }
     }
@@ -414,6 +417,44 @@ mod tests {
         assert!(String::from_utf8_lossy(&composed).contains("X-SolaWi-Delivery-ID: delivery-1"));
         assert!(parsed.attachments().next().is_some());
         assert!(!String::from_utf8_lossy(&composed).contains(token));
+    }
+
+    #[test]
+    fn separates_date_from_mime_headers_and_trims_mime_whitespace() {
+        let headers = serde_json::json!([
+            ["MIME-Version", "  1.0  "],
+            ["Content-Type", " text/plain; charset=UTF-8  "],
+            ["Content-Language", " en-US, de-DE  "],
+            ["Content-Transfer-Encoding", " 7bit "]
+        ])
+        .to_string();
+        let composed = compose_mail(
+            "list@example.org",
+            "member@example.org",
+            "List",
+            "Subject",
+            "<id@example.org>",
+            "delivery-1",
+            "",
+            &headers,
+            "Hello\r\n",
+            Some("Sun, 8 Nov 2026 12:25:07 +0100"),
+            1_794_132_307,
+        )
+        .unwrap();
+        let message = String::from_utf8(composed).unwrap();
+        let headers = message.split("\r\n\r\n").next().unwrap();
+        let lines: Vec<_> = headers.split("\r\n").collect();
+
+        let date_index = lines
+            .iter()
+            .position(|line| *line == "Date: Sun, 8 Nov 2026 12:25:07 +0100")
+            .unwrap();
+        assert_eq!(lines[date_index + 1], "MIME-Version: 1.0");
+        assert!(lines.contains(&"Content-Type: text/plain; charset=UTF-8"));
+        assert!(lines.contains(&"Content-Language: en-US, de-DE"));
+        assert!(lines.contains(&"Content-Transfer-Encoding: 7bit"));
+        assert!(lines.iter().all(|line| !line.ends_with(' ')));
     }
 
     #[test]

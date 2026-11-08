@@ -1,70 +1,28 @@
 # Development Environment
 
-Guide to configuring and running the local development environment for Kommunikationszentrum.
+This guide describes the local services used to develop Kommunikationszentrum.
 
----
+### Components
 
-## Architecture Components
+1. **SpacetimeDB** (`:3000`): database and execution engine for reducers, procedures, scheduled jobs, and HTTP routes.
+2. **Admin Web App** (`:8080`): Dioxus frontend for topics, categories, subscriptions, identities, webhook tokens, and delivery status.
+3. **OIDC Provider** (`:8000` / `:443`): Django `solawispielplatz`, Nextcloud, or Keycloak. Login can provision an account on first connection.
+4. **Stalwart** (`:8093` / `:25`): local MTA for inbound hooks, mailbox management, and JMAP.
+5. **Observability stack**: optional Grafana, Loki, Tempo, and Alloy services in `grafana/`.
 
-A complete local development environment consists of the following components:
+### Environment setup
 
-1. **SpacetimeDB Server** (`:3000`): Database and execution engine for reducers, procedures, and embedded HTTP routes (`/route/mta-hook`, `/route/user-sync`, `/route/topic-sync`, `/route/mailing-list/unsubscribe`).
-2. **Admin Web App** (`:8080`): Dioxus WebAssembly frontend for managing topics, categories, subscriptions, identities, and webhook tokens.
-3. **Sender Daemon**: Background service that claims ingress and delivery jobs from SpacetimeDB and delivers emails via SMTP.
-4. **OIDC Provider** (`:8000` / `:443`): OpenID Connect provider for user authentication (e.g. Django `solawispielplatz`, Nextcloud, Keycloak). Auto-provisions user accounts on first connection.
-5. **Stalwart Mailserver** (`:8093` / `:25`): Local MTA for inbound mail hooks and JMAP mailbox management.
-6. **Observability Stack (Grafana / Loki / Tempo / Alloy)**: Optional local telemetry collector running via `podman-compose` in `grafana/`.
+Configure the application profile in `profiles/<name>/profile.toml` and the matching profile locales. Create local Stalwart settings from the tracked examples under `.env/` as needed. Keep credentials in ignored local configuration or the SpacetimeDB environment, not in source control.
 
----
+### Running development services
 
-## Environment Setup
-
-1. **Global / Admin Configuration**:
-   Copy the master development template to `.env`:
-   ```bash
-   cp .env/.env.example .env
-   ```
-
-2. **Sender Daemon Configuration**:
-   The sender daemon requires its own environment configuration. Copy the sender template:
-   ```bash
-   cp .env/.env.sender.example .env/.env.sender
-   # Alternatively, compatibility file: .env/.env.webhook-proxy
-   ```
-
-3. **Stalwart Mailserver Configuration**:
-   Create Stalwart API credentials and store them in `.env/.env.stalwart-jmap`:
-   ```bash
-   cp .env/.env.stalwart-jmap.example .env/.env.stalwart-jmap
-   ```
-
----
-
-## Running Development Services
-
-### Using Zed Tasks
-
-The project includes pre-configured tasks in `.zed/tasks.json` (`Ctrl+Shift+P` → `task: spawn`):
-
-- **Start SpacetimeDB**: `spacetime start`
-- **Publish spacetime module**: `sh -lc '. .env/.env.stalwart-jmap && spacetime publish -p server kommunikation'`
-- **Start Dioxus (Admin)**: `dx serve --package admin --platform web`
-- **Start Sender**: `sh -lc '. .env/.env.webhook-proxy && cargo run --package sender'`
-- **Start Grafana**: `podman-compose up` (inside `grafana/`)
-- **Serve Docs**: `mdbook serve docs --port 3022`
-
-### Using the Command Line
+Use the Zed tasks or run the commands individually:
 
 ```bash
-# 1. Start SpacetimeDB
 spacetime start
-
-# 2. Publish the module
 spacetime publish --project-path server kommunikation
-
-# 3. Launch Admin Web UI
 dx serve --package admin --platform web
-
-# 4. Run the Sender Daemon
-sh -lc '. .env/.env.sender && cargo run --package sender'
+mdbook serve docs --port 3022
 ```
+
+The JMAP dispatcher is disabled unless `JMAP_DISPATCH_ENABLED=true` is configured for the SpacetimeDB module. Keep it disabled until the Stalwart JMAP credentials and the current delivery queue state have been checked. See [Outbound Delivery](../core/outbound-delivery.md).

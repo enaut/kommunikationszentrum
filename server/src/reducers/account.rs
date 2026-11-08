@@ -1103,60 +1103,6 @@ pub fn remove_account_email(ctx: &ReducerContext, account_email_id: u64) -> Resu
 }
 
 #[spacetimedb::reducer]
-pub fn claim_system_mail(
-    ctx: &ReducerContext,
-    mail_id: u64,
-    instance_id: String,
-) -> Result<(), String> {
-    if !is_admin_user(ctx) {
-        return Err("Unauthorized".into());
-    }
-    let mut mail = ctx
-        .db
-        .system_mail_pending()
-        .id()
-        .find(&mail_id)
-        .ok_or_else(|| format!("System mail {} not found", mail_id))?;
-
-    let lease_duration = spacetimedb::TimeDuration::from_micros(300 * 1_000_000);
-    if let (Some(claimed_instance), Some(claimed_time)) = (&mail.instance_id, mail.claimed_at) {
-        if ctx.timestamp < claimed_time + lease_duration && claimed_instance != &instance_id {
-            return Err(format!(
-                "System mail {} is already claimed by instance {}",
-                mail_id, claimed_instance
-            ));
-        }
-    }
-
-    mail.instance_id = Some(instance_id);
-    mail.claimed_at = Some(ctx.timestamp);
-    ctx.db.system_mail_pending().id().update(mail);
-    Ok(())
-}
-
-#[spacetimedb::reducer]
-pub fn release_system_mail(ctx: &ReducerContext, mail_id: u64) -> Result<(), String> {
-    if !is_admin_user(ctx) {
-        return Err("Unauthorized".into());
-    }
-    if let Some(mut mail) = ctx.db.system_mail_pending().id().find(&mail_id) {
-        mail.instance_id = None;
-        mail.claimed_at = None;
-        ctx.db.system_mail_pending().id().update(mail);
-    }
-    Ok(())
-}
-
-#[spacetimedb::reducer]
-pub fn complete_system_mail(ctx: &ReducerContext, mail_id: u64) -> Result<(), String> {
-    if !is_admin_user(ctx) {
-        return Err("Unauthorized".into());
-    }
-    ctx.db.system_mail_pending().id().delete(&mail_id);
-    Ok(())
-}
-
-#[spacetimedb::reducer]
 pub fn update_account_config(
     ctx: &ReducerContext,
     message_offset: Option<u32>,

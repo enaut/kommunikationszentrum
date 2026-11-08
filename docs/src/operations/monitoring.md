@@ -77,8 +77,8 @@ SpacetimeDB records per-topic admission outcomes and message deliveries:
 | Table | Stage | Content |
 |---|---|---|
 | `received_message` | `DATA` | Per-topic delivery attempt: `mail_message_id`, `topic_id`, `topic_email`, `received_at`, and admission `disposition` (`Accepted` or `Rejected(reason)`). |
-| `mail_ingress` | `DATA` | Inbound delivery queue for accepted messages waiting for fan-out processing by the sender daemon. |
-| `system_mail_pending` | `DATA` | Outbound system notifications (such as rejection notices explaining why an email was rejected). |
+| `mail_ingress` | `DATA` | Accepted inbound messages awaiting fan-out by the scheduled SpacetimeDB JMAP pipeline. |
+| `system_mail_pending` | `DATA` | System notifications (such as rejection notices) awaiting scheduled JMAP delivery. |
 
 ### Inspecting Messages & Ingress via CLI
 

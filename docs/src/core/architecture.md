@@ -1,53 +1,44 @@
 # Architecture
 
-The Kommunikationszentrum is built from project-owned runtime services and external infrastructure. The canonical state lives in SpacetimeDB, while Django and Stalwart provide the identities and mail transport layer that the module integrates with.
+Kommunikationszentrum stores canonical account, topic, subscription, mail, and delivery state in SpacetimeDB. Django provides identity and user synchronization, Stalwart provides inbound mail handling and JMAP mail services, and the Dioxus application provides member and administrator interfaces.
 
-## System Overview
+### System Overview
 
 ```d2
 {{#include architecture-overview.d2}}
 ```
 
-## Data Flow
+### Data Flow
 
 ```d2
 {{#include architecture-data-flow.d2}}
 ```
 
-**Current flow:**
-- **1: Inbound mail** – Stalwart posts MTA hook data to SpacetimeDB, which normalizes the message and validates topic, account, and recipient state.
-- **2: Identity sync** – Django pushes user, topic, category, and subscription data into the module so the canonical membership model stays current.
-- **3: Domain and mailbox state** – Stalwart domain records and topic mailbox metadata are synchronized into the module to keep list addressing and credentials aligned.
-- **4: Outbound delivery** – The `sender` daemon claims pending deliveries, sends them over SMTP, and tracks transient failures for automatic retry.
-- **5: Admin and member access** – The Dioxus UI reads scoped views from SpacetimeDB and updates state through reducer calls.
+### Current flow
 
-## Components
+1. Stalwart sends MTA hook requests to the SpacetimeDB module, which evaluates topic admission and records accepted ingress.
+2. Django synchronizes account, topic, category, and subscription data.
+3. Stalwart domain and mailbox metadata is synchronized with the module.
+4. A scheduled procedure in the SpacetimeDB module fans out accepted messages and submits recipient-specific mail through Stalwart JMAP. Durable state supports retries and status reporting.
+5. The Dioxus interface reads scoped views and calls reducers for member and administrator workflows.
 
-### SpacetimeDB Server (crate: `server`)
-- Canonical database for accounts, topics, categories, subscriptions, domains, and delivery state
-- Reducers and HTTP handlers for user/topic sync, MTA hooks, and admin workflows
-- Scoped views that restrict data based on admin or member identity
-- Temporary retry scheduling and delivery-lease recovery for SMTP resilience
+### Components
 
-### Admin Web Interface (crate: `admin`)
-- Dioxus WebAssembly frontend for member and admin workflows
-- OAuth login against Django and real-time updates from SpacetimeDB
-- Management of subscriptions, topics, categories, domains, and SMTP app-password metadata
+#### SpacetimeDB Server (`server`)
 
-### Sender Daemon (crate: `sender`)
-- Claims pending fan-out work from SpacetimeDB
-- Sends outbound mail through the configured SMTP path or relay
-- Tracks retry attempts, lease expiry, and final delivery states
+- Canonical database for accounts, topics, categories, subscriptions, domains, and delivery state.
+- Reducers, procedures, scheduled jobs, and HTTP handlers for user/topic sync, MTA hooks, JMAP delivery, and administration.
+- Scoped views for member and administrator access.
 
-### External Dependencies
-- **Django solawispielplatz**: identity provider, user sync, and OAuth flow
-- **Stalwart MTA**: inbound mail processing, domain inventory, and mailbox provisioning
-- **Outbound SMTP relay**: external mail delivery path when the system sends to non-local recipients
+#### Admin Web Interface (`admin`)
 
-## Authentication Flow
+- Dioxus WebAssembly frontend for member and administrator workflows.
+- OAuth login and real-time SpacetimeDB subscriptions.
+- Subscription, topic, category, domain, and delivery-status management.
 
-```d2
-{{#include architecture-auth-flow.d2}}
-```
+#### External integrations
 
-The system uses OAuth 2.0 with Django as the identity provider. JWT-bearing clients connect to SpacetimeDB through authenticated WebSocket and HTTP requests, while the module keeps admin-only views and reducer paths restricted to verified identities.
+- **Django solawispielplatz**: identity provider, user synchronization, and OAuth flow.
+- **Stalwart MTA**: inbound mail processing, domain inventory, mailbox provisioning, and JMAP mail submission.
+
+For delivery state, migration behavior, and configuration, see [Outbound Delivery](./outbound-delivery.md).

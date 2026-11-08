@@ -657,7 +657,7 @@ fn DeliveryDetailModal(
                                         }
                                     }
                                     div { class: "small text-muted text-break",
-                                        {tid!("status-jmap-event-actor", actor : event.actor.to_string())}
+                                        {tid!("status-jmap-event-actor", actor : format!("{:?}", event.actor))}
                                     }
                                 }
                             }
@@ -726,7 +726,7 @@ fn DeliveryEventsCard(rows: Vec<JmapMailDeliveryEvent>) -> Element {
                                             }
                                             td {
                                                 small { class: "text-muted text-break",
-                                                    {event.actor.to_string()}
+                                                    {format!("{:?}", event.actor)}
                                                 }
                                             }
                                             td {

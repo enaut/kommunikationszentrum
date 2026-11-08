@@ -17,7 +17,6 @@ It could make sense to create local zed tasks to start spacetimedb and solawis i
 Some zed-editor tasks are defined in the project settings:
 
 1. "Publish spacetime module"
-1. "Start Sender" (Starting the email sender that interacts with stalwart and spacetimedb)
 1. "Start Grafana" (Starting Grafana for log reading)
 1. "Start Dioxus" (Starting the admin interface)
 1. "Serve Docs" (Optional to read the docs)
@@ -37,7 +36,7 @@ The system is organized around four cooperating layers:
 - An **OIDC Provider** (Nextcloud, Keycloak, Authentik, or Django) provides user identity and authentication via OAuth 2.0 / OpenID Connect.
 - **Stalwart** owns the mail transfer layer, domain inventory, and mailbox provisioning.
 - **SpacetimeDB** stores the canonical routing state, accounts, subscriptions, and delivery pipeline.
-- The **sender daemon** claims outbound work, sends mail, and retries transient SMTP failures.
+- **SpacetimeDB** runs the scheduled JMAP delivery pipeline, including recipient fan-out, submission, and retry handling.
 
 ```mermaid
 graph TD
@@ -45,28 +44,21 @@ graph TD
     DB["SpacetimeDB<br/>Database + reducers<br/>Port 3000"]
     OIDC["OIDC Provider<br/>Nextcloud / Keycloak / Django<br/>Port 8000 / 443"]
     Stalwart["Stalwart MTA<br/>SMTP + JMAP + domains"]
-    Sender["Sender Daemon<br/>delivery + retry queue"]
-    Queue["Temporary failure queue"]
-    Relay["Outbound SMTP relay"]
+
 
     Admin <--> DB
     Admin --> OIDC
     OIDC -. Optional sync .-> DB
     Stalwart --> DB
     Stalwart <--> DB
-    DB --> Sender
-    Sender --> Queue
-    Queue --> Sender
-    Sender --> Stalwart
-    Sender --> Relay
+    DB --> Stalwart
 ```
 
 ### Components
 
 1. **SpacetimeDB Server** (`/server`): canonical state for accounts, topics, categories, subscriptions, domains, and delivery jobs
 2. **Admin Web Interface** (`/admin`): Dioxus frontend for member and admin workflows
-3. **Sender Daemon** (`/sender`): SMTP delivery worker with retry, lease expiry, and queue recovery
-4. **External integrations**: Django OAuth/user sync and Stalwart MTA/domain management
+3. **External integrations**: Django OAuth/user sync and Stalwart MTA/domain management
 
 ## Manual Setup
 
