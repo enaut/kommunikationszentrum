@@ -21,14 +21,7 @@ cp -r profiles/example profiles/my-org
 
 ### 2. Selecting a Profile at Build Time
 
-Both `admin/build.rs` and `server/build.rs` resolve the profile configuration using the following environment variables:
-
-| Variable | Description | Default |
-|---|---|---|
-| `APP_PROFILE` | Name of the profile directory in `profiles/` (e.g. `my-org`) | `"example"` |
-| `APP_CONFIG_PATH` | Explicit path to a profile directory or profile TOML file (relative to the component manifest directory or absolute) | _(none)_ |
-
-If neither variable is specified, the build system defaults to `profiles/example`.
+Both `admin/build.rs` and `server/build.rs` resolve the profile configuration using `APP_PROFILE`, the name of the profile directory in `profiles/` (for example, `my-org`). If it is unset or empty, the build system defaults to `profiles/example`.
 
 #### Building the Admin Interface with a Profile
 

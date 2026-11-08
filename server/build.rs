@@ -34,23 +34,6 @@ struct BrandConfig {
 }
 
 fn resolve_profile_dir(manifest_dir: &Path) -> (String, PathBuf) {
-    if let Ok(path_str) = env::var("APP_CONFIG_PATH") {
-        if !path_str.trim().is_empty() {
-            let path = PathBuf::from(&path_str);
-            let path = if path.is_absolute() {
-                path
-            } else {
-                manifest_dir.join(path)
-            };
-            let dir = if path.is_dir() {
-                path
-            } else {
-                path.parent().unwrap_or(&path).to_path_buf()
-            };
-            return (path_str, dir);
-        }
-    }
-
     let profile = env::var("APP_PROFILE")
         .unwrap_or_else(|_| "example".to_string())
         .trim()
@@ -68,7 +51,6 @@ fn resolve_profile_dir(manifest_dir: &Path) -> (String, PathBuf) {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=APP_PROFILE");
-    println!("cargo:rerun-if-env-changed=APP_CONFIG_PATH");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let (profile_name, profile_dir) = resolve_profile_dir(&manifest_dir);

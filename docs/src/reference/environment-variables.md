@@ -10,11 +10,6 @@ The Admin frontend and SpacetimeDB module use build-time application profiles. T
 - **Used by**: `admin/build.rs`, `server/build.rs`, and `scripts/publish_spacetime.py`
 - **Description**: Selects `profiles/<name>/profile.toml` for build-time configuration.
 
-#### `APP_CONFIG_PATH`
-
-- **Default**: none
-- **Used by**: `admin/build.rs`, `server/build.rs`
-- **Description**: Overrides profile selection with a TOML file or profile directory path.
 
 ### SpacetimeDB module environment
 
