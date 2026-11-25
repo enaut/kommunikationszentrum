@@ -27,6 +27,8 @@ pub struct UserSyncData {
     #[serde(default)]
     pub topics: Vec<crate::models::topic::TopicSyncData>,
     #[serde(default)]
+    pub groups: Vec<String>,
+    #[serde(default)]
     pub unsubscribe_topic_emails: Vec<String>,
     #[serde(default)]
     pub emails: Vec<SyncedEmail>,
@@ -677,6 +679,19 @@ pub(crate) fn do_sync_user(
                             e
                         );
                     }
+                }
+
+                if let Err(e) = crate::reducers::topics::do_subscribe_to_matching_active_topics(
+                    ctx,
+                    final_account_id,
+                    primary_email_id,
+                    &data.groups,
+                ) {
+                    log::error!(
+                        "Failed to add group-based subscriptions for account {}: {}",
+                        data.external_id,
+                        e
+                    );
                 }
 
                 for topic_email in data.unsubscribe_topic_emails {
@@ -1377,6 +1392,7 @@ mod tests {
                     "categories": ["Verteilpunkt"]
                 }
             ],
+            "groups": ["2026b", "gardeners"],
             "unsubscribe_topic_emails": ["vp-nord@solawi.org"]
         }"#;
 
@@ -1395,6 +1411,7 @@ mod tests {
             data.topics[0].categories,
             Some(vec!["Verteilpunkt".to_string()])
         );
+        assert_eq!(data.groups, vec!["2026b", "gardeners"]);
         assert_eq!(
             data.unsubscribe_topic_emails,
             vec!["vp-nord@solawi.org".to_string()]

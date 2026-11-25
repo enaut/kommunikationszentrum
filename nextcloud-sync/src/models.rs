@@ -19,6 +19,8 @@ pub struct UserSyncPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_admin: Option<bool>,
     pub emails: Vec<SyncedEmail>,
+    #[serde(default)]
+    pub groups: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +42,7 @@ pub struct OcsUserDetails {
     pub email: Option<String>,
     pub notify_email: Option<String>,
     pub additional_mail: Option<Vec<String>>,
+    pub groups: Vec<String>,
     pub enabled: bool,
 }
 
@@ -99,6 +102,10 @@ impl OcsUserDetails {
                 _ => None,
             });
 
+        let groups = map
+            .remove("groups")
+            .map(parse_string_list)
+            .unwrap_or_default();
         let enabled = map.remove("enabled").map(parse_bool).unwrap_or(true);
 
         Ok(Self {
@@ -107,6 +114,7 @@ impl OcsUserDetails {
             email,
             notify_email,
             additional_mail,
+            groups,
             enabled,
         })
     }
@@ -119,6 +127,32 @@ impl<'de> Deserialize<'de> for OcsUserDetails {
     {
         let val = serde_json::Value::deserialize(deserializer)?;
         Self::from_json_value(val).map_err(de::Error::custom)
+    }
+}
+
+fn parse_string_list(value: serde_json::Value) -> Vec<String> {
+    match value {
+        serde_json::Value::Array(items) => items
+            .into_iter()
+            .filter_map(|item| match item {
+                serde_json::Value::String(value) => {
+                    let value = value.trim();
+                    (!value.is_empty()).then(|| value.to_string())
+                }
+                _ => None,
+            })
+            .collect(),
+        serde_json::Value::Object(mut object) => object
+            .remove("element")
+            .map(parse_string_list)
+            .unwrap_or_default(),
+        serde_json::Value::String(value) => {
+            let value = value.trim();
+            (!value.is_empty())
+                .then(|| vec![value.to_string()])
+                .unwrap_or_default()
+        }
+        _ => Vec::new(),
     }
 }
 
@@ -282,6 +316,7 @@ pub fn map_ocs_user_to_upsert(user: OcsUserDetails) -> Option<UserSyncRequest> {
                 is_primary: true,
                 is_verified: true, // Nextcloud accounts are considered verified
             }],
+            groups: user.groups,
         },
     })
 }
@@ -295,6 +330,7 @@ pub fn map_uid_to_delete(uid: &str) -> UserSyncRequest {
             is_active: None,
             is_admin: None,
             emails: vec![],
+            groups: vec![],
         },
     }
 }
@@ -311,6 +347,7 @@ mod tests {
             email: Some("alice@example.com".to_string()),
             notify_email: None,
             additional_mail: None,
+            groups: vec!["2026b".to_string()],
             enabled: true,
         };
 
@@ -324,6 +361,7 @@ mod tests {
         assert_eq!(req.user.emails[0].email, "alice@example.com");
         assert!(req.user.emails[0].is_primary);
         assert!(req.user.emails[0].is_verified);
+        assert_eq!(req.user.groups, vec!["2026b"]);
     }
 
     #[test]
@@ -334,6 +372,7 @@ mod tests {
             email: None,
             notify_email: Some("bob_notify@example.com".to_string()),
             additional_mail: Some(vec!["bob_add@example.com".to_string()]),
+            groups: vec![],
             enabled: true,
         };
         let req = map_ocs_user_to_upsert(ocs_user).expect("Should resolve notify_email");
@@ -345,6 +384,7 @@ mod tests {
             email: None,
             notify_email: None,
             additional_mail: Some(vec!["charlie@example.com".to_string()]),
+            groups: vec![],
             enabled: true,
         };
         let req2 =
@@ -360,6 +400,7 @@ mod tests {
             email: None,
             notify_email: None,
             additional_mail: None,
+            groups: vec![],
             enabled: true,
         };
         assert!(map_ocs_user_to_upsert(ocs_user).is_none());
@@ -370,6 +411,7 @@ mod tests {
             email: Some("   ".to_string()),
             notify_email: None,
             additional_mail: None,
+            groups: vec![],
             enabled: true,
         };
         assert!(map_ocs_user_to_upsert(ocs_user_empty_email).is_none());
@@ -402,7 +444,8 @@ mod tests {
                             "additional_mail": [],
                             "displayname": "Yannic Hils",
                             "display-name": "Yannic Hils",
-                            "notify_email": null
+                            "notify_email": null,
+                            "groups": ["2026b", "gardeners"]
                         }
                     }
                 }
@@ -418,6 +461,7 @@ mod tests {
         assert_eq!(u.displayname.as_deref(), Some("Yannic Hils"));
         assert_eq!(u.email.as_deref(), Some("2012puppa@googlemail.com"));
         assert!(!u.enabled);
+        assert_eq!(u.groups, vec!["2026b", "gardeners"]);
     }
 
     #[test]
@@ -435,6 +479,7 @@ mod tests {
                             "id": "alice",
                             "displayname": "Alice W",
                             "email": "alice@example.com",
+                            "groups": {"element": ["2026b"]},
                             "enabled": true
                         },
                         "bob": {
@@ -453,6 +498,7 @@ mod tests {
         assert_eq!(res.ocs.meta.statuscode, 200);
         let users = res.ocs.data.unwrap().users;
         assert_eq!(users.len(), 2);
+        assert_eq!(users[0].groups, vec!["2026b"]);
     }
 
     #[test]

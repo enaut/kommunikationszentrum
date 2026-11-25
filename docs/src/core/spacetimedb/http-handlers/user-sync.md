@@ -1,6 +1,6 @@
 # User Synchronisation
 
-The user-sync endpoint allows the Django `solawispielplatz` backend to keep SpacetimeDB account data in sync with the canonical user store. Requests are authenticated with a bearer token carrying the `sync-user` permission (see [Managing Webhook Tokens / Token Generation](../module-publishing.md#managing-webhook-tokens)).
+The user-sync endpoint allows external identity integrations such as the Django `solawispielplatz` backend and the Nextcloud `nextcloud-sync` daemon to keep SpacetimeDB account data in sync with their canonical user stores. Requests are authenticated with a bearer token carrying the `sync-user` permission (see [Managing Webhook Tokens / Token Generation](../module-publishing.md#managing-webhook-tokens)).
 
 ---
 
@@ -47,6 +47,7 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
         "is_verified": true
       }
     ],
+    "groups": ["2026b"],
     "topics": [
       {
         "name": "VP Reyerhof",
@@ -74,6 +75,7 @@ SPACETIME_SYNC_URL = "http://localhost:3000/v1/database/kommunikation/route/user
 | `user.is_active` | ✓ | Account active flag. |
 | `user.is_admin` | — | Grants admin privileges when `true`, revokes when `false`. If omitted or `null`, existing admin privileges remain untouched. |
 | `user.emails` | ✓ (upsert) | Array of email objects (`email`, `is_primary`, `is_verified`). Upsert requires exactly one email with `is_primary: true`. Synchronized under `EmailSource::ExternalSync` with the declared `is_verified` status. |
+| `user.groups` | — | External group names. Each group adds an automatic subscription when it uniquely matches, case-insensitively, the local part of an active existing topic address; the address domain is ignored. Missing or ambiguous matches are skipped. This field does not create topics or unsubscribe users when they leave a group, and existing manual subscription states are preserved. |
 | `user.topics` | — | Mailing-list topics the account should be subscribed to. Each entry is created in `message_topics` if missing. Subscriptions are created or activated. May specify `categories` (e.g. `["Verteilpunkt"]`) and `default_permission` (`"read"` or `"write"`). |
 | `user.unsubscribe_topic_emails` | — | Email addresses of topics whose subscription should be deactivated for this account. Deactivates all active subscriptions of that account for the topic. |
 
