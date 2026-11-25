@@ -1,5 +1,6 @@
-use log::{error, info};
+use log::{error, info, warn};
 use spacetimedb::{ReducerContext, Table, Timestamp};
+use std::collections::HashSet;
 
 use crate::common::auth::{
     is_admin_identity, is_admin_or_topic_moderator, is_admin_user, is_topic_moderator,
@@ -308,13 +309,84 @@ pub(crate) fn do_add_subscription(
             .ok_or_else(|| "Subscription insert failed".to_string())?
     };
 
-    let token = upsert_subscription_unsubscribe_token(ctx, subscription.id);
+    upsert_subscription_unsubscribe_token(ctx, subscription.id);
     log::info!(
-        "Added subscription for account {} (token: {})",
-        subscriber_account_id,
-        token
+        "Added subscription for account {} (unsubscribe token updated)",
+        subscriber_account_id
     );
     Ok(subscription)
+}
+
+fn matching_active_topics_for_group<'a>(
+    group_name: &str,
+    topics: &'a [MessageTopic],
+) -> Vec<&'a MessageTopic> {
+    let normalized_group = group_name.trim().to_lowercase();
+    if normalized_group.is_empty() {
+        return Vec::new();
+    }
+
+    topics
+        .iter()
+        .filter(|topic| {
+            topic.active
+                && topic
+                    .email_address
+                    .split_once('@')
+                    .is_some_and(|(local_part, _)| local_part.to_lowercase() == normalized_group)
+        })
+        .collect()
+}
+
+/// Adds automatic subscriptions for Nextcloud groups that uniquely match the
+/// local part of an active existing topic address. The address domain is
+/// intentionally ignored; missing or ambiguous matches are skipped.
+pub(crate) fn do_subscribe_to_matching_active_topics(
+    ctx: &ReducerContext,
+    subscriber_account_id: u64,
+    account_email_id: u64,
+    group_names: &[String],
+) -> Result<(), String> {
+    let active_topics: Vec<MessageTopic> = ctx.db.message_topics().iter().collect();
+    let mut seen_groups = HashSet::new();
+
+    for group_name in group_names {
+        let normalized_group = group_name.trim().to_lowercase();
+        if normalized_group.is_empty() || !seen_groups.insert(normalized_group) {
+            continue;
+        }
+
+        let matches = matching_active_topics_for_group(group_name, &active_topics);
+        match matches.as_slice() {
+            [] => {}
+            [topic] => {
+                do_add_subscription(
+                    ctx,
+                    subscriber_account_id,
+                    account_email_id,
+                    topic.id,
+                    SubscriptionStatus::AutomaticallySubscribed,
+                    false,
+                )?;
+                info!(
+                    "Added automatic subscription for account {} from Nextcloud group '{}' to topic '{}'",
+                    subscriber_account_id, group_name, topic.email_address
+                );
+            }
+            _ => {
+                let addresses: Vec<&str> = matches
+                    .iter()
+                    .map(|topic| topic.email_address.as_str())
+                    .collect();
+                warn!(
+                    "Skipping Nextcloud group '{}' with ambiguous active topic matches: {:?}",
+                    group_name, addresses
+                );
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[spacetimedb::reducer]
@@ -1046,6 +1118,48 @@ pub fn provision_all_unprovisioned_topics(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_topic(email_address: &str, active: bool) -> MessageTopic {
+        MessageTopic {
+            id: 1,
+            name: email_address.to_string(),
+            email_address: email_address.to_string(),
+            description: String::new(),
+            active,
+            visibility: TopicVisibility::Public,
+            app_password_id: None,
+            default_permission: SubscriptionPermission::Read,
+            locked_is_provisioning: false,
+        }
+    }
+
+    #[test]
+    fn test_group_match_uses_case_insensitive_local_part_and_active_topics() {
+        let topics = vec![
+            test_topic("2026B@example.org", true),
+            test_topic("gardeners@example.org", true),
+            test_topic("2026b@inactive.example.org", false),
+        ];
+
+        let matches = matching_active_topics_for_group("2026b", &topics);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].email_address, "2026B@example.org");
+        assert!(matching_active_topics_for_group("2026", &topics).is_empty());
+        assert_eq!(
+            matching_active_topics_for_group(" gardeners ", &topics).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_group_match_is_ambiguous_across_active_domains() {
+        let topics = vec![
+            test_topic("2026b@example.org", true),
+            test_topic("2026b@lists.example.net", true),
+        ];
+
+        assert_eq!(matching_active_topics_for_group("2026b", &topics).len(), 2);
+    }
 
     #[test]
     fn test_admin_permission_updates() {

@@ -1,0 +1,11 @@
+direction: right
+
+nextcloud: "Nextcloud"
+php_trigger: "PHP trigger app\nkommunikationszentrum_sync"
+rust_sync: "Rust daemon\nnextcloud-sync"
+spacetimedb: "Kommunikationszentrum\nSpacetimeDB"
+
+nextcloud -> php_trigger: "User lifecycle events"
+php_trigger -> rust_sync: "Webhook with event and UID"
+rust_sync -> nextcloud: "OCS API: user details and groups"
+rust_sync -> spacetimedb: "HTTP POST /user-sync"

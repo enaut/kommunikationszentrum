@@ -1,6 +1,6 @@
 # Nextcloud User Synchronization Service (`nextcloud-sync`)
 
-The `nextcloud-sync` service synchronizes user accounts one-way from Nextcloud to Kommunikationszentrum.
+The Nextcloud integration uses two components: the PHP app `kommunikationszentrum_sync` listens for Nextcloud user lifecycle events, and the Rust `nextcloud-sync` daemon receives its webhooks, reads user details from the OCS API, and synchronizes them to Kommunikationszentrum.
 
 It enables administrators to pre-provision users and subscribe them to mailing list topics **before** they have logged in for the first time. When the user later logs in via OIDC, Kommunikationszentrum links the account using the matching `external_id == sub` (the Nextcloud username / UID).
 
@@ -8,17 +8,16 @@ It enables administrators to pre-provision users and subscribe them to mailing l
 
 ## Architecture Overview
 
-```mermaid
-flowchart LR
-    NC[Nextcloud] -->|Webhook: User Events| NS[nextcloud-sync Service]
-    NS -->|OCS REST API: GET user| NC
-    NS -->|HTTP POST /user-sync Bearer Token| KZ[Kommunikationszentrum Server\nSpacetimeDB HTTP Route]
+```d2
+{{#include nextcloud-sync-flow.d2}}
 ```
 
-1. **Push (Webhooks):** Nextcloud sends real-time webhook events (user created, changed, deleted).
-2. **Pull (OCS REST API):** The service fetches user details (display name, email, enabled status) from Nextcloud's OCS Provisioning API (`/ocs/v2.php/cloud/users/{uid}`).
-3. **Upsert / Delete:** The service posts the normalized user data to the SpacetimeDB `user-sync` HTTP route using a webhook bearer token with `sync-user` permission.
-4. **Reconciler / Eventual Consistency:** Upon startup and periodically (e.g. every 6 hours), the service pages through all Nextcloud users to ensure complete synchronization and heal any missed events. At the conclusion of each run, it posts the list of active Nextcloud user IDs to `POST /user-sync-reconcile`. SpacetimeDB performs a single-transaction diff: accounts deleted from Nextcloud are soft-deleted (`is_active = false, is_deleted_from_idp = true`, revoking admin access while preserving email subscriptions) and accounts restored in Nextcloud are automatically reactivated. Circuit breakers (Zero-User Abort and a 50% deletion threshold guard) prevent accidental database wipeouts on upstream failures.
+1. **Nextcloud events:** The PHP app registers listeners for `UserCreatedEvent`, `UserChangedEvent`, `UserUpdatedEvent`, and `UserDeletedEvent`. It sends the event name and user ID to the Rust service; the PHP app does not send the full user record.
+2. **OCS lookup:** For event-triggered syncs, the Rust service fetches user details from `/ocs/v2.php/cloud/users/{uid}`. The response includes the user's group memberships.
+3. **Upsert / Delete:** The Rust service posts normalized user data, including group names on an upsert, to the SpacetimeDB `user-sync` HTTP route using a bearer token with `sync-user` permission.
+4. **Reconciliation:** On startup and periodically (every 6 hours by default), the Rust service pages through `/ocs/v2.php/cloud/users/details`. This refreshes user details and group memberships even if a corresponding event was missed. At the end of each run, it posts active Nextcloud user IDs to `POST /user-sync-reconcile`. SpacetimeDB performs a single-transaction diff: accounts deleted from Nextcloud are soft-deleted (`is_active = false, is_deleted_from_idp = true`, revoking admin access while preserving email subscriptions), and restored accounts are reactivated. Zero-user and deletion-threshold guards help prevent accidental deactivation after an incomplete upstream response.
+
+**Group-based subscriptions:** Each Nextcloud group adds a subscription when its name matches, case-insensitively, the local part of exactly one active existing topic address; the domain is ignored. For example, `2026B` matches `2026b@lists.example.org`. Groups with no active match are ignored. If multiple active topics share the matching local part, the group is skipped and the ambiguity is logged. This path does not create or provision topics, does not unsubscribe users who leave a group, and preserves existing manual subscription states, including manual and link-based unsubscribes.
 
 ---
 
@@ -64,7 +63,7 @@ NC_WEBHOOK_SECRET=$(openssl rand -hex 32)
 echo "Generated webhook secret: $NC_WEBHOOK_SECRET"
 ```
 
-Save this value: it must be used identically when registering the webhook listeners below and in `/etc/kommunikationszentrum/nextcloud-sync.env`.
+Save this value: it must be used identically in the PHP app's webhook configuration and `/etc/kommunikationszentrum/nextcloud-sync.env`.
 
 ### 4. Nextcloud Trigger App (`kommunikationszentrum_sync`)
 Because Nextcloud core does not dispatch user lifecycle events over generic webhook apps, use the included `kommunikationszentrum_sync` app:
@@ -89,7 +88,7 @@ Because Nextcloud core does not dispatch user lifecycle events over generic webh
    occ config:app:set kommunikationszentrum_sync webhook_secret --value="$NC_WEBHOOK_SECRET"
    ```
 
-The app hooks into Nextcloud's `UserCreatedEvent`, `UserChangedEvent`, `UserUpdatedEvent`, and `UserDeletedEvent`, instantly notifying `nextcloud-sync` when user lifecycle operations occur.
+The PHP app hooks into Nextcloud's `UserCreatedEvent`, `UserChangedEvent`, `UserUpdatedEvent`, and `UserDeletedEvent`. It sends only a lightweight event and user ID to the Rust `nextcloud-sync` daemon, which then fetches the complete user details through OCS. The Rust daemon is a required part of this integration; the PHP app provides the Nextcloud event listeners, not the SpacetimeDB sync itself.
 
 > [!TIP]
 > **Fedora / RHEL (SELinux):** If PHP-FPM or Apache cannot reach the local webhook service, ensure SELinux allows the web server to make network connections:
