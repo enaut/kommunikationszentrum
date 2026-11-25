@@ -347,6 +347,10 @@ pub(crate) fn do_subscribe_to_matching_active_topics(
     account_email_id: u64,
     group_names: &[String],
 ) -> Result<(), String> {
+    if group_names.is_empty() {
+        return Ok(());
+    }
+
     let active_topics: Vec<MessageTopic> = ctx.db.message_topics().iter().collect();
     let mut seen_groups = HashSet::new();
 
